@@ -1,0 +1,2093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AnyVision Media — AI-Powered Transformation for Your Business. We design, build, and deploy AI solutions that drive real results.">
+    <title>AnyVision Media — AI Consulting & Integration</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================
+           RESET & BASE
+           ============================================ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            font-size: 16px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: #0A0F1C;
+            background-color: #FAFBFC;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        ul {
+            list-style: none;
+        }
+
+        img {
+            max-width: 100%;
+            display: block;
+        }
+
+        button, input, textarea {
+            font-family: inherit;
+            font-size: inherit;
+            border: none;
+            outline: none;
+            background: none;
+        }
+
+        /* Focus visible for accessibility */
+        :focus-visible {
+            outline: 2px solid #6C63FF;
+            outline-offset: 3px;
+            border-radius: 4px;
+        }
+
+        /* ============================================
+           UTILITIES
+           ============================================ */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .section-label {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #6C63FF;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.03em;
+            color: #0A0F1C;
+            margin-bottom: 20px;
+        }
+
+        .section-subtitle {
+            font-size: 1.125rem;
+            font-weight: 300;
+            line-height: 1.7;
+            color: #5A6175;
+            max-width: 560px;
+        }
+
+        .divider {
+            width: 100%;
+            height: 1px;
+            background: #E8EAF0;
+            border: none;
+        }
+
+        /* Scroll animation base */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                        transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .reveal-delay-1 { transition-delay: 0.1s; }
+        .reveal-delay-2 { transition-delay: 0.2s; }
+        .reveal-delay-3 { transition-delay: 0.3s; }
+        .reveal-delay-4 { transition-delay: 0.4s; }
+        .reveal-delay-5 { transition-delay: 0.5s; }
+
+        /* ============================================
+           NAVIGATION
+           ============================================ */
+        .nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(250, 251, 252, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(232, 234, 240, 0.6);
+            transition: box-shadow 0.3s ease;
+        }
+
+        .nav.scrolled {
+            box-shadow: 0 1px 20px rgba(10, 15, 28, 0.06);
+        }
+
+        .nav-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 72px;
+        }
+
+        .nav-logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #0A0F1C;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-logo svg {
+            flex-shrink: 0;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 36px;
+        }
+
+        .nav-links a {
+            font-size: 0.875rem;
+            font-weight: 400;
+            color: #5A6175;
+            transition: color 0.2s ease;
+            position: relative;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 1.5px;
+            background: #6C63FF;
+            transition: width 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: #0A0F1C;
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .nav-cta {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #FFFFFF !important;
+            background: #0A0F1C;
+            padding: 10px 24px;
+            border-radius: 8px;
+            transition: background 0.2s ease, transform 0.2s ease;
+            cursor: pointer;
+        }
+
+        .nav-cta:hover {
+            background: #1a2035;
+            transform: translateY(-1px);
+        }
+
+        .nav-cta::after {
+            display: none !important;
+        }
+
+        /* Hamburger */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            padding: 8px;
+            background: none;
+            border: none;
+        }
+
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 1.5px;
+            background: #0A0F1C;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .hamburger.active span:nth-child(1) {
+            transform: translateY(6.5px) rotate(45deg);
+        }
+
+        .hamburger.active span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.active span:nth-child(3) {
+            transform: translateY(-6.5px) rotate(-45deg);
+        }
+
+        /* Mobile menu */
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: 72px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(250, 251, 252, 0.98);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 40px 24px;
+            z-index: 999;
+        }
+
+        .mobile-menu.open {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .mobile-menu a {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: 500;
+            color: #0A0F1C;
+            padding: 20px 0;
+            border-bottom: 1px solid #E8EAF0;
+            transition: color 0.2s ease;
+        }
+
+        .mobile-menu a:hover {
+            color: #6C63FF;
+        }
+
+        /* ============================================
+           HERO
+           ============================================ */
+        .hero {
+            padding: 180px 0 140px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-inner {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: center;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: #6C63FF;
+            background: rgba(108, 99, 255, 0.06);
+            padding: 8px 16px;
+            border-radius: 100px;
+            margin-bottom: 32px;
+            border: 1px solid rgba(108, 99, 255, 0.12);
+        }
+
+        .hero-badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #6C63FF;
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .hero h1 {
+            font-size: 4.25rem;
+            font-weight: 700;
+            line-height: 1.05;
+            letter-spacing: -0.04em;
+            color: #0A0F1C;
+            margin-bottom: 28px;
+        }
+
+        .hero h1 span {
+            color: #6C63FF;
+        }
+
+        .hero-sub {
+            font-size: 1.1875rem;
+            font-weight: 300;
+            line-height: 1.7;
+            color: #5A6175;
+            max-width: 480px;
+            margin-bottom: 44px;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: #FFFFFF;
+            background: #0A0F1C;
+            padding: 16px 32px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            background: #1a2035;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(10, 15, 28, 0.15);
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            color: #0A0F1C;
+            background: transparent;
+            padding: 16px 32px;
+            border-radius: 10px;
+            border: 1px solid #D4D7E0;
+            cursor: pointer;
+            transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            border-color: #0A0F1C;
+            transform: translateY(-2px);
+            background: rgba(10, 15, 28, 0.02);
+        }
+
+        /* Hero geometric visual */
+        .hero-visual {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 480px;
+        }
+
+        .hero-visual svg {
+            width: 100%;
+            max-width: 480px;
+            height: auto;
+        }
+
+        /* ============================================
+           SOCIAL PROOF / STATS
+           ============================================ */
+        .stats {
+            padding: 80px 0;
+            border-top: 1px solid #E8EAF0;
+            border-bottom: 1px solid #E8EAF0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 20px 24px;
+            position: relative;
+        }
+
+        .stat-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 1px;
+            height: 48px;
+            background: #E8EAF0;
+        }
+
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            color: #0A0F1C;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+
+        .stat-number span {
+            color: #6C63FF;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            font-weight: 400;
+            color: #8A90A0;
+            letter-spacing: 0.01em;
+        }
+
+        /* ============================================
+           SERVICES
+           ============================================ */
+        .services {
+            padding: 140px 0;
+        }
+
+        .services-header {
+            text-align: center;
+            margin-bottom: 72px;
+        }
+
+        .services-header .section-subtitle {
+            margin: 0 auto;
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .service-card {
+            background: #FFFFFF;
+            border: 1px solid #ECEDF2;
+            border-radius: 16px;
+            padding: 44px 36px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+            cursor: default;
+        }
+
+        .service-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 48px rgba(10, 15, 28, 0.06);
+            border-color: rgba(108, 99, 255, 0.2);
+        }
+
+        .service-icon {
+            width: 52px;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(108, 99, 255, 0.06);
+            border-radius: 14px;
+            margin-bottom: 28px;
+        }
+
+        .service-icon svg {
+            width: 24px;
+            height: 24px;
+            stroke: #6C63FF;
+            fill: none;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .service-card h3 {
+            font-size: 1.1875rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            color: #0A0F1C;
+            margin-bottom: 12px;
+        }
+
+        .service-card p {
+            font-size: 0.9375rem;
+            font-weight: 300;
+            line-height: 1.65;
+            color: #6B7280;
+        }
+
+        /* ============================================
+           HOW IT WORKS
+           ============================================ */
+        .process {
+            padding: 140px 0;
+            background: #FFFFFF;
+            border-top: 1px solid #E8EAF0;
+            border-bottom: 1px solid #E8EAF0;
+        }
+
+        .process-header {
+            text-align: center;
+            margin-bottom: 88px;
+        }
+
+        .process-header .section-subtitle {
+            margin: 0 auto;
+        }
+
+        .process-steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+            position: relative;
+        }
+
+        /* Connecting line */
+        .process-steps::before {
+            content: '';
+            position: absolute;
+            top: 36px;
+            left: calc(12.5% + 20px);
+            right: calc(12.5% + 20px);
+            height: 1px;
+            background: #E8EAF0;
+        }
+
+        .process-step {
+            text-align: center;
+            padding: 0 24px;
+            position: relative;
+        }
+
+        .step-number {
+            width: 72px;
+            height: 72px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 28px;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #6C63FF;
+            background: rgba(108, 99, 255, 0.06);
+            border: 1px solid rgba(108, 99, 255, 0.12);
+            border-radius: 50%;
+            position: relative;
+            z-index: 2;
+        }
+
+        .process-step h3 {
+            font-size: 1.1875rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            color: #0A0F1C;
+            margin-bottom: 12px;
+        }
+
+        .process-step p {
+            font-size: 0.9375rem;
+            font-weight: 300;
+            line-height: 1.65;
+            color: #6B7280;
+            max-width: 220px;
+            margin: 0 auto;
+        }
+
+        /* ============================================
+           RESULTS / CASE STUDIES
+           ============================================ */
+        .results {
+            padding: 140px 0;
+        }
+
+        .results-header {
+            text-align: center;
+            margin-bottom: 72px;
+        }
+
+        .results-header .section-subtitle {
+            margin: 0 auto;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .result-card {
+            background: #FFFFFF;
+            border: 1px solid #ECEDF2;
+            border-radius: 16px;
+            padding: 48px 36px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .result-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 48px rgba(10, 15, 28, 0.06);
+        }
+
+        .result-industry {
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: #6C63FF;
+            margin-bottom: 20px;
+        }
+
+        .result-metric {
+            font-size: 3.25rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            color: #0A0F1C;
+            line-height: 1.1;
+            margin-bottom: 8px;
+        }
+
+        .result-detail {
+            font-size: 1.0625rem;
+            font-weight: 500;
+            color: #0A0F1C;
+            margin-bottom: 16px;
+        }
+
+        .result-description {
+            font-size: 0.9375rem;
+            font-weight: 300;
+            line-height: 1.65;
+            color: #6B7280;
+        }
+
+        /* ============================================
+           TESTIMONIALS
+           ============================================ */
+        .testimonials {
+            padding: 140px 0;
+            background: #FFFFFF;
+            border-top: 1px solid #E8EAF0;
+            border-bottom: 1px solid #E8EAF0;
+        }
+
+        .testimonials-header {
+            text-align: center;
+            margin-bottom: 72px;
+        }
+
+        .testimonials-header .section-subtitle {
+            margin: 0 auto;
+        }
+
+        .testimonials-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .testimonial-card {
+            background: #FAFBFC;
+            border: 1px solid #ECEDF2;
+            border-radius: 16px;
+            padding: 44px 36px;
+        }
+
+        .testimonial-quote {
+            font-size: 1.0625rem;
+            font-weight: 300;
+            line-height: 1.75;
+            color: #3A3F50;
+            margin-bottom: 32px;
+            position: relative;
+        }
+
+        .testimonial-quote::before {
+            content: '';
+            display: block;
+            width: 32px;
+            height: 2px;
+            background: #6C63FF;
+            margin-bottom: 24px;
+        }
+
+        .testimonial-author {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .testimonial-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6C63FF 0%, #00D4AA 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #FFFFFF;
+            font-size: 1rem;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .testimonial-name {
+            font-size: 0.9375rem;
+            font-weight: 600;
+            color: #0A0F1C;
+            margin-bottom: 2px;
+        }
+
+        .testimonial-role {
+            font-size: 0.8125rem;
+            font-weight: 400;
+            color: #8A90A0;
+        }
+
+        /* ============================================
+           ABOUT
+           ============================================ */
+        .about {
+            padding: 140px 0;
+        }
+
+        .about-inner {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 80px;
+            align-items: start;
+        }
+
+        .about-content .section-title {
+            margin-bottom: 28px;
+        }
+
+        .about-text {
+            font-size: 1.0625rem;
+            font-weight: 300;
+            line-height: 1.8;
+            color: #5A6175;
+            margin-bottom: 20px;
+        }
+
+        .about-values {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-top: 48px;
+        }
+
+        .about-value {
+            padding: 28px 24px;
+            background: #FFFFFF;
+            border: 1px solid #ECEDF2;
+            border-radius: 12px;
+        }
+
+        .about-value h4 {
+            font-size: 0.9375rem;
+            font-weight: 600;
+            color: #0A0F1C;
+            margin-bottom: 8px;
+        }
+
+        .about-value p {
+            font-size: 0.8125rem;
+            font-weight: 300;
+            line-height: 1.65;
+            color: #6B7280;
+        }
+
+        .about-mission {
+            padding: 44px 36px;
+            background: #FFFFFF;
+            border: 1px solid #ECEDF2;
+            border-radius: 16px;
+            position: relative;
+        }
+
+        .about-mission::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 36px;
+            right: 36px;
+            height: 2px;
+            background: linear-gradient(90deg, #6C63FF, #00D4AA);
+            border-radius: 2px;
+        }
+
+        .about-mission h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #0A0F1C;
+            margin-bottom: 16px;
+            margin-top: 12px;
+        }
+
+        .about-mission p {
+            font-size: 1rem;
+            font-weight: 300;
+            line-height: 1.75;
+            color: #5A6175;
+        }
+
+        .about-mission-quote {
+            font-size: 1.3125rem;
+            font-weight: 400;
+            font-style: italic;
+            line-height: 1.7;
+            color: #3A3F50;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #E8EAF0;
+        }
+
+        /* ============================================
+           CTA SECTION
+           ============================================ */
+        .cta-section {
+            padding: 140px 0;
+            background: #FFFFFF;
+            border-top: 1px solid #E8EAF0;
+        }
+
+        .cta-inner {
+            max-width: 680px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .cta-inner .section-title {
+            font-size: 3.25rem;
+            margin-bottom: 16px;
+        }
+
+        .cta-inner .section-subtitle {
+            margin: 0 auto 56px;
+            text-align: center;
+        }
+
+        .cta-form {
+            text-align: left;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .form-group label {
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: #3A3F50;
+        }
+
+        .form-group label .required {
+            color: #6C63FF;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 14px 18px;
+            font-size: 0.9375rem;
+            font-weight: 400;
+            color: #0A0F1C;
+            background: #FAFBFC;
+            border: 1px solid #E0E2EA;
+            border-radius: 10px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .form-group input::placeholder,
+        .form-group textarea::placeholder {
+            color: #B0B8C8;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            border-color: #6C63FF;
+            box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.08);
+            outline: none;
+        }
+
+        .form-group input:invalid:not(:placeholder-shown) {
+            border-color: #E74C3C;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .form-submit {
+            margin-top: 32px;
+            text-align: center;
+        }
+
+        .form-submit button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #FFFFFF;
+            background: #0A0F1C;
+            padding: 18px 48px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .form-submit button:hover {
+            background: #1a2035;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(10, 15, 28, 0.15);
+        }
+
+        /* ============================================
+           FOOTER
+           ============================================ */
+        .footer {
+            padding: 80px 0 40px;
+            border-top: 1px solid #E8EAF0;
+        }
+
+        .footer-inner {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 1fr 1fr;
+            gap: 60px;
+            margin-bottom: 60px;
+        }
+
+        .footer-brand .nav-logo {
+            margin-bottom: 20px;
+        }
+
+        .footer-brand p {
+            font-size: 0.875rem;
+            font-weight: 300;
+            line-height: 1.7;
+            color: #6B7280;
+            max-width: 280px;
+        }
+
+        .footer-social {
+            display: flex;
+            gap: 16px;
+            margin-top: 28px;
+        }
+
+        .footer-social a {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            border: 1px solid #E0E2EA;
+            color: #5A6175;
+            transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+        }
+
+        .footer-social a:hover {
+            border-color: #6C63FF;
+            color: #6C63FF;
+            background: rgba(108, 99, 255, 0.04);
+        }
+
+        .footer-social a svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .footer-col h4 {
+            font-size: 0.8125rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #0A0F1C;
+            margin-bottom: 20px;
+        }
+
+        .footer-col a {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 400;
+            color: #6B7280;
+            padding: 6px 0;
+            transition: color 0.2s ease;
+        }
+
+        .footer-col a:hover {
+            color: #6C63FF;
+        }
+
+        .footer-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 32px;
+            border-top: 1px solid #E8EAF0;
+        }
+
+        .footer-bottom p {
+            font-size: 0.8125rem;
+            font-weight: 400;
+            color: #8A90A0;
+        }
+
+        .footer-bottom-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-bottom-links a {
+            font-size: 0.8125rem;
+            font-weight: 400;
+            color: #8A90A0;
+            transition: color 0.2s ease;
+        }
+
+        .footer-bottom-links a:hover {
+            color: #6C63FF;
+        }
+
+        /* ============================================
+           RESPONSIVE — 1024px
+           ============================================ */
+        @media (max-width: 1024px) {
+            .hero h1 {
+                font-size: 3.25rem;
+            }
+
+            .hero-inner {
+                gap: 48px;
+            }
+
+            .section-title {
+                font-size: 2.5rem;
+            }
+
+            .services-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .results-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .results-grid .result-card:last-child {
+                grid-column: 1 / -1;
+                max-width: 50%;
+                margin: 0 auto;
+            }
+
+            .testimonials-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .testimonials-grid .testimonial-card:last-child {
+                grid-column: 1 / -1;
+                max-width: 50%;
+                margin: 0 auto;
+            }
+
+            .process-steps::before {
+                left: calc(12.5% + 10px);
+                right: calc(12.5% + 10px);
+            }
+
+            .about-inner {
+                gap: 48px;
+            }
+
+            .footer-inner {
+                grid-template-columns: 1.5fr 1fr 1fr;
+                gap: 40px;
+            }
+        }
+
+        /* ============================================
+           RESPONSIVE — 768px
+           ============================================ */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hamburger {
+                display: flex;
+            }
+
+            .hero {
+                padding: 140px 0 100px;
+            }
+
+            .hero-inner {
+                grid-template-columns: 1fr;
+                gap: 48px;
+            }
+
+            .hero h1 {
+                font-size: 2.75rem;
+            }
+
+            .hero-sub {
+                font-size: 1.0625rem;
+            }
+
+            .hero-visual {
+                height: 320px;
+                order: -1;
+            }
+
+            .section-title {
+                font-size: 2.25rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 24px;
+            }
+
+            .stat-item:nth-child(2)::after {
+                display: none;
+            }
+
+            .stat-item:nth-child(odd)::after {
+                display: block;
+            }
+
+            .stat-item:nth-child(even)::after {
+                display: none;
+            }
+
+            .services {
+                padding: 100px 0;
+            }
+
+            .services-grid {
+                grid-template-columns: 1fr;
+                max-width: 440px;
+                margin: 0 auto;
+            }
+
+            .process {
+                padding: 100px 0;
+            }
+
+            .process-steps {
+                grid-template-columns: 1fr;
+                gap: 48px;
+                max-width: 340px;
+                margin: 0 auto;
+            }
+
+            .process-steps::before {
+                top: 36px;
+                bottom: 36px;
+                left: 50%;
+                right: auto;
+                width: 1px;
+                height: auto;
+            }
+
+            .results {
+                padding: 100px 0;
+            }
+
+            .results-grid {
+                grid-template-columns: 1fr;
+                max-width: 440px;
+                margin: 0 auto;
+            }
+
+            .results-grid .result-card:last-child {
+                grid-column: auto;
+                max-width: 100%;
+            }
+
+            .testimonials {
+                padding: 100px 0;
+            }
+
+            .testimonials-grid {
+                grid-template-columns: 1fr;
+                max-width: 440px;
+                margin: 0 auto;
+            }
+
+            .testimonials-grid .testimonial-card:last-child {
+                grid-column: auto;
+                max-width: 100%;
+            }
+
+            .about {
+                padding: 100px 0;
+            }
+
+            .about-inner {
+                grid-template-columns: 1fr;
+                gap: 48px;
+            }
+
+            .about-values {
+                grid-template-columns: 1fr;
+            }
+
+            .cta-section {
+                padding: 100px 0;
+            }
+
+            .cta-inner .section-title {
+                font-size: 2.5rem;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-inner {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+
+            .stat-number {
+                font-size: 2.5rem;
+            }
+
+            .result-metric {
+                font-size: 2.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================
+         NAVIGATION
+         ============================================ -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+        <div class="container nav-inner">
+            <a href="#" class="nav-logo" aria-label="AnyVision Media home">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="30" height="30" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="navLogoGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#5A52E0"/><stop offset="100%" stop-color="#00B892"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M16,100 Q100,2 184,100 Q100,198 16,100 Z" fill="url(#navLogoGrad1)" opacity="0.10"/>
+                    <path d="M16,100 Q100,2 184,100 Q100,198 16,100 Z" fill="none" stroke="url(#navLogoGrad1)" stroke-width="8" stroke-linejoin="round"/>
+                    <circle cx="100" cy="100" r="42" fill="none" stroke="url(#navLogoGrad1)" stroke-width="5" opacity="0.5"/>
+                    <path d="M100,52 L140,100 L100,92 Z" fill="url(#navLogoGrad1)"/>
+                    <path d="M100,108 L140,100 L100,148 Z" fill="url(#navLogoGrad1)"/>
+                    <path d="M100,52 L60,100 L100,92 Z" fill="url(#navLogoGrad1)"/>
+                    <path d="M100,108 L60,100 L100,148 Z" fill="url(#navLogoGrad1)"/>
+                    <circle cx="100" cy="100" r="16" fill="#FAFBFC"/>
+                    <circle cx="100" cy="100" r="16" fill="none" stroke="url(#navLogoGrad1)" stroke-width="2" opacity="0.4"/>
+                    <circle cx="91" cy="91" r="5" fill="rgba(255,255,255,0.85)"/>
+                </svg>
+                AnyVision Media
+            </a>
+            <div class="nav-links">
+                <a href="#services">Services</a>
+                <a href="#process">How It Works</a>
+                <a href="#results">Results</a>
+                <a href="#about">About</a>
+                <a href="#contact" class="nav-cta">Contact</a>
+            </div>
+            <button class="hamburger" aria-label="Toggle navigation menu" aria-expanded="false">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Mobile menu -->
+    <div class="mobile-menu" aria-label="Mobile navigation">
+        <a href="#services">Services</a>
+        <a href="#process">How It Works</a>
+        <a href="#results">Results</a>
+        <a href="#about">About</a>
+        <a href="#contact">Contact</a>
+    </div>
+
+    <!-- ============================================
+         HERO
+         ============================================ -->
+    <section class="hero" aria-label="Hero">
+        <div class="container hero-inner">
+            <div class="hero-content">
+                <div class="hero-badge reveal">
+                    <span class="hero-badge-dot"></span>
+                    AI-Powered Transformation
+                </div>
+                <h1 class="reveal reveal-delay-1">Transform Your Business with AI That <span>Actually Works</span></h1>
+                <p class="hero-sub reveal reveal-delay-2">AnyVision Media partners with forward-thinking companies to design, build, and deploy AI solutions that drive real business results.</p>
+                <div class="hero-buttons reveal reveal-delay-3">
+                    <a href="#contact" class="btn-primary">
+                        Book a Free AI Strategy Call
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                            <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </a>
+                    <a href="#results" class="btn-secondary">
+                        See Our Work
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual reveal reveal-delay-2">
+                <svg viewBox="0 0 480 480" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <!-- Outer ring -->
+                    <circle cx="240" cy="240" r="200" stroke="#E8EAF0" stroke-width="1"/>
+                    <circle cx="240" cy="240" r="150" stroke="#E8EAF0" stroke-width="1"/>
+                    <circle cx="240" cy="240" r="100" stroke="#ECEDF2" stroke-width="1"/>
+
+                    <!-- Accent circles -->
+                    <circle cx="240" cy="40" r="6" fill="#6C63FF" opacity="0.8">
+                        <animateTransform attributeName="transform" type="rotate" from="0 240 240" to="360 240 240" dur="30s" repeatCount="indefinite"/>
+                    </circle>
+                    <circle cx="370" cy="150" r="4" fill="#6C63FF" opacity="0.5">
+                        <animateTransform attributeName="transform" type="rotate" from="0 240 240" to="-360 240 240" dur="25s" repeatCount="indefinite"/>
+                    </circle>
+                    <circle cx="110" cy="330" r="5" fill="#00D4AA" opacity="0.6">
+                        <animateTransform attributeName="transform" type="rotate" from="0 240 240" to="360 240 240" dur="35s" repeatCount="indefinite"/>
+                    </circle>
+                    <circle cx="340" cy="360" r="3.5" fill="#00D4AA" opacity="0.4">
+                        <animateTransform attributeName="transform" type="rotate" from="0 240 240" to="-360 240 240" dur="40s" repeatCount="indefinite"/>
+                    </circle>
+
+                    <!-- Center node -->
+                    <circle cx="240" cy="240" r="36" fill="rgba(108, 99, 255, 0.06)" stroke="#6C63FF" stroke-width="1"/>
+                    <circle cx="240" cy="240" r="12" fill="#6C63FF" opacity="0.9"/>
+
+                    <!-- Connecting lines from center to floating nodes -->
+                    <line x1="240" y1="240" x2="240" y2="90" stroke="#E8EAF0" stroke-width="1" stroke-dasharray="4 4">
+                        <animate attributeName="stroke-dashoffset" from="0" to="8" dur="2s" repeatCount="indefinite"/>
+                    </line>
+                    <line x1="240" y1="240" x2="370" y2="150" stroke="#E8EAF0" stroke-width="1" stroke-dasharray="4 4">
+                        <animate attributeName="stroke-dashoffset" from="0" to="8" dur="2.5s" repeatCount="indefinite"/>
+                    </line>
+                    <line x1="240" y1="240" x2="110" y2="330" stroke="#E8EAF0" stroke-width="1" stroke-dasharray="4 4">
+                        <animate attributeName="stroke-dashoffset" from="0" to="8" dur="3s" repeatCount="indefinite"/>
+                    </line>
+                    <line x1="240" y1="240" x2="340" y2="360" stroke="#E8EAF0" stroke-width="1" stroke-dasharray="4 4">
+                        <animate attributeName="stroke-dashoffset" from="0" to="8" dur="2.2s" repeatCount="indefinite"/>
+                    </line>
+
+                    <!-- Small satellite nodes -->
+                    <circle cx="240" cy="90" r="8" fill="#FFFFFF" stroke="#6C63FF" stroke-width="1"/>
+                    <circle cx="370" cy="150" r="8" fill="#FFFFFF" stroke="#E8EAF0" stroke-width="1"/>
+                    <circle cx="110" cy="330" r="8" fill="#FFFFFF" stroke="#00D4AA" stroke-width="1"/>
+                    <circle cx="340" cy="360" r="8" fill="#FFFFFF" stroke="#E8EAF0" stroke-width="1"/>
+
+                    <!-- Subtle grid dots -->
+                    <circle cx="160" cy="120" r="1.5" fill="#D4D7E0"/>
+                    <circle cx="320" cy="120" r="1.5" fill="#D4D7E0"/>
+                    <circle cx="160" cy="360" r="1.5" fill="#D4D7E0"/>
+                    <circle cx="320" cy="360" r="1.5" fill="#D4D7E0"/>
+                    <circle cx="100" cy="200" r="1.5" fill="#D4D7E0"/>
+                    <circle cx="380" cy="200" r="1.5" fill="#D4D7E0"/>
+                    <circle cx="100" cy="280" r="1.5" fill="#D4D7E0"/>
+                    <circle cx="380" cy="280" r="1.5" fill="#D4D7E0"/>
+                </svg>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         SOCIAL PROOF / STATS
+         ============================================ -->
+    <section class="stats" aria-label="Company statistics">
+        <div class="container">
+            <div class="stats-grid">
+                <div class="stat-item reveal">
+                    <div class="stat-number">50<span>+</span></div>
+                    <div class="stat-label">AI Projects Delivered</div>
+                </div>
+                <div class="stat-item reveal reveal-delay-1">
+                    <div class="stat-number">3<span>x</span></div>
+                    <div class="stat-label">Average ROI</div>
+                </div>
+                <div class="stat-item reveal reveal-delay-2">
+                    <div class="stat-number">98<span>%</span></div>
+                    <div class="stat-label">Client Retention</div>
+                </div>
+                <div class="stat-item reveal reveal-delay-3">
+                    <div class="stat-number">12<span>+</span></div>
+                    <div class="stat-label">Industries Served</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         SERVICES
+         ============================================ -->
+    <section class="services" id="services" aria-label="Our services">
+        <div class="container">
+            <div class="services-header">
+                <div class="section-label reveal">What We Do</div>
+                <h2 class="section-title reveal reveal-delay-1">AI solutions built for<br>real business impact</h2>
+                <p class="section-subtitle reveal reveal-delay-2">From strategy to deployment, we deliver end-to-end AI capabilities that integrate seamlessly into your operations.</p>
+            </div>
+            <div class="services-grid">
+                <!-- Service 1: AI Strategy Consulting -->
+                <div class="service-card reveal">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+                        </svg>
+                    </div>
+                    <h3>AI Strategy Consulting</h3>
+                    <p>Roadmaps, assessments, and AI readiness audits to chart your path forward with confidence.</p>
+                </div>
+                <!-- Service 2: Custom AI Solutions -->
+                <div class="service-card reveal reveal-delay-1">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <polyline points="16 18 22 12 16 6"/>
+                            <polyline points="8 6 2 12 8 18"/>
+                            <line x1="14" y1="4" x2="10" y2="20"/>
+                        </svg>
+                    </div>
+                    <h3>Custom AI Solutions</h3>
+                    <p>Bespoke models, intelligent chatbots, and automation pipelines tailored to your needs.</p>
+                </div>
+                <!-- Service 3: AI Integration -->
+                <div class="service-card reveal reveal-delay-2">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="2" y="2" width="8" height="8" rx="1"/>
+                            <rect x="14" y="2" width="8" height="8" rx="1"/>
+                            <rect x="2" y="14" width="8" height="8" rx="1"/>
+                            <rect x="14" y="14" width="8" height="8" rx="1"/>
+                        </svg>
+                    </div>
+                    <h3>AI Integration</h3>
+                    <p>Connecting AI into your existing tech stack — CRM, ERP, and workflow tools — seamlessly.</p>
+                </div>
+                <!-- Service 4: Computer Vision -->
+                <div class="service-card reveal reveal-delay-3">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12z"/>
+                        </svg>
+                    </div>
+                    <h3>Computer Vision</h3>
+                    <p>Object detection, image analysis, and video intelligence for visual data at scale.</p>
+                </div>
+                <!-- Service 5: NLP & LLM Solutions -->
+                <div class="service-card reveal reveal-delay-4">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                    </div>
+                    <h3>NLP & LLM Solutions</h3>
+                    <p>Custom GPT applications, document processing, and semantic search for your enterprise.</p>
+                </div>
+                <!-- Service 6: AI Training & Workshops -->
+                <div class="service-card reveal reveal-delay-5">
+                    <div class="service-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                    </div>
+                    <h3>AI Training & Workshops</h3>
+                    <p>Upskilling your teams on AI tools, best practices, and cutting-edge techniques.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         HOW IT WORKS
+         ============================================ -->
+    <section class="process" id="process" aria-label="How it works">
+        <div class="container">
+            <div class="process-header">
+                <div class="section-label reveal">How It Works</div>
+                <h2 class="section-title reveal reveal-delay-1">Four steps to AI<br>transformation</h2>
+                <p class="section-subtitle reveal reveal-delay-2">A proven process that minimizes risk and maximizes the impact of AI in your organization.</p>
+            </div>
+            <div class="process-steps">
+                <div class="process-step reveal">
+                    <div class="step-number">01</div>
+                    <h3>Discovery</h3>
+                    <p>We audit your workflows, data, and tech stack to identify the highest-impact AI opportunities.</p>
+                </div>
+                <div class="process-step reveal reveal-delay-1">
+                    <div class="step-number">02</div>
+                    <h3>Strategy</h3>
+                    <p>We build a tailored AI roadmap with clear milestones, timelines, and expected ROI.</p>
+                </div>
+                <div class="process-step reveal reveal-delay-2">
+                    <div class="step-number">03</div>
+                    <h3>Build</h3>
+                    <p>Our engineers develop, train, and test your custom AI solutions in agile sprints.</p>
+                </div>
+                <div class="process-step reveal reveal-delay-3">
+                    <div class="step-number">04</div>
+                    <h3>Deploy</h3>
+                    <p>We integrate, monitor, and optimize your AI systems for real-world performance.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         RESULTS / CASE STUDIES
+         ============================================ -->
+    <section class="results" id="results" aria-label="Results and case studies">
+        <div class="container">
+            <div class="results-header">
+                <div class="section-label reveal">Results</div>
+                <h2 class="section-title reveal reveal-delay-1">Real outcomes from<br>real partnerships</h2>
+                <p class="section-subtitle reveal reveal-delay-2">We measure success in business impact, not buzzwords. Here is what our clients have achieved.</p>
+            </div>
+            <div class="results-grid">
+                <div class="result-card reveal">
+                    <div class="result-industry">Customer Support</div>
+                    <div class="result-metric">60%</div>
+                    <div class="result-detail">Support Automated, $2M Saved</div>
+                    <p class="result-description">Deployed an AI-powered support system that automated 60% of inbound tickets, saving $2M annually while improving response times by 4x.</p>
+                </div>
+                <div class="result-card reveal reveal-delay-1">
+                    <div class="result-industry">Manufacturing</div>
+                    <div class="result-metric">85%</div>
+                    <div class="result-detail">Faster QA Inspection</div>
+                    <p class="result-description">Built a computer vision solution that reduced quality assurance inspection time by 85%, catching defects faster and more accurately than manual review.</p>
+                </div>
+                <div class="result-card reveal reveal-delay-2">
+                    <div class="result-industry">E-Commerce</div>
+                    <div class="result-metric">3x</div>
+                    <div class="result-detail">Revenue from AI Recommendations</div>
+                    <p class="result-description">Implemented a personalized AI recommendation engine that tripled revenue from product suggestions, driving a measurable uplift in average order value.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         TESTIMONIALS
+         ============================================ -->
+    <section class="testimonials" aria-label="Client testimonials">
+        <div class="container">
+            <div class="testimonials-header">
+                <div class="section-label reveal">Testimonials</div>
+                <h2 class="section-title reveal reveal-delay-1">What our clients say</h2>
+                <p class="section-subtitle reveal reveal-delay-2">We let our work and our partnerships speak for themselves.</p>
+            </div>
+            <div class="testimonials-grid">
+                <div class="testimonial-card reveal">
+                    <div class="testimonial-quote">
+                        "AnyVision helped us automate 60% of our customer support with AI, saving $2M annually."
+                    </div>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar" aria-hidden="true">SC</div>
+                        <div>
+                            <div class="testimonial-name">Sarah Chen</div>
+                            <div class="testimonial-role">VP Operations, TechScale Inc.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card reveal reveal-delay-1">
+                    <div class="testimonial-quote">
+                        "Their AI integration was seamless. Our team was productive with the new tools within a week."
+                    </div>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar" aria-hidden="true">MR</div>
+                        <div>
+                            <div class="testimonial-name">Marcus Rivera</div>
+                            <div class="testimonial-role">CTO, DataFlow Systems</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="testimonial-card reveal reveal-delay-2">
+                    <div class="testimonial-quote">
+                        "The computer vision solution they built cut our QA inspection time by 85%."
+                    </div>
+                    <div class="testimonial-author">
+                        <div class="testimonial-avatar" aria-hidden="true">PP</div>
+                        <div>
+                            <div class="testimonial-name">Priya Patel</div>
+                            <div class="testimonial-role">Director of Engineering, ManuTech Global</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         ABOUT
+         ============================================ -->
+    <section class="about" id="about" aria-label="About AnyVision Media">
+        <div class="container">
+            <div class="about-inner">
+                <div class="about-content">
+                    <div class="section-label reveal">About Us</div>
+                    <h2 class="section-title reveal reveal-delay-1">Expert AI partners,<br>not just vendors</h2>
+                    <p class="about-text reveal reveal-delay-2">AnyVision Media was founded on a simple principle: AI should deliver measurable business outcomes, not just impressive demos. We help businesses integrate artificial intelligence into their workflows, products, and operations. From strategy to deployment, we handle it all.</p>
+                    <p class="about-text reveal reveal-delay-3">Our team brings deep expertise across machine learning, computer vision, natural language processing, and enterprise integration. We work as an extension of your team, embedding AI capabilities that scale with your business.</p>
+                    <div class="about-values">
+                        <div class="about-value reveal">
+                            <h4>Expert & Approachable</h4>
+                            <p>We know AI deeply, but we explain it simply. No jargon, no gatekeeping.</p>
+                        </div>
+                        <div class="about-value reveal reveal-delay-1">
+                            <h4>Forward-Thinking</h4>
+                            <p>Always on the cutting edge of AI research and practical applications.</p>
+                        </div>
+                        <div class="about-value reveal reveal-delay-2">
+                            <h4>Results-Driven</h4>
+                            <p>We focus on ROI and business outcomes, not buzzwords or hype.</p>
+                        </div>
+                        <div class="about-value reveal reveal-delay-3">
+                            <h4>Trustworthy</h4>
+                            <p>Enterprise-grade security, reliability, and transparent communication.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="about-mission reveal reveal-delay-2">
+                    <h3>Our Mission</h3>
+                    <p>To make artificial intelligence accessible, practical, and transformative for every business. We bridge the gap between cutting-edge AI research and real-world business value, one partnership at a time.</p>
+                    <p class="about-mission-quote">"We believe the companies that embrace AI today will define their industries tomorrow. Our job is to make that transition seamless."</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         CTA / CONTACT FORM
+         ============================================ -->
+    <section class="cta-section" id="contact" aria-label="Contact us">
+        <div class="container">
+            <div class="cta-inner">
+                <div class="section-label reveal">Get Started</div>
+                <h2 class="section-title reveal reveal-delay-1">Ready to Transform?</h2>
+                <p class="section-subtitle reveal reveal-delay-2">Tell us about your business and we will show you how AI can drive measurable results. No obligation, no pressure — just a conversation.</p>
+                <form class="cta-form reveal reveal-delay-3" id="contact-form" novalidate aria-label="Contact form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="name">Full Name <span class="required">*</span></label>
+                            <input type="text" id="name" name="name" placeholder="Jane Smith" required aria-required="true">
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Work Email <span class="required">*</span></label>
+                            <input type="email" id="email" name="email" placeholder="jane@company.com" required aria-required="true" pattern="[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}$">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="company">Company</label>
+                            <input type="text" id="company" name="company" placeholder="Your company name">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="message">How can we help? <span class="required">*</span></label>
+                            <textarea id="message" name="message" placeholder="Tell us about your project, challenges, or what you are looking to achieve with AI..." required aria-required="true" rows="5"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-submit">
+                        <button type="submit">
+                            Book a Free AI Strategy Call
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================
+         FOOTER
+         ============================================ -->
+    <footer class="footer" role="contentinfo">
+        <div class="container">
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <a href="#" class="nav-logo" aria-label="AnyVision Media home">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="30" height="30" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="footLogoGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#5A52E0"/><stop offset="100%" stop-color="#00B892"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M16,100 Q100,2 184,100 Q100,198 16,100 Z" fill="url(#footLogoGrad1)" opacity="0.10"/>
+                            <path d="M16,100 Q100,2 184,100 Q100,198 16,100 Z" fill="none" stroke="url(#footLogoGrad1)" stroke-width="8" stroke-linejoin="round"/>
+                            <circle cx="100" cy="100" r="42" fill="none" stroke="url(#footLogoGrad1)" stroke-width="5" opacity="0.5"/>
+                            <path d="M100,52 L140,100 L100,92 Z" fill="url(#footLogoGrad1)"/>
+                            <path d="M100,108 L140,100 L100,148 Z" fill="url(#footLogoGrad1)"/>
+                            <path d="M100,52 L60,100 L100,92 Z" fill="url(#footLogoGrad1)"/>
+                            <path d="M100,108 L60,100 L100,148 Z" fill="url(#footLogoGrad1)"/>
+                            <circle cx="100" cy="100" r="16" fill="#FAFBFC"/>
+                            <circle cx="100" cy="100" r="16" fill="none" stroke="url(#footLogoGrad1)" stroke-width="2" opacity="0.4"/>
+                            <circle cx="91" cy="91" r="5" fill="rgba(255,255,255,0.85)"/>
+                        </svg>
+                        AnyVision Media
+                    </a>
+                    <p>AI-powered transformation for forward-thinking businesses. Strategy, development, and deployment — all under one roof.</p>
+                    <div class="footer-social">
+                        <a href="#" aria-label="Follow us on LinkedIn">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                            </svg>
+                        </a>
+                        <a href="#" aria-label="Follow us on X (Twitter)">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                            </svg>
+                        </a>
+                        <a href="#" aria-label="Follow us on GitHub">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+                <div class="footer-col">
+                    <h4>Services</h4>
+                    <a href="#services">AI Strategy Consulting</a>
+                    <a href="#services">Custom AI Solutions</a>
+                    <a href="#services">AI Integration</a>
+                    <a href="#services">Computer Vision</a>
+                    <a href="#services">NLP & LLM Solutions</a>
+                    <a href="#services">AI Training</a>
+                </div>
+                <div class="footer-col">
+                    <h4>Company</h4>
+                    <a href="#about">About Us</a>
+                    <a href="#results">Case Studies</a>
+                    <a href="#process">Our Process</a>
+                    <a href="#contact">Contact</a>
+                </div>
+                <div class="footer-col">
+                    <h4>Resources</h4>
+                    <a href="#">Blog</a>
+                    <a href="#">AI Readiness Quiz</a>
+                    <a href="#">Documentation</a>
+                    <a href="#">Support</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 AnyVision Media. All rights reserved.</p>
+                <div class="footer-bottom-links">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ============================================
+         JAVASCRIPT
+         ============================================ -->
+    <script>
+        (function() {
+            'use strict';
+
+            // =============================================
+            // INTERSECTION OBSERVER — Scroll Reveal
+            // =============================================
+            const revealElements = document.querySelectorAll('.reveal');
+
+            const revealObserver = new IntersectionObserver(function(entries) {
+                entries.forEach(function(entry) {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                        revealObserver.unobserve(entry.target);
+                    }
+                });
+            }, {
+                threshold: 0.15,
+                rootMargin: '0px 0px -40px 0px'
+            });
+
+            revealElements.forEach(function(el) {
+                revealObserver.observe(el);
+            });
+
+            // =============================================
+            // NAVBAR — Scroll shadow
+            // =============================================
+            var nav = document.querySelector('.nav');
+            var lastScrollY = 0;
+
+            function handleNavScroll() {
+                var currentScrollY = window.scrollY;
+                if (currentScrollY > 20) {
+                    nav.classList.add('scrolled');
+                } else {
+                    nav.classList.remove('scrolled');
+                }
+                lastScrollY = currentScrollY;
+            }
+
+            window.addEventListener('scroll', handleNavScroll, { passive: true });
+            handleNavScroll();
+
+            // =============================================
+            // HAMBURGER MENU — Mobile toggle
+            // =============================================
+            var hamburger = document.querySelector('.hamburger');
+            var mobileMenu = document.querySelector('.mobile-menu');
+            var mobileLinks = mobileMenu.querySelectorAll('a');
+
+            hamburger.addEventListener('click', function() {
+                var isOpen = mobileMenu.classList.contains('open');
+                if (isOpen) {
+                    mobileMenu.classList.remove('open');
+                    hamburger.classList.remove('active');
+                    hamburger.setAttribute('aria-expanded', 'false');
+                    document.body.style.overflow = '';
+                } else {
+                    mobileMenu.classList.add('open');
+                    hamburger.classList.add('active');
+                    hamburger.setAttribute('aria-expanded', 'true');
+                    document.body.style.overflow = 'hidden';
+                }
+            });
+
+            // Close mobile menu on link click
+            mobileLinks.forEach(function(link) {
+                link.addEventListener('click', function() {
+                    mobileMenu.classList.remove('open');
+                    hamburger.classList.remove('active');
+                    hamburger.setAttribute('aria-expanded', 'false');
+                    document.body.style.overflow = '';
+                });
+            });
+
+            // Close mobile menu on escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
+                    mobileMenu.classList.remove('open');
+                    hamburger.classList.remove('active');
+                    hamburger.setAttribute('aria-expanded', 'false');
+                    document.body.style.overflow = '';
+                    hamburger.focus();
+                }
+            });
+
+            // =============================================
+            // SMOOTH SCROLL — For anchor links
+            // =============================================
+            var anchorLinks = document.querySelectorAll('a[href^="#"]');
+
+            anchorLinks.forEach(function(link) {
+                link.addEventListener('click', function(e) {
+                    var targetId = this.getAttribute('href');
+                    if (targetId === '#') return;
+
+                    var targetElement = document.querySelector(targetId);
+                    if (targetElement) {
+                        e.preventDefault();
+                        var navHeight = nav.offsetHeight;
+                        var targetPosition = targetElement.getBoundingClientRect().top + window.scrollY - navHeight - 20;
+
+                        window.scrollTo({
+                            top: targetPosition,
+                            behavior: 'smooth'
+                        });
+                    }
+                });
+            });
+
+            // =============================================
+            // FORM VALIDATION — Visual feedback
+            // =============================================
+            var contactForm = document.getElementById('contact-form');
+
+            if (contactForm) {
+                contactForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    var nameInput = document.getElementById('name');
+                    var emailInput = document.getElementById('email');
+                    var messageInput = document.getElementById('message');
+                    var isValid = true;
+
+                    // Reset styles
+                    [nameInput, emailInput, messageInput].forEach(function(input) {
+                        input.style.borderColor = '';
+                    });
+
+                    // Validate name
+                    if (!nameInput.value.trim()) {
+                        nameInput.style.borderColor = '#E74C3C';
+                        isValid = false;
+                    }
+
+                    // Validate email
+                    var emailPattern = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+                    if (!emailInput.value.trim() || !emailPattern.test(emailInput.value)) {
+                        emailInput.style.borderColor = '#E74C3C';
+                        isValid = false;
+                    }
+
+                    // Validate message
+                    if (!messageInput.value.trim()) {
+                        messageInput.style.borderColor = '#E74C3C';
+                        isValid = false;
+                    }
+
+                    if (isValid) {
+                        // Simulate form submission
+                        var submitBtn = contactForm.querySelector('button[type="submit"]');
+                        var originalText = submitBtn.innerHTML;
+
+                        submitBtn.innerHTML = '<span>Sent! We will be in touch.</span>';
+                        submitBtn.style.background = '#059669';
+                        submitBtn.disabled = true;
+
+                        setTimeout(function() {
+                            submitBtn.innerHTML = originalText;
+                            submitBtn.style.background = '';
+                            submitBtn.disabled = false;
+                            contactForm.reset();
+                        }, 3000);
+                    }
+                });
+
+                // Real-time validation feedback
+                var requiredInputs = contactForm.querySelectorAll('[required]');
+                requiredInputs.forEach(function(input) {
+                    input.addEventListener('blur', function() {
+                        if (this.value.trim()) {
+                            this.style.borderColor = '#059669';
+                        } else {
+                            this.style.borderColor = '#E74C3C';
+                        }
+                    });
+
+                    input.addEventListener('input', function() {
+                        if (this.style.borderColor === 'rgb(231, 76, 60)' && this.value.trim()) {
+                            this.style.borderColor = '';
+                        }
+                    });
+                });
+
+                // Email-specific validation
+                var emailInput = document.getElementById('email');
+                emailInput.addEventListener('blur', function() {
+                    var emailPattern = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+                    if (this.value.trim() && !emailPattern.test(this.value)) {
+                        this.style.borderColor = '#E74C3C';
+                    } else if (this.value.trim() && emailPattern.test(this.value)) {
+                        this.style.borderColor = '#059669';
+                    }
+                });
+            }
+
+            // =============================================
+            // COUNTER ANIMATION — Stats section
+            // =============================================
+            var statNumbers = document.querySelectorAll('.stat-number');
+            var countersStarted = false;
+
+            function animateCounter(element, target, suffix) {
+                var duration = 2000;
+                var startTime = null;
+                var startValue = 0;
+
+                function easeOutQuart(t) {
+                    return 1 - Math.pow(1 - t, 4);
+                }
+
+                function animate(currentTime) {
+                    if (!startTime) startTime = currentTime;
+                    var elapsed = currentTime - startTime;
+                    var progress = Math.min(elapsed / duration, 1);
+                    var easedProgress = easeOutQuart(progress);
+                    var currentValue = Math.floor(startValue + (target - startValue) * easedProgress);
+
+                    element.innerHTML = currentValue + '<span>' + suffix + '</span>';
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    }
+                }
+
+                requestAnimationFrame(animate);
+            }
+
+            var statsSection = document.querySelector('.stats');
+            if (statsSection) {
+                var statsObserver = new IntersectionObserver(function(entries) {
+                    entries.forEach(function(entry) {
+                        if (entry.isIntersecting && !countersStarted) {
+                            countersStarted = true;
+                            animateCounter(statNumbers[0], 50, '+');
+                            animateCounter(statNumbers[1], 3, 'x');
+                            animateCounter(statNumbers[2], 98, '%');
+                            animateCounter(statNumbers[3], 12, '+');
+                            statsObserver.unobserve(entry.target);
+                        }
+                    });
+                }, { threshold: 0.3 });
+
+                statsObserver.observe(statsSection);
+            }
+
+        })();
+    </script>
+
+</body>
+</html>

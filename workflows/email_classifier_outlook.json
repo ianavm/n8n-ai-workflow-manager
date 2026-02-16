@@ -1,0 +1,1162 @@
+{
+  "name": "Business Email Management - Outlook",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "a1000001-0001-4000-8000-000000000001",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "id": "a1000001-0002-4000-8000-000000000002",
+      "name": "Outlook Trigger",
+      "type": "n8n-nodes-base.microsoftOutlookTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        432
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // Extract sender info from Outlook's Microsoft Graph API structure\n  const senderAddress = item.json.sender?.emailAddress?.address || item.json.from?.emailAddress?.address || '';\n  const senderName = item.json.sender?.emailAddress?.name || item.json.from?.emailAddress?.name || '';\n\n  const emailData = {\n    from: senderName ? `${senderName} <${senderAddress}>` : senderAddress,\n    to: (item.json.toRecipients || []).map(r => r.emailAddress?.address || '').join(', '),\n    subject: item.json.subject || '',\n    date: item.json.receivedDateTime || item.json.createdDateTime || new Date().toISOString(),\n    body: (item.json.bodyPreview || (item.json.body?.content || '').replace(/<[^>]*>/g, '') || '').substring(0, 3000),\n    hasAttachments: item.json.hasAttachments || false,\n    attachmentCount: item.json.hasAttachments ? 1 : 0,\n    messageId: item.json.id || '',\n    threadId: item.json.conversationId || ''\n  };\n\n  const classificationPrompt = `Analyze this business email. Return ONLY valid JSON, no markdown, no backticks.\n\nFrom: ${emailData.from}\nSubject: ${emailData.subject}\nDate: ${emailData.date}\nBody:\n${emailData.body}\nHas Attachments: ${emailData.hasAttachments ? 'Yes (' + emailData.attachmentCount + ')' : 'No'}\n\nReturn this exact JSON:\n{\n  \"sender\": \"<email>\",\n  \"sender_name\": \"<name>\",\n  \"subject\": \"<subject>\",\n  \"intent\": \"<what sender wants>\",\n  \"tone\": \"<formal|informal|urgent|angry|friendly|neutral>\",\n  \"urgency\": \"<high|medium|low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance|Customer_Support|Sales|Management|Admin|Legal|Internal|Spam_Irrelevant>\",\n  \"tags\": [\"<from: Invoice,Payment,Refund,Complaint,New_Lead,Contract,Meeting_Request,Follow_Up,Escalation,Urgent>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<professional reply if action_required, else null>\",\n  \"summary\": \"<1-2 sentence summary>\",\n  \"escalation_needed\": true or false\n}\n\nRules:\n- Accounting_Finance: invoices, payments, billing, refunds\n- Customer_Support: complaints, technical issues, service support\n- Sales: new enquiries, pricing, leads\n- Management: strategy, legal, partnerships, high-level complaints\n- Spam_Irrelevant: suspicious links, phishing, irrelevant promos\n- Mark urgency HIGH if: urgent/ASAP in subject, legal threats, payment issues\n- Responses must be professional and concise`;\n\n  results.push({\n    json: {\n      ...emailData,\n      classificationPrompt\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "a1000001-0003-4000-8000-000000000003",
+      "name": "Prepare Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const emailData = $('Prepare Email Data').first().json;\n\n  let parsed;\n  try {\n    // AI Agent outputs to item.json.output (string)\n    let aiContent = item.json.output || '';\n\n    // Fallback: try HTTP Request format if output is empty\n    if (!aiContent && item.json.choices) {\n      aiContent = item.json.choices[0].message.content;\n    }\n\n    // Clean any markdown formatting\n    const cleaned = aiContent\n      .replace(/```json\\n?/g, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n\n    parsed = JSON.parse(cleaned);\n  } catch (e) {\n    // Fallback classification when AI fails\n    parsed = {\n      sender: emailData.from || 'unknown',\n      sender_name: 'Unknown',\n      subject: emailData.subject || 'No Subject',\n      intent: 'Classification failed - manual review required',\n      tone: 'neutral',\n      urgency: 'medium',\n      action_required: true,\n      department: 'Admin',\n      tags: ['Escalation'],\n      is_spam: false,\n      suggested_response: null,\n      summary: 'Email could not be auto-classified. Manual review required.',\n      escalation_needed: true\n    };\n  }\n\n  results.push({\n    json: {\n      original_from: emailData.from || '',\n      original_to: emailData.to || '',\n      original_subject: emailData.subject || '',\n      original_date: emailData.date || '',\n      original_body: emailData.body || '',\n      original_message_id: emailData.messageId || '',\n      original_thread_id: emailData.threadId || '',\n      has_original_attachments: emailData.hasAttachments || false,\n      sender: parsed.sender || emailData.from || '',\n      sender_name: parsed.sender_name || 'Unknown',\n      subject: parsed.subject || emailData.subject || '',\n      intent: parsed.intent || '',\n      tone: parsed.tone || 'neutral',\n      urgency: parsed.urgency || 'medium',\n      action_required: parsed.action_required || false,\n      department: parsed.department || 'Admin',\n      tags: parsed.tags || [],\n      tags_string: (parsed.tags || []).join(', '),\n      is_spam: parsed.is_spam || false,\n      suggested_response: parsed.suggested_response || '',\n      summary: parsed.summary || '',\n      escalation_needed: parsed.escalation_needed || false,\n      processed_at: new Date().toISOString(),\n      ticket_number: 'TKT-' + Date.now()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "a1000001-0004-4000-8000-000000000004",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "33b4177f-3c75-48bb-876c-1c111ce15cc2",
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Spam_Irrelevant",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "54d6b4b2-41c7-4d5c-b9d7-2d9d3341e804",
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Accounting_Finance",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "8e520b3e-6090-4425-98a9-ac9cee148037",
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Customer_Support",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "ac42f0c8-a276-4e7c-86de-48bd34d37629",
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Sales",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dca3f444-d848-463f-8c4e-e6b4848470ae",
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Management",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "a1000001-0005-4000-8000-000000000005",
+      "name": "Route by Department",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1248,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Junk"
+          ]
+        }
+      },
+      "id": "a1000001-0006-4000-8000-000000000006",
+      "name": "Categorize Junk",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        112
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Accounting_Finance"
+          ]
+        }
+      },
+      "id": "a1000001-0007-4000-8000-000000000007",
+      "name": "Categorize Finance",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        288
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Customer_Support"
+          ]
+        }
+      },
+      "id": "a1000001-0008-4000-8000-000000000008",
+      "name": "Categorize Support",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        464
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Sales"
+          ]
+        }
+      },
+      "id": "a1000001-0009-4000-8000-000000000009",
+      "name": "Categorize Sales",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        640
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Management"
+          ]
+        }
+      },
+      "id": "a1000001-0010-4000-8000-000000000010",
+      "name": "Categorize Management",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        832
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "General"
+          ]
+        }
+      },
+      "id": "a1000001-0011-4000-8000-000000000011",
+      "name": "Categorize General",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        1008
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "a1000001-0012-4000-8000-000000000012",
+      "name": "Mark Spam Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        112
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ac825e60-9063-4148-bbb2-0594b56e1096",
+              "leftValue": "={{ $json.urgency }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000001-0013-4000-8000-000000000013",
+      "name": "Is Urgent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Urgent"
+          ]
+        }
+      },
+      "id": "a1000001-0014-4000-8000-000000000014",
+      "name": "Categorize Urgent",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        1152
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "a1000001-0015-4000-8000-000000000015",
+      "name": "Not Urgent",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "15bece9f-1dd2-4386-81a4-05ed0dd84c0a",
+              "leftValue": "={{ $json.action_required }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            },
+            {
+              "id": "abaa36b5-7f0f-4dc3-9c57-4dea7df77518",
+              "leftValue": "={{ $json.suggested_response }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "37523c7f-4424-4718-a41f-b907586b8e64",
+              "leftValue": "={{ $json.is_spam }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            },
+            {
+              "id": "no-reply-check-1",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "noreply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "no-reply-check-2",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "no-reply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "no-reply-check-3",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "donotreply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "no-reply-check-4",
+              "leftValue": "={{ $json.original_body }}",
+              "rightValue": "no reply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000001-0016-4000-8000-000000000016",
+      "name": "Reply Needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        1520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a1000001-0017-4000-8000-000000000017",
+      "name": "No Reply Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "1Adp3x0ler5H69Cih5tbMLqWEgZMziebhnOEWbMPTvaA"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Email Log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "a1000001-0018-4000-8000-000000000018",
+      "name": "Log to Email Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1248,
+        1824
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst d = item.json;\n\nif (d.department === 'Sales' && d.tags_string && d.tags_string.includes('New_Lead')) {\n  return [{\n    json: {\n      date: d.processed_at,\n      lead_name: d.sender_name,\n      email: d.sender,\n      subject: d.original_subject,\n      interest: d.intent,\n      summary: d.summary,\n      urgency: d.urgency,\n      status: 'New',\n      follow_up_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],\n      is_lead: true\n    }\n  }];\n}\n\nreturn [{ json: { is_lead: false } }];"
+      },
+      "id": "a1000001-0019-4000-8000-000000000019",
+      "name": "Check If Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        2080
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "36bbdd71-8940-4db6-ab42-87d538d90bdd",
+              "leftValue": "={{ $json.is_lead }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000001-0020-4000-8000-000000000020",
+      "name": "Is New Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        2080
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "1G2P9gYuPKtqhDkkJaTVLbuA_yxj_IqTI7vuCfhFLklM"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "lead_name": "={{ $json.lead_name }}",
+            "email": "={{ $json.email }}",
+            "subject": "={{ $json.subject }}",
+            "interest": "={{ $json.interest }}",
+            "summary": "={{ $json.summary }}",
+            "urgency": "={{ $json.urgency }}",
+            "status": "={{ $json.status }}",
+            "follow_up_date": "={{ $json.follow_up_date }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a1000001-0021-4000-8000-000000000021",
+      "name": "Log New Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        2032
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "additionalFields": {
+          "subject": "=Follow up: {{ $json.lead_name }}",
+          "start": "={{ $json.follow_up_date + 'T09:00:00' }}",
+          "end": "={{ $json.follow_up_date + 'T09:30:00' }}",
+          "bodyContent": "=Auto-generated sales lead follow-up.\n\nLead: {{ $json.lead_name }} ({{ $json.email }})\nInterest: {{ $json.interest }}\nSummary: {{ $json.summary }}",
+          "bodyContentType": "Text"
+        }
+      },
+      "id": "a1000001-0022-4000-8000-000000000022",
+      "name": "Create Follow-Up",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        2032
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "a1000001-0023-4000-8000-000000000023",
+      "name": "Not a Lead",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        2160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Business Email Management - Outlook Edition\n\n**Flow:**\n1. Outlook Trigger polls every minute for unread emails\n2. AI classifies via OpenRouter (gpt-5.1)\n3. Switch node routes by department\n4. Outlook categories applied for inbox organization\n5. Urgent emails flagged with extra category\n6. Draft replies created for review (never auto-sent)\n7. Every email logged to Google Sheets\n8. Sales leads tracked + Outlook calendar follow-up\n\n**Credentials Needed:**\n- Outlook: Microsoft Outlook OAuth2 (Azure App)\n- Sheets: Google Sheets AVM Tutorial\n- AI: OpenRouter account\n\n**Setup Required:**\n1. Azure App Registration (see plan)\n2. Create 7 Outlook categories\n3. Connect credentials in n8n",
+        "height": 600,
+        "width": 380
+      },
+      "id": "a1000001-0024-4000-8000-000000000024",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Department Routing\nSwitch node routes to ONE department.\nEach department gets an Outlook category.\nSpam is categorized + marked as read.",
+        "width": 300
+      },
+      "id": "a1000001-0025-4000-8000-000000000025",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Response & Tracking\nDraft replies created for human review (never auto-sent).\nAll emails logged to Google Sheets.\nSales leads tracked + Outlook calendar follow-ups.",
+        "width": 300
+      },
+      "id": "a1000001-0026-4000-8000-000000000026",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        1408
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.classificationPrompt }}",
+        "options": {
+          "systemMessage": "You are the AI Email Manager for AnyVision Media, a digital media and technology agency. Your job is to analyze incoming business emails and return a structured JSON classification.\n\n## Your Task\nFor every email you receive, analyze it and return ONLY a valid JSON object. No markdown formatting, no backticks, no explanation text — just the raw JSON.\n\n## Company Context\n- Company: AnyVision Media (digital media, AI solutions, web development)\n- Owner: Ian Immelman (ian@anyvisionmedia.com)\n- Services: AI workflow automation, web development, social media management, real estate tech solutions\n- Tone: Professional but approachable, tech-savvy\n\n## JSON Output Format\nReturn exactly this structure:\n{\n  \"sender\": \"<sender email address>\",\n  \"sender_name\": \"<sender display name>\",\n  \"subject\": \"<email subject line>\",\n  \"intent\": \"<1 sentence: what the sender wants or needs>\",\n  \"tone\": \"<one of: formal, informal, urgent, angry, friendly, neutral>\",\n  \"urgency\": \"<one of: high, medium, low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance, Customer_Support, Sales, Management, Admin, Legal, Internal, Spam_Irrelevant>\",\n  \"tags\": [\"<applicable tags from the list below>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<a professional draft reply if action_required is true, otherwise null>\",\n  \"summary\": \"<1-2 sentence summary of the email>\",\n  \"escalation_needed\": true or false\n}\n\n## Department Classification Rules\n- **Accounting_Finance**: Invoices, payments, billing inquiries, refund requests, financial statements, tax documents\n- **Customer_Support**: Service complaints, technical issues, bug reports, account help, feature requests\n- **Sales**: New business enquiries, pricing requests, partnership proposals, lead generation, RFP responses\n- **Management**: Strategic decisions, legal matters, high-level partnerships, media/PR, executive communications, escalated complaints\n- **Admin**: Documentation, compliance, vendor setup, office operations, routine administrative tasks\n- **Legal**: Contracts, legal threats, regulatory matters, NDAs, terms of service\n- **Internal**: Team communications, internal updates, HR matters\n- **Spam_Irrelevant**: Unsolicited marketing, phishing attempts, suspicious links, irrelevant promotions, newsletters not subscribed to\n\n## Available Tags\nInvoice, Payment, Refund, Complaint, New_Lead, Contract, Meeting_Request, Follow_Up, Escalation, Urgent\n\n## Urgency Rules\nMark as HIGH if any of these apply:\n- Subject contains \"urgent\", \"ASAP\", \"immediate\", \"critical\"\n- Legal threats or regulatory deadlines\n- Payment disputes or overdue invoices\n- Escalated customer complaints\n- Time-sensitive business opportunities\n\n## Response Writing Rules (for suggested_response)\nWhen action_required is true, write a professional, well-structured reply that:\n\n**FORMATTING REQUIREMENTS:**\n- Use proper line breaks (\\n\\n between paragraphs)\n- Start with a personalized greeting: \"Hi [name],\" or \"Dear [name],\"\n- Separate greeting, body paragraphs, and closing with blank lines\n- Keep paragraphs short (2-3 sentences max)\n- End with a professional signature block\n\n**STRUCTURE:**\n1. **Greeting** - Personalized with sender's name\n2. **Acknowledgment** - Thank them and acknowledge their specific concern\n3. **Response** - Address their question or request (1-2 paragraphs)\n4. **Next Steps** - What happens next (if applicable)\n5. **Closing** - Professional sign-off\n6. **Signature** - AnyVision Media Team contact info\n\n**CONTENT GUIDELINES:**\n- Acknowledge receipt of their email\n- Address their specific concern or question\n- Be professional, warm, and concise\n- Never promise specific timelines without verification\n- Never confirm financial or legal decisions\n- Never reveal that this is an automated system\n- Match their tone (formal vs casual) appropriately\n\n**EXAMPLE FORMAT:**\n```\nHi [Name],\n\nThank you for reaching out to AnyVision Media. I've received your inquiry regarding [specific topic].\n\n[Address their main concern or question here. Keep it concise and helpful.]\n\n[Optional: Next steps or additional information]\n\nIf you have any other questions, please don't hesitate to reach out.\n\nBest regards,\nAnyVision Media Team\nian@anyvisionmedia.com\n```\n\nWhen action_required is false or the email is spam, set suggested_response to null.\n\nCRITICAL: Return ONLY the JSON object. No other text.",
+          "maxIterations": 1,
+          "returnIntermediateSteps": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        656,
+        432
+      ],
+      "id": "a1000001-0027-4000-8000-000000000027",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5.1",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        560,
+        720
+      ],
+      "id": "a1000001-0028-4000-8000-000000000028",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "additionalFields": {
+          "subject": "=Re: {{ $json.original_subject }}",
+          "bodyContent": "={{ $json.suggested_response }}",
+          "bodyContentType": "Text",
+          "toRecipients": "={{ $json.sender }}"
+        }
+      },
+      "id": "a1000001-0029-4000-8000-000000000029",
+      "name": "Create Draft Reply",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        1472
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Outlook Trigger').item.json.id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        672,
+        640
+      ],
+      "id": "a1000001-0030-4000-8000-000000000030",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "b3891fdb-59e4-4e9f-8eae-7e64850c8f7e",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "noreply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "3990f7a2-fe2a-4dfd-8c0d-a80906f82907",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "no-reply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "4224a635-eea4-4938-a500-3854a96c7178",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "donotreply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "a1000001-0031-4000-8000-000000000031",
+      "name": "Is No-Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "a1000001-0032-4000-8000-000000000032",
+      "name": "Mark No-Reply Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        1744
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "a1000001-0033-4000-8000-000000000033",
+      "name": "Not No-Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        1904
+      ]
+    }
+  ],
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outlook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Is No-Reply?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Route by Department",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Urgent?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reply Needed?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Email Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check If Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Department": {
+      "main": [
+        [
+          {
+            "node": "Categorize Junk",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Finance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Support",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Sales",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Management",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize General",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Categorize Junk": {
+      "main": [
+        [
+          {
+            "node": "Mark Spam Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Urgent?": {
+      "main": [
+        [
+          {
+            "node": "Categorize Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Needed?": {
+      "main": [
+        [
+          {
+            "node": "Create Draft Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Reply Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Lead": {
+      "main": [
+        [
+          {
+            "node": "Is New Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Lead?": {
+      "main": [
+        [
+          {
+            "node": "Log New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not a Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log New Lead": {
+      "main": [
+        [
+          {
+            "node": "Create Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is No-Reply?": {
+      "main": [
+        [
+          {
+            "node": "Mark No-Reply Read",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not No-Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5e29b98ac016474bbaa188119322bbd3129dd99d846912cff4e9c01c7bdc7b8a"
+  }
+}

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnyVision Media — Landing Page Showcase</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0A0F1C;
+            color: #FFFFFF;
+            min-height: 100vh;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 80px 24px 60px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse at 30% 50%, rgba(108, 99, 255, 0.15) 0%, transparent 50%),
+                        radial-gradient(ellipse at 70% 50%, rgba(0, 212, 170, 0.1) 0%, transparent 50%);
+            animation: bgPulse 8s ease-in-out infinite alternate;
+            z-index: 0;
+        }
+
+        @keyframes bgPulse {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-5%, 3%) scale(1.1); }
+        }
+
+        .hero > * { position: relative; z-index: 1; }
+
+        .logo {
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #6C63FF;
+            margin-bottom: 32px;
+        }
+
+        .hero h1 {
+            font-size: clamp(36px, 6vw, 72px);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #6C63FF 50%, #00D4AA 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 18px;
+            color: #B0B8C8;
+            max-width: 600px;
+            margin: 0 auto 16px;
+            line-height: 1.6;
+        }
+
+        .hero .subtitle {
+            font-size: 15px;
+            color: #7A8299;
+            margin-bottom: 0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 28px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px 24px 100px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            position: relative;
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            border-color: rgba(108, 99, 255, 0.3);
+            box-shadow: 0 20px 60px rgba(108, 99, 255, 0.15),
+                        0 0 40px rgba(108, 99, 255, 0.05);
+        }
+
+        .card:focus-visible {
+            outline: 2px solid #6C63FF;
+            outline-offset: 4px;
+        }
+
+        .card-preview {
+            height: 220px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-preview .preview-visual {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            font-weight: 800;
+            position: relative;
+        }
+
+        /* Variant 1: Minimalist */
+        .card:nth-child(1) .preview-visual {
+            background: #FAFBFC;
+            color: #0A0F1C;
+        }
+        .card:nth-child(1) .preview-visual::after {
+            content: '';
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border: 2px solid #6C63FF;
+            border-radius: 50%;
+            opacity: 0.3;
+            top: 30px;
+            right: 40px;
+        }
+        .card:nth-child(1) .preview-visual::before {
+            content: '';
+            position: absolute;
+            width: 60px;
+            height: 1px;
+            background: #6C63FF;
+            bottom: 60px;
+            left: 40px;
+        }
+
+        /* Variant 2: Dark Tech */
+        .card:nth-child(2) .preview-visual {
+            background: #0A0F1C;
+            background-image: radial-gradient(rgba(108, 99, 255, 0.15) 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: #6C63FF;
+            text-shadow: 0 0 30px rgba(108, 99, 255, 0.5);
+        }
+
+        /* Variant 3: Bold Gradient */
+        .card:nth-child(3) .preview-visual {
+            background: linear-gradient(135deg, #6C63FF, #00D4AA);
+            color: rgba(255, 255, 255, 0.9);
+        }
+        .card:nth-child(3) .preview-visual::before {
+            content: '';
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            top: -60px;
+            right: -40px;
+            backdrop-filter: blur(10px);
+        }
+
+        /* Variant 4: Corporate */
+        .card:nth-child(4) .preview-visual {
+            background: #FFFFFF;
+            color: #0A0F1C;
+            border-bottom: 3px solid #6C63FF;
+        }
+        .card:nth-child(4) .preview-visual::before {
+            content: '';
+            position: absolute;
+            width: 80px;
+            height: 4px;
+            background: #6C63FF;
+            top: 30px;
+            left: 30px;
+        }
+
+        /* Variant 5: Interactive */
+        .card:nth-child(5) .preview-visual {
+            background: linear-gradient(180deg, #0A0F1C 0%, #1a1f3c 100%);
+            color: #00D4AA;
+        }
+        .card:nth-child(5) .preview-visual::before {
+            content: '';
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            background: radial-gradient(circle, rgba(108, 99, 255, 0.3), transparent);
+            border-radius: 50%;
+            top: 20px;
+            left: 30px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(10px, -10px); }
+        }
+
+        .card-body {
+            padding: 28px 28px 32px;
+        }
+
+        .card-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #6C63FF, #00D4AA);
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+
+        .card h2 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            line-height: 1.3;
+        }
+
+        .card .style-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #6C63FF;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .card p {
+            font-size: 15px;
+            color: #8892A6;
+            line-height: 1.6;
+        }
+
+        .card .arrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 16px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6C63FF;
+            transition: gap 0.3s ease;
+        }
+
+        .card:hover .arrow {
+            gap: 12px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            color: #5A6478;
+            font-size: 14px;
+        }
+
+        .footer a {
+            color: #6C63FF;
+            text-decoration: none;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+                padding: 20px 16px 80px;
+            }
+            .hero { padding: 60px 16px 40px; }
+        }
+
+        /* Entrance animations */
+        .card {
+            opacity: 0;
+            transform: translateY(40px);
+            animation: cardIn 0.6s ease forwards;
+        }
+        .card:nth-child(1) { animation-delay: 0.1s; }
+        .card:nth-child(2) { animation-delay: 0.2s; }
+        .card:nth-child(3) { animation-delay: 0.3s; }
+        .card:nth-child(4) { animation-delay: 0.4s; }
+        .card:nth-child(5) { animation-delay: 0.5s; }
+
+        @keyframes cardIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .card { opacity: 1; transform: none; animation: none; }
+            .hero::before { animation: none; }
+            .card:nth-child(5) .preview-visual::before { animation: none; }
+        }
+    </style>
+</head>
+<body>
+    <header class="hero">
+        <div class="logo">AnyVision Media</div>
+        <h1>Landing Page Showcase</h1>
+        <p>5 unique design directions for your AI consulting brand. Click any card to view the full landing page experience.</p>
+        <p class="subtitle">Each page is fully responsive, accessible, and production-ready. <a href="logos/" style="color:#6C63FF;text-decoration:none;border-bottom:1px solid rgba(108,99,255,0.3);">View Logo Showcase &rarr;</a></p>
+    </header>
+
+    <main class="grid" role="list">
+        <a href="variant-1-minimalist.html" class="card" role="listitem" aria-label="View Minimalist variant">
+            <div class="card-preview">
+                <div class="preview-visual">Aa</div>
+            </div>
+            <div class="card-body">
+                <div class="card-number">1</div>
+                <div class="style-label">Minimalist / Clean</div>
+                <h2>Typography-Driven Elegance</h2>
+                <p>Maximum white space, bold typography, thin geometric elements. Inspired by Apple, Linear, and Stripe. Every element earns its place.</p>
+                <span class="arrow">View page <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+        </a>
+
+        <a href="variant-2-dark-tech.html" class="card" role="listitem" aria-label="View Dark Tech variant">
+            <div class="card-preview">
+                <div class="preview-visual">&lt;/&gt;</div>
+            </div>
+            <div class="card-body">
+                <div class="card-number">2</div>
+                <div class="style-label">Dark / Tech</div>
+                <h2>Neon-Lit Futurism</h2>
+                <p>Full dark theme with glowing purple and teal accents, dot-grid patterns, and animated gradient hero. Inspired by Vercel and GitHub dark mode.</p>
+                <span class="arrow">View page <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+        </a>
+
+        <a href="variant-3-bold-gradient.html" class="card" role="listitem" aria-label="View Bold Gradient variant">
+            <div class="card-preview">
+                <div class="preview-visual">&#9670;</div>
+            </div>
+            <div class="card-body">
+                <div class="card-number">3</div>
+                <div class="style-label">Bold / Gradient</div>
+                <h2>Vibrant Gradient Energy</h2>
+                <p>Purple-to-teal gradients, glassmorphism cards, animated mesh blobs, and oversized bold typography. Inspired by Stripe and Framer.</p>
+                <span class="arrow">View page <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+        </a>
+
+        <a href="variant-4-corporate.html" class="card" role="listitem" aria-label="View Corporate variant">
+            <div class="card-preview">
+                <div class="preview-visual">&#9632;</div>
+            </div>
+            <div class="card-body">
+                <div class="card-number">4</div>
+                <div class="style-label">Corporate / Professional</div>
+                <h2>Enterprise Trust</h2>
+                <p>Clean grids, data visualizations, client logos, and structured hierarchy. Formal yet modern. Inspired by McKinsey and Deloitte Digital.</p>
+                <span class="arrow">View page <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+        </a>
+
+        <a href="variant-5-interactive.html" class="card" role="listitem" aria-label="View Interactive Modern variant">
+            <div class="card-preview">
+                <div class="preview-visual">&#10022;</div>
+            </div>
+            <div class="card-body">
+                <div class="card-number">5</div>
+                <div class="style-label">Interactive / Modern</div>
+                <h2>Award-Winning Motion</h2>
+                <p>Mouse-tracking gradients, scroll-driven animations, parallax, animated counters, and micro-interactions. Inspired by awwwards winners.</p>
+                <span class="arrow">View page <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+        </a>
+    </main>
+
+    <footer class="footer">
+        <p>&copy; 2025 AnyVision Media. Landing page showcase built with the <a href="#">Ultimate Frontend Developer</a> skill.</p>
+    </footer>
+</body>
+</html>
