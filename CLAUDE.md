@@ -1,0 +1,127 @@
+# AnyVision Media — n8n Workflow Manager
+
+> **Owner:** Ian Immelman (ian@anyvisionmedia.com)
+> **Framework:** WAT (Workflows, Agents, Tools) — see `CLAUDE.md file.md` for full philosophy
+> **n8n Instance:** `ianimmelman89.app.n8n.cloud`
+
+## Architecture
+
+| Layer | Location | Role |
+|-------|----------|------|
+| **Workflows** | `workflows/` | Markdown SOPs + n8n JSON exports, organized by department |
+| **Agents** | Claude (you) | Reads SOPs, orchestrates tools, makes decisions |
+| **Tools** | `tools/` | Python scripts for deterministic execution (deploy, fix, monitor, analyze) |
+
+**Core principle:** Probabilistic AI handles reasoning; deterministic Python handles execution. Never chain 5+ AI steps when a script can do it reliably.
+
+## File Map
+
+```
+tools/                    Python scripts (see patterns below)
+  n8n_client.py           Core API client (httpx, caching, retries)
+  run_manager.py          CLI entry: status | monitor | analyze | report | deploy | docs | ai-audit
+  workflow_deployer.py    Deploy/export/activate workflows
+  execution_monitor.py    Execution monitoring & failure detection
+  deploy_*.py             Programmatic workflow builders (per-department)
+  fix_*.py                Live workflow patch scripts
+  setup_*.py              Airtable base/table creation scripts
+
+workflows/                n8n JSON exports + SOPs
+  accounting-dept/        7 workflows (wf01-wf07): invoicing, collections, reconciliation, bills, month-end, audit, exceptions
+  marketing-dept/         4 workflows (wf01-wf04): intelligence, strategy, content, distribution
+  lead-scraper/           Google Places API scraper (workflow_v2_places_api.json)
+  email_classifier_outlook.json   Outlook email classification + routing
+  *.md                    SOPs (deployment, monitoring, troubleshooting, AI optimization)
+
+templates/                HTML email templates (accounting + lead outreach), {{placeholder}} vars for n8n
+client-portal/            Next.js 16 + Supabase + Tailwind v4 (portal.anyvisionmedia.com)
+landing-pages/            Static HTML site on Netlify (www.anyvisionmedia.com)
+  deploy/                 Production deployment directory
+
+config.json               Non-secret config: n8n instances, AI models, Airtable base IDs, schedules
+.env                      All secrets: API keys, OAuth tokens, Airtable table IDs
+.env.template             Template showing required env vars
+```
+
+## Reference Resources
+
+### GitHub Access (`Github Access/`, gitignored)
+Local copies of reference repos — read-only, for extracting patterns and docs:
+- `n8n-master/` — Full n8n source. Node implementations at `packages/nodes-base/nodes/`
+- `n8n-workflows-main/` — **4,343 production workflows** in 188 categories. Search `workflows/` by integration folder (Gmail, Airtable, Googlesheets, Openai, Webhook, etc.)
+- `ultimate-n8n-ai-workflows-main/` — **3,400+ AI-first workflows**. Key: `workflows/ai-agents/` (by category), `automation/` (948 numbered), `New Workflow/` (56 flagship with READMEs), `gsc-ai-seo-writer/`, `docs/prompt-engineering-tips.md`
+- `context7-master/` — MCP server for live API docs (added to `.mcp.json`)
+- `awesome-claude-skills-master/` — 40+ Claude skills (skill-creator, mcp-builder, document-skills)
+- `LightRAG-main/` — RAG framework with knowledge graphs, PostgreSQL backend
+- `n8n-docs/` — Official n8n documentation source (cloned)
+
+### MCP Servers (`.mcp.json`)
+GitHub, Supabase, Airtable, Playwright, Context7 (live API docs), n8n (workflow management), Xero (accounting API), Google Workspace (Gmail, Sheets, Slides, Calendar, Drive, Docs)
+
+## Active Departments
+
+### Accounting (7 workflows)
+- Full AP/AR: invoicing → collections → payments → supplier bills → month-end → audit → exceptions
+- Integrations: Xero (OAuth), Airtable, Gmail, HTML email templates
+- Context: South African business (ZAR currency, 15% VAT)
+- Auto-approve bills < R10,000; escalate > R50,000
+
+### Marketing (4 workflows)
+- Pipeline: intelligence (Mon 7:30) → strategy (daily 8:30) → content (daily 9:00) → distribution (daily 10:00)
+- AI: Claude Sonnet via OpenRouter (50k daily token budget)
+- Publishing: Blotato → TikTok, Instagram, Facebook
+
+### Lead Scraper
+- Google Places API → Airtable (`app2ALQUP7CKEkHOz`) + Google Sheets
+- Targets: Fourways, Johannesburg businesses
+- AI cold email generation via Claude Sonnet → Gmail delivery
+
+### Email Classifier (Outlook)
+- Polls Outlook every minute via Microsoft Graph
+- GPT classifies: department, intent, urgency, tone, spam detection
+- Routes to: Accounting_Finance, Customer_Support, Sales, Management, Spam_Irrelevant
+
+### WhatsApp Multi-Agent (INACTIVE)
+- 36-node real estate agent system on n8n Cloud
+- GPT-4 analysis, Airtable agent profiles
+- Status: Pending WhatsApp Business verification; missing Twilio credentials
+
+## Tech Stack
+
+**Core:** n8n Cloud, Python 3, Airtable
+**AI:** OpenRouter (preferred) → Claude Sonnet (`anthropic/claude-sonnet-4-20250514`) for qualification/code, GPT-4o for conversation
+**Integrations:** Xero, Gmail OAuth, Outlook OAuth, Blotato, Google Places API, WhatsApp Business API, Google Slides/Calendar
+**Client Portal:** Next.js 16, React 19, TypeScript, Supabase (PostgreSQL + Auth + RLS), Tailwind v4, Recharts
+**Hosting:** n8n Cloud (workflows), Vercel (client portal), Netlify (landing pages)
+
+## Development Patterns
+
+### Deploy scripts (`tools/deploy_*.py`)
+1. Load `.env` via `python-dotenv`
+2. Define `build_nodes()` → returns list of n8n node dicts
+3. Define `build_connections()` → returns connection map
+4. CLI: `build` (save JSON), `deploy` (POST to n8n API), `activate` (enable triggers)
+5. Output: `workflows/{dept}/*.json`
+
+### Fix scripts (`tools/fix_*.py`)
+1. Fetch live workflow JSON from n8n by workflow ID
+2. Build `node_map = {n["name"]: n for n in nodes}`
+3. Mutate specific nodes by name
+4. Push patched workflow back to n8n
+
+### General
+- All scripts use `N8nClient` from `tools/n8n_client.py` for API calls
+- Auth: `X-N8N-API-KEY` header
+- Airtable base/table IDs come from `.env`
+- n8n credential IDs are hardcoded constants in deploy scripts (not secrets, just internal n8n refs)
+
+## Operating Rules
+
+1. **Check `tools/` first** before building anything new
+2. **Search workflow libraries** — Before building a new workflow from scratch, search `Github Access/n8n-workflows-main/workflows/` and `Github Access/ultimate-n8n-ai-workflows-main/` for existing patterns to adapt
+3. **Never chain 5+ AI steps** — use a Python script instead
+4. **Ask before creating/overwriting workflows** — SOPs are preserved and refined, not replaced
+5. **Secrets in `.env` only** — never hardcode API keys
+6. **Cloud-first deliverables** — final outputs go to Google Slides, email, etc.
+7. **`.tmp/` is disposable** — everything there can be regenerated
+8. **Read the full WAT framework** in `CLAUDE.md file.md` for detailed philosophy

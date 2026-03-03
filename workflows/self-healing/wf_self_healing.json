@@ -1,0 +1,1070 @@
+{
+  "name": "Self-Healing Monitor - AnyVision Production",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Self-Healing Monitor — AnyVision Production\nCatches all workflow errors, classifies via AI, auto-fixes known patterns.\nSends alerts only for errors requiring human intervention.",
+        "width": 1600,
+        "height": 120,
+        "color": 4
+      },
+      "id": "72883db1-8b62-4ca9-adf5-b2c1e9d8a3c2",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        160,
+        260
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Error Categories\n| Category | Action | Examples |\n|----------|--------|----------|\n| auto_retry | Retry immediately | Timeout, 5xx, ECONNRESET |\n| deactivate_reactivate | Toggle workflow | Webhook stuck |\n| delay_retry | Wait then retry | 429, Gmail quota |\n| needs_human | Email alert | Credentials, code errors |\n| unknown | Email alert | Low confidence |",
+        "width": 600,
+        "height": 200,
+        "color": 6
+      },
+      "id": "d4f90f2d-d86a-494b-ba9f-ab5958df6782",
+      "name": "Note - Categories",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        580,
+        100
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "2920b074-4dfb-4e77-bbc3-34b1ba547a2d",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalizes error data from Error Trigger, Manual Test, or Webhook\nconst input = $input.first().json;\n\n// Skip invalid webhook reports\nif (input.valid === false) {\n  return [];\n}\n\nlet errorMessage, errorNode, executionId, executionUrl, workflowId, workflowName;\n\nif (input.testMode) {\n  // From Manual Trigger test\n  errorMessage = input.errorMessage || 'Test error: connection timeout';\n  errorNode = input.errorNode || 'HTTP Request';\n  executionId = 'test-' + Date.now();\n  executionUrl = '';\n  workflowId = input.workflowId || 'test';\n  workflowName = input.workflowName || 'Test Workflow';\n} else if (input.execution) {\n  // From Error Trigger\n  const execution = input.execution;\n  const workflow = input.workflow || {};\n  errorMessage = execution.error?.message || 'Unknown error';\n  errorNode = execution.error?.node?.name || execution.lastNodeExecuted || 'Unknown';\n  executionId = execution.id || '';\n  executionUrl = execution.url || '';\n  workflowId = execution.workflowId || '';\n  workflowName = workflow.name || 'Unknown';\n} else {\n  // From Webhook external report\n  errorMessage = input.error_message || input.message || 'Unknown error';\n  errorNode = input.error_node || input.node || 'Unknown';\n  executionId = input.execution_id || '';\n  executionUrl = input.execution_url || '';\n  workflowId = input.workflow_id || '';\n  workflowName = input.workflow_name || 'External Report';\n}\n\n// Quick regex pre-classification\nlet hintCategory = 'unknown';\nconst msg = errorMessage.toLowerCase();\nif (msg.includes('timeout') || msg.includes('econnreset') || msg.includes('econnrefused') || msg.includes('enotfound')) {\n  hintCategory = 'connection_timeout';\n} else if (msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests')) {\n  hintCategory = 'rate_limit';\n} else if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('504')) {\n  hintCategory = 'server_error';\n} else if (msg.includes('webhook') && (msg.includes('stuck') || msg.includes('not responding') || msg.includes('listen'))) {\n  hintCategory = 'webhook_stuck';\n} else if (msg.includes('credential') || msg.includes('unauthorized') || msg.includes('401') || msg.includes('403')) {\n  hintCategory = 'credential_error';\n} else if (msg.includes('quota') || (msg.includes('gmail') && msg.includes('limit'))) {\n  hintCategory = 'quota_exceeded';\n} else if (msg.includes('syntax') || msg.includes('unexpected token') || msg.includes('is not defined') || msg.includes('is not a function')) {\n  hintCategory = 'code_error';\n} else if (msg.includes('required') || msg.includes('missing') || msg.includes('validation') || msg.includes('could not find')) {\n  hintCategory = 'validation_error';\n}\n\n// Cooldown check via static data\nconst staticData = $getWorkflowStaticData('global');\nconst cooldownKey = `${workflowId}_${errorNode}`;\nconst now = Date.now();\nconst lastFixed = staticData[cooldownKey] || 0;\nconst cooldownMs = 5 * 60 * 1000; // 5 minute cooldown\nconst inCooldown = (now - lastFixed) < cooldownMs;\n\nreturn {\n  json: {\n    errorMessage,\n    errorNode,\n    executionId,\n    executionUrl,\n    workflowId,\n    workflowName,\n    hintCategory,\n    timestamp: new Date().toISOString(),\n    isTest: !!input.testMode,\n    inCooldown,\n    cooldownKey,\n  }\n};"
+      },
+      "id": "ef9dcd7e-3372-4028-b372-d024ff461965",
+      "name": "Extract Error Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"anthropic/claude-sonnet-4-20250514\",\"messages\":[{\"role\":\"system\",\"content\":\"You are an n8n workflow error classifier. Given an error message and context, classify it into exactly one category and provide a recovery recommendation.\\n\\nCategories:\\n1. auto_retry - Transient errors that will likely succeed on retry (connection timeouts, ECONNRESET, temporary 5xx server errors, Airtable rate limits)\\n2. deactivate_reactivate - Errors requiring a workflow restart (webhook stuck, listener not responding, trigger registration failures)\\n3. delay_retry - Errors requiring a wait period before retry (429 rate limits, Gmail quota exceeded, API daily limits)\\n4. needs_human - Errors requiring human intervention (expired credentials, 401/403 auth errors, code syntax errors, missing required fields, data validation failures, schema changes)\\n5. unknown - Cannot confidently classify\\n\\nRespond ONLY with valid JSON, no markdown:\\n{\"category\": \"<one of 5>\", \"confidence\": <0.0-1.0>, \"explanation\": \"<brief>\", \"suggested_action\": \"<action>\", \"wait_seconds\": <0 if n/a>, \"retry_count\": <1-3>}\"},{\"role\":\"user\",\"content\":\"Error in workflow '{{ $json.workflowName }}' at node '{{ $json.errorNode }}':\\n{{ $json.errorMessage }}\\n\\nPre-classification hint: {{ $json.hintCategory }}\"}],\"temperature\":0.1,\"max_tokens\":300}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d32d50bd-9652-4d61-a3a7-362e3f97799d",
+      "name": "AI Classify Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        700,
+        500
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse OpenRouter AI classification response with regex fallback\nconst input = $input.first().json;\nconst errorData = $('Extract Error Data').first().json;\n\nlet classification;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  classification = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch(e) {\n  // Fallback to regex-based classification\n  const hint = errorData.hintCategory;\n  const categoryMap = {\n    'connection_timeout': 'auto_retry',\n    'rate_limit': 'delay_retry',\n    'server_error': 'auto_retry',\n    'webhook_stuck': 'deactivate_reactivate',\n    'credential_error': 'needs_human',\n    'quota_exceeded': 'delay_retry',\n    'code_error': 'needs_human',\n    'validation_error': 'needs_human',\n  };\n  classification = {\n    category: categoryMap[hint] || 'needs_human',\n    confidence: 0.5,\n    explanation: `Regex fallback: ${hint} (AI unavailable: ${e.message})`,\n    suggested_action: categoryMap[hint] || 'alert_human',\n    wait_seconds: hint === 'quota_exceeded' ? 3600 : hint === 'rate_limit' ? 30 : 0,\n    retry_count: hint === 'server_error' ? 3 : hint === 'connection_timeout' ? 2 : 1,\n  };\n}\n\n// Low confidence → escalate to human\nif ((classification.confidence || 0) < 0.6) {\n  classification.category = 'needs_human';\n  classification.explanation = (classification.explanation || '') + ' (low confidence — escalating)';\n}\n\n// If in cooldown, force to needs_human to avoid retry loops\nif (errorData.inCooldown) {\n  classification.category = 'needs_human';\n  classification.explanation = `Repeat error within 5min cooldown. Original: ${classification.category}. ${classification.explanation || ''}`;\n}\n\nreturn {\n  json: {\n    ...errorData,\n    category: classification.category || 'needs_human',\n    confidence: classification.confidence || 0,\n    explanation: classification.explanation || '',\n    suggestedAction: classification.suggested_action || 'alert_human',\n    waitSeconds: classification.wait_seconds || 0,\n    retryCount: classification.retry_count || 1,\n  }\n};"
+      },
+      "id": "4f7059c3-9f01-4028-b6d9-55be49e25be5",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        940,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "auto_retry",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "auto_retry",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "deactivate_reactivate",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "deactivate_reactivate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "delay_retry",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "delay_retry",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "needs_human",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "needs_human",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "71be517e-9fb1-4c45-a085-e390aa28569f",
+      "name": "Route by Category",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1180,
+        500
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_BASE_URL }}/api/v1/executions/{{ $json.executionId }}/retry",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "8170f8c5-b804-481b-a173-daf7a6da9ae7",
+      "name": "Execute Retry",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1420,
+        300
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "I6gIMlFJtIc0NbiP",
+          "name": "X-N8N-API-KEY"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tag result from auto-retry branch\nconst input = $input.first().json;\nconst errorData = $('Parse AI Response').first().json;\n\n// Record cooldown\nconst staticData = $getWorkflowStaticData('global');\nstaticData[errorData.cooldownKey] = Date.now();\n\nreturn {\n  json: {\n    ...errorData,\n    fixAction: 'retried',\n    fixResult: input.success !== false ? 'success' : 'failed',\n    fixDescription: 'Auto-retried execution via n8n API',\n  }\n};"
+      },
+      "id": "ee012000-832e-4891-b48b-d0c7002469e2",
+      "name": "Tag Retry Result",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1660,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.N8N_BASE_URL }}/api/v1/workflows/{{ $json.workflowId }}/deactivate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "9532d4d4-e317-4fd2-bee8-631c9eea679f",
+      "name": "Deactivate Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1420,
+        500
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "I6gIMlFJtIc0NbiP",
+          "name": "X-N8N-API-KEY"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "1ae204c6-fb7d-4cb8-b2d9-7e2a1d00a0fb",
+      "name": "Wait Then Reactivate",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        1660,
+        500
+      ],
+      "typeVersion": 1.1,
+      "webhookId": "79b8a91d-9e0d-4560-9a2e-4b656b12a215"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Parse AI Response').first().json.workflowId ? $env.N8N_BASE_URL + '/api/v1/workflows/' + $('Parse AI Response').first().json.workflowId + '/activate' : '' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "52b47f19-023a-4e60-85c8-e49c2917059f",
+      "name": "Reactivate Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1900,
+        500
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "I6gIMlFJtIc0NbiP",
+          "name": "X-N8N-API-KEY"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tag result from deactivate/reactivate branch\nconst errorData = $('Parse AI Response').first().json;\n\n// Record cooldown\nconst staticData = $getWorkflowStaticData('global');\nstaticData[errorData.cooldownKey] = Date.now();\n\nreturn {\n  json: {\n    ...errorData,\n    fixAction: 'deactivated_reactivated',\n    fixResult: 'success',\n    fixDescription: 'Deactivated and reactivated workflow to reset triggers',\n  }\n};"
+      },
+      "id": "804bbaca-dbf7-41ee-a2d3-7ba1a3875b48",
+      "name": "Tag Reactivate Result",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2140,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine wait time based on error type\nconst input = $input.first().json;\n\nlet waitSeconds = input.waitSeconds || 30;\nconst msg = input.errorMessage.toLowerCase();\n\nif (msg.includes('gmail') || msg.includes('quota')) {\n  waitSeconds = 3600; // 1 hour for Gmail quota\n} else if (msg.includes('rate limit') || msg.includes('429')) {\n  waitSeconds = 30;\n} else if (msg.includes('airtable') && msg.includes('rate')) {\n  waitSeconds = 30;\n}\n\n// Record cooldown in static data\nconst staticData = $getWorkflowStaticData('global');\nstaticData[input.cooldownKey] = Date.now();\n\nreturn {\n  json: {\n    ...input,\n    waitSeconds,\n    fixAction: 'delayed_retry',\n    fixDescription: `Waiting ${waitSeconds}s before retry: ${input.explanation}`,\n  }\n};"
+      },
+      "id": "457c5757-e944-49b4-85bc-377656d329e8",
+      "name": "Compute Wait Time",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1420,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "amount": "={{ $json.waitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "a2164d2f-102a-45a0-b5ea-20876e6f73e5",
+      "name": "Wait Before Retry",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        1660,
+        700
+      ],
+      "typeVersion": 1.1,
+      "webhookId": "dc3dc8e6-fbb2-4a9a-853a-72a3fe14a40b"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Compute Wait Time').first().json.executionId ? $env.N8N_BASE_URL + '/api/v1/executions/' + $('Compute Wait Time').first().json.executionId + '/retry' : '' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "4fd15ca7-5bf6-43b9-8261-43377a094787",
+      "name": "Execute Delayed Retry",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1900,
+        700
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "I6gIMlFJtIc0NbiP",
+          "name": "X-N8N-API-KEY"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tag result from delayed retry branch\nconst input = $input.first().json;\nconst errorData = $('Compute Wait Time').first().json;\nreturn {\n  json: {\n    ...errorData,\n    fixResult: input.success !== false ? 'success' : 'failed',\n  }\n};"
+      },
+      "id": "06bef680-5927-417c-8e53-9f1b76c0054d",
+      "name": "Tag Delayed Result",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2140,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build HTML alert email for human-intervention errors\nconst data = $input.first().json;\nconst instanceName = 'AnyVision Production';\n\nconst severityColor = data.category === 'needs_human' ? '#dc2626' : '#f59e0b';\nconst severityLabel = data.category === 'needs_human' ? 'REQUIRES ACTION' : 'UNKNOWN ERROR';\n\nconst html = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;background-color:#f4f4f4;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;margin:0 auto;background-color:#ffffff;\">\n    <tr>\n      <td style=\"padding:30px 40px 20px;border-bottom:3px solid ${severityColor};\">\n        <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">Self-Healing Alert</h1>\n        <p style=\"margin:5px 0 0;font-size:12px;color:${severityColor};text-transform:uppercase;letter-spacing:1px;\">${severityLabel}</p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:30px 40px;\">\n        <div style=\"margin:0 0 20px;padding:16px;background-color:#FEF2F2;border-left:3px solid ${severityColor};border-radius:4px;\">\n          <p style=\"margin:0;font-size:14px;color:#333;line-height:1.8;\">\n            <strong>Workflow:</strong> ${data.workflowName}<br>\n            <strong>Failed Node:</strong> ${data.errorNode}<br>\n            <strong>Time:</strong> ${data.timestamp}<br>\n            <strong>Category:</strong> ${data.category}<br>\n            <strong>Confidence:</strong> ${Math.round((data.confidence || 0) * 100)}%\n          </p>\n        </div>\n        <p style=\"margin:0 0 12px;font-size:15px;color:#333;\"><strong>Error Message:</strong></p>\n        <div style=\"margin:0 0 20px;padding:12px;background:#f8f8f8;border-radius:4px;font-family:monospace;font-size:13px;color:#c0392b;word-break:break-all;\">\n          ${data.errorMessage}\n        </div>\n        <p style=\"margin:0 0 12px;font-size:15px;color:#333;\"><strong>AI Analysis:</strong></p>\n        <p style=\"margin:0 0 20px;font-size:14px;color:#666;\">${data.explanation}</p>\n        ${data.executionUrl ? '<p style=\"margin:0;\"><a href=\"' + data.executionUrl + '\" style=\"display:inline-block;padding:10px 24px;background-color:#FF6D5A;color:#fff;text-decoration:none;border-radius:4px;font-size:14px;\">View Execution in n8n</a></p>' : ''}\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;\">\n        <p style=\"margin:0;font-size:11px;color:#999;line-height:1.5;\">\n          AnyVision Media Self-Healing Monitor | ${instanceName}<br>\n          This error could not be auto-resolved. Manual intervention required.\n        </p>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>`;\n\nreturn {\n  json: {\n    ...data,\n    alertHtml: html,\n    alertSubject: `[SELF-HEALING] ${severityLabel}: ${data.workflowName} - ${data.errorNode}`,\n    fixAction: 'alerted_human',\n    fixResult: 'pending',\n    fixDescription: 'Sent alert email — requires manual intervention',\n  }\n};"
+      },
+      "id": "954a0f33-7fb8-4474-b4cc-a8f88c93e4fb",
+      "name": "Build Alert Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1420,
+        900
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.alertSubject }}",
+        "emailType": "html",
+        "message": "={{ $json.alertHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "090fff80-e9bf-4b0d-a0a8-596525bfecb2",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1660,
+        900
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbleud2UEiKvbOalv"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Error ID": "=SH-{{ Date.now() }}",
+            "Timestamp": "={{ $json.timestamp }}",
+            "Instance": "AnyVision Production",
+            "Workflow Name": "={{ $json.workflowName }}",
+            "Workflow ID": "={{ $json.workflowId }}",
+            "Error Node": "={{ $json.errorNode }}",
+            "Error Message": "={{ $json.errorMessage }}",
+            "Category": "={{ $json.category }}",
+            "AI Confidence": "={{ $json.confidence }}",
+            "AI Explanation": "={{ $json.explanation }}",
+            "Action Taken": "={{ $json.fixAction || 'none' }}",
+            "Action Result": "={{ $json.fixResult || 'pending' }}",
+            "Execution ID": "={{ $json.executionId }}",
+            "Execution URL": "={{ $json.executionUrl }}",
+            "Is Test": "={{ $json.isTest }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "cd2c55a2-33d3-40d8-9d7c-e4894489135f",
+      "name": "Log to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2380,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "0cee2766-0192-4587-b729-092b5af5b9c9",
+      "name": "Health Check Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        1200
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_BASE_URL }}/api/v1/workflows?limit=250",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "83ebf91e-54c0-421e-b24e-031426ea5700",
+      "name": "Fetch All Workflows",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        460,
+        1200
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "I6gIMlFJtIc0NbiP",
+          "name": "X-N8N-API-KEY"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_BASE_URL }}/api/v1/executions?status=error&limit=20",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "c8c19a86-3622-4a0d-a168-3150df324a55",
+      "name": "Fetch Recent Errors",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        700,
+        1200
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "I6gIMlFJtIc0NbiP",
+          "name": "X-N8N-API-KEY"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Analyze instance health from workflow list + recent errors\nconst workflows = $('Fetch All Workflows').first().json;\nconst errorsData = $('Fetch Recent Errors').first().json;\n\nconst workflowList = Array.isArray(workflows) ? workflows : (workflows.data || []);\nconst errorList = Array.isArray(errorsData) ? errorsData : (errorsData.data || []);\n\nconst totalWorkflows = workflowList.length;\nconst activeWorkflows = workflowList.filter(w => w.active).length;\nconst inactiveWorkflows = totalWorkflows - activeWorkflows;\n\n// Count errors per workflow\nconst errorsByWorkflow = {};\nconst errorThreshold = 3;\n\nfor (const exec of errorList) {\n  const wfId = exec.workflowId || 'unknown';\n  const wfName = exec.workflowData?.name || workflowList.find(w => w.id === wfId)?.name || 'Unknown';\n  if (!errorsByWorkflow[wfId]) {\n    errorsByWorkflow[wfId] = { name: wfName, count: 0, lastError: '' };\n  }\n  errorsByWorkflow[wfId].count++;\n  if (!errorsByWorkflow[wfId].lastError) {\n    errorsByWorkflow[wfId].lastError = exec.stoppedAt || '';\n  }\n}\n\nconst problematicWorkflows = Object.entries(errorsByWorkflow)\n  .filter(([_, data]) => data.count >= errorThreshold)\n  .map(([id, data]) => ({ id, ...data }));\n\n// Suspicious inactive: not test/draft/backup/copy/old/disabled\nconst suspiciousInactive = workflowList\n  .filter(w => !w.active)\n  .filter(w => {\n    const name = (w.name || '').toLowerCase();\n    return !name.includes('test') && !name.includes('draft') &&\n           !name.includes('backup') && !name.includes('old') &&\n           !name.includes('copy') && !name.includes('disabled') &&\n           !name.includes('combined');\n  })\n  .slice(0, 5);\n\nconst hasIssues = problematicWorkflows.length > 0;\n\nreturn {\n  json: {\n    hasIssues,\n    totalWorkflows,\n    activeWorkflows,\n    inactiveWorkflows,\n    recentErrorCount: errorList.length,\n    problematicWorkflows,\n    suspiciousInactive,\n    checkedAt: new Date().toISOString(),\n  }\n};"
+      },
+      "id": "531a8fb4-5ec7-4955-a134-28cd24555917",
+      "name": "Analyze Health",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        940,
+        1200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasIssues }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "cb3b0110-d8d3-4275-bd2b-3bb40f482f6b",
+      "name": "Has Issues?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1180,
+        1200
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build HTML health report email\nconst data = $input.first().json;\nconst instanceName = 'AnyVision Production';\n\nconst problematicRows = (data.problematicWorkflows || []).map(w =>\n  `<tr>\n    <td style=\"padding:8px 12px;border-bottom:1px solid #eee;\">${w.name}</td>\n    <td style=\"padding:8px 12px;border-bottom:1px solid #eee;text-align:center;color:#dc2626;font-weight:bold;\">${w.count}</td>\n    <td style=\"padding:8px 12px;border-bottom:1px solid #eee;font-size:12px;color:#999;\">${w.lastError || 'N/A'}</td>\n  </tr>`\n).join('');\n\nconst suspiciousRows = (data.suspiciousInactive || []).map(w =>\n  `<tr>\n    <td style=\"padding:8px 12px;border-bottom:1px solid #eee;\">${w.name}</td>\n    <td style=\"padding:8px 12px;border-bottom:1px solid #eee;font-size:12px;color:#999;\">${w.id}</td>\n  </tr>`\n).join('');\n\nconst statusColor = data.hasIssues ? '#dc2626' : '#22c55e';\n\nconst html = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f4f4f4;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;margin:0 auto;background-color:#ffffff;\">\n    <tr>\n      <td style=\"padding:30px 40px 20px;border-bottom:3px solid ${statusColor};\">\n        <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">Health Check Report</h1>\n        <p style=\"margin:5px 0 0;font-size:12px;color:${statusColor};text-transform:uppercase;letter-spacing:1px;\">${data.hasIssues ? 'ISSUES DETECTED' : 'ALL CLEAR'}</p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:30px 40px;\">\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"8\" style=\"margin:0 0 20px;\">\n          <tr>\n            <td style=\"padding:16px;background:#f0fdf4;border-radius:8px;text-align:center;width:33%;\">\n              <p style=\"margin:0;font-size:28px;font-weight:bold;color:#166534;\">${data.activeWorkflows}</p>\n              <p style=\"margin:4px 0 0;font-size:12px;color:#666;\">Active</p>\n            </td>\n            <td style=\"padding:16px;background:#fefce8;border-radius:8px;text-align:center;width:33%;\">\n              <p style=\"margin:0;font-size:28px;font-weight:bold;color:#854d0e;\">${data.inactiveWorkflows}</p>\n              <p style=\"margin:4px 0 0;font-size:12px;color:#666;\">Inactive</p>\n            </td>\n            <td style=\"padding:16px;background:#fef2f2;border-radius:8px;text-align:center;width:33%;\">\n              <p style=\"margin:0;font-size:28px;font-weight:bold;color:#991b1b;\">${data.recentErrorCount}</p>\n              <p style=\"margin:4px 0 0;font-size:12px;color:#666;\">Recent Errors</p>\n            </td>\n          </tr>\n        </table>\n        ${problematicRows ? `\n        <h3 style=\"margin:20px 0 8px;font-size:16px;color:#333;\">Problematic Workflows</h3>\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n          <tr style=\"background:#f8f8f8;\">\n            <th style=\"padding:8px 12px;text-align:left;font-size:12px;border-bottom:2px solid #ddd;\">Workflow</th>\n            <th style=\"padding:8px 12px;text-align:center;font-size:12px;border-bottom:2px solid #ddd;\">Errors</th>\n            <th style=\"padding:8px 12px;text-align:left;font-size:12px;border-bottom:2px solid #ddd;\">Last Error</th>\n          </tr>\n          ${problematicRows}\n        </table>` : ''}\n        ${suspiciousRows ? `\n        <h3 style=\"margin:20px 0 8px;font-size:16px;color:#333;\">Potentially Inactive Workflows</h3>\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n          <tr style=\"background:#f8f8f8;\">\n            <th style=\"padding:8px 12px;text-align:left;font-size:12px;border-bottom:2px solid #ddd;\">Workflow</th>\n            <th style=\"padding:8px 12px;text-align:left;font-size:12px;border-bottom:2px solid #ddd;\">ID</th>\n          </tr>\n          ${suspiciousRows}\n        </table>` : ''}\n        <p style=\"margin:20px 0 0;font-size:12px;color:#999;\">Checked: ${data.checkedAt}</p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;\">\n        <p style=\"margin:0;font-size:11px;color:#999;\">AnyVision Media Self-Healing Monitor | ${instanceName}</p>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>`;\n\nreturn {\n  json: {\n    ...data,\n    reportHtml: html,\n    reportSubject: `[HEALTH CHECK] ${data.hasIssues ? 'ISSUES DETECTED' : 'ALL CLEAR'} - ${data.totalWorkflows} workflows, ${data.recentErrorCount} errors`,\n  }\n};"
+      },
+      "id": "410267d3-d8fa-4236-8c10-9166efb1ca1a",
+      "name": "Build Health Report",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1420,
+        1200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.reportSubject }}",
+        "emailType": "html",
+        "message": "={{ $json.reportHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "bda67970-c1ed-4103-9b3f-faae0adb493e",
+      "name": "Send Health Alert",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1660,
+        1200
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "38e24e25-ee27-41ed-8a8b-cd67659f8e17",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        1500
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "69c72aec-0d3d-46eb-914a-2f557b575ff5",
+              "name": "testMode",
+              "value": "=true",
+              "type": "boolean"
+            },
+            {
+              "id": "cf3e9765-ee46-4e47-a36f-83bb9c168a99",
+              "name": "errorMessage",
+              "value": "ECONNRESET: connection reset by peer",
+              "type": "string"
+            },
+            {
+              "id": "82f499b4-2454-4a57-8867-60d3dd430645",
+              "name": "errorNode",
+              "value": "HTTP Request",
+              "type": "string"
+            },
+            {
+              "id": "7dac6139-9e70-475e-8579-1b1dc1c70bb6",
+              "name": "workflowName",
+              "value": "Test Workflow (Self-Healing Check)",
+              "type": "string"
+            },
+            {
+              "id": "da419e6b-5f6e-456c-998f-4d288409c86e",
+              "name": "workflowId",
+              "value": "test-123",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b288e5f3-9bd7-4ac9-b339-bb15a957b528",
+      "name": "Test Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        460,
+        1500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "self-healing/report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "83401f19-5188-4aa5-8b64-6c05a30ded4b",
+      "name": "Report Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        1700
+      ],
+      "typeVersion": 2,
+      "webhookId": "46b9ce40-aacb-456d-899d-d10a3f844de5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate external error report payload\nconst body = $input.first().json.body || $input.first().json;\n\nconst required = ['error_message', 'workflow_name'];\nconst missing = required.filter(f => !body[f]);\n\nif (missing.length > 0) {\n  return {\n    json: {\n      valid: false,\n      error: `Missing fields: ${missing.join(', ')}`,\n      ...body,\n    }\n  };\n}\n\nreturn {\n  json: {\n    valid: true,\n    error_message: body.error_message,\n    error_node: body.error_node || 'Unknown',\n    workflow_name: body.workflow_name,\n    workflow_id: body.workflow_id || '',\n    execution_id: body.execution_id || '',\n    execution_url: body.execution_url || '',\n  }\n};"
+      },
+      "id": "a0a1d7ce-af17-4898-99ff-04d81ee9d87a",
+      "name": "Validate Webhook Input",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        1700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\":\"received\",\"valid\":{{ $json.valid }},\"timestamp\":\"{{ $now.toISO() }}\"}",
+        "options": {}
+      },
+      "id": "a1c1767c-76ed-4828-ace0-80142f7ffced",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        700,
+        1700
+      ],
+      "typeVersion": 1.1,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Error Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Error Data": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify Error": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Route by Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Category": {
+      "main": [
+        [
+          {
+            "node": "Execute Retry",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Deactivate Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compute Wait Time",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Retry": {
+      "main": [
+        [
+          {
+            "node": "Tag Retry Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deactivate Workflow": {
+      "main": [
+        [
+          {
+            "node": "Wait Then Reactivate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Then Reactivate": {
+      "main": [
+        [
+          {
+            "node": "Reactivate Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reactivate Workflow": {
+      "main": [
+        [
+          {
+            "node": "Tag Reactivate Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Wait Time": {
+      "main": [
+        [
+          {
+            "node": "Wait Before Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before Retry": {
+      "main": [
+        [
+          {
+            "node": "Execute Delayed Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Delayed Retry": {
+      "main": [
+        [
+          {
+            "node": "Tag Delayed Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Health Check Schedule": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Workflows": {
+      "main": [
+        [
+          {
+            "node": "Fetch Recent Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Recent Errors": {
+      "main": [
+        [
+          {
+            "node": "Analyze Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Health": {
+      "main": [
+        [
+          {
+            "node": "Has Issues?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Issues?": {
+      "main": [
+        [
+          {
+            "node": "Build Health Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Build Health Report": {
+      "main": [
+        [
+          {
+            "node": "Send Health Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Test Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Config": {
+      "main": [
+        [
+          {
+            "node": "Extract Error Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Webhook Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Webhook Input": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Error Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        []
+      ]
+    },
+    "Tag Retry Result": {
+      "main": [
+        [
+          {
+            "node": "Log to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Reactivate Result": {
+      "main": [
+        [
+          {
+            "node": "Log to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Delayed Result": {
+      "main": [
+        [
+          {
+            "node": "Log to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Log to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,1058 @@
+{
+  "name": "Marketing Dept - Content Production (WF-03)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "c1a3b59d-fa4f-4b57-ba51-825ec4863f1c",
+      "name": "Daily 9AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "f92adbd6-69a0-487a-9cfb-c5279daf57c9",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dd518e1c-82e9-492c-93e0-2186286dc9f2",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "f571ed8f-9e49-45ec-8853-068e3094b1d4",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            },
+            {
+              "id": "78f38f19-92b2-4067-8eba-8be8923dd05d",
+              "name": "ownerName",
+              "value": "Ian Immelman",
+              "type": "string"
+            },
+            {
+              "id": "3ed5b467-4c71-4e9d-81a2-53405a7eb9ba",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "60d0a730-febc-4235-a06e-885bebe8f871",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblq3SGdZtvbFcfkw"
+        },
+        "filterByFormula": "=AND({Date} = \"{{ $json.todayDate }}\", {Status} = \"Planned\")"
+      },
+      "id": "feb9ed2f-b5ed-4096-aa98-ec087fb9805a",
+      "name": "Read Content Calendar",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        500
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "9d57c141-1cc5-4bc4-9a6e-ad9bf876b4cd",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.id }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7dad063b-61e7-4c9c-81e0-a00c2345443f",
+      "name": "Has Calendar Items?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        920,
+        500
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "options": {
+          "batchSize": 1
+        }
+      },
+      "id": "d543064a-b5c2-4a89-b6ae-2582069e76b8",
+      "name": "Loop Over Content",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblq3SGdZtvbFcfkw"
+        },
+        "columns": {
+          "value": {
+            "Status": "In Production"
+          },
+          "schema": [
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "649c514e-af6a-40ad-92e1-03cb81d05515",
+      "name": "Mark In Production",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        600
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 500,\n  \"temperature\": 0.7,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the Social Media Content Writer for AnyVision Media, a digital media and AI automation agency based in South Africa.\\n\\n## Brand Voice\\n- Professional but approachable\\n- Tech-savvy, innovation-focused\\n- Confident without being arrogant\\n- Use clear, jargon-free language when possible\\n- Always provide actionable value\\n\\n## Company Context\\n- Services: AI workflow automation, web development, social media management, real estate tech solutions\\n- Owner: Ian Immelman\\n- Target audience: Small to medium businesses looking to automate and scale\\n- Brand color: #FF6D5A\\n\\n## Platform-Specific Rules\\n- TikTok: Script-style, conversational, hook in first line. 50-100 words. Use 3-5 trending hashtags.\\n- Instagram: Visual-first caption, 100-200 words. Use 5-10 relevant hashtags at the end.\\n- Facebook: Storytelling format, 100-200 words. Encourage comments. Use 1-3 hashtags.\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"hook\\\": \\\"The attention-grabbing first line\\\",\\n  \\\"body\\\": \\\"The main content after the hook\\\",\\n  \\\"cta\\\": \\\"Call to action sentence\\\",\\n  \\\"hashtags\\\": \\\"#hashtag1 #hashtag2 #hashtag3\\\"\\n}\\n\\n## Rules\\n- Never use excessive exclamation marks (1 max per post)\\n- Never use emojis excessively (1-2 max per post)\\n- Always include a clear call-to-action\\n- Make the hook specific and curiosity-driven, not generic\\n- Reference real pain points of the target audience\\n- The hook should work standalone as the first thing people see\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Write a social media post for the following:\\n\\nTopic: {{ $json.Topic }}\\nPlatform: {{ $json.Platform }}\\nBrief: {{ $json.Brief }}\\n\\nGenerate content optimized for the specified platform.\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a73d2b3d-fed2-477b-b254-3f788c929d08",
+      "name": "AI Generate Social Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1640,
+        600
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 300,\n  \"temperature\": 0.8,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a social media hook optimization expert. Given a hook and the post topic, generate 3 alternative hooks that are more engaging.\\n\\n## Rules\\n- Each hook must be different in approach (question, statistic, bold claim)\\n- Keep each hook under 100 characters\\n- Score each 1-10 for engagement potential\\n- Select the best one\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"variations\\\": [\\\"hook 1\\\", \\\"hook 2\\\", \\\"hook 3\\\"],\\n  \\\"scores\\\": [8, 7, 9],\\n  \\\"best_index\\\": 2\\n}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Original hook: {{ $json.parsedContent.hook }}\\nTopic: {{ $('Loop Over Content').first().json.Topic }}\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "77bedd0b-00ff-4ab1-98b0-df5cbcc30816",
+      "name": "AI Hook Optimizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2120,
+        600
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst calendarItem = $('Loop Over Content').first().json;\n\nlet parsed;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content\n    .replace(/```json\\n?/g, '')\n    .replace(/```\\n?/g, '')\n    .trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch (e) {\n  // Fallback content\n  parsed = {\n    hook: `Discover how ${calendarItem.Topic || 'automation'} can transform your business`,\n    body: `At AnyVision Media, we help businesses automate and scale. ${calendarItem.Brief || ''}`,\n    cta: 'Want to learn more? Drop us a message.',\n    hashtags: '#automation #AI #business'\n  };\n}\n\n// Calculate quality score (1-10)\nlet score = 5; // baseline\nconst fullText = `${parsed.hook} ${parsed.body} ${parsed.cta}`;\nif (parsed.hook && parsed.hook.length > 10) score += 1;\nif (parsed.body && parsed.body.length > 50) score += 1;\nif (parsed.cta && parsed.cta.length > 10) score += 1;\nif (parsed.hashtags && parsed.hashtags.split('#').length > 2) score += 1;\nif (fullText.length > 100 && fullText.length < 1000) score += 1;\n\nreturn {\n  json: {\n    parsedContent: parsed,\n    qualityScore: score,\n    calendarId: calendarItem.id,\n    topic: calendarItem.Topic,\n    platform: (calendarItem.Platform || []).join(', '),\n    tokensUsed: input.usage ? input.usage.total_tokens : 0\n  }\n};"
+      },
+      "id": "30dca500-d041-4b70-a1e4-af18da7439a1",
+      "name": "Parse Post Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1880,
+        600
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst postData = $('Parse Post Response').first().json;\n\nlet hookData;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content\n    .replace(/```json\\n?/g, '')\n    .replace(/```\\n?/g, '')\n    .trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  hookData = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch (e) {\n  hookData = {\n    variations: [postData.parsedContent.hook],\n    scores: [7],\n    best_index: 0\n  };\n}\n\n// Use the best hook\nconst bestIndex = hookData.best_index || 0;\nconst bestHook = hookData.variations[bestIndex] || postData.parsedContent.hook;\n\n// Compose the full post text\nconst fullPost = [bestHook, postData.parsedContent.body, postData.parsedContent.cta]\n  .filter(Boolean)\n  .join('\\n\\n');\n\nconst fullPostWithHashtags = postData.parsedContent.hashtags\n  ? fullPost + '\\n\\n' + postData.parsedContent.hashtags\n  : fullPost;\n\nreturn {\n  json: {\n    title: bestHook,\n    body: fullPostWithHashtags,\n    hashtags: postData.parsedContent.hashtags || '',\n    hookVariations: JSON.stringify(hookData.variations || []),\n    selectedHook: bestIndex,\n    qualityScore: postData.qualityScore,\n    calendarId: postData.calendarId,\n    topic: postData.topic,\n    platform: postData.platform,\n    tokensUsed: postData.tokensUsed + (input.usage ? input.usage.total_tokens : 0)\n  }\n};"
+      },
+      "id": "f2b50cf6-0aed-4d8d-8143-9eee8dcb2b45",
+      "name": "Parse Hook Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2360,
+        600
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblf3QGxX9K1y2h2H"
+        },
+        "columns": {
+          "value": {
+            "Title": "={{ $json.title }}",
+            "Calendar Entry ID": "={{ $json.calendarId }}",
+            "Content Type": "social_post",
+            "Body": "={{ $json.body }}",
+            "Hashtags": "={{ $json.hashtags }}",
+            "Hook Variations": "={{ $json.hookVariations }}",
+            "Selected Hook": "={{ $json.selectedHook }}",
+            "Status": "Draft",
+            "Quality Score": "={{ $json.qualityScore }}",
+            "Platform": "={{ $json.platform }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": [
+            {
+              "id": "Title",
+              "type": "string",
+              "display": true,
+              "displayName": "Title"
+            },
+            {
+              "id": "Calendar Entry ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Calendar Entry ID"
+            },
+            {
+              "id": "Content Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Content Type"
+            },
+            {
+              "id": "Body",
+              "type": "string",
+              "display": true,
+              "displayName": "Body"
+            },
+            {
+              "id": "Hashtags",
+              "type": "string",
+              "display": true,
+              "displayName": "Hashtags"
+            },
+            {
+              "id": "Hook Variations",
+              "type": "string",
+              "display": true,
+              "displayName": "Hook Variations"
+            },
+            {
+              "id": "Selected Hook",
+              "type": "number",
+              "display": true,
+              "displayName": "Selected Hook"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Quality Score",
+              "type": "number",
+              "display": true,
+              "displayName": "Quality Score"
+            },
+            {
+              "id": "Platform",
+              "type": "string",
+              "display": true,
+              "displayName": "Platform"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Title"
+          ]
+        },
+        "options": {}
+      },
+      "id": "195ff8c2-ce63-4b26-91d2-7dd6956106f3",
+      "name": "Store Content",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2600,
+        600
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "0cb891d7-7e32-427e-98ac-d8876be9f6cb",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "leftValue": "={{ $('Parse Hook Response').first().json.qualityScore }}",
+              "rightValue": 6
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2fa05ad2-7b23-477a-98e2-64d6da4f37c3",
+      "name": "Quality Score >= 6?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2840,
+        600
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblkS0va5Dw4yPSuq"
+        },
+        "columns": {
+          "value": {
+            "Queue ID": "={{ 'PQ-' + $now.format('yyyyMMdd') + '-' + $json.id }}",
+            "Content ID": "={{ $json.id }}",
+            "Channel": "blotato_social",
+            "Scheduled For": "={{ $now.format('yyyy-MM-dd') }}",
+            "Status": "Queued"
+          },
+          "schema": [
+            {
+              "id": "Queue ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Queue ID"
+            },
+            {
+              "id": "Content ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Content ID"
+            },
+            {
+              "id": "Channel",
+              "type": "string",
+              "display": true,
+              "displayName": "Channel"
+            },
+            {
+              "id": "Scheduled For",
+              "type": "string",
+              "display": true,
+              "displayName": "Scheduled For"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Queue ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "6d3a170d-8093-4410-a874-3c534509625a",
+      "name": "Queue for Publishing",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3080,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblq3SGdZtvbFcfkw"
+        },
+        "columns": {
+          "value": {
+            "id": "={{ $('Parse Hook Response').first().json.calendarId }}",
+            "Status": "Ready"
+          },
+          "schema": [
+            {
+              "id": "id",
+              "type": "string",
+              "display": false,
+              "displayName": "id"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "ef26d844-9950-4b26-93e2-b3f61faa3ed7",
+      "name": "Calendar -> Ready",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3320,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblq3SGdZtvbFcfkw"
+        },
+        "columns": {
+          "value": {
+            "id": "={{ $('Parse Hook Response').first().json.calendarId }}",
+            "Status": "Draft"
+          },
+          "schema": [
+            {
+              "id": "id",
+              "type": "string",
+              "display": false,
+              "displayName": "id"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "eda92cd0-44d0-4e71-8fdc-8fcba6fd4b39",
+      "name": "Calendar -> Draft",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3080,
+        780
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblf3QGxX9K1y2h2H"
+        },
+        "columns": {
+          "value": {
+            "Status": "Ready"
+          },
+          "schema": [
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "099a8026-0e15-4e4a-a3bf-052aabeda2cc",
+      "name": "Content -> Ready",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3320,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// This runs after the loop completes (or when no items)\nconst now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\n\n// Try to count processed items\nlet totalProcessed = 0;\nlet totalTokens = 0;\ntry {\n  const items = $('Parse Hook Response').all();\n  totalProcessed = items.length;\n  totalTokens = items.reduce((sum, i) => sum + (i.json.tokensUsed || 0), 0);\n} catch(e) {\n  // No items processed\n}\n\nconst estimatedCost = (totalTokens / 1000000 * 3).toFixed(4); // ~$3/MTok for Claude Sonnet\n\nreturn {\n  json: {\n    subject: `Marketing Content: ${totalProcessed} posts generated`,\n    body: [\n      '<h2>Daily Content Production Report</h2>',\n      `<p><strong>Date:</strong> ${now}</p>`,\n      '<hr>',\n      `<p><strong>Posts Generated:</strong> ${totalProcessed}</p>`,\n      `<p><strong>Total Tokens Used:</strong> ${totalTokens.toLocaleString()}</p>`,\n      `<p><strong>Estimated Cost:</strong> $${estimatedCost}</p>`,\n      '<hr>',\n      '<p>Content has been queued for distribution at 10:00 AM.</p>',\n    ].join('\\n')\n  }\n};"
+      },
+      "id": "7744fa08-1a79-4aff-a608-9ddd1e8b085c",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3560,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "48a7b912-7fe9-4a03-ba36-0c7d1464c5c1",
+      "name": "Send Summary",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        3800,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "ea47e831-ec58-467f-82d6-82c990c97106",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "MARKETING ERROR - Content Production",
+        "emailType": "html",
+        "message": "=<h2>Content Production Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "9a38900a-998d-4d29-bfd2-577b4092eead",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-03: Content Production\n\n**Schedule:** Daily at 9:00 AM SAST\n**Purpose:** Reads content calendar, generates social posts via AI, optimizes hooks, queues for distribution.\n**AI Model:** Claude Sonnet via OpenRouter\n**Quality Gate:** Score >= 6 auto-queues; < 6 held as Draft",
+        "height": 160,
+        "width": 380
+      },
+      "id": "wf03-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    },
+    {
+      "parameters": {
+        "content": "## AI Content Generation\n\nTwo-pass AI pipeline:\n1. Generate post (hook, body, CTA, hashtags)\n2. Optimize hook (3 variations, pick best)\n\nJSON-only output, markdown-strip fallback.",
+        "height": 140,
+        "width": 340
+      },
+      "id": "wf03-note-2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1580,
+        400
+      ],
+      "typeVersion": 1,
+      "name": "Note 2"
+    },
+    {
+      "parameters": {
+        "content": "## Quality Gate & Storage\n\nScore >= 6: Auto-queue for publishing\nScore < 6: Held as Draft for human review\n\nAll content stored in Airtable regardless of score.",
+        "height": 120,
+        "width": 320
+      },
+      "id": "wf03-note-3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2780,
+        380
+      ],
+      "typeVersion": 1,
+      "name": "Note 3"
+    },
+    {
+      "parameters": {
+        "content": "## Error Handling\n\nAll external API nodes have:\n- continueOnFail\n- retryOnFail (AI calls)\n\nUncaught errors -> Gmail alert",
+        "height": 100,
+        "width": 260
+      },
+      "id": "wf03-note-4",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        800
+      ],
+      "typeVersion": 1,
+      "name": "Note 4"
+    }
+  ],
+  "connections": {
+    "Daily 9AM Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Content Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Content Calendar": {
+      "main": [
+        [
+          {
+            "node": "Has Calendar Items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Calendar Items?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Content": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark In Production",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark In Production": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Social Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Social Post": {
+      "main": [
+        [
+          {
+            "node": "Parse Post Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Post Response": {
+      "main": [
+        [
+          {
+            "node": "AI Hook Optimizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Hook Optimizer": {
+      "main": [
+        [
+          {
+            "node": "Parse Hook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Hook Response": {
+      "main": [
+        [
+          {
+            "node": "Store Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Content": {
+      "main": [
+        [
+          {
+            "node": "Quality Score >= 6?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quality Score >= 6?": {
+      "main": [
+        [
+          {
+            "node": "Content -> Ready",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Queue for Publishing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Calendar -> Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue for Publishing": {
+      "main": [
+        [
+          {
+            "node": "Calendar -> Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendar -> Ready": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendar -> Draft": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content -> Ready": {
+      "main": []
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Send Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

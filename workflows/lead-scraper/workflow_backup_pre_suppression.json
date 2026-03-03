@@ -1,0 +1,1402 @@
+{
+  "updatedAt": "2026-02-27T13:25:51.019Z",
+  "createdAt": "2026-01-20T02:37:46.215Z",
+  "id": "uq4hnH0YHfhYOOzO",
+  "name": "Lead Generating Web Scraper & CRM Automation",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "8b09efbe-4322-4e7f-8512-7805878088f9",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        208,
+        304
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "d35df8b8-f968-443c-8b89-39a59c0c5b6c",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        208,
+        512
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Area rotation list\nconst areas = [\"Johannesburg CBD, Johannesburg, South Africa\", \"Sandton, Johannesburg, South Africa\", \"Fourways, Johannesburg, South Africa\", \"Randburg, Johannesburg, South Africa\", \"Bryanston, Johannesburg, South Africa\", \"Midrand, Gauteng, South Africa\", \"Rosebank, Johannesburg, South Africa\", \"Roodepoort, Johannesburg, South Africa\", \"Soweto, Johannesburg, South Africa\", \"Bedfordview, Johannesburg, South Africa\", \"Kempton Park, Gauteng, South Africa\", \"Germiston, Gauteng, South Africa\", \"Benoni, Gauteng, South Africa\", \"Boksburg, Gauteng, South Africa\", \"Springs, Gauteng, South Africa\", \"Alberton, Gauteng, South Africa\", \"Centurion, Pretoria, South Africa\", \"Pretoria CBD, Pretoria, South Africa\", \"Hatfield, Pretoria, South Africa\", \"Menlyn, Pretoria, South Africa\", \"Brooklyn, Pretoria, South Africa\", \"Vanderbijlpark, Gauteng, South Africa\", \"Vereeniging, Gauteng, South Africa\", \"Krugersdorp, Gauteng, South Africa\"];\n\n// Read current area index from workflow static data\n// If not set, start at 0\nconst staticData = $getWorkflowStaticData('global');\nlet areaIndex = staticData.areaIndex || 0;\nlet currentArea = areas[areaIndex] || areas[0];\n\n// Check how many new leads came from the last run\n// If Filter New Leads produced 0 items in the previous execution,\n// the area is likely exhausted. We track this via a counter.\nlet consecutiveEmptyRuns = staticData.consecutiveEmptyRuns || 0;\n\n// The Schedule Trigger fires daily. On first run, just use current area.\n// After the run completes, the Aggregate Results node will update the counter.\n\nreturn {\n  json: {\n    searchQuery: 'businesses',\n    location: currentArea,\n    areaIndex: areaIndex,\n    totalAreas: areas.length,\n    maxResults: 20,\n    senderName: 'Ian Immelman',\n    senderCompany: 'AnyVision Media',\n    senderTitle: 'Director',\n    senderEmail: 'ian@anyvisionmedia.com',\n    googlePlacesApiKey: 'REDACTED_GOOGLE_PLACES_KEY',\n    consecutiveEmptyRuns: consecutiveEmptyRuns\n  }\n};"
+      },
+      "id": "d9c299bf-1039-4bb6-8c83-9025d9f67d29",
+      "name": "Search Config",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        448,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://places.googleapis.com/v1/places:searchText",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Goog-Api-Key",
+              "value": "={{ $json.googlePlacesApiKey }}"
+            },
+            {
+              "name": "X-Goog-FieldMask",
+              "value": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.googleMapsUri,places.businessStatus,nextPageToken"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ textQuery: $json.searchQuery + \" in \" + $json.location, maxResultCount: Math.min(parseInt($json.maxResults) || 20, 20), languageCode: \"en\" }) }}",
+        "options": {}
+      },
+      "id": "de1745b8-9a52-4853-88e0-f120b7628682",
+      "name": "Places Text Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        672,
+        400
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Google Places API Text Search response\nconst input = $input.first().json;\nconst config = $('Search Config').first().json;\nconst maxResults = parseInt(config.maxResults) || 50;\n\nconst places = input.places || [];\n\nif (places.length === 0) {\n  return [{ json: { error: 'No businesses found via Places API', query: config.searchQuery, location: config.location } }];\n}\n\n// Map Places API response to our business format\nconst businesses = places.slice(0, maxResults).map(place => ({\n  businessName: place.displayName?.text || '',\n  website: place.websiteUri || '',\n  address: place.formattedAddress || '',\n  phone: place.internationalPhoneNumber || place.nationalPhoneNumber || '',\n  rating: place.rating || 0,\n  reviewCount: place.userRatingCount || 0,\n  googleMapsUrl: place.googleMapsUri || '',\n  businessStatus: place.businessStatus || '',\n  industry: config.searchQuery,\n  location: config.location\n}));\n\nreturn businesses.map(b => ({ json: b }));"
+      },
+      "id": "0de6edb7-d8c9-4d8d-a520-792acfe09704",
+      "name": "Parse Places Results",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1104,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "78e62e38-359d-41c5-812d-08a65777e4ed",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "leftValue": "={{ $json.website }}",
+              "rightValue": "google"
+            },
+            {
+              "id": "0f8aff4a-667a-408d-8020-e9de3e58e925",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "leftValue": "={{ $json.website }}",
+              "rightValue": "gstatic"
+            },
+            {
+              "id": "bee50ccd-bedb-4eb5-a7f9-7edf95b5ff40",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.website }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f05bb8c6-dd38-40b7-9ae1-441dd1956979",
+      "name": "Filter Valid URLs",
+      "type": "n8n-nodes-base.filter",
+      "position": [
+        1328,
+        400
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "cba71d67-6d61-4bab-aab2-cef1454acb40",
+      "name": "Remove Duplicate URLs",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "position": [
+        1520,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "46e3ad26-9572-438a-93ce-7cde4fd68622",
+      "name": "Loop Over Businesses",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1728,
+        400
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.website }}",
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 3
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "c1ee4f05-acfc-47ca-ae40-9695f7c2402a",
+      "name": "Scrape Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1920,
+        608
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "id": "c8518cba-78ff-4450-b4bd-5f92ef46d4ad",
+      "name": "Rate Limit Wait",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        2144,
+        608
+      ],
+      "webhookId": "2e42a648-14ef-46f2-8186-966019c04687",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate HTML from all pages (homepage + sub-pages)\nconst allItems = $input.all();\nlet allHtml = '';\nlet pagesScraped = 0;\nlet business = {};\n\nfor (const item of allItems) {\n  const j = item.json;\n  // Homepage item has the original HTML in pageHtml\n  // Sub-page items have the fetched HTML in data or body\n  let html = '';\n  if (j.isHomepage) {\n    html = j.pageHtml || '';\n    business = j.business || {};\n  } else {\n    html = j.data || j.body || j.pageHtml || '';\n  }\n  if (html && html.length > 100) {\n    allHtml += '\\n' + html;\n    pagesScraped++;\n  }\n}\n\n// Fallback to get business data from loop\nif (!business.website) {\n  try { business = $('Loop Over Businesses').item.json; }\n  catch(e) { business = allItems[0]?.json?.business || {}; }\n}\n\n// === EMAIL EXTRACTION ===\nconst emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.(?!jpeg|jpg|png|gif|webp|svg|css|js)[a-zA-Z]{2,}/g;\nconst rawEmails = allHtml.match(emailRegex) || [];\n\nconst emails = [...new Set(rawEmails.map(e => e.toLowerCase()))].filter(email => {\n  const [local, domain] = email.split('@');\n  if (!local || !domain || !domain.includes('.')) return false;\n  if (local.length < 2) return false;\n  if (domain.length < 4) return false;\n  const tld = domain.split('.').pop();\n  if (tld.length < 2) return false;\n  const domainName = domain.split('.')[0];\n  if (domainName.length < 2) return false;\n  const blacklist = ['example','test','sentry','wixpress','email.com','domain.com',\n    'yoursite','noreply','no-reply','unsubscribe','mailer-daemon','postmaster'];\n  if (blacklist.some(b => email.includes(b))) return false;\n  const domainParts = domain.split('.');\n  if (domainParts.some(p => p.length <= 1)) return false;\n  if (/^\\d/.test(domainName)) return false;\n  return true;\n});\n\n// === NAME EXTRACTION ===\nconst nameMap = {};\n\n// Strategy 1: mailto links\nconst mailtoRegex = /<a[^>]*href=[\"']mailto:([^\"'?]+)[^>]*>([^<]+)<\\/a>/gi;\nlet match;\nwhile ((match = mailtoRegex.exec(allHtml)) !== null) {\n  const email = match[1].toLowerCase().trim();\n  const linkText = match[2].trim();\n  if (linkText && !linkText.includes('@') && /^[A-Z][a-z]/.test(linkText)) {\n    nameMap[email] = linkText;\n  }\n}\n\n// Strategy 2: Names near email addresses\nconst namePattern = /\\b([A-Z][a-z]{1,15}(?:\\s[A-Z][a-z]{1,15}){1,2})\\b/g;\nfor (const email of emails) {\n  if (nameMap[email]) continue;\n  const emailIndex = allHtml.toLowerCase().indexOf(email);\n  if (emailIndex === -1) continue;\n  const start = Math.max(0, emailIndex - 500);\n  const end = Math.min(allHtml.length, emailIndex + email.length + 200);\n  const context = allHtml.substring(start, end);\n  const textContext = context.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ');\n  const names = [];\n  let nm;\n  while ((nm = namePattern.exec(textContext)) !== null) {\n    const candidate = nm[1].trim();\n    const skipWords = ['About Us', 'Our Team', 'Contact Us', 'Get In', 'Read More',\n      'Learn More', 'Find Out', 'Follow Us', 'Sign Up', 'Log In', 'Terms Of',\n      'Privacy Policy', 'All Rights', 'South Africa', 'Cape Town', 'New York',\n      'United States', 'Web Design', 'Social Media', 'Google Maps'];\n    if (!skipWords.some(sw => candidate.includes(sw)) && candidate.length > 4) {\n      names.push(candidate);\n    }\n  }\n  if (names.length > 0) nameMap[email] = names[names.length - 1];\n}\n\n// Strategy 3: Infer from email prefix (e.g. john.smith@)\nfor (const email of emails) {\n  if (nameMap[email]) continue;\n  const prefix = email.split('@')[0];\n  const genericPrefixes = ['info','contact','admin','support','sales','hello',\n    'enquiries','office','reception','mail','general','team','help','billing',\n    'accounts','hr','marketing','press','media','careers','jobs','apply','recruit'];\n  if (genericPrefixes.includes(prefix.toLowerCase())) continue;\n  if (/^[a-z]+[._][a-z]+$/i.test(prefix)) {\n    const parts = prefix.split(/[._]/);\n    const inferredName = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ');\n    if (inferredName.length >= 5) nameMap[email] = inferredName;\n  }\n}\n\n// === CLASSIFY EMAILS ===\nconst genericPrefixes = ['info','contact','admin','support','sales','hello',\n  'enquiries','office','reception','mail','general','team','help','billing',\n  'accounts','hr','marketing','press','media','careers','jobs','apply','recruit'];\n\nconst emailData = emails.map(email => {\n  const prefix = email.split('@')[0].toLowerCase();\n  const isGeneric = genericPrefixes.includes(prefix);\n  return { email, contactName: nameMap[email] || '', isPersonal: !isGeneric };\n});\n\n// === PHONE EXTRACTION ===\nconst phoneRegex = /(?:\\+\\d{1,3}[\\s.-]?)?\\(?\\d{2,4}\\)?[\\s.-]?\\d{3,4}[\\s.-]?\\d{3,4}/g;\nconst rawPhones = allHtml.match(phoneRegex) || [];\nconst phones = [...new Set(rawPhones)].filter(p => p.replace(/\\D/g, '').length >= 7);\n\n// === SOCIAL MEDIA ===\nconst linkedin = (allHtml.match(/https?:\\/\\/(?:www\\.)?linkedin\\.com\\/(?:company|in)\\/[^\\s\"'<>)]+/gi) || [])[0] || '';\nconst facebook = (allHtml.match(/https?:\\/\\/(?:www\\.)?facebook\\.com\\/[^\\s\"'<>)]+/gi) || [])[0] || '';\nconst instagram = (allHtml.match(/https?:\\/\\/(?:www\\.)?instagram\\.com\\/[^\\s\"'<>)]+/gi) || [])[0] || '';\n\nreturn { json: {\n  businessName: business.businessName || '',\n  website: business.website || '',\n  address: business.address || '',\n  phone: phones[0] || business.phone || '',\n  rating: business.rating || 0,\n  industry: business.industry || '',\n  location: business.location || '',\n  emails: emailData.map(e => e.email),\n  emailData: emailData,\n  linkedin, facebook, instagram,\n  pagesScraped\n} };"
+      },
+      "id": "32891ac9-3b4f-4267-a6c6-2ec5bd19b018",
+      "name": "Extract Contact Info",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2704,
+        608
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "070f22a6-f970-4efa-928e-3365f444cb1e",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.emails }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d63f5e84-70e9-429a-b5ea-dd81b9dd24a4",
+      "name": "Filter Has Email",
+      "type": "n8n-nodes-base.filter",
+      "position": [
+        1920,
+        272
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "emails",
+        "options": {}
+      },
+      "id": "94b26752-5433-41a7-90c6-90f04b6973ba",
+      "name": "Split Emails",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [
+        2144,
+        272
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst seen = new Set();\nconst results = [];\n\nconst highFitIndustries = [\n  'real estate', 'law', 'legal', 'attorney', 'medical', 'dental', 'clinic',\n  'consulting', 'agency', 'marketing', 'insurance', 'accounting', 'finance',\n  'restaurant', 'retail', 'salon', 'fitness', 'gym', 'spa', 'hotel'\n];\nconst mediumFitIndustries = [\n  'manufacturing', 'logistics', 'construction', 'contractor', 'plumbing',\n  'electrician', 'hvac', 'landscaping', 'cleaning', 'automotive'\n];\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  const email = (item.json.email || item.json.emails || '').toString().toLowerCase().trim();\n  if (!email || seen.has(email)) continue;\n  seen.add(email);\n\n  const industry = (item.json.industry || '').toLowerCase();\n  const businessName = (item.json.businessName || '').toLowerCase();\n\n  // Find contact name from emailData if available\n  let contactName = '';\n  let isPersonal = false;\n  const emailData = item.json.emailData || [];\n  const matchedData = emailData.find(e => e.email === email);\n  if (matchedData) {\n    contactName = matchedData.contactName || '';\n    isPersonal = matchedData.isPersonal || false;\n  }\n\n  let score = 0;\n  if (email) score += 20;\n  if (item.json.phone) score += 15;\n  if (item.json.businessName) score += 15;\n  if (item.json.address) score += 10;\n  if (item.json.rating > 0) score += 10;\n  if (item.json.linkedin || item.json.facebook || item.json.instagram) score += 10;\n  if (item.json.website) score += 10;\n  if (item.json.phone && email) score += 10;\n\n  // BONUS: Personal email (employee) vs generic (info@)\n  if (isPersonal) score += 15;\n  if (contactName) score += 5;\n\n  // BONUS: Automation fit\n  let automationFit = 'medium';\n  let automationBonus = 0;\n  const checkInd = (list, text) => list.some(t => text.includes(t));\n  if (checkInd(highFitIndustries, industry) || checkInd(highFitIndustries, businessName)) {\n    automationFit = 'high'; automationBonus = 20;\n  } else if (checkInd(mediumFitIndustries, industry) || checkInd(mediumFitIndustries, businessName)) {\n    automationFit = 'medium'; automationBonus = 10;\n  } else {\n    automationFit = 'low'; automationBonus = 5;\n  }\n  score += automationBonus;\n\n  results.push({\n    json: {\n      businessName: item.json.businessName || '',\n      email: email,\n      contactName: contactName,\n      phone: item.json.phone || '',\n      website: item.json.website || '',\n      address: item.json.address || '',\n      industry: item.json.industry || '',\n      location: item.json.location || '',\n      rating: item.json.rating || 0,\n      linkedin: item.json.linkedin || '',\n      facebook: item.json.facebook || '',\n      instagram: item.json.instagram || '',\n      leadScore: Math.min(score, 100),\n      automationFit: automationFit,\n      status: 'New',\n      source: 'Johannesburg Lead Scraper',\n      datescraped: new Date().toISOString().split('T')[0],\n      notes: `Automation fit: ${automationFit}. ${contactName ? 'Contact: ' + contactName + '. ' : ''}Target for ${automationFit === 'high' ? 'CRM + follow-up automation' : automationFit === 'medium' ? 'workflow automation' : 'basic lead capture'}`\n    },\n    pairedItem: { item: i }\n  });\n}\n\nreturn results.length > 0 ? results : [{ json: { _empty: true }, pairedItem: { item: 0 } }];"
+      },
+      "id": "8245be47-2574-4582-b81d-aae0890e2173",
+      "name": "Score Leads",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2368,
+        272
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "app2ALQUP7CKEkHOz",
+          "cachedResultName": "Lead Scraper - Johannesburg CRM"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblOsuh298hB9WWrA",
+          "cachedResultName": "Leads"
+        },
+        "columns": {
+          "value": {
+            "Business Name": "={{ $json.businessName }}",
+            "Email": "={{ $json.email }}",
+            "Phone": "={{ $json.phone }}",
+            "Website": "={{ $json.website }}",
+            "Address": "={{ $json.address }}",
+            "Industry": "={{ $json.industry }}",
+            "Location": "={{ $json.location }}",
+            "Rating": "={{ $json.rating }}",
+            "Social - LinkedIn": "={{ $json.linkedin }}",
+            "Social - Facebook": "={{ $json.facebook }}",
+            "Social - Instagram": "={{ $json.instagram }}",
+            "Lead Score": "={{ $json.leadScore }}",
+            "Source": "={{ $json.source }}",
+            "Date Scraped": "={{ $json.datescraped }}",
+            "Notes": "={{ $json.notes }}",
+            "Automation Fit": "={{ $json.automationFit }}",
+            "Contact Name": "={{ $json.contactName }}"
+          },
+          "schema": [
+            {
+              "id": "Business Name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Business Name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Email",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Phone",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Website",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Website",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Address",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Address",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Industry",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Industry",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Location",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Location",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rating",
+              "type": "number",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Rating",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Social - LinkedIn",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Social - LinkedIn",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Social - Facebook",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Social - Facebook",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Social - Instagram",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Social - Instagram",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Lead Score",
+              "type": "number",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Lead Score",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Source",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Date Scraped",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Date Scraped",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Notes",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Automation Fit",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Automation Fit",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Contact Name",
+              "type": "string",
+              "display": true,
+              "removed": false,
+              "required": false,
+              "displayName": "Contact Name",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Email"
+          ]
+        },
+        "options": {}
+      },
+      "id": "83c36de1-20d9-4e4a-80bc-611c55076342",
+      "name": "Upsert to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2592,
+        272
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1vZl87q8tgJDrc3dcv-a2pwr7KKJcC3FeUkIPCeJCt-A",
+          "mode": "list",
+          "cachedResultName": "LEAD GEN EMAILSCRAPER",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vZl87q8tgJDrc3dcv-a2pwr7KKJcC3FeUkIPCeJCt-A/edit"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vZl87q8tgJDrc3dcv-a2pwr7KKJcC3FeUkIPCeJCt-A/edit#gid=0"
+        },
+        "columns": {
+          "value": {
+            "Business Name": "={{ $json.businessName }}",
+            "Email": "={{ $json.email }}",
+            "Phone": "={{ \"'\" + ($json.phone || '') }}",
+            "Website": "={{ $json.website }}",
+            "Address": "={{ $json.address }}",
+            "Industry": "={{ $json.industry }}",
+            "Location": "={{ $json.location }}",
+            "Rating": "={{ $json.rating }}",
+            "LinkedIn": "={{ $json.linkedin }}",
+            "Facebook": "={{ $json.facebook }}",
+            "Instagram": "={{ $json.instagram }}",
+            "Lead Score": "={{ $json.leadScore }}",
+            "Status": "={{ $json.status || 'New' }}",
+            "Date Scraped": "={{ $json.datescraped }}",
+            "Automation Fit": "={{ $json.automationFit }}"
+          },
+          "schema": [
+            {
+              "id": "Business Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Business Name"
+            },
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email"
+            },
+            {
+              "id": "Phone",
+              "type": "string",
+              "display": true,
+              "displayName": "Phone"
+            },
+            {
+              "id": "Website",
+              "type": "string",
+              "display": true,
+              "displayName": "Website"
+            },
+            {
+              "id": "Address",
+              "type": "string",
+              "display": true,
+              "displayName": "Address"
+            },
+            {
+              "id": "Industry",
+              "type": "string",
+              "display": true,
+              "displayName": "Industry"
+            },
+            {
+              "id": "Location",
+              "type": "string",
+              "display": true,
+              "displayName": "Location"
+            },
+            {
+              "id": "Rating",
+              "type": "string",
+              "display": true,
+              "displayName": "Rating"
+            },
+            {
+              "id": "LinkedIn",
+              "type": "string",
+              "display": true,
+              "displayName": "LinkedIn"
+            },
+            {
+              "id": "Facebook",
+              "type": "string",
+              "display": true,
+              "displayName": "Facebook"
+            },
+            {
+              "id": "Instagram",
+              "type": "string",
+              "display": true,
+              "displayName": "Instagram"
+            },
+            {
+              "id": "Lead Score",
+              "type": "string",
+              "display": true,
+              "displayName": "Lead Score"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Date Scraped",
+              "type": "string",
+              "display": true,
+              "displayName": "Date Scraped"
+            },
+            {
+              "id": "Automation Fit",
+              "type": "string",
+              "display": true,
+              "displayName": "Automation Fit"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Email"
+          ]
+        },
+        "options": {
+          "useAppend": true
+        }
+      },
+      "id": "8ef8bdff-836f-4128-9e18-b345431d3dde",
+      "name": "Append to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        3040,
+        272
+      ],
+      "typeVersion": 4.5,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "88f3e129-ca21-447f-88c1-6bd72857fed8",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.isNew }}",
+              "rightValue": ""
+            },
+            {
+              "id": "fa5910e8-b161-4407-a8a7-8a659c0069b7",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.email }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dc5f251d-e3c0-4e4a-8fc6-7e402e48bc1c",
+      "name": "Filter New Leads",
+      "type": "n8n-nodes-base.filter",
+      "position": [
+        3040,
+        64
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "id": "9886589d-0ff5-4076-b2ee-249a20d56186",
+      "name": "Rate Limit Emails",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        3264,
+        64
+      ],
+      "webhookId": "aa030ef6-ae29-4f65-9c14-aac7aefa8f14",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst allLeads = $('Prepare AI Input').all();\nconst config = $('Search Config').first().json;\n\nreturn items.map((item, index) => {\n  const input = item.json;\n  const leadData = allLeads[index]?.json || {};\n  const contactName = leadData.contactName || '';\n\n  let emailContent;\n  try {\n    const rawText = input.text || input.response || JSON.stringify(input);\n    const jsonMatch = rawText.match(/\\{[\\s\\S]*\\}/);\n    emailContent = JSON.parse(jsonMatch[0]);\n  } catch (e) {\n    const industryName = leadData.industry || 'your industry';\n    const greeting = contactName ? `Hi ${contactName.split(' ')[0]}` : `Hi ${leadData.businessName || 'there'}`;\n    emailContent = {\n      subject: `Automate ${industryName} workflows - save 15h/week`,\n      body: `${greeting},\\n\\nI work with ${industryName} businesses in ${leadData.location} to automate time-consuming tasks.\\n\\nMost businesses save 15-20 hours per week after implementing simple automation workflows.\\n\\nWould love to show you a few quick wins - no cost, just value.`,\n      cta_text: 'Would a quick 15-minute call this week work?'\n    };\n  }\n\n  const htmlBody = '<div style=\"font-family:Segoe UI,Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;\">' +\n    '<div style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">' +\n    '<h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">' + config.senderCompany + '</h1>' +\n    '<p style=\"margin:8px 0 0;font-size:13px;color:#666;\">Business Automation & Lead Generation</p></div>' +\n    '<div style=\"padding:30px 40px;\">' +\n    '<p style=\"font-size:15px;line-height:1.6;color:#333;\">' + emailContent.body + '</p>' +\n    '<p style=\"font-size:15px;line-height:1.6;color:#333;\">' + emailContent.cta_text + '</p>' +\n    '<p style=\"font-size:15px;line-height:1.6;color:#333;margin-top:24px;\">Best regards,<br>' +\n    '<strong>' + config.senderName + '</strong><br>' +\n    '<span style=\"color:#666;\">' + config.senderTitle + '</span><br>' +\n    '<span style=\"color:#666;\">' + config.senderCompany + '</span></p></div>' +\n    '<div style=\"padding:20px 40px;background:#f8f8f8;border-top:1px solid #eee;\">' +\n    '<p style=\"font-size:11px;color:#999;\">You received this because your business was listed on Google Maps. Reply &quot;unsubscribe&quot; to be removed.</p></div></div>';\n\n  return {\n    json: {\n      to: leadData.email,\n      subject: emailContent.subject,\n      htmlBody: htmlBody,\n      leadEmail: leadData.email,\n      businessName: leadData.businessName,\n      contactName: contactName,\n      automationFit: leadData.automationFit\n    }\n  };\n});"
+      },
+      "id": "a9e237e5-cf9a-46d0-94af-f4717e8de8f1",
+      "name": "Format Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3824,
+        64
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.htmlBody }}",
+        "options": {}
+      },
+      "id": "ce1c44f4-fbbd-4937-b420-ac4c6971be48",
+      "name": "Send Outreach Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        4032,
+        64
+      ],
+      "typeVersion": 2.1,
+      "webhookId": "63b34505-464d-420f-9e12-b17bdb026479",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "app2ALQUP7CKEkHOz",
+          "cachedResultName": "Lead Scraper - Johannesburg CRM"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblOsuh298hB9WWrA",
+          "cachedResultName": "Leads"
+        },
+        "columns": {
+          "value": {
+            "Status": "Email Sent",
+            "Email Sent Date": "={{ new Date().toISOString().split('T')[0] }}",
+            "Notes": "={{ $('Format Email').item.json.subject }}",
+            "Email": "={{ $('Format Email').item.json.leadEmail }}",
+            "Follow Up Stage": "=1",
+            "Next Follow Up Date": "={{ (() => { const d = new Date(); d.setDate(d.getDate() + 2); return d.toISOString().split('T')[0]; })() }}"
+          },
+          "schema": [
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Email Sent Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Email Sent Date"
+            },
+            {
+              "id": "Notes",
+              "type": "string",
+              "display": true,
+              "displayName": "Notes"
+            },
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email"
+            },
+            {
+              "id": "Follow Up Stage",
+              "type": "number",
+              "display": true,
+              "displayName": "Follow Up Stage"
+            },
+            {
+              "id": "Next Follow Up Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Next Follow Up Date"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Email"
+          ]
+        },
+        "options": {}
+      },
+      "id": "c670553e-beea-4a4e-a2c3-8b479ff572e8",
+      "name": "Update Lead Status",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        4256,
+        64
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $('Score Leads').all();\nconst config = $('Search Config').first().json;\n\nconst totalLeads = items.filter(i => !i.json._empty).length;\nconst avgScore = totalLeads > 0\n  ? Math.round(items.reduce((sum, i) => sum + (i.json.leadScore || 0), 0) / totalLeads)\n  : 0;\n\n// Automation fit breakdown\nconst highFit = items.filter(i => i.json.automationFit === 'high').length;\nconst mediumFit = items.filter(i => i.json.automationFit === 'medium').length;\nconst lowFit = items.filter(i => i.json.automationFit === 'low').length;\n\n// Top industries found\nconst industries = {};\nitems.forEach(i => {\n  if (i.json.industry) {\n    industries[i.json.industry] = (industries[i.json.industry] || 0) + 1;\n  }\n});\nconst topIndustries = Object.entries(industries)\n  .sort((a, b) => b[1] - a[1])\n  .slice(0, 5)\n  .map(([ind, count]) => `${ind} (${count})`)\n  .join(', ');\n\nconst now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\n\n\n\n// Check if we should rotate areas\n// config already declared above\nconst newLeadCount = $('Filter New Leads').all().length;\n\nconst staticData = $getWorkflowStaticData('global');\nlet consecutiveEmptyRuns = staticData.consecutiveEmptyRuns || 0;\nlet areaIndex = staticData.areaIndex || 0;\n\nconst areas = [\"Johannesburg CBD, Johannesburg, South Africa\", \"Sandton, Johannesburg, South Africa\", \"Fourways, Johannesburg, South Africa\", \"Randburg, Johannesburg, South Africa\", \"Bryanston, Johannesburg, South Africa\", \"Midrand, Gauteng, South Africa\", \"Rosebank, Johannesburg, South Africa\", \"Roodepoort, Johannesburg, South Africa\", \"Soweto, Johannesburg, South Africa\", \"Bedfordview, Johannesburg, South Africa\", \"Kempton Park, Gauteng, South Africa\", \"Germiston, Gauteng, South Africa\", \"Benoni, Gauteng, South Africa\", \"Boksburg, Gauteng, South Africa\", \"Springs, Gauteng, South Africa\", \"Alberton, Gauteng, South Africa\", \"Centurion, Pretoria, South Africa\", \"Pretoria CBD, Pretoria, South Africa\", \"Hatfield, Pretoria, South Africa\", \"Menlyn, Pretoria, South Africa\", \"Brooklyn, Pretoria, South Africa\", \"Vanderbijlpark, Gauteng, South Africa\", \"Vereeniging, Gauteng, South Africa\", \"Krugersdorp, Gauteng, South Africa\"];\n\nif (newLeadCount === 0) {\n  consecutiveEmptyRuns++;\n} else {\n  consecutiveEmptyRuns = 0;\n}\n\n// If 2 consecutive runs with no new leads, rotate to next area\nlet rotated = false;\nif (consecutiveEmptyRuns >= 2) {\n  areaIndex = (areaIndex + 1) % areas.length;\n  consecutiveEmptyRuns = 0;\n  rotated = true;\n}\n\n// Save state\nstaticData.areaIndex = areaIndex;\nstaticData.consecutiveEmptyRuns = consecutiveEmptyRuns;\n\nconst nextArea = areas[areaIndex];\n\n// Build summary with area info\nconst areaInfo = rotated\n  ? `<p style=\"color:#FF6D5A;font-weight:bold;\">AREA ROTATED: Moving from ${config.location} to ${nextArea} (no new leads in 2 runs)</p>`\n  : `<p>Current area: ${config.location} (${consecutiveEmptyRuns} empty run${consecutiveEmptyRuns !== 1 ? 's' : ''})</p>`;\nreturn {\n  json: {\n    subject: `Johannesburg Lead Scraper: ${totalLeads} leads | ${highFit} high-automation-fit`,\n    body: [\n      `<h2>🎯 Johannesburg Lead Scraper Complete</h2>`,\n      `<p><strong>Date:</strong> ${now}</p>`,\n      `<p><strong>Search:</strong> All businesses in ${config.location}</p>`,\n      `<hr>`,\n      `<h3>📊 Results Summary</h3>`,\n      `<p><strong>Total Leads Found:</strong> ${totalLeads}</p>`,\n      `<p><strong>Average Lead Score:</strong> ${avgScore}/100</p>`,\n      `<hr>`,\n      `<h3>🤖 Automation Fit Analysis</h3>`,\n      `<p><span style=\"color:#22c55e;\">●</span> <strong>High Fit:</strong> ${highFit} businesses (real estate, legal, medical, agencies)</p>`,\n      `<p><span style=\"color:#f59e0b;\">●</span> <strong>Medium Fit:</strong> ${mediumFit} businesses (contractors, logistics, manufacturing)</p>`,\n      `<p><span style=\"color:#94a3b8;\">●</span> <strong>Low Fit:</strong> ${lowFit} businesses</p>`,\n      `<hr>`,\n      `<h3>🏢 Top Industries</h3>`,\n      `<p>${topIndustries || 'Mixed industries'}</p>`,\n      `<hr>`,\n      `<h3>💡 Next Steps</h3>`,\n      `<p>1. Prioritize outreach to <strong>${highFit} high-fit leads</strong> first</p>`,\n      `<p>2. Focus messaging on: CRM automation, follow-up sequences, lead capture</p>`,\n      `<p>3. Check <a href=\"https://airtable.com/appzcZpiIZ6QPtJXT\">Airtable CRM</a> for full data</p>`,\n      `<hr>`,\n      `<p style=\"font-size:12px;color:#666;\">Workflow: Lead Generating Web Scraper & CRM Automation</p>`\n    ].join('\\n')\n  }\n};"
+      },
+      "id": "1f7002bf-1734-4722-abe2-5562e549dbcb",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3040,
+        464
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "88766fe8-6c3c-48ec-aa0b-215ae375d327",
+      "name": "Send Summary",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        3264,
+        464
+      ],
+      "typeVersion": 2.1,
+      "webhookId": "fb034391-a757-411a-bf2c-87a06e120f28",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "96b86d80-eaf5-492b-b698-82ffc461c3e7",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        208,
+        752
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "Lead Scraper ERROR - {{ $json.workflow.name }}",
+        "message": "=<h2>Workflow Error Alert</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "2e26c609-1352-4d70-ab2c-e3ed8c930a2c",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        448,
+        752
+      ],
+      "typeVersion": 2.1,
+      "webhookId": "963f0b8c-1807-4e41-9773-1e02bd913c93",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "190fe33f-b95d-49be-a55b-fbe14eb69f16",
+      "name": "AI Generate Email",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        3600,
+        64
+      ],
+      "typeVersion": 1.4
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4.5",
+        "options": {
+          "maxTokens": 500,
+          "temperature": 0.7
+        }
+      },
+      "id": "e7d1cd87-6dc4-4c46-b171-4dc1f8bfdea1",
+      "name": "OpenRouter Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "position": [
+        3952,
+        384
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "openRouterApi": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const record = item.json;\n  const f = record.fields || record;\n  return {\n    json: {\n      airtableId: record.id || '',\n      businessName: f['Business Name'] || '',\n      email: f['Email'] || '',\n      contactName: f['Contact Name'] || '',\n      phone: f['Phone'] || '',\n      website: f['Website'] || '',\n      address: f['Address'] || '',\n      industry: f['Industry'] || '',\n      location: f['Location'] || '',\n      rating: f['Rating'] || 0,\n      linkedin: f['Social - LinkedIn'] || '',\n      facebook: f['Social - Facebook'] || '',\n      instagram: f['Social - Instagram'] || '',\n      leadScore: f['Lead Score'] || 0,\n      automationFit: f['Automation Fit'] || '',\n      status: f['Status'] || '',\n      source: f['Source'] || '',\n      datescraped: f['Date Scraped'] || '',\n      notes: f['Notes'] || '',\n      isNew: !f['Status']\n    }\n  };\n});"
+      },
+      "id": "16319abf-2774-4f7c-a1b7-fd6f0a95a37e",
+      "name": "Normalize Lead Record",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2800,
+        272
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.map(item => {\n  const leadData = item.json;\n  const biz = leadData.businessName || 'your business';\n  const ind = leadData.industry || 'your industry';\n  const loc = leadData.location || 'the area';\n  const web = leadData.website || '';\n  const contactName = leadData.contactName || '';\n\n  const greeting = contactName\n    ? `Address the recipient by their first name: ${contactName.split(' ')[0]}`\n    : 'Use a friendly but professional greeting (e.g. \"Hi there\" or reference the business name)';\n\n  const prompt = `You are a business automation consultant specializing in workflow optimization.\n\nWrite a compelling cold outreach email that offers genuine value.\n\nBUSINESS CONTEXT:\n- Business: ${biz}\n- Industry: ${ind}\n- Location: ${loc}\n- Website: ${web}\n- Contact: ${contactName || 'Unknown'}\n\nYOUR VALUE PROPOSITION:\nWe help ${ind} businesses automate repetitive tasks to:\n1. Close deals 3x faster through automated follow-ups\n2. Save 15-20 hours/week eliminating manual data entry\n3. Generate 40% more leads with automated marketing\n\nINSTRUCTIONS:\n1. Subject line (max 55 chars): Reference their specific pain point\n2. ${greeting}\n3. Body (100-130 words): ONE automation opportunity, quick win, ROI\n4. CTA: Offer FREE 15-min automation audit\n5. Tone: Consultative, NOT salesy\n6. NO buzzwords or generic openers\n\nOUTPUT FORMAT (JSON only, no markdown):\n{\"subject\": \"...\", \"body\": \"...\", \"cta_text\": \"Would a quick 15-min call work?\"}`;\n\n  return {\n    json: {\n      ...leadData,\n      chatInput: prompt\n    }\n  };\n});"
+      },
+      "id": "7e811e0a-0d5b-4d87-b5d2-8e7f9f7c57ea",
+      "name": "Prepare AI Input",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3376,
+        64
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the homepage data and original business info\nconst inputData = $input.first().json;\nconst homepageHtml = inputData.data || inputData.body || '';\n\nlet original;\ntry {\n  original = $('Loop Over Businesses').item.json;\n} catch(e) {\n  original = inputData;\n}\n\nconst website = (original.website || '').replace(/\\/$/, '');\nif (!website) {\n  // No website, just pass through homepage data\n  return [{ json: { pageHtml: homepageHtml, isHomepage: true, business: original } }];\n}\n\n// Build sub-page URLs to try\nconst subPaths = ['/about', '/about-us', '/team', '/our-team', '/staff', '/people', '/contact', '/contact-us'];\n\n// First item is the homepage HTML (already fetched)\nconst items = [{ json: { pageHtml: homepageHtml, isHomepage: true, url: website, business: original } }];\n\n// Add sub-page items (to be fetched by the next HTTP Request node)\nfor (const path of subPaths) {\n  items.push({\n    json: {\n      pageHtml: '',\n      isHomepage: false,\n      url: website + path,\n      business: original\n    }\n  });\n}\n\nreturn items;"
+      },
+      "id": "98a192a2-83d6-4770-8864-386149ade10a",
+      "name": "Build Sub-Page URLs",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2272,
+        608
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 3
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 8000
+        }
+      },
+      "id": "b0eaf076-64c6-48e5-8ee1-024ec1f0e5e5",
+      "name": "Scrape Sub-Pages",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2480,
+        608
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Search Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Search Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Config": {
+      "main": [
+        [
+          {
+            "node": "Places Text Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid URLs": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicate URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Remove Duplicate URLs": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Businesses": {
+      "main": [
+        [
+          {
+            "node": "Filter Has Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Scrape Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Website": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Wait": {
+      "main": [
+        [
+          {
+            "node": "Build Sub-Page URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Contact Info": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Businesses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Has Email": {
+      "main": [
+        [
+          {
+            "node": "Split Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Emails": {
+      "main": [
+        [
+          {
+            "node": "Score Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Leads": {
+      "main": [
+        [
+          {
+            "node": "Upsert to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Leads": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Emails": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Email": {
+      "main": [
+        [
+          {
+            "node": "Send Outreach Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Outreach Email": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Send Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Email": {
+      "main": [
+        [
+          {
+            "node": "Format Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Generate Email",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Places Text Search": {
+      "main": [
+        [
+          {
+            "node": "Parse Places Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Places Results": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Lead Record": {
+      "main": [
+        [
+          {
+            "node": "Append to Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Filter New Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Input": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Sub-Page URLs": {
+      "main": [
+        [
+          {
+            "node": "Scrape Sub-Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Sub-Pages": {
+      "main": [
+        [
+          {
+            "node": "Extract Contact Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "errorWorkflow": "xDkOCJpVzFBqODSq"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    },
+    "global": {
+      "areaIndex": 0,
+      "consecutiveEmptyRuns": 0
+    }
+  },
+  "meta": {
+    "templateId": "5385",
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "versionId": "84296aa0-87f0-4570-8c80-ad557d0f1914",
+  "activeVersionId": null,
+  "versionCounter": 218,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-01-20T02:37:46.218Z",
+      "createdAt": "2026-01-20T02:37:46.218Z",
+      "role": "workflow:owner",
+      "workflowId": "uq4hnH0YHfhYOOzO",
+      "projectId": "pcmgdUiECq7jnQCv",
+      "project": {
+        "updatedAt": "2025-11-18T07:15:09.271Z",
+        "createdAt": "2025-04-12T06:49:26.305Z",
+        "id": "pcmgdUiECq7jnQCv",
+        "name": "Ian Immelman <ian@anyvisionmedia.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "74ac6501-35e4-401e-af85-5fe3fc463160"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}

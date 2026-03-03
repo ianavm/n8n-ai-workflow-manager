@@ -1,0 +1,1608 @@
+{
+  "name": "Accounting Dept - Collections & Follow-ups (WF-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "b4506004-6324-4a4e-b454-b36f0d2b21a7",
+      "name": "Daily 7AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "32a8fe92-e718-4a41-a762-b8de413bee8c",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c297e8ac-c2d1-463a-bcfa-14a8abd072b7",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "dc23be8b-e8ad-4cc6-a8b7-df0eef54482c",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            },
+            {
+              "id": "6a795049-1a1a-4eb1-a695-8845a05d3667",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "253b4cc4-f4d6-4477-a991-1efd74b2aaae",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "filterByFormula": "OR({Status}='Sent', {Status}='Partial', {Status}='Overdue')"
+      },
+      "id": "83dc135d-f126-48f0-a3cf-4fc5d1c4f43f",
+      "name": "Read Open Invoices",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        500
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "ea2dc937-10c0-4e65-80fc-b1910d9c022e",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fbdc9983-d0c3-49ef-b7f7-e68772cd8d11",
+      "name": "Has Invoices?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        920,
+        500
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "408cc45e-15e9-419b-b489-c3108bb9cc7f",
+      "name": "Loop Over Invoices",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblxHJrvob0OOSfTq"
+        },
+        "filterByFormula": "={Customer ID} = '{{ $json[\"Customer ID\"] }}'"
+      },
+      "id": "7f23a571-62e7-4efe-b8cd-a31427857af2",
+      "name": "Lookup Customer",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        500
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoice = $input.first().json;\nconst customer = $('Lookup Customer').first().json;\n\nconst today = new Date();\ntoday.setHours(0, 0, 0, 0);\n\nconst dueDate = new Date(invoice['Due Date']);\ndueDate.setHours(0, 0, 0, 0);\n\nconst daysDiff = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));\nconst nextReminder = invoice['Next Reminder Date'] ? new Date(invoice['Next Reminder Date']) : null;\n\nlet reminderStage = 'no_action';\nlet reminderTone = '';\n\nif (nextReminder && nextReminder > today) {\n  reminderStage = 'no_action';\n} else if (daysDiff <= -3 && daysDiff > -4) {\n  reminderStage = 't_minus_3';\n  reminderTone = 'friendly';\n} else if (daysDiff >= -1 && daysDiff <= 1) {\n  reminderStage = 'due_date';\n  reminderTone = 'reminder';\n} else if (daysDiff >= 2 && daysDiff <= 5) {\n  reminderStage = 't_plus_3';\n  reminderTone = 'firm';\n} else if (daysDiff >= 6 && daysDiff <= 10) {\n  reminderStage = 't_plus_7';\n  reminderTone = 'collections';\n} else if (daysDiff >= 11) {\n  reminderStage = 't_plus_14';\n  reminderTone = 'escalation';\n}\n\n// If already reminded at this stage, skip\nconst reminderCount = parseInt(invoice['Reminder Count'] || '0');\n\nreturn {\n  json: {\n    ...invoice,\n    customerName: customer['Legal Name'] || customer['Trading Name'] || '',\n    customerEmail: customer['Email'] || '',\n    customerPhone: customer['Phone'] || '',\n    preferredChannel: customer['Preferred Channel'] || 'Email',\n    riskFlag: customer['Risk Flag'] || 'Low',\n    reminderStage: reminderStage,\n    reminderTone: reminderTone,\n    daysPastDue: daysDiff,\n    dueDate: invoice['Due Date'],\n    invoiceNumber: invoice['Invoice Number'],\n    total: invoice['Total'],\n    balanceDue: invoice['Balance Due'] || invoice['Total'],\n    reminderCount: reminderCount,\n  }\n};"
+      },
+      "id": "94e25b23-3971-470d-8021-6706f1c8ebbd",
+      "name": "Determine Reminder Stage",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1640,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "d0bf95da-782f-4c99-9f93-b977aa9385de",
+              "leftValue": "={{ $json.reminderStage }}",
+              "rightValue": "no_action",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "90da49a8-726b-4d7f-a59a-be0823fa8f20",
+      "name": "Needs Reminder?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1880,
+        500
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "t_minus_3",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.reminderStage }}",
+                    "rightValue": "t_minus_3",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "due_date",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.reminderStage }}",
+                    "rightValue": "due_date",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "t_plus_3",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.reminderStage }}",
+                    "rightValue": "t_plus_3",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "t_plus_7",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.reminderStage }}",
+                    "rightValue": "t_plus_7",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "t_plus_14",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.reminderStage }}",
+                    "rightValue": "t_plus_14",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "2e5a16f4-4729-4174-bc9e-d8e35cbf2d75",
+      "name": "Reminder Stage Router",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        2120,
+        500
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\n\nconst html = `<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f4f4f4;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;margin:0 auto;background-color:#ffffff;\">\n    <tr><td style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">\n      <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">AnyVision Media</h1>\n    </td></tr>\n    <tr><td style=\"padding:30px 40px;\">\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Hi ${inv.customerName},</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Just a friendly heads up that invoice <strong>${inv.invoiceNumber}</strong> for <strong>R ${parseFloat(inv.balanceDue).toFixed(2)}</strong> is due on <strong>${inv.dueDate}</strong>.</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">If you've already arranged payment, please disregard this message.</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Need to discuss payment options? Just reply to this email.</p>\n      <p style=\"margin:24px 0 0;font-size:15px;color:#333;\">Best regards,<br><strong>AnyVision Media</strong><br><span style=\"color:#666;\">Accounts Department</span></p>\n    </td></tr>\n    <tr><td style=\"padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;\">\n      <p style=\"margin:0;font-size:11px;color:#999;\">AnyVision Media | Johannesburg, South Africa | accounts@anyvisionmedia.com</p>\n    </td></tr>\n  </table>\n</body></html>`;\n\nreturn {\n  json: {\n    ...inv,\n    emailHtml: html,\n    emailSubject: `Upcoming: Invoice ${inv.invoiceNumber} due ${inv.dueDate}`,\n    whatsappMessage: `Hi ${inv.customerName}, friendly reminder that invoice ${inv.invoiceNumber} for R ${parseFloat(inv.balanceDue).toFixed(2)} is due on ${inv.dueDate}. Please disregard if already paid.`,\n  }\n};"
+      },
+      "id": "9fc641f9-d7dd-41f8-b7da-c5d5fb31f5ff",
+      "name": "Build Friendly Reminder",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        200
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\n\nconst html = `<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f4f4f4;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;margin:0 auto;background-color:#ffffff;\">\n    <tr><td style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">\n      <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">AnyVision Media</h1>\n    </td></tr>\n    <tr><td style=\"padding:30px 40px;\">\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Hi ${inv.customerName},</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">This is a reminder that invoice <strong>${inv.invoiceNumber}</strong> for <strong>R ${parseFloat(inv.balanceDue).toFixed(2)}</strong> is <strong>due today</strong> (${inv.dueDate}).</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Please arrange payment at your earliest convenience. If payment has already been made, kindly forward the proof of payment so we can update our records.</p>\n      <table cellpadding=\"0\" cellspacing=\"0\" style=\"margin:20px 0;\">\n        <tr><td style=\"padding:8px 16px;background-color:#f0f0f0;border-left:3px solid #FF6D5A;\">\n          <strong>Invoice:</strong> ${inv.invoiceNumber}<br>\n          <strong>Amount Due:</strong> R ${parseFloat(inv.balanceDue).toFixed(2)}<br>\n          <strong>Due Date:</strong> ${inv.dueDate}\n        </td></tr>\n      </table>\n      <p style=\"margin:24px 0 0;font-size:15px;color:#333;\">Kind regards,<br><strong>AnyVision Media</strong><br><span style=\"color:#666;\">Accounts Department</span></p>\n    </td></tr>\n    <tr><td style=\"padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;\">\n      <p style=\"margin:0;font-size:11px;color:#999;\">AnyVision Media | Johannesburg, South Africa | accounts@anyvisionmedia.com</p>\n    </td></tr>\n  </table>\n</body></html>`;\n\nreturn {\n  json: {\n    ...inv,\n    emailHtml: html,\n    emailSubject: `Due Today: Invoice ${inv.invoiceNumber} - R ${parseFloat(inv.balanceDue).toFixed(2)}`,\n    whatsappMessage: `Hi ${inv.customerName}, invoice ${inv.invoiceNumber} for R ${parseFloat(inv.balanceDue).toFixed(2)} is due today (${inv.dueDate}). Please arrange payment or send proof if already paid. Thank you.`,\n  }\n};"
+      },
+      "id": "cf0d0aa6-0272-4220-b66f-6180f216fd5d",
+      "name": "Build Due Date Reminder",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\n\nconst html = `<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f4f4f4;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;margin:0 auto;background-color:#ffffff;\">\n    <tr><td style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">\n      <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">AnyVision Media</h1>\n    </td></tr>\n    <tr><td style=\"padding:30px 40px;\">\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Dear ${inv.customerName},</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Our records indicate that invoice <strong>${inv.invoiceNumber}</strong> for <strong>R ${parseFloat(inv.balanceDue).toFixed(2)}</strong> is now <strong>${Math.abs(inv.daysPastDue)} days overdue</strong>.</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">We understand that oversights happen, but we kindly request that you settle this outstanding amount as soon as possible.</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">If there are any issues with the invoice or if you require a payment arrangement, please contact us immediately so we can find a solution.</p>\n      <table cellpadding=\"0\" cellspacing=\"0\" style=\"margin:20px 0;\">\n        <tr><td style=\"padding:8px 16px;background-color:#fff3f0;border-left:3px solid #FF6D5A;\">\n          <strong>Invoice:</strong> ${inv.invoiceNumber}<br>\n          <strong>Amount Overdue:</strong> R ${parseFloat(inv.balanceDue).toFixed(2)}<br>\n          <strong>Due Date:</strong> ${inv.dueDate}<br>\n          <strong>Days Overdue:</strong> ${Math.abs(inv.daysPastDue)}\n        </td></tr>\n      </table>\n      <p style=\"margin:24px 0 0;font-size:15px;color:#333;\">Regards,<br><strong>AnyVision Media</strong><br><span style=\"color:#666;\">Accounts Department</span></p>\n    </td></tr>\n    <tr><td style=\"padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;\">\n      <p style=\"margin:0;font-size:11px;color:#999;\">AnyVision Media | Johannesburg, South Africa | accounts@anyvisionmedia.com</p>\n    </td></tr>\n  </table>\n</body></html>`;\n\nreturn {\n  json: {\n    ...inv,\n    emailHtml: html,\n    emailSubject: `Overdue: Invoice ${inv.invoiceNumber} - ${Math.abs(inv.daysPastDue)} days past due`,\n    whatsappMessage: `Dear ${inv.customerName}, invoice ${inv.invoiceNumber} for R ${parseFloat(inv.balanceDue).toFixed(2)} is now ${Math.abs(inv.daysPastDue)} days overdue. Please arrange payment urgently or contact us to discuss. - AnyVision Media Accounts`,\n  }\n};"
+      },
+      "id": "9dc34da0-6112-41d5-9a42-8a9a29d766c7",
+      "name": "Build Firm Reminder",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        600
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\n\nconst html = `<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f4f4f4;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;margin:0 auto;background-color:#ffffff;\">\n    <tr><td style=\"padding:30px 40px 20px;border-bottom:3px solid #cc0000;\">\n      <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">AnyVision Media</h1>\n      <p style=\"margin:4px 0 0;font-size:12px;color:#cc0000;font-weight:bold;\">COLLECTIONS NOTICE</p>\n    </td></tr>\n    <tr><td style=\"padding:30px 40px;\">\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Dear ${inv.customerName},</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Despite previous reminders, invoice <strong>${inv.invoiceNumber}</strong> for <strong>R ${parseFloat(inv.balanceDue).toFixed(2)}</strong> remains unpaid and is now <strong>${Math.abs(inv.daysPastDue)} days overdue</strong>.</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">This invoice has been placed in our <strong>collections queue</strong>. To avoid further action, please make payment within the next 7 days.</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">If you are experiencing financial difficulties, we encourage you to contact us immediately to arrange a suitable payment plan.</p>\n      <table cellpadding=\"0\" cellspacing=\"0\" style=\"margin:20px 0;width:100%;\">\n        <tr><td style=\"padding:12px 16px;background-color:#fff0f0;border-left:4px solid #cc0000;\">\n          <strong>Invoice:</strong> ${inv.invoiceNumber}<br>\n          <strong>Amount Overdue:</strong> R ${parseFloat(inv.balanceDue).toFixed(2)}<br>\n          <strong>Original Due Date:</strong> ${inv.dueDate}<br>\n          <strong>Days Overdue:</strong> ${Math.abs(inv.daysPastDue)}<br>\n          <strong>Status:</strong> Collections Queue\n        </td></tr>\n      </table>\n      <p style=\"margin:24px 0 0;font-size:15px;color:#333;\">Regards,<br><strong>AnyVision Media</strong><br><span style=\"color:#666;\">Accounts Department</span></p>\n    </td></tr>\n    <tr><td style=\"padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;\">\n      <p style=\"margin:0;font-size:11px;color:#999;\">AnyVision Media | Johannesburg, South Africa | accounts@anyvisionmedia.com</p>\n    </td></tr>\n  </table>\n</body></html>`;\n\nreturn {\n  json: {\n    ...inv,\n    emailHtml: html,\n    emailSubject: `COLLECTIONS: Invoice ${inv.invoiceNumber} - ${Math.abs(inv.daysPastDue)} days overdue`,\n    whatsappMessage: `COLLECTIONS NOTICE: ${inv.customerName}, invoice ${inv.invoiceNumber} for R ${parseFloat(inv.balanceDue).toFixed(2)} is ${Math.abs(inv.daysPastDue)} days overdue and has been placed in collections. Please contact us urgently. - AnyVision Media Accounts`,\n  }\n};"
+      },
+      "id": "6f5f9f12-49eb-45d6-92fc-bd7d26ff6df7",
+      "name": "Build Collections Notice",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        800
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\n\nconst html = `<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f4f4f4;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;margin:0 auto;background-color:#ffffff;\">\n    <tr><td style=\"padding:30px 40px 20px;border-bottom:3px solid #990000;\">\n      <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">AnyVision Media</h1>\n      <p style=\"margin:4px 0 0;font-size:12px;color:#990000;font-weight:bold;\">FINAL NOTICE - MANAGEMENT ESCALATION</p>\n    </td></tr>\n    <tr><td style=\"padding:30px 40px;\">\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Dear ${inv.customerName},</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">This matter has been <strong>escalated to management</strong>. Invoice <strong>${inv.invoiceNumber}</strong> for <strong>R ${parseFloat(inv.balanceDue).toFixed(2)}</strong> is now <strong>${Math.abs(inv.daysPastDue)} days overdue</strong> and remains unpaid despite multiple reminders.</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Please be advised that if payment is not received within <strong>7 days</strong> of this notice, we will be compelled to take <strong>further action</strong>, which may include suspending services, engaging a collections agency, or pursuing legal remedies.</p>\n      <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">We strongly urge you to settle this account or contact us immediately to discuss a resolution.</p>\n      <table cellpadding=\"0\" cellspacing=\"0\" style=\"margin:20px 0;width:100%;\">\n        <tr><td style=\"padding:12px 16px;background-color:#ffe0e0;border-left:4px solid #990000;\">\n          <strong>Invoice:</strong> ${inv.invoiceNumber}<br>\n          <strong>Amount Overdue:</strong> R ${parseFloat(inv.balanceDue).toFixed(2)}<br>\n          <strong>Original Due Date:</strong> ${inv.dueDate}<br>\n          <strong>Days Overdue:</strong> ${Math.abs(inv.daysPastDue)}<br>\n          <strong>Status:</strong> Escalated to Management<br>\n          <strong>Reminders Sent:</strong> ${inv.reminderCount}\n        </td></tr>\n      </table>\n      <p style=\"margin:24px 0 0;font-size:15px;color:#333;\">Regards,<br><strong>AnyVision Media</strong><br><span style=\"color:#666;\">Management</span></p>\n    </td></tr>\n    <tr><td style=\"padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;\">\n      <p style=\"margin:0;font-size:11px;color:#999;\">AnyVision Media | Johannesburg, South Africa | accounts@anyvisionmedia.com</p>\n    </td></tr>\n  </table>\n</body></html>`;\n\nreturn {\n  json: {\n    ...inv,\n    emailHtml: html,\n    emailSubject: `FINAL NOTICE: Invoice ${inv.invoiceNumber} - Escalated to Management`,\n    emailCc: 'ian@anyvisionmedia.com',\n    whatsappMessage: `FINAL NOTICE: ${inv.customerName}, invoice ${inv.invoiceNumber} for R ${parseFloat(inv.balanceDue).toFixed(2)} is ${Math.abs(inv.daysPastDue)} days overdue. This has been escalated to management. Please contact us within 7 days to avoid further action. - AnyVision Media Management`,\n  }\n};"
+      },
+      "id": "516c8da2-c0af-46ba-870e-d9c3de63c760",
+      "name": "Build Escalation Notice",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        1000
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblGtffCPlRoHAtTk"
+        },
+        "columns": {
+          "value": {
+            "Type": "Exception Review",
+            "Priority": "Urgent",
+            "Status": "Open",
+            "Description": "={{ 'Escalation: Invoice ' + $json.invoiceNumber + ' - ' + $json.customerName + '. R ' + $json.balanceDue + ' is ' + Math.abs($json.daysPastDue) + ' days overdue. ' + $json.reminderCount + ' reminders sent. Escalated to management.' }}",
+            "Related Record ID": "={{ $json.invoiceNumber }}",
+            "Related Table": "Invoices",
+            "Owner": "ian@anyvisionmedia.com",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": [
+            {
+              "id": "Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Type"
+            },
+            {
+              "id": "Priority",
+              "type": "string",
+              "display": true,
+              "displayName": "Priority"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Description"
+            },
+            {
+              "id": "Related Record ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Related Record ID"
+            },
+            {
+              "id": "Related Table",
+              "type": "string",
+              "display": true,
+              "displayName": "Related Table"
+            },
+            {
+              "id": "Owner",
+              "type": "string",
+              "display": true,
+              "displayName": "Owner"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "5630f9b3-b868-4f8e-965c-85660766dc4d",
+      "name": "Create Escalation Task",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2640,
+        1000
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "id": "854b3b2b-f261-4047-9f8d-dddbecf1ad93",
+              "leftValue": "={{ $json.preferredChannel }}",
+              "rightValue": "WhatsApp",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "f63cccb0-77bf-42fb-860b-014a3942e707",
+      "name": "Check Channel Pref",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2880,
+        500
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customerEmail }}",
+        "subject": "={{ $json.emailSubject }}",
+        "emailType": "html",
+        "message": "={{ $json.emailHtml }}",
+        "options": {
+          "ccList": "={{ $json.emailCc || '' }}",
+          "appendAttribution": false
+        }
+      },
+      "id": "d22155df-a5b7-4580-a690-9e10e92e0570",
+      "name": "Send Reminder Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        3120,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v18.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.customerPhone }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"{{ $json.whatsappMessage }}\"\n  }\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "3c66c6a6-a4c0-4a45-bf8a-8e02185d77b1",
+      "name": "Send Reminder WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3120,
+        600
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dCAz6MBXpOXvMJrq",
+          "name": "WhatsApp account AVM Multi Agent"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "columns": {
+          "value": {
+            "Invoice ID": "={{ $('Determine Reminder Stage').first().json['Invoice ID'] }}",
+            "Reminder Count": "={{ parseInt($('Determine Reminder Stage').first().json.reminderCount || '0') + 1 }}",
+            "Last Reminder Date": "={{ $now.format('yyyy-MM-dd') }}",
+            "Next Reminder Date": "={{ $now.plus(3, 'days').format('yyyy-MM-dd') }}",
+            "Last Reminder Stage": "={{ $('Determine Reminder Stage').first().json.reminderStage }}"
+          },
+          "schema": [
+            {
+              "id": "Invoice ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Invoice ID"
+            },
+            {
+              "id": "Reminder Count",
+              "type": "number",
+              "display": true,
+              "displayName": "Reminder Count"
+            },
+            {
+              "id": "Last Reminder Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Last Reminder Date"
+            },
+            {
+              "id": "Next Reminder Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Next Reminder Date"
+            },
+            {
+              "id": "Last Reminder Stage",
+              "type": "string",
+              "display": true,
+              "displayName": "Last Reminder Stage"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Invoice ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "259c5981-0628-4d13-b18a-59722c50f224",
+      "name": "Update Invoice Reminder",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3360,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "columns": {
+          "value": {
+            "Invoice ID": "={{ $('Determine Reminder Stage').first().json['Invoice ID'] }}",
+            "Status": "Overdue"
+          },
+          "schema": [
+            {
+              "id": "Invoice ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Invoice ID"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Invoice ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "88d7d582-8e65-4954-879d-7c42486d8226",
+      "name": "Update Invoice Status",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2120,
+        800
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblV4LPBYotAWW1RO"
+        },
+        "columns": {
+          "value": {
+            "Timestamp": "={{ $now.toISO() }}",
+            "Workflow Name": "WF-02 Collections & Follow-ups",
+            "Event Type": "REMINDER_SENT",
+            "Record Type": "Invoice",
+            "Record ID": "={{ $('Determine Reminder Stage').first().json.invoiceNumber }}",
+            "Action Taken": "={{ 'Sent ' + $('Determine Reminder Stage').first().json.reminderStage + ' reminder via ' + ($('Determine Reminder Stage').first().json.preferredChannel || 'Email') }}",
+            "Actor": "system",
+            "Result": "Success",
+            "Error Details": "",
+            "Metadata JSON": "={{ JSON.stringify({ stage: $('Determine Reminder Stage').first().json.reminderStage, tone: $('Determine Reminder Stage').first().json.reminderTone, daysPastDue: $('Determine Reminder Stage').first().json.daysPastDue, reminderCount: $('Determine Reminder Stage').first().json.reminderCount + 1, channel: $('Determine Reminder Stage').first().json.preferredChannel, customer: $('Determine Reminder Stage').first().json.customerName }) }}"
+          },
+          "schema": [
+            {
+              "id": "Timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "Timestamp"
+            },
+            {
+              "id": "Workflow Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Workflow Name"
+            },
+            {
+              "id": "Event Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Event Type"
+            },
+            {
+              "id": "Record Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Record Type"
+            },
+            {
+              "id": "Record ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Record ID"
+            },
+            {
+              "id": "Action Taken",
+              "type": "string",
+              "display": true,
+              "displayName": "Action Taken"
+            },
+            {
+              "id": "Actor",
+              "type": "string",
+              "display": true,
+              "displayName": "Actor"
+            },
+            {
+              "id": "Result",
+              "type": "string",
+              "display": true,
+              "displayName": "Result"
+            },
+            {
+              "id": "Error Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Error Details"
+            },
+            {
+              "id": "Metadata JSON",
+              "type": "string",
+              "display": true,
+              "displayName": "Metadata JSON"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "6abb9b7d-aa28-4d47-bf47-b483762c07e7",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3600,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "accounting/dispute",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "12807390-4538-4e7b-8e2e-d4a3a3510e75",
+      "name": "Dispute Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        1200
+      ],
+      "typeVersion": 2,
+      "webhookId": "257a8c96-a651-4308-9cee-f6e3004ce4f6"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\n\nconst invoiceNumber = body.invoice_number || body.invoiceNumber || '';\nconst reason = body.reason || body.dispute_reason || 'Not specified';\nconst details = body.details || body.description || '';\nconst customerName = body.customer_name || body.customerName || '';\nconst customerEmail = body.customer_email || body.customerEmail || '';\n\nif (!invoiceNumber) {\n  throw new Error('Missing required field: invoice_number');\n}\n\n// Assign dispute owner based on reason category\nlet disputeOwner = 'accounts@anyvisionmedia.com';\nlet priority = 'Normal';\n\nconst reasonLower = reason.toLowerCase();\nif (reasonLower.includes('overcharge') || reasonLower.includes('incorrect amount')) {\n  disputeOwner = 'accounts@anyvisionmedia.com';\n  priority = 'High';\n} else if (reasonLower.includes('service') || reasonLower.includes('quality')) {\n  disputeOwner = 'ian@anyvisionmedia.com';\n  priority = 'High';\n} else if (reasonLower.includes('duplicate')) {\n  disputeOwner = 'accounts@anyvisionmedia.com';\n  priority = 'Normal';\n} else if (reasonLower.includes('not received') || reasonLower.includes('wrong')) {\n  disputeOwner = 'accounts@anyvisionmedia.com';\n  priority = 'High';\n}\n\nreturn {\n  json: {\n    invoiceNumber: invoiceNumber,\n    disputeReason: reason,\n    disputeDetails: details,\n    customerName: customerName,\n    customerEmail: customerEmail,\n    disputeOwner: disputeOwner,\n    priority: priority,\n    disputeDate: new Date().toISOString().split('T')[0],\n    status: 'Disputed',\n  }\n};"
+      },
+      "id": "2b454aa4-5868-4186-868e-190441f71160",
+      "name": "Handle Dispute",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        440,
+        1200
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "filterByFormula": "={Invoice Number} = '{{ $json.invoiceNumber }}'"
+      },
+      "id": "8924c27d-6645-4181-b8df-cb31ba4d979d",
+      "name": "Find Invoice for Dispute",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        1200
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "columns": {
+          "value": {
+            "Invoice ID": "={{ $json['Invoice ID'] }}",
+            "Status": "Disputed",
+            "Dispute Reason": "={{ $('Handle Dispute').first().json.disputeReason + '. Details: ' + ($('Handle Dispute').first().json.disputeDetails || '') }}",
+            "Dispute Owner": "={{ $('Handle Dispute').first().json.disputeOwner }}"
+          },
+          "schema": [
+            {
+              "id": "Invoice ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Invoice ID"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Dispute Reason",
+              "type": "string",
+              "display": true,
+              "displayName": "Dispute Reason"
+            },
+            {
+              "id": "Dispute Owner",
+              "type": "string",
+              "display": true,
+              "displayName": "Dispute Owner"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Invoice ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "e9372e56-4c31-415f-859a-681ff111a968",
+      "name": "Update Invoice Disputed",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        920,
+        1200
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblGtffCPlRoHAtTk"
+        },
+        "columns": {
+          "value": {
+            "Type": "Dispute Resolution",
+            "Priority": "={{ $('Handle Dispute').first().json.priority }}",
+            "Status": "Open",
+            "Description": "={{ 'Dispute: Invoice ' + $('Handle Dispute').first().json.invoiceNumber + ' - ' + $('Handle Dispute').first().json.customerName + '. Reason: ' + $('Handle Dispute').first().json.disputeReason + '. Details: ' + ($('Handle Dispute').first().json.disputeDetails || '') }}",
+            "Related Record ID": "={{ $('Handle Dispute').first().json.invoiceNumber }}",
+            "Related Table": "Invoices",
+            "Owner": "={{ $('Handle Dispute').first().json.disputeOwner }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": [
+            {
+              "id": "Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Type"
+            },
+            {
+              "id": "Priority",
+              "type": "string",
+              "display": true,
+              "displayName": "Priority"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Description"
+            },
+            {
+              "id": "Related Record ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Related Record ID"
+            },
+            {
+              "id": "Related Table",
+              "type": "string",
+              "display": true,
+              "displayName": "Related Table"
+            },
+            {
+              "id": "Owner",
+              "type": "string",
+              "display": true,
+              "displayName": "Owner"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "b3520010-16b4-4126-bd94-a90499ff6292",
+      "name": "Create Dispute Task",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1160,
+        1200
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblV4LPBYotAWW1RO"
+        },
+        "columns": {
+          "value": {
+            "Timestamp": "={{ $now.toISO() }}",
+            "Workflow Name": "WF-02 Collections & Follow-ups",
+            "Event Type": "DISPUTE_OPENED",
+            "Record Type": "Invoice",
+            "Record ID": "={{ $('Handle Dispute').first().json.invoiceNumber }}",
+            "Action Taken": "={{ 'Dispute opened: ' + $('Handle Dispute').first().json.disputeReason }}",
+            "Actor": "={{ $('Handle Dispute').first().json.customerEmail || 'customer' }}",
+            "Result": "Success",
+            "Error Details": "",
+            "Metadata JSON": "={{ JSON.stringify({ reason: $('Handle Dispute').first().json.disputeReason, owner: $('Handle Dispute').first().json.disputeOwner, priority: $('Handle Dispute').first().json.priority, customer: $('Handle Dispute').first().json.customerName }) }}"
+          },
+          "schema": [
+            {
+              "id": "Timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "Timestamp"
+            },
+            {
+              "id": "Workflow Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Workflow Name"
+            },
+            {
+              "id": "Event Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Event Type"
+            },
+            {
+              "id": "Record Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Record Type"
+            },
+            {
+              "id": "Record ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Record ID"
+            },
+            {
+              "id": "Action Taken",
+              "type": "string",
+              "display": true,
+              "displayName": "Action Taken"
+            },
+            {
+              "id": "Actor",
+              "type": "string",
+              "display": true,
+              "displayName": "Actor"
+            },
+            {
+              "id": "Result",
+              "type": "string",
+              "display": true,
+              "displayName": "Result"
+            },
+            {
+              "id": "Error Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Error Details"
+            },
+            {
+              "id": "Metadata JSON",
+              "type": "string",
+              "display": true,
+              "displayName": "Metadata JSON"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "76df57d1-ac62-45f5-a9de-f67492aac2f4",
+      "name": "Write Dispute Audit",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        1200
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\n\nlet totalProcessed = 0;\nlet remindersSent = 0;\nlet escalations = 0;\nlet skipped = 0;\nconst summaryLines = [];\n\nfor (const item of allItems) {\n  totalProcessed++;\n  const stage = item.json.reminderStage || item.json.lastReminderStage || 'unknown';\n  const inv = item.json.invoiceNumber || item.json['Invoice Number'] || 'N/A';\n\n  if (stage === 'no_action' || stage === 'unknown') {\n    skipped++;\n  } else {\n    remindersSent++;\n    if (stage === 't_plus_14') escalations++;\n    summaryLines.push(`${inv}: ${stage}`);\n  }\n}\n\nconst summary = [\n  `Collections Run Complete - ${new Date().toISOString().split('T')[0]}`,\n  `Total Invoices Processed: ${totalProcessed}`,\n  `Reminders Sent: ${remindersSent}`,\n  `Escalations: ${escalations}`,\n  `Skipped (no action): ${skipped}`,\n  '',\n  'Details:',\n  ...summaryLines,\n].join('\\n');\n\nreturn {\n  json: {\n    summary: summary,\n    totalProcessed: totalProcessed,\n    remindersSent: remindersSent,\n    escalations: escalations,\n    skipped: skipped,\n    completedAt: new Date().toISOString(),\n  }\n};"
+      },
+      "id": "6ffa1f37-d049-4341-bc44-cb90fa571d58",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1400,
+        300
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "feb7a3e8-caf8-4cbd-a8a0-466e1105207d",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        1500
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=ACCOUNTING ERROR - WF-02 Collections - {{ $json.execution.error.message }}",
+        "message": "=<h2>Accounting Department Error - WF-02 Collections</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><strong>Time:</strong> {{ $now.toISO() }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "c854ab25-ef34-4483-af11-3da1fd04ea70",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        1500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-02: Collections & Follow-ups\n\n**Daily 7AM Run:**\n1. Reads all open/overdue invoices from Airtable\n2. Loops through each invoice\n3. Looks up customer details\n4. Determines reminder stage based on days relative to due date\n5. Builds appropriate HTML email + WhatsApp message\n6. Sends via preferred channel\n7. Updates invoice reminder tracking\n8. Logs to audit trail\n\n**Stages:** T-3 (friendly) | Due (reminder) | T+3 (firm) | T+7 (collections) | T+14 (escalation)",
+        "width": 1200,
+        "height": 280
+      },
+      "id": "d70446c6-133e-4742-a6ac-15f7e1b14d10",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        160,
+        120
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Dispute Handling\n\nPOST /accounting/dispute\n\nAccepts: {invoice_number, reason, details, customer_name, customer_email}\n\n1. Parses dispute and assigns owner based on reason\n2. Updates invoice status to Disputed\n3. Creates Dispute Resolution task\n4. Writes DISPUTE_OPENED audit log entry",
+        "width": 1300,
+        "height": 200
+      },
+      "id": "4578fc3a-04b9-49b2-b53c-bdbe78efd8e7",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        160,
+        1100
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Error Handling\n\nCatches any unhandled errors and sends notification email to ian@anyvisionmedia.com.",
+        "width": 400,
+        "height": 140
+      },
+      "id": "36d2ee7b-8b85-4028-9f3a-e13f6004d26d",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        160,
+        1440
+      ],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Daily 7AM Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Open Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Open Invoices": {
+      "main": [
+        [
+          {
+            "node": "Has Invoices?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Invoices?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Invoices": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lookup Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Customer": {
+      "main": [
+        [
+          {
+            "node": "Determine Reminder Stage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Reminder Stage": {
+      "main": [
+        [
+          {
+            "node": "Needs Reminder?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Reminder?": {
+      "main": [
+        [
+          {
+            "node": "Reminder Stage Router",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reminder Stage Router": {
+      "main": [
+        [
+          {
+            "node": "Build Friendly Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Due Date Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Firm Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Collections Notice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Escalation Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Friendly Reminder": {
+      "main": [
+        [
+          {
+            "node": "Check Channel Pref",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Due Date Reminder": {
+      "main": [
+        [
+          {
+            "node": "Check Channel Pref",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Firm Reminder": {
+      "main": [
+        [
+          {
+            "node": "Check Channel Pref",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Collections Notice": {
+      "main": [
+        [
+          {
+            "node": "Check Channel Pref",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Escalation Notice": {
+      "main": [
+        [
+          {
+            "node": "Create Escalation Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Escalation Task": {
+      "main": [
+        [
+          {
+            "node": "Check Channel Pref",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Channel Pref": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Reminder WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Reminder Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reminder Email": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reminder WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice Reminder": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice Status": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dispute Webhook": {
+      "main": [
+        [
+          {
+            "node": "Handle Dispute",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Dispute": {
+      "main": [
+        [
+          {
+            "node": "Find Invoice for Dispute",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Invoice for Dispute": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice Disputed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice Disputed": {
+      "main": [
+        [
+          {
+            "node": "Create Dispute Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Dispute Task": {
+      "main": [
+        [
+          {
+            "node": "Write Dispute Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

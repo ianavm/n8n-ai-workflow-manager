@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;background-color:#f4f4f4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background-color:#ffffff;">
+    <!-- Header -->
+    <tr>
+      <td style="padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td><h1 style="margin:0;font-size:22px;color:#1A1A2E;">TAX INVOICE</h1></td>
+            <td style="text-align:right;"><span style="font-size:14px;color:#666;">AnyVision Media</span></td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <!-- Invoice Details -->
+    <tr>
+      <td style="padding:20px 40px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td width="50%" style="vertical-align:top;">
+              <p style="margin:0;font-size:12px;color:#999;text-transform:uppercase;">Bill To</p>
+              <p style="margin:4px 0;font-size:15px;"><strong>{{customer_name}}</strong></p>
+              <p style="margin:0;font-size:13px;color:#666;">{{customer_email}}</p>
+              <p style="margin:0;font-size:13px;color:#666;">{{customer_address}}</p>
+              <p style="margin:0;font-size:13px;color:#666;">VAT: {{customer_vat}}</p>
+            </td>
+            <td width="50%" style="vertical-align:top;text-align:right;">
+              <p style="margin:0;font-size:13px;color:#666;">Invoice #: <strong>{{invoice_number}}</strong></p>
+              <p style="margin:4px 0;font-size:13px;color:#666;">Date: {{issue_date}}</p>
+              <p style="margin:4px 0;font-size:13px;color:#666;">Due: <strong>{{due_date}}</strong></p>
+              <p style="margin:4px 0;font-size:13px;color:#666;">Terms: {{payment_terms}}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <!-- Line Items -->
+    <tr>
+      <td style="padding:0 40px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+          <tr style="background-color:#f8f8f8;">
+            <th style="padding:10px 8px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;">Code</th>
+            <th style="padding:10px 8px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;">Description</th>
+            <th style="padding:10px 8px;text-align:center;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;">Qty</th>
+            <th style="padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;">Unit Price</th>
+            <th style="padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;">VAT</th>
+            <th style="padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;">Total</th>
+          </tr>
+          {{line_items_html}}
+        </table>
+      </td>
+    </tr>
+    <!-- Totals -->
+    <tr>
+      <td style="padding:0 40px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="text-align:right;padding:4px 8px;color:#666;">Subtotal:</td>
+            <td style="text-align:right;padding:4px 8px;width:120px;"><strong>R {{subtotal}}</strong></td>
+          </tr>
+          <tr>
+            <td style="text-align:right;padding:4px 8px;color:#666;">VAT (15%):</td>
+            <td style="text-align:right;padding:4px 8px;"><strong>R {{vat_amount}}</strong></td>
+          </tr>
+          <tr style="border-top:2px solid #FF6D5A;">
+            <td style="text-align:right;padding:8px;font-size:18px;">Total Due:</td>
+            <td style="text-align:right;padding:8px;font-size:18px;color:#FF6D5A;"><strong>R {{total}}</strong></td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <!-- Payment Details -->
+    <tr>
+      <td style="padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;">
+        <p style="margin:0 0 8px;font-size:14px;"><strong>Payment Options:</strong></p>
+        <p style="margin:0;font-size:13px;color:#666;line-height:1.6;">
+          <strong>EFT:</strong><br>
+          Bank: {{bank_name}}<br>
+          Account: {{bank_account}}<br>
+          Branch Code: {{bank_branch}}<br>
+          Reference: {{invoice_number}}
+        </p>
+        {{#if payfast_link}}
+        <p style="margin:16px 0 0;">
+          <a href="{{payfast_link}}" style="display:inline-block;padding:10px 24px;background-color:#FF6D5A;color:#ffffff;text-decoration:none;border-radius:4px;font-size:14px;">Pay with PayFast</a>
+        </p>
+        {{/if}}
+        {{#if stripe_link}}
+        <p style="margin:8px 0 0;">
+          <a href="{{stripe_link}}" style="display:inline-block;padding:10px 24px;background-color:#6772E5;color:#ffffff;text-decoration:none;border-radius:4px;font-size:14px;">Pay with Card</a>
+        </p>
+        {{/if}}
+      </td>
+    </tr>
+    <!-- Footer -->
+    <tr>
+      <td style="padding:20px 40px;background-color:#f8f8f8;">
+        <p style="margin:0;font-size:11px;color:#999;line-height:1.5;">
+          AnyVision Media | Johannesburg, South Africa<br>
+          accounts@anyvisionmedia.com | VAT: {{company_vat}}<br>
+          Please use the invoice number as your payment reference.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

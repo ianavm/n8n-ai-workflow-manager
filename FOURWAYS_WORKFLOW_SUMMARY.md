@@ -1,7 +1,7 @@
-# Fourways All-Business Lead Scraper - Revision Summary
+# Johannesburg Lead Scraper - Revision Summary
 
 ## Overview
-Workflow revised to target ALL businesses in Fourways with a compelling automation-focused value proposition.
+Workflow revised to target ALL businesses across Johannesburg/Gauteng with a compelling automation-focused value proposition.
 
 ---
 
@@ -10,7 +10,7 @@ Workflow revised to target ALL businesses in Fourways with a compelling automati
 ### 1. **Search Scope - WIDENED**
 | Before | After |
 |---|---|
-| "dentists" in Johannesburg | **ALL businesses** in Fourways, Johannesburg |
+| "dentists" in Johannesburg | **ALL businesses** across Johannesburg/Gauteng (24 areas) |
 | 50 max results | **100 max results** |
 | Single industry focus | Multi-industry (real estate, legal, medical, consulting, retail, restaurants, contractors, etc.) |
 

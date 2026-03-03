@@ -65,7 +65,7 @@ def main():
             # Update base reference
             if 'base' in n['parameters']:
                 n['parameters']['base']['value'] = new_base_id
-                n['parameters']['base']['cachedResultName'] = 'Lead Scraper - Fourways CRM'
+                n['parameters']['base']['cachedResultName'] = 'Lead Scraper - Johannesburg CRM'
 
             # Update table reference
             if 'table' in n['parameters']:

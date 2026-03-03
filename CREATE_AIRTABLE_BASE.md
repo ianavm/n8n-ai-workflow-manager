@@ -9,7 +9,7 @@ Your API token doesn't have the `schema.bases:write` scope needed to create base
 1. Go to https://airtable.com
 2. Click **"Create a base"** (or **"Add a base"**)
 3. Choose **"Start from scratch"**
-4. Name it: **`Lead Scraper - Fourways CRM`**
+4. Name it: **`Lead Scraper - Johannesburg CRM`**
 5. Click **"Create base"**
 
 ---

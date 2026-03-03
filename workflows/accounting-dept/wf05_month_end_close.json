@@ -1,0 +1,916 @@
+{
+  "name": "Accounting Dept - Month End Close (WF-05)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 28-31 * *"
+            }
+          ]
+        }
+      },
+      "id": "f89c0fca-b1a8-470b-9f73-efc859a27a7e",
+      "name": "Month End Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "32df4cc3-2b9a-4b1d-9b9c-73897872cb4d",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6c29fab2-7d89-41c8-bd62-121c9323b985",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "93e13cc0-1d6b-4ec6-b0d1-00a4f7170a28",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            },
+            {
+              "id": "50ccf49a-c310-450a-a35e-b67e3a40a1bd",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "33add39a-3930-4c6c-ae06-8af4e2e49ae1",
+              "name": "defaultCurrency",
+              "value": "ZAR",
+              "type": "string"
+            },
+            {
+              "id": "06a6cd6c-f142-49ba-bfb7-ba7589e20e44",
+              "name": "vatRate",
+              "value": "0.15",
+              "type": "string"
+            },
+            {
+              "id": "98991498-37be-44c9-9e17-3bf24306bdea",
+              "name": "reportRecipient",
+              "value": "ian@anyvisionmedia.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "882624d5-e243-4e41-ab89-a4b5f56000ce",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        460,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "jsCode": "const today = new Date();\nconst year = today.getFullYear();\nconst month = today.getMonth();\nconst lastDay = new Date(year, month + 1, 0);\nlet lastBusinessDay = new Date(lastDay);\n\nwhile (lastBusinessDay.getDay() === 0 || lastBusinessDay.getDay() === 6) {\n  lastBusinessDay.setDate(lastBusinessDay.getDate() - 1);\n}\n\n// If triggered manually, always proceed (bypass date check)\nconst isManual = $('Manual Trigger').isExecuted;\nconst isLastBusinessDay = isManual || today.getDate() === lastBusinessDay.getDate();\nconst monthName = today.toLocaleString('en-ZA', { month: 'long', year: 'numeric' });\n\nreturn {\n  json: {\n    isLastBusinessDay: isLastBusinessDay,\n    todayDate: today.toISOString().split('T')[0],\n    monthName: monthName,\n    lastBusinessDay: lastBusinessDay.toISOString().split('T')[0],\n    monthStart: `${year}-${String(month + 1).padStart(2, '0')}-01`,\n    monthEnd: lastDay.toISOString().split('T')[0],\n  }\n};\n"
+      },
+      "id": "3f33f5ff-7f86-41ce-9ad9-d2dd2c221f33",
+      "name": "Check Last Business Day",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        700,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "01a2a5c7-459f-4d4a-8370-42fd0611a51f",
+              "leftValue": "={{ $json.isLastBusinessDay }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "98abf43d-9c19-4139-ab40-9e27ae47c216",
+      "name": "Is Last Business Day?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        940,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "filterByFormula": "AND({Status} != 'Paid', {Status} != 'Cancelled')"
+      },
+      "id": "f671599c-9660-440c-95b1-f8094e341b0c",
+      "name": "Read All Open Invoices",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1200,
+        400
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblRRe24Xlm1J3C1I"
+        },
+        "filterByFormula": "{Payment Status} != 'Paid'"
+      },
+      "id": "753e184a-c790-477e-bc4d-917f98aa1c42",
+      "name": "Read All Open Bills",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1460,
+        400
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblAjS2Ws2NjOtTRX"
+        },
+        "filterByFormula": "=AND({Payment ID} != '', IS_AFTER({Date Received}, DATEADD(TODAY(), -35, 'days')))"
+      },
+      "id": "6f2b05ca-9bb8-404c-acff-4c0e12bcbde2",
+      "name": "Read Payments This Month",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1720,
+        400
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblV4LPBYotAWW1RO"
+        },
+        "filterByFormula": "=AND({Timestamp} != '', IS_AFTER({Timestamp}, DATEADD(TODAY(), -35, 'days')))"
+      },
+      "id": "db38aec5-e8a2-4ea4-8670-e4d8eb8534dc",
+      "name": "Read Audit Log This Month",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1980,
+        400
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoices = $('Read All Open Invoices').all();\nconst today = new Date();\nconst buckets = { current: [], days_31_60: [], days_61_90: [], days_91_120: [], days_120_plus: [] };\nlet totalAR = 0;\n\nfor (const inv of invoices) {\n  const dueDate = new Date(inv.json['Due Date']);\n  const daysPast = Math.floor((today - dueDate) / 86400000);\n  const balance = parseFloat(inv.json['Balance Due'] || inv.json['Total'] || 0);\n  totalAR += balance;\n  \n  const record = { invoiceNumber: inv.json['Invoice Number'], customer: inv.json['Customer Name'], balance, daysPast };\n  \n  if (daysPast <= 30) buckets.current.push(record);\n  else if (daysPast <= 60) buckets.days_31_60.push(record);\n  else if (daysPast <= 90) buckets.days_61_90.push(record);\n  else if (daysPast <= 120) buckets.days_91_120.push(record);\n  else buckets.days_120_plus.push(record);\n}\n\nconst summary = {\n  current: buckets.current.reduce((s, r) => s + r.balance, 0),\n  days_31_60: buckets.days_31_60.reduce((s, r) => s + r.balance, 0),\n  days_61_90: buckets.days_61_90.reduce((s, r) => s + r.balance, 0),\n  days_91_120: buckets.days_91_120.reduce((s, r) => s + r.balance, 0),\n  days_120_plus: buckets.days_120_plus.reduce((s, r) => s + r.balance, 0),\n};\n\nreturn { json: { agedReceivables: buckets, arSummary: summary, totalAR, invoiceCount: invoices.length } };\n"
+      },
+      "id": "e397301d-72ef-4782-a483-d5b7f6ecf235",
+      "name": "Build Aged Receivables",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2240,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const bills = $('Read All Open Bills').all();\nconst today = new Date();\nconst buckets = { current: [], days_31_60: [], days_61_90: [], days_91_120: [], days_120_plus: [] };\nlet totalAP = 0;\n\nfor (const bill of bills) {\n  const dueDate = new Date(bill.json['Due Date']);\n  const daysPast = Math.floor((today - dueDate) / 86400000);\n  const balance = parseFloat(bill.json['Balance Due'] || bill.json['Total'] || 0);\n  totalAP += balance;\n  \n  const record = { billNumber: bill.json['Bill Number'], supplier: bill.json['Supplier Name'], balance, daysPast };\n  \n  if (daysPast <= 30) buckets.current.push(record);\n  else if (daysPast <= 60) buckets.days_31_60.push(record);\n  else if (daysPast <= 90) buckets.days_61_90.push(record);\n  else if (daysPast <= 120) buckets.days_91_120.push(record);\n  else buckets.days_120_plus.push(record);\n}\n\nconst summary = {\n  current: buckets.current.reduce((s, r) => s + r.balance, 0),\n  days_31_60: buckets.days_31_60.reduce((s, r) => s + r.balance, 0),\n  days_61_90: buckets.days_61_90.reduce((s, r) => s + r.balance, 0),\n  days_91_120: buckets.days_91_120.reduce((s, r) => s + r.balance, 0),\n  days_120_plus: buckets.days_120_plus.reduce((s, r) => s + r.balance, 0),\n};\n\nreturn { json: { agedPayables: buckets, apSummary: summary, totalAP, billCount: bills.length } };\n"
+      },
+      "id": "00a5fcb5-9672-4ee8-a3ff-1d8f0c6fc6ab",
+      "name": "Build Aged Payables",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2500,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const dateInfo = $('Check Last Business Day').first().json;\nconst monthStart = new Date(dateInfo.monthStart);\nconst monthEnd = new Date(dateInfo.monthEnd + 'T23:59:59');\n\n// Filter payments and audit logs to current month\nconst allPayments = $('Read Payments This Month').all();\nconst payments = allPayments.filter(p => {\n  const d = new Date(p.json['Date Received']);\n  return !isNaN(d.getTime()) && d >= monthStart && d <= monthEnd;\n});\nconst allLogs = $('Read Audit Log This Month').all();\nconst auditLogs = allLogs.filter(l => {\n  const d = new Date(l.json['Created At']);\n  return !isNaN(d.getTime()) && d >= monthStart && d <= monthEnd;\n});\n\nconst invoices = $('Read All Open Invoices').all();\nconst arData = $('Build Aged Receivables').first().json;\nconst apData = $('Build Aged Payables').first().json;\n\nconst discrepancies = [];\n\n// Check 1: Payments without matching invoices\nfor (const pmt of payments) {\n  const invoiceRef = pmt.json['Invoice Number'] || pmt.json['Reference'] || '';\n  if (invoiceRef) {\n    const matchingInvoice = invoices.find(inv => \n      inv.json['Invoice Number'] === invoiceRef\n    );\n    if (!matchingInvoice) {\n      discrepancies.push({\n        type: 'ORPHANED_PAYMENT',\n        description: `Payment ${pmt.json['Payment ID'] || 'unknown'} references invoice ${invoiceRef} which was not found in open invoices`,\n        amount: parseFloat(pmt.json['Amount'] || 0),\n        reference: invoiceRef,\n      });\n    }\n  }\n}\n\n// Check 2: Invoices overdue by 120+ days (potential write-offs)\nconst overdue120 = arData.agedReceivables.days_120_plus || [];\nfor (const inv of overdue120) {\n  discrepancies.push({\n    type: 'OVERDUE_120_PLUS',\n    description: `Invoice ${inv.invoiceNumber} for ${inv.customer} is ${inv.daysPast} days overdue - consider write-off`,\n    amount: inv.balance,\n    reference: inv.invoiceNumber,\n  });\n}\n\n// Check 3: Bills overdue by 120+ days\nconst overdueAP120 = apData.agedPayables.days_120_plus || [];\nfor (const bill of overdueAP120) {\n  discrepancies.push({\n    type: 'OVERDUE_BILL_120_PLUS',\n    description: `Bill ${bill.billNumber} for ${bill.supplier} is ${bill.daysPast} days overdue - urgent payment required`,\n    amount: bill.balance,\n    reference: bill.billNumber,\n  });\n}\n\n// Build summary stats\nconst totalPaymentsReceived = payments.reduce((s, p) => s + parseFloat(p.json['Amount'] || 0), 0);\nconst netPosition = arData.totalAR - apData.totalAP;\n\nreturn {\n  json: {\n    hasDiscrepancies: discrepancies.length > 0,\n    discrepancyCount: discrepancies.length,\n    discrepancies: discrepancies,\n    totalPaymentsReceived: totalPaymentsReceived,\n    paymentCount: payments.length,\n    totalAR: arData.totalAR,\n    totalAP: apData.totalAP,\n    netPosition: netPosition,\n    arSummary: arData.arSummary,\n    apSummary: apData.apSummary,\n    invoiceCount: arData.invoiceCount,\n    billCount: apData.billCount,\n    auditLogCount: auditLogs.length,\n    agedReceivables: arData.agedReceivables,\n    agedPayables: apData.agedPayables,\n  }\n};\n"
+      },
+      "id": "b243d373-e7eb-4b88-8bfb-c259c2708de5",
+      "name": "Reconciliation Check",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2760,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "3b235a82-7e3b-4e89-bced-ab1d6ebbafe4",
+              "leftValue": "={{ $json.hasDiscrepancies }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "7b79cd53-60cc-46b7-bcd0-2e8ac7c9ba05",
+      "name": "Has Discrepancies?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        3020,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblGtffCPlRoHAtTk"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ 'TASK-' + Date.now() }}",
+            "Type": "Month End Task",
+            "Priority": "High",
+            "Status": "Open",
+            "Description": "=Month-End Reconciliation: {{ $json.discrepancyCount }} discrepancies found. Issues: {{ $json.discrepancies.map(d => d.type + ': ' + d.description).join(' | ') }}",
+            "Owner": "ian@anyvisionmedia.com",
+            "Due At": "={{ $now.plus(2, 'days').format('yyyy-MM-dd') }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "96dc3a89-63a8-4ceb-a2b0-83eb1af793fa",
+      "name": "Create Reconciliation Tasks",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3280,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Reconciliation Check').first().json;\nconst config = $('System Config').first().json;\nconst dateInfo = $('Check Last Business Day').first().json;\n\n// Helper to format currency\nconst fmt = (v) => `R ${(v || 0).toFixed(2).replace(/\\B(?=(\\d{3})+(?!\\d))/g, ',')}`;\n\n// Build AR aging rows\nconst arBuckets = [\n  { label: 'Current (0-30 days)', amount: data.arSummary.current },\n  { label: '31-60 days', amount: data.arSummary.days_31_60 },\n  { label: '61-90 days', amount: data.arSummary.days_61_90 },\n  { label: '91-120 days', amount: data.arSummary.days_91_120 },\n  { label: '120+ days', amount: data.arSummary.days_120_plus },\n];\nconst arRows = arBuckets.map(b => \n  `<tr><td style=\"padding:8px;border:1px solid #ddd;\">${b.label}</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${fmt(b.amount)}</td></tr>`\n).join('');\n\n// Build AP aging rows\nconst apBuckets = [\n  { label: 'Current (0-30 days)', amount: data.apSummary.current },\n  { label: '31-60 days', amount: data.apSummary.days_31_60 },\n  { label: '61-90 days', amount: data.apSummary.days_61_90 },\n  { label: '91-120 days', amount: data.apSummary.days_91_120 },\n  { label: '120+ days', amount: data.apSummary.days_120_plus },\n];\nconst apRows = apBuckets.map(b => \n  `<tr><td style=\"padding:8px;border:1px solid #ddd;\">${b.label}</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${fmt(b.amount)}</td></tr>`\n).join('');\n\n// Build exceptions list\nconst discrepancies = data.discrepancies || [];\nconst exceptionRows = discrepancies.length > 0 \n  ? discrepancies.map(d => \n      `<tr><td style=\"padding:8px;border:1px solid #ddd;\">${d.type}</td><td style=\"padding:8px;border:1px solid #ddd;\">${d.description}</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${fmt(d.amount)}</td></tr>`\n    ).join('')\n  : '<tr><td colspan=\"3\" style=\"padding:8px;border:1px solid #ddd;text-align:center;color:#22c55e;\">No exceptions found</td></tr>';\n\nconst html = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"><title>Month-End Management Pack</title></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background:#f4f4f4;\">\n<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:800px;margin:20px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.1);\">\n\n  <!-- Header -->\n  <tr><td style=\"padding:30px 40px;background:#FF6D5A;color:#fff;\">\n    <h1 style=\"margin:0;font-size:24px;\">Month-End Management Pack</h1>\n    <p style=\"margin:8px 0 0;font-size:14px;opacity:0.9;\">${dateInfo.monthName} | ${config.companyName}</p>\n  </td></tr>\n\n  <!-- Executive Summary -->\n  <tr><td style=\"padding:30px 40px;\">\n    <h2 style=\"color:#FF6D5A;margin:0 0 16px;border-bottom:2px solid #FF6D5A;padding-bottom:8px;\">Executive Summary</h2>\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n      <tr>\n        <td style=\"padding:12px;background:#f8f8f8;border-radius:6px;text-align:center;width:25%;\">\n          <p style=\"margin:0;font-size:12px;color:#666;\">Total Receivables</p>\n          <p style=\"margin:4px 0 0;font-size:20px;color:#1A1A2E;font-weight:bold;\">${fmt(data.totalAR)}</p>\n        </td>\n        <td style=\"width:8px;\"></td>\n        <td style=\"padding:12px;background:#f8f8f8;border-radius:6px;text-align:center;width:25%;\">\n          <p style=\"margin:0;font-size:12px;color:#666;\">Total Payables</p>\n          <p style=\"margin:4px 0 0;font-size:20px;color:#1A1A2E;font-weight:bold;\">${fmt(data.totalAP)}</p>\n        </td>\n        <td style=\"width:8px;\"></td>\n        <td style=\"padding:12px;background:#f8f8f8;border-radius:6px;text-align:center;width:25%;\">\n          <p style=\"margin:0;font-size:12px;color:#666;\">Net Position</p>\n          <p style=\"margin:4px 0 0;font-size:20px;color:${data.netPosition >= 0 ? '#22c55e' : '#ef4444'};font-weight:bold;\">${fmt(data.netPosition)}</p>\n        </td>\n        <td style=\"width:8px;\"></td>\n        <td style=\"padding:12px;background:#f8f8f8;border-radius:6px;text-align:center;width:25%;\">\n          <p style=\"margin:0;font-size:12px;color:#666;\">Cash Received</p>\n          <p style=\"margin:4px 0 0;font-size:20px;color:#22c55e;font-weight:bold;\">${fmt(data.totalPaymentsReceived)}</p>\n        </td>\n      </tr>\n    </table>\n  </td></tr>\n\n  <!-- Aged Receivables -->\n  <tr><td style=\"padding:0 40px 30px;\">\n    <h2 style=\"color:#FF6D5A;margin:0 0 16px;border-bottom:2px solid #FF6D5A;padding-bottom:8px;\">Aged Receivables</h2>\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n      <tr style=\"background:#FF6D5A;color:#fff;\">\n        <th style=\"padding:10px 8px;text-align:left;\">Aging Bucket</th>\n        <th style=\"padding:10px 8px;text-align:right;\">Amount</th>\n      </tr>\n      ${arRows}\n      <tr style=\"background:#f0f0f0;font-weight:bold;\">\n        <td style=\"padding:10px 8px;border:1px solid #ddd;\">Total (${data.invoiceCount} invoices)</td>\n        <td style=\"padding:10px 8px;border:1px solid #ddd;text-align:right;color:#FF6D5A;\">${fmt(data.totalAR)}</td>\n      </tr>\n    </table>\n  </td></tr>\n\n  <!-- Aged Payables -->\n  <tr><td style=\"padding:0 40px 30px;\">\n    <h2 style=\"color:#FF6D5A;margin:0 0 16px;border-bottom:2px solid #FF6D5A;padding-bottom:8px;\">Aged Payables</h2>\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n      <tr style=\"background:#FF6D5A;color:#fff;\">\n        <th style=\"padding:10px 8px;text-align:left;\">Aging Bucket</th>\n        <th style=\"padding:10px 8px;text-align:right;\">Amount</th>\n      </tr>\n      ${apRows}\n      <tr style=\"background:#f0f0f0;font-weight:bold;\">\n        <td style=\"padding:10px 8px;border:1px solid #ddd;\">Total (${data.billCount} bills)</td>\n        <td style=\"padding:10px 8px;border:1px solid #ddd;text-align:right;color:#FF6D5A;\">${fmt(data.totalAP)}</td>\n      </tr>\n    </table>\n  </td></tr>\n\n  <!-- Cash Flow Snapshot -->\n  <tr><td style=\"padding:0 40px 30px;\">\n    <h2 style=\"color:#FF6D5A;margin:0 0 16px;border-bottom:2px solid #FF6D5A;padding-bottom:8px;\">Cash Flow Snapshot</h2>\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n      <tr><td style=\"padding:8px;border:1px solid #ddd;\">Payments Received This Month</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${fmt(data.totalPaymentsReceived)}</td></tr>\n      <tr><td style=\"padding:8px;border:1px solid #ddd;\">Number of Payments</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${data.paymentCount}</td></tr>\n      <tr><td style=\"padding:8px;border:1px solid #ddd;\">Outstanding Receivables</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${fmt(data.totalAR)}</td></tr>\n      <tr><td style=\"padding:8px;border:1px solid #ddd;\">Outstanding Payables</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${fmt(data.totalAP)}</td></tr>\n      <tr style=\"background:#f0f0f0;font-weight:bold;\"><td style=\"padding:8px;border:1px solid #ddd;\">Net Position (AR - AP)</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;color:${data.netPosition >= 0 ? '#22c55e' : '#ef4444'};\">${fmt(data.netPosition)}</td></tr>\n    </table>\n  </td></tr>\n\n  <!-- Exceptions -->\n  <tr><td style=\"padding:0 40px 30px;\">\n    <h2 style=\"color:#FF6D5A;margin:0 0 16px;border-bottom:2px solid #FF6D5A;padding-bottom:8px;\">Exceptions &amp; Discrepancies (${data.discrepancyCount})</h2>\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n      <tr style=\"background:#FF6D5A;color:#fff;\">\n        <th style=\"padding:10px 8px;text-align:left;\">Type</th>\n        <th style=\"padding:10px 8px;text-align:left;\">Description</th>\n        <th style=\"padding:10px 8px;text-align:right;\">Amount</th>\n      </tr>\n      ${exceptionRows}\n    </table>\n  </td></tr>\n\n  <!-- Monthly Totals -->\n  <tr><td style=\"padding:0 40px 30px;\">\n    <h2 style=\"color:#FF6D5A;margin:0 0 16px;border-bottom:2px solid #FF6D5A;padding-bottom:8px;\">Monthly Totals</h2>\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n      <tr><td style=\"padding:8px;border:1px solid #ddd;\">Open Invoices</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${data.invoiceCount}</td></tr>\n      <tr><td style=\"padding:8px;border:1px solid #ddd;\">Open Bills</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${data.billCount}</td></tr>\n      <tr><td style=\"padding:8px;border:1px solid #ddd;\">Payments Received</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${data.paymentCount}</td></tr>\n      <tr><td style=\"padding:8px;border:1px solid #ddd;\">Audit Log Entries</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;\">${data.auditLogCount}</td></tr>\n      <tr><td style=\"padding:8px;border:1px solid #ddd;\">Discrepancies Found</td><td style=\"padding:8px;border:1px solid #ddd;text-align:right;color:${data.discrepancyCount > 0 ? '#ef4444' : '#22c55e'};\">${data.discrepancyCount}</td></tr>\n    </table>\n  </td></tr>\n\n  <!-- Footer -->\n  <tr><td style=\"padding:20px 40px;background:#f8f8f8;border-top:1px solid #eee;\">\n    <p style=\"margin:0;font-size:11px;color:#999;line-height:1.5;\">\n      ${config.companyName} | Month-End Close Report | Generated ${dateInfo.todayDate}<br>\n      This is an automated report generated by the AnyVision Media Accounting System.\n    </p>\n  </td></tr>\n\n</table>\n</body></html>`;\n\nreturn {\n  json: {\n    ...data,\n    managementPackHtml: html,\n    monthName: dateInfo.monthName,\n    todayDate: dateInfo.todayDate,\n    monthStart: dateInfo.monthStart,\n    monthEnd: dateInfo.monthEnd,\n  }\n};\n"
+      },
+      "id": "98928b3a-577d-431b-a33d-e48a4b3e0da8",
+      "name": "Build Management Pack",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3540,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a South African financial analyst for AnyVision Media. Provide a concise executive summary of the month-end financial data. Use ZAR currency. Focus on key risks, cash flow health, and action items. Keep it under 300 words.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Month-End Financial Summary for {{ $json.monthName }}:\\n\\nAccounts Receivable: R {{ $json.totalAR }} ({{ $json.invoiceCount }} open invoices)\\nAR Aging: Current R {{ $json.arSummary.current }}, 31-60 R {{ $json.arSummary.days_31_60 }}, 61-90 R {{ $json.arSummary.days_61_90 }}, 91-120 R {{ $json.arSummary.days_91_120 }}, 120+ R {{ $json.arSummary.days_120_plus }}\\n\\nAccounts Payable: R {{ $json.totalAP }} ({{ $json.billCount }} open bills)\\nAP Aging: Current R {{ $json.apSummary.current }}, 31-60 R {{ $json.apSummary.days_31_60 }}, 61-90 R {{ $json.apSummary.days_61_90 }}, 91-120 R {{ $json.apSummary.days_91_120 }}, 120+ R {{ $json.apSummary.days_120_plus }}\\n\\nCash Received This Month: R {{ $json.totalPaymentsReceived }} ({{ $json.paymentCount }} payments)\\nNet Position: R {{ $json.netPosition }}\\nDiscrepancies: {{ $json.discrepancyCount }}\\n\\nPlease provide an executive summary with key observations and recommended actions.\"\n    }\n  ],\n  \"max_tokens\": 800,\n  \"temperature\": 0.3\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "38158701-b3a0-4346-b6bb-d2b4d9c96608",
+      "name": "AI Executive Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3800,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst prevData = $('Build Management Pack').first().json;\n\nlet summaryText = 'AI summary not available.';\n\ntry {\n  if (response.choices && response.choices.length > 0) {\n    summaryText = response.choices[0].message.content || summaryText;\n  } else if (response.error) {\n    summaryText = `AI summary generation failed: ${response.error.message || 'Unknown error'}`;\n  }\n} catch (e) {\n  summaryText = `AI summary parsing failed: ${e.message}`;\n}\n\nreturn {\n  json: {\n    ...prevData,\n    aiSummary: summaryText,\n    aiModel: response.model || 'unknown',\n    aiTokensUsed: response.usage ? response.usage.total_tokens : 0,\n  }\n};\n"
+      },
+      "id": "435d6277-6056-42ce-a8ad-71829a4e5e16",
+      "name": "Parse AI Summary",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4060,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_WITH_SHEET_ID"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Monthly Dashboard"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Month": "={{ $json.monthName }}",
+            "Close Date": "={{ $json.todayDate }}",
+            "Total AR": "={{ $json.totalAR }}",
+            "Total AP": "={{ $json.totalAP }}",
+            "Net Position": "={{ $json.netPosition }}",
+            "Cash Received": "={{ $json.totalPaymentsReceived }}",
+            "Open Invoices": "={{ $json.invoiceCount }}",
+            "Open Bills": "={{ $json.billCount }}",
+            "Discrepancies": "={{ $json.discrepancyCount }}",
+            "AI Summary": "={{ $json.aiSummary }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "ada6ba5f-c058-4125-bbf9-969a5fbc2b9f",
+      "name": "Write to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "position": [
+        4320,
+        400
+      ],
+      "typeVersion": 4.5,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Month-End Management Pack - {{ $('Parse AI Summary').first().json.monthName }}",
+        "emailType": "html",
+        "message": "={{ $('Parse AI Summary').first().json.managementPackHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b4dc3c96-ad99-4ea6-a3c0-3c69dd629d58",
+      "name": "Send Management Pack",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        4580,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblDXcgsYXVphpDVb"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Key": "last_month_end_close",
+            "Value": "={{ JSON.stringify({ date: $('Parse AI Summary').first().json.todayDate, month: $('Parse AI Summary').first().json.monthName, totalAR: $('Parse AI Summary').first().json.totalAR, totalAP: $('Parse AI Summary').first().json.totalAP, netPosition: $('Parse AI Summary').first().json.netPosition, discrepancies: $('Parse AI Summary').first().json.discrepancyCount }) }}",
+            "Updated At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [
+            "Key"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "4792deff-ba6b-437f-9b5c-3c9babc2b51f",
+      "name": "Update Month End Status",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        4840,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblV4LPBYotAWW1RO"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now.toISO() }}",
+            "Workflow Name": "WF-05 Month End Close",
+            "Event Type": "MONTH_END_CLOSE",
+            "Record Type": "Month End",
+            "Record ID": "={{ $('Parse AI Summary').first().json.monthName }}",
+            "Action Taken": "=Month-end close completed for {{ $('Parse AI Summary').first().json.monthName }}. AR: R {{ $('Parse AI Summary').first().json.totalAR }}, AP: R {{ $('Parse AI Summary').first().json.totalAP }}",
+            "Actor": "system",
+            "Result": "Success",
+            "Error Details": "",
+            "Metadata JSON": "={{ JSON.stringify({ month: $('Parse AI Summary').first().json.monthName, totalAR: $('Parse AI Summary').first().json.totalAR, totalAP: $('Parse AI Summary').first().json.totalAP, netPosition: $('Parse AI Summary').first().json.netPosition, discrepancies: $('Parse AI Summary').first().json.discrepancyCount }) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "3d341b59-f26a-4ba6-8c2a-36d515aaf960",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        5100,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Month-End Close Complete - {{ $('Parse AI Summary').first().json.monthName }}",
+        "emailType": "html",
+        "message": "=<h2 style='color:#22c55e;'>Month-End Close Completed Successfully</h2><p><strong>Period:</strong> {{ $('Parse AI Summary').first().json.monthName }}</p><p><strong>Close Date:</strong> {{ $('Parse AI Summary').first().json.todayDate }}</p><hr><table style='border-collapse:collapse;width:100%;max-width:400px;'><tr><td style='padding:8px;border:1px solid #ddd;'><strong>Total AR</strong></td><td style='padding:8px;border:1px solid #ddd;text-align:right;'>R {{ $('Parse AI Summary').first().json.totalAR }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;'><strong>Total AP</strong></td><td style='padding:8px;border:1px solid #ddd;text-align:right;'>R {{ $('Parse AI Summary').first().json.totalAP }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;'><strong>Net Position</strong></td><td style='padding:8px;border:1px solid #ddd;text-align:right;color:#FF6D5A;'><strong>R {{ $('Parse AI Summary').first().json.netPosition }}</strong></td></tr><tr><td style='padding:8px;border:1px solid #ddd;'><strong>Cash Received</strong></td><td style='padding:8px;border:1px solid #ddd;text-align:right;'>R {{ $('Parse AI Summary').first().json.totalPaymentsReceived }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;'><strong>Discrepancies</strong></td><td style='padding:8px;border:1px solid #ddd;text-align:right;'>{{ $('Parse AI Summary').first().json.discrepancyCount }}</td></tr></table><br><p><strong>AI Executive Summary:</strong></p><blockquote style='border-left:3px solid #FF6D5A;padding:10px 16px;margin:10px 0;background:#f8f8f8;'>{{ $('Parse AI Summary').first().json.aiSummary }}</blockquote><br><p style='font-size:12px;color:#999;'>Management pack has been emailed separately. Google Sheets dashboard updated.</p><p style='font-size:11px;color:#999;'>AnyVision Media Accounting System</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c250b03e-0a98-4f5e-96a7-79294ef06996",
+      "name": "Send Close Confirmation",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        5360,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "1749c26d-4ed1-47e6-8cb1-ef11ba67f163",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        900
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=ERROR: Accounting WF-05 Month-End Close - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+        "emailType": "html",
+        "message": "=<h2 style='color:#FF6D5A;'>Workflow Error: Month-End Close (WF-05)</h2><p><strong>Time:</strong> {{ $now.format('yyyy-MM-dd HH:mm:ss') }}</p><p><strong>Error:</strong> {{ $json.execution?.error?.message || 'Unknown error' }}</p><p><strong>Node:</strong> {{ $json.execution?.lastNodeExecuted || 'Unknown' }}</p><p><strong>Execution ID:</strong> {{ $json.execution?.id || 'N/A' }}</p><hr><p>The month-end close process failed. Please check the n8n execution log and re-run manually once the issue is resolved.</p><p style='font-size:11px;color:#999;'>AnyVision Media Accounting System</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "8cc707e5-c331-48de-9ed5-d8158f016df3",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        460,
+        900
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Month End Schedule": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Check Last Business Day",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Last Business Day": {
+      "main": [
+        [
+          {
+            "node": "Is Last Business Day?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Last Business Day?": {
+      "main": [
+        [
+          {
+            "node": "Read All Open Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Read All Open Invoices": {
+      "main": [
+        [
+          {
+            "node": "Read All Open Bills",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Open Bills": {
+      "main": [
+        [
+          {
+            "node": "Read Payments This Month",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Payments This Month": {
+      "main": [
+        [
+          {
+            "node": "Read Audit Log This Month",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Audit Log This Month": {
+      "main": [
+        [
+          {
+            "node": "Build Aged Receivables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Aged Receivables": {
+      "main": [
+        [
+          {
+            "node": "Build Aged Payables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Aged Payables": {
+      "main": [
+        [
+          {
+            "node": "Reconciliation Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reconciliation Check": {
+      "main": [
+        [
+          {
+            "node": "Has Discrepancies?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Discrepancies?": {
+      "main": [
+        [
+          {
+            "node": "Create Reconciliation Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Management Pack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Reconciliation Tasks": {
+      "main": [
+        [
+          {
+            "node": "Build Management Pack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Management Pack": {
+      "main": [
+        [
+          {
+            "node": "AI Executive Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Executive Summary": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Summary": {
+      "main": [
+        [
+          {
+            "node": "Write to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Send Management Pack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Management Pack": {
+      "main": [
+        [
+          {
+            "node": "Update Month End Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Month End Status": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Send Close Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

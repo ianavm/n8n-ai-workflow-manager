@@ -12,11 +12,9 @@
         "rule": {
           "interval": [
             {
-              "field": "weeks",
-              "triggerAtDay": [
-                1
-              ],
-              "triggerAtHour": 9
+              "field": "hours",
+              "triggerAtHour": 9,
+              "hoursInterval": 6
             }
           ]
         }
@@ -43,69 +41,16 @@
     },
     {
       "parameters": {
-        "mode": "manual",
-        "duplicateItem": false,
-        "assignments": {
-          "assignments": [
-            {
-              "id": "84cf11db-2680-4463-a454-c699becb72ee",
-              "name": "searchQuery",
-              "value": "dentists",
-              "type": "string"
-            },
-            {
-              "id": "f08cdf9d-8546-4dd3-b7eb-b94bbef7c532",
-              "name": "location",
-              "value": "Johannesburg",
-              "type": "string"
-            },
-            {
-              "id": "9e4af1d2-7149-45af-b052-9ab642a6754e",
-              "name": "maxResults",
-              "value": "50",
-              "type": "number"
-            },
-            {
-              "id": "115ebffa-b1b5-499a-a3a6-e37a19f90c2f",
-              "name": "senderName",
-              "value": "Ian Immelman",
-              "type": "string"
-            },
-            {
-              "id": "6a950459-74af-480d-a378-940e0b505ba7",
-              "name": "senderCompany",
-              "value": "AnyVision Media",
-              "type": "string"
-            },
-            {
-              "id": "8e8b75f3-f674-46fe-9fb4-6560bd139785",
-              "name": "senderTitle",
-              "value": "Director",
-              "type": "string"
-            },
-            {
-              "id": "7de74b4e-fbf6-434d-8340-552d9d6f468c",
-              "name": "senderEmail",
-              "value": "ian@anyvisionmedia.com",
-              "type": "string"
-            },
-            {
-              "id": "8ed84677-6e78-49a3-ac8e-feeb21e6a483",
-              "name": "googlePlacesApiKey",
-              "value": "REDACTED_GOOGLE_PLACES_KEY",
-              "type": "string"
-            }
-          ]
-        }
+        "jsCode": "// Industry search queries - rotate through automation-friendly businesses\nconst queries = [\n  'real estate agency',\n  'law firm',\n  'dental practice',\n  'medical practice',\n  'accounting firm',\n  'insurance broker',\n  'marketing agency',\n  'consulting firm',\n  'recruitment agency',\n  'financial advisor',\n  'salon spa',\n  'gym fitness',\n  'restaurant',\n  'retail store',\n  'construction company',\n  'logistics company',\n  'automotive dealer',\n  'hotel guest house',\n  'veterinary clinic',\n  'property management'\n];\n\n// Area rotation - 24 Johannesburg/Gauteng/Pretoria locations\nconst areas = [\n  'Johannesburg CBD, Johannesburg, South Africa',\n  'Sandton, Johannesburg, South Africa',\n  'Fourways, Johannesburg, South Africa',\n  'Randburg, Johannesburg, South Africa',\n  'Bryanston, Johannesburg, South Africa',\n  'Midrand, Gauteng, South Africa',\n  'Rosebank, Johannesburg, South Africa',\n  'Roodepoort, Johannesburg, South Africa',\n  'Soweto, Johannesburg, South Africa',\n  'Bedfordview, Johannesburg, South Africa',\n  'Kempton Park, Gauteng, South Africa',\n  'Germiston, Gauteng, South Africa',\n  'Benoni, Gauteng, South Africa',\n  'Boksburg, Gauteng, South Africa',\n  'Springs, Gauteng, South Africa',\n  'Alberton, Gauteng, South Africa',\n  'Centurion, Pretoria, South Africa',\n  'Pretoria CBD, Pretoria, South Africa',\n  'Hatfield, Pretoria, South Africa',\n  'Menlyn, Pretoria, South Africa',\n  'Brooklyn, Pretoria, South Africa',\n  'Vanderbijlpark, Gauteng, South Africa',\n  'Vereeniging, Gauteng, South Africa',\n  'Krugersdorp, Gauteng, South Africa'\n];\n\nconst staticData = $getWorkflowStaticData('global');\nlet queryIndex = staticData.queryIndex || 0;\nlet areaIndex = staticData.areaIndex || 0;\n\n// Advance to next industry query each run\nqueryIndex = (queryIndex + 1) % queries.length;\n\n// When we've cycled through all queries, advance to next area\nif (queryIndex === 0) {\n  areaIndex = (areaIndex + 1) % areas.length;\n}\n\n// Save state for next run\nstaticData.queryIndex = queryIndex;\nstaticData.areaIndex = areaIndex;\n\nconst currentQuery = queries[queryIndex];\nconst currentArea = areas[areaIndex];\n\nreturn {\n  json: {\n    searchQuery: currentQuery,\n    location: currentArea,\n    queryIndex: queryIndex,\n    areaIndex: areaIndex,\n    totalQueries: queries.length,\n    totalAreas: areas.length,\n    maxResults: 20,\n    senderName: 'Ian Immelman',\n    senderCompany: 'AnyVision Media',\n    senderTitle: 'Director',\n    senderEmail: 'ian@anyvisionmedia.com',\n    googlePlacesApiKey: $env.GOOGLE_PLACES_API_KEY\n  }\n};"
       },
       "id": "d9c299bf-1039-4bb6-8c83-9025d9f67d29",
       "name": "Search Config",
-      "type": "n8n-nodes-base.set",
+      "type": "n8n-nodes-base.code",
       "position": [
         440,
         400
       ],
-      "typeVersion": 3.4
+      "typeVersion": 2
     },
     {
       "parameters": {
@@ -136,7 +81,8 @@
         660,
         400
       ],
-      "typeVersion": 4.2
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -280,7 +226,7 @@
             "parameters": [
               {
                 "name": "User-Agent",
-                "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
               }
             ]
           },
@@ -381,7 +327,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst seen = new Set();\nconst results = [];\n\nfor (const item of items) {\n  const email = (item.json.emails || '').toString().toLowerCase().trim();\n  if (!email || seen.has(email)) continue;\n  seen.add(email);\n\n  // Calculate lead score (0-100)\n  let score = 0;\n  if (email) score += 20;\n  if (item.json.phone) score += 15;\n  if (item.json.businessName) score += 15;\n  if (item.json.address) score += 10;\n  if (item.json.rating > 0) score += 10;\n  if (item.json.linkedin || item.json.facebook || item.json.instagram) score += 10;\n  if (item.json.website) score += 10;\n  if (item.json.phone && email) score += 10; // bonus for multiple contact methods\n\n  results.push({\n    json: {\n      ...item.json,\n      email: email,\n      leadScore: score,\n      status: 'New',\n      source: 'Google Maps Scraper',\n      datescraped: new Date().toISOString().split('T')[0]\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{ json: { _empty: true } }];"
+        "jsCode": "const items = $input.all();\nconst seen = new Set();\nconst results = [];\n\nconst highFitIndustries = [\n  'real estate', 'law', 'legal', 'attorney', 'medical', 'dental', 'clinic',\n  'consulting', 'agency', 'marketing', 'insurance', 'accounting', 'finance',\n  'recruitment', 'staffing', 'financial', 'property management'\n];\nconst mediumFitIndustries = [\n  'restaurant', 'retail', 'salon', 'fitness', 'gym', 'spa', 'hotel',\n  'guest house', 'veterinary', 'vet', 'beauty', 'wellness'\n];\nconst lowFitIndustries = [\n  'manufacturing', 'logistics', 'construction', 'contractor', 'plumbing',\n  'electrician', 'hvac', 'landscaping', 'cleaning', 'automotive'\n];\n\nfor (const item of items) {\n  const email = (item.json.emails || item.json.email || '').toString().toLowerCase().trim();\n  if (!email || seen.has(email)) continue;\n  seen.add(email);\n\n  const industry = (item.json.industry || '').toLowerCase();\n  const businessName = (item.json.businessName || '').toLowerCase();\n  const combined = industry + ' ' + businessName;\n\n  // Contact completeness score\n  let score = 0;\n  if (email) score += 20;\n  if (item.json.phone) score += 15;\n  if (item.json.businessName) score += 15;\n  if (item.json.address) score += 10;\n  if (item.json.rating > 0) score += 10;\n  if (item.json.linkedin || item.json.facebook || item.json.instagram) score += 10;\n  if (item.json.website) score += 10;\n  if (item.json.phone && email) score += 10;\n\n  // Automation fit scoring\n  let automationFit = 'low';\n  const matchAny = (list, text) => list.some(t => text.includes(t));\n\n  if (matchAny(highFitIndustries, combined)) {\n    automationFit = 'high';\n    score += 20;\n  } else if (matchAny(mediumFitIndustries, combined)) {\n    automationFit = 'medium';\n    score += 10;\n  } else {\n    score += 5;\n  }\n\n  results.push({\n    json: {\n      ...item.json,\n      email: email,\n      leadScore: Math.min(score, 100),\n      automationFit: automationFit,\n      status: 'New',\n      source: 'Johannesburg Lead Scraper',\n      datescraped: new Date().toISOString().split('T')[0]\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{ json: { _empty: true } }];"
       },
       "id": "8245be47-2574-4582-b81d-aae0890e2173",
       "name": "Score Leads",
@@ -421,10 +367,13 @@
       "alwaysOutputData": true,
       "credentials": {
         "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Whatsapp Multi Agent"
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -490,7 +439,7 @@
             "Social - Instagram": "={{ $('Score Leads').item.json.instagram }}",
             "Lead Score": "={{ $('Score Leads').item.json.leadScore }}",
             "Status": "New",
-            "Source": "Google Maps Scraper",
+            "Source": "Google Places API",
             "Date Scraped": "={{ $('Score Leads').item.json.datescraped }}"
           },
           "schema": [
@@ -645,10 +594,7 @@
               "canBeUsedToMatch": true
             }
           ],
-          "mappingMode": "defineBelow",
-          "matchingColumns": [
-            "Email"
-          ]
+          "mappingMode": "defineBelow"
         },
         "options": {}
       },
@@ -662,10 +608,13 @@
       "typeVersion": 2.1,
       "credentials": {
         "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Whatsapp Multi Agent"
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -770,10 +719,13 @@
       "typeVersion": 2.1,
       "credentials": {
         "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Whatsapp Multi Agent"
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -978,7 +930,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $input.first().json;\nconst config = $('Search Config').first().json;\n\n// Get lead data - try multiple upstream sources\nlet leadEmail, businessName, industry, location;\ntry {\n  const filterData = $('Filter New Leads').item.json;\n  leadEmail = filterData.Email || filterData.email || '';\n  businessName = filterData['Business Name'] || filterData.businessName || '';\n  industry = filterData.Industry || filterData.industry || '';\n  location = filterData.Location || filterData.location || '';\n} catch(e1) {\n  try {\n    const scoreData = $('Score Leads').item.json;\n    leadEmail = scoreData.email || '';\n    businessName = scoreData.businessName || '';\n    industry = scoreData.industry || '';\n    location = scoreData.location || '';\n  } catch(e2) {\n    leadEmail = input.email || input.Email || '';\n    businessName = input.businessName || input['Business Name'] || 'your business';\n    industry = input.industry || input.Industry || '';\n    location = input.location || input.Location || '';\n  }\n}\n\n// Parse AI response\nlet emailContent;\ntry {\n  const rawText = input.text || input.response || JSON.stringify(input);\n  const jsonMatch = rawText.match(/\\{[\\s\\S]*\\}/);\n  emailContent = JSON.parse(jsonMatch[0]);\n} catch (e) {\n  emailContent = {\n    subject: 'Partnership opportunity for ' + (businessName || 'your business'),\n    body: 'I noticed ' + (businessName || 'your business') + ' in ' + location + ' and wanted to reach out about a potential collaboration that could benefit your ' + industry + ' practice.',\n    cta_text: 'Would a brief 10-minute call this week work to explore this?'\n  };\n}\n\nconst htmlBody = '<div style=\"font-family:Segoe UI,Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;\">' +\n  '<div style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">' +\n  '<h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">' + config.senderCompany + '</h1></div>' +\n  '<div style=\"padding:30px 40px;\">' +\n  '<p style=\"font-size:15px;line-height:1.6;color:#333;\">' + emailContent.body + '</p>' +\n  '<p style=\"font-size:15px;line-height:1.6;color:#333;\">' + emailContent.cta_text + '</p>' +\n  '<p style=\"font-size:15px;line-height:1.6;color:#333;margin-top:24px;\">Best regards,<br>' +\n  '<strong>' + config.senderName + '</strong><br>' +\n  '<span style=\"color:#666;\">' + config.senderTitle + '</span><br>' +\n  '<span style=\"color:#666;\">' + config.senderCompany + '</span></p></div>' +\n  '<div style=\"padding:20px 40px;background:#f8f8f8;border-top:1px solid #eee;\">' +\n  '<p style=\"font-size:11px;color:#999;\">You received this because your business was listed publicly on Google Maps. Reply &quot;unsubscribe&quot; to be removed.</p></div></div>';\n\nreturn {\n  json: {\n    to: leadEmail,\n    subject: emailContent.subject,\n    htmlBody: htmlBody,\n    leadEmail: leadEmail,\n    businessName: businessName\n  }\n};"
+        "jsCode": "const input = $input.first().json;\nconst config = $('Search Config').first().json;\n\n// Sanitize text to prevent XSS in HTML emails\nfunction sanitize(str) {\n  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\n}\n\n// Get lead data - try multiple upstream sources\nlet leadEmail, businessName, industry, location;\ntry {\n  const filterData = $('Filter New Leads').item.json;\n  leadEmail = filterData.Email || filterData.email || '';\n  businessName = filterData['Business Name'] || filterData.businessName || '';\n  industry = filterData.Industry || filterData.industry || '';\n  location = filterData.Location || filterData.location || '';\n} catch(e1) {\n  try {\n    const scoreData = $('Score Leads').item.json;\n    leadEmail = scoreData.email || '';\n    businessName = scoreData.businessName || '';\n    industry = scoreData.industry || '';\n    location = scoreData.location || '';\n  } catch(e2) {\n    leadEmail = input.email || input.Email || '';\n    businessName = input.businessName || input['Business Name'] || 'your business';\n    industry = input.industry || input.Industry || '';\n    location = input.location || input.Location || '';\n  }\n}\n\n// Parse AI response\nlet emailContent;\ntry {\n  const rawText = input.text || input.response || JSON.stringify(input);\n  const jsonMatch = rawText.match(/\\{[\\s\\S]*\\}/);\n  emailContent = JSON.parse(jsonMatch[0]);\n} catch (e) {\n  emailContent = {\n    subject: 'Partnership opportunity for ' + (businessName || 'your business'),\n    body: 'I noticed ' + (businessName || 'your business') + ' in ' + location + ' and wanted to reach out about a potential collaboration that could benefit your ' + industry + ' practice.',\n    cta_text: 'Would a brief 10-minute call this week work to explore this?'\n  };\n}\n\nconst htmlBody = '<div style=\"font-family:Segoe UI,Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;\">' +\n  '<div style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">' +\n  '<h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">' + sanitize(config.senderCompany) + '</h1></div>' +\n  '<div style=\"padding:30px 40px;\">' +\n  '<p style=\"font-size:15px;line-height:1.6;color:#333;\">' + sanitize(emailContent.body) + '</p>' +\n  '<p style=\"font-size:15px;line-height:1.6;color:#333;\">' + sanitize(emailContent.cta_text) + '</p>' +\n  '<p style=\"font-size:15px;line-height:1.6;color:#333;margin-top:24px;\">Best regards,<br>' +\n  '<strong>' + sanitize(config.senderName) + '</strong><br>' +\n  '<span style=\"color:#666;\">' + sanitize(config.senderTitle) + '</span><br>' +\n  '<span style=\"color:#666;\">' + sanitize(config.senderCompany) + '</span></p></div>' +\n  '<div style=\"padding:20px 40px;background:#f8f8f8;border-top:1px solid #eee;\">' +\n  '<p style=\"font-size:11px;color:#999;\">AnyVision Media | Johannesburg, South Africa | ian@anyvisionmedia.com</p>' +\n  '<p style=\"font-size:11px;color:#999;\">You received this because your business was listed publicly on Google. Reply &quot;unsubscribe&quot; to be removed.</p></div></div>';\n\nreturn {\n  json: {\n    to: leadEmail,\n    subject: sanitize(emailContent.subject),\n    htmlBody: htmlBody,\n    leadEmail: leadEmail,\n    businessName: businessName\n  }\n};"
       },
       "id": "a9e237e5-cf9a-46d0-94af-f4717e8de8f1",
       "name": "Format Email",
@@ -1013,6 +965,9 @@
           "name": "Gmail account AVM Tutorial"
         }
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "onError": "continueRegularOutput"
     },
     {
@@ -1080,15 +1035,18 @@
       "typeVersion": 2.1,
       "credentials": {
         "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Whatsapp Multi Agent"
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
         }
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "const items = $('Score Leads').all();\nconst config = $('Search Config').first().json;\n\nconst totalLeads = items.filter(i => !i.json._empty).length;\nconst avgScore = totalLeads > 0\n  ? Math.round(items.reduce((sum, i) => sum + (i.json.leadScore || 0), 0) / totalLeads)\n  : 0;\n\nconst now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\n\nreturn {\n  json: {\n    subject: `Lead Scraper Complete: ${totalLeads} leads found`,\n    body: [\n      `<h2>Lead Scraper Run Complete</h2>`,\n      `<p><strong>Date:</strong> ${now}</p>`,\n      `<p><strong>Search:</strong> ${config.searchQuery} in ${config.location}</p>`,\n      `<hr>`,\n      `<p><strong>Total Leads Found:</strong> ${totalLeads}</p>`,\n      `<p><strong>Average Lead Score:</strong> ${avgScore}/100</p>`,\n      `<hr>`,\n      `<p>Check your <a href=\"https://airtable.com/appzcZpiIZ6QPtJXT\">Airtable CRM</a> for details.</p>`\n    ].join('\\n')\n  }\n};"
+        "jsCode": "const items = $('Score Leads').all();\nconst config = $('Search Config').first().json;\nconst now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\n\nconst allLeads = items.filter(i => !i.json._empty && (i.json.businessName || i.json['Business Name']));\nconst totalLeads = allLeads.length;\n\nconst leadsWithEmail = allLeads.filter(i => i.json.email || i.json['Email']);\nconst emailCount = leadsWithEmail.length;\nconst noEmailCount = totalLeads - emailCount;\n\nconst avgScore = totalLeads > 0\n  ? Math.round(allLeads.reduce((sum, i) => sum + (i.json.leadScore || i.json['Lead Score'] || 0), 0) / totalLeads)\n  : 0;\n\nconst highQuality = allLeads.filter(i => (i.json.leadScore || i.json['Lead Score'] || 0) >= 70);\n\nlet businessRows = '';\nfor (const lead of allLeads) {\n  const d = lead.json;\n  const name = d.businessName || d['Business Name'] || 'Unknown';\n  const email = d.email || d['Email'] || '';\n  const phone = d.phone || d['Phone'] || '-';\n  const score = d.leadScore || d['Lead Score'] || 0;\n  const scoreColor = score >= 70 ? '#27ae60' : score >= 40 ? '#f39c12' : '#e74c3c';\n  const outreach = email ? '&#9989; Queued' : '&#10060; No email';\n  businessRows += '<tr style=\"border-bottom: 1px solid #eee;\"><td style=\"padding: 8px;\">' + name + '</td><td style=\"padding: 8px;\">' + (email || '<em>Not found</em>') + '</td><td style=\"padding: 8px;\">' + phone + '</td><td style=\"padding: 8px; text-align: center; color: ' + scoreColor + '; font-weight: bold;\">' + score + '/100</td><td style=\"padding: 8px; text-align: center;\">' + outreach + '</td></tr>';\n}\n\nlet emailList = '';\nfor (const lead of leadsWithEmail) {\n  const d = lead.json;\n  const name = d.businessName || d['Business Name'] || 'Unknown';\n  const email = d.email || d['Email'];\n  emailList += '<li style=\"padding: 4px 0;\"><strong>' + name + '</strong> &mdash; ' + email + '</li>';\n}\n\nconst emailSection = emailCount > 0\n  ? '<h2 style=\"color: #333; border-bottom: 2px solid #27ae60; padding-bottom: 8px;\">Outreach Emails Sent To</h2><ul style=\"background: white; border-radius: 8px; padding: 16px 16px 16px 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);\">' + emailList + '</ul><p style=\"color: #666; font-size: 13px;\">Each lead receives a personalised AI-generated email tailored to their business and industry.</p>'\n  : '<div style=\"background: #fff3cd; border-left: 4px solid #f39c12; padding: 12px; margin-top: 16px; border-radius: 4px;\"><strong>No outreach emails this run.</strong> No new leads with email addresses were found.</div>';\n\nconst noEmailWarning = noEmailCount > 0\n  ? '<div style=\"background: #f8d7da; border-left: 4px solid #e74c3c; padding: 12px; margin-top: 16px; border-radius: 4px;\"><strong>' + noEmailCount + ' business(es)</strong> had no email on their website. Consider manual outreach via phone for these leads.</div>'\n  : '';\n\nconst body = '<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">'\n  + '<div style=\"background: #FF6D5A; color: white; padding: 20px; border-radius: 8px 8px 0 0;\">'\n  + '<h1 style=\"margin: 0; font-size: 22px;\">Lead Scraper Run Complete</h1>'\n  + '<p style=\"margin: 5px 0 0; opacity: 0.9;\">' + now + '</p>'\n  + '</div>'\n  + '<div style=\"padding: 20px; background: #f9f9f9;\">'\n  + '<h2 style=\"color: #333; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px;\">Search Parameters</h2>'\n  + '<table style=\"width: 100%; border-collapse: collapse;\">'\n  + '<tr><td style=\"padding: 4px 8px; font-weight: bold;\">Industry:</td><td>' + config.searchQuery + '</td></tr>'\n  + '<tr><td style=\"padding: 4px 8px; font-weight: bold;\">Location:</td><td>' + config.location + '</td></tr>'\n  + '<tr><td style=\"padding: 4px 8px; font-weight: bold;\">Max Results:</td><td>' + config.maxResults + '</td></tr>'\n  + '</table>'\n  + '<h2 style=\"color: #333; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px;\">Run Summary</h2>'\n  + '<table style=\"width: 100%; border-collapse: collapse; margin-bottom: 16px;\"><tr>'\n  + '<td style=\"background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 25%;\"><div style=\"font-size: 28px; font-weight: bold; color: #FF6D5A;\">' + totalLeads + '</div><div style=\"color: #666; font-size: 12px;\">Businesses Found</div></td>'\n  + '<td style=\"width: 8px;\"></td>'\n  + '<td style=\"background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 25%;\"><div style=\"font-size: 28px; font-weight: bold; color: #27ae60;\">' + emailCount + '</div><div style=\"color: #666; font-size: 12px;\">Emails Sent</div></td>'\n  + '<td style=\"width: 8px;\"></td>'\n  + '<td style=\"background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 25%;\"><div style=\"font-size: 28px; font-weight: bold; color: #3498db;\">' + avgScore + '</div><div style=\"color: #666; font-size: 12px;\">Avg Lead Score</div></td>'\n  + '<td style=\"width: 8px;\"></td>'\n  + '<td style=\"background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 25%;\"><div style=\"font-size: 28px; font-weight: bold; color: #9b59b6;\">' + highQuality.length + '</div><div style=\"color: #666; font-size: 12px;\">High Quality (70+)</div></td>'\n  + '</tr></table>'\n  + '<h2 style=\"color: #333; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px;\">All Businesses Scraped</h2>'\n  + '<table style=\"width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);\">'\n  + '<thead><tr style=\"background: #FF6D5A; color: white;\">'\n  + '<th style=\"padding: 10px 8px; text-align: left;\">Business</th>'\n  + '<th style=\"padding: 10px 8px; text-align: left;\">Email</th>'\n  + '<th style=\"padding: 10px 8px; text-align: left;\">Phone</th>'\n  + '<th style=\"padding: 10px 8px; text-align: center;\">Score</th>'\n  + '<th style=\"padding: 10px 8px; text-align: center;\">Outreach</th>'\n  + '</tr></thead><tbody>' + businessRows + '</tbody></table>'\n  + emailSection\n  + noEmailWarning\n  + '<div style=\"margin-top: 20px; padding: 12px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);\">'\n  + '<p style=\"margin: 0;\">View all leads in <a href=\"https://airtable.com/appzcZpiIZ6QPtJXT\" style=\"color: #FF6D5A; font-weight: bold;\">Airtable CRM</a></p>'\n  + '</div>'\n  + '</div>'\n  + '<div style=\"background: #333; color: #999; padding: 12px 20px; border-radius: 0 0 8px 8px; font-size: 12px; text-align: center;\">'\n  + 'AnyVision Media Lead Scraper | Automated Report'\n  + '</div></div>';\n\nreturn {\n  json: {\n    subject: 'Lead Scraper: ' + totalLeads + ' found, ' + emailCount + ' emailed — ' + config.searchQuery + ' in ' + config.location,\n    body: body\n  }\n};"
       },
       "id": "1f7002bf-1734-4722-abe2-5562e549dbcb",
       "name": "Aggregate Results",
@@ -1122,6 +1080,9 @@
           "name": "Gmail account AVM Tutorial"
         }
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "onError": "continueRegularOutput"
     },
     {
@@ -1160,7 +1121,7 @@
     },
     {
       "parameters": {
-        "content": "## STAGE 1: Triggers & Configuration\n\n**Schedule:** Runs weekly on Monday 9AM\n**Manual:** Click 'Test workflow' for ad-hoc runs\n**Config:** Set your search query, location, and sender details",
+        "content": "## STAGE 1: Triggers & Configuration\n\n**Schedule:** Runs every 6 hours starting 09:00 (09:00, 15:00, 21:00, 03:00)\n**Manual:** Click 'Test workflow' for ad-hoc runs\n**Config:** Set your search query, location, and sender details",
         "height": 140,
         "width": 340
       },
@@ -1266,7 +1227,7 @@
     {
       "parameters": {
         "prompt": {
-          "value": "={{ \"You are a professional business development writer for \" + $('Search Config').first().json.senderCompany + \". Write a short, personalized cold outreach email.\\n\\nINSTRUCTIONS:\\n1. Subject line (max 50 chars) specific to their business\\n2. Personalized opening referencing their industry\\n3. 2-3 sentences with clear value proposition\\n4. Low-commitment CTA\\n5. Under 150 words\\n6. Professional, friendly - NOT salesy\\n\\nOUTPUT FORMAT (JSON only, no markdown):\\n{\\\"subject\\\": \\\"...\\\", \\\"body\\\": \\\"...\\\", \\\"cta_text\\\": \\\"...\\\"}\\n\\nBusiness: \" + ($json.businessName || $json['Business Name'] || 'a local business') + \"\\nIndustry: \" + ($json.industry || $json['Industry'] || 'services') + \"\\nLocation: \" + ($json.location || $json['Location'] || '') + \"\\nWebsite: \" + ($json.website || $json['Website'] || '') }}"
+          "value": "={{ \"You are a professional business development writer for \" + $('Search Config').first().json.senderCompany + \", an AI automation and digital solutions agency. Write a short, personalized cold outreach email.\\n\\nCORE VALUE PROPOSITION - Always weave these into the email naturally:\\n• We help businesses SAVE MONEY by automating repetitive manual tasks (data entry, scheduling, follow-ups, invoicing)\\n• We help businesses SAVE TIME by replacing hours of manual work with AI-powered workflows that run 24/7\\n• We help businesses INCREASE LEADS by building automated lead capture, follow-up sequences, and online visibility systems\\n• We help businesses INCREASE SALES by converting more enquiries through faster response times, AI chatbots, and smart CRM automation\\n\\nINSTRUCTIONS:\\n1. Subject line (max 50 chars) specific to their business - mention a concrete benefit\\n2. Opening line must reference their specific business name and industry - show you know who they are\\n3. Identify 1-2 specific pain points common in their industry and explain how automation solves them\\n4. Include at least one concrete result or metric (e.g. 'cut admin time by 10+ hours/week', 'respond to enquiries 5x faster', '40% more bookings')\\n5. End with a low-commitment CTA (quick call, free audit, no obligation)\\n6. Under 150 words total\\n7. Professional and direct - NOT salesy or gimmicky. Write like a trusted advisor, not a cold caller\\n8. NEVER use generic filler - every sentence must be relevant to THEIR business\\n9. Sign off as \" + $('Search Config').first().json.senderName + \", \" + $('Search Config').first().json.senderTitle + \" at \" + $('Search Config').first().json.senderCompany + \"\\n\\nOUTPUT FORMAT (JSON only, no markdown):\\n{\\\"subject\\\": \\\"...\\\", \\\"body\\\": \\\"...\\\", \\\"cta_text\\\": \\\"...\\\"}\\n\\nEXAMPLE 1:\\nBusiness: Smile Dental Clinic\\nIndustry: dentists\\nLocation: Johannesburg\\nOutput:\\n{\\\"subject\\\": \\\"Smile Dental: more bookings, less admin\\\", \\\"body\\\": \\\"Hi there,\\\\n\\\\nI came across Smile Dental Clinic while looking at dental practices in Johannesburg. One thing I hear from practices like yours is that the front desk gets overwhelmed - missed calls, manually chasing up no-shows, and hours spent on appointment confirmations.\\\\n\\\\nWe help dental practices automate all of that. Our clients typically cut their admin time by 10+ hours a week and see a 30-40% increase in bookings, simply because enquiries get responded to instantly - even outside office hours - via AI-powered scheduling and automated follow-ups.\\\\n\\\\nThe result: your team focuses on patients, not paperwork, and you fill more chairs without hiring more staff.\\\", \\\"cta_text\\\": \\\"Would you be open to a quick 10-minute call this week? I can show you exactly how this would work for Smile Dental - no obligation.\\\"}\\n\\nEXAMPLE 2:\\nBusiness: Pretoria Plumbing Pros\\nIndustry: plumbers\\nLocation: Pretoria\\nOutput:\\n{\\\"subject\\\": \\\"Never miss a plumbing lead again\\\", \\\"body\\\": \\\"Hi,\\\\n\\\\nI noticed Pretoria Plumbing Pros while researching service businesses in Pretoria. In the plumbing industry, speed wins - the first company to respond to an enquiry gets the job 78% of the time.\\\\n\\\\nWe build AI-powered systems that instantly respond to every enquiry (website, WhatsApp, or missed call), book the job into your calendar, and send the customer an automated confirmation - all without you lifting a finger. Our trade clients typically pick up 5-10 extra jobs per month just from faster response times.\\\\n\\\\nThat means more revenue without spending a cent more on advertising.\\\", \\\"cta_text\\\": \\\"Worth a quick chat to see if this fits your business? I can do a free 10-minute walkthrough of how it would work for Pretoria Plumbing Pros.\\\"}\\n\\nEXAMPLE 3:\\nBusiness: Greenfield Accounting\\nIndustry: accountants\\nLocation: Sandton\\nOutput:\\n{\\\"subject\\\": \\\"Save 15+ hours/week at Greenfield Accounting\\\", \\\"body\\\": \\\"Hi,\\\\n\\\\nI came across Greenfield Accounting while looking at firms in Sandton. Accounting firms like yours often have talented staff spending hours on data entry, chasing clients for documents, and sending manual reminders - time that could be spent on billable advisory work.\\\\n\\\\nWe help accounting firms automate client onboarding, document collection, and follow-up reminders using AI workflows. The firms we work with typically save 15+ hours per week on admin and see faster turnaround on their engagements - which means happier clients and more capacity to take on new ones without hiring.\\\", \\\"cta_text\\\": \\\"Would a 10-minute call make sense? I would love to show you what this could look like for Greenfield - completely no obligation.\\\"}\\n\\nNow write an email for:\\nBusiness: \" + ($json.businessName || $json['Business Name'] || 'a local business') + \"\\nIndustry: \" + ($json.industry || $json['Industry'] || 'services') + \"\\nLocation: \" + ($json.location || $json['Location'] || '') + \"\\nWebsite: \" + ($json.website || $json['Website'] || '') }}"
         },
         "hasOutputParser": false,
         "options": {}
@@ -1625,7 +1586,10 @@
   "settings": {
     "executionOrder": "v1",
     "availableInMCP": false,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
   },
   "staticData": {
     "node:Schedule Trigger": {
@@ -1704,11 +1668,9 @@
           "rule": {
             "interval": [
               {
-                "field": "weeks",
-                "triggerAtDay": [
-                  1
-                ],
-                "triggerAtHour": 9
+                "field": "hours",
+                "triggerAtHour": 9,
+                "hoursInterval": 6
               }
             ]
           }
@@ -1754,7 +1716,7 @@
               {
                 "id": "9e4af1d2-7149-45af-b052-9ab642a6754e",
                 "name": "maxResults",
-                "value": "50",
+                "value": "6",
                 "type": "number"
               },
               {
@@ -1820,7 +1782,7 @@
               "parameters": [
                 {
                   "name": "User-Agent",
-                  "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                  "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
                 },
                 {
                   "name": "Accept-Language",
@@ -1949,7 +1911,7 @@
               "parameters": [
                 {
                   "name": "User-Agent",
-                  "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                  "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
                 }
               ]
             }
@@ -2044,7 +2006,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const items = $input.all();\nconst seen = new Set();\nconst results = [];\n\nfor (const item of items) {\n  const email = (item.json.emails || '').toString().toLowerCase().trim();\n  if (!email || seen.has(email)) continue;\n  seen.add(email);\n\n  // Calculate lead score (0-100)\n  let score = 0;\n  if (email) score += 20;\n  if (item.json.phone) score += 15;\n  if (item.json.businessName) score += 15;\n  if (item.json.address) score += 10;\n  if (item.json.rating > 0) score += 10;\n  if (item.json.linkedin || item.json.facebook || item.json.instagram) score += 10;\n  if (item.json.website) score += 10;\n  if (item.json.phone && email) score += 10; // bonus for multiple contact methods\n\n  results.push({\n    json: {\n      ...item.json,\n      email: email,\n      leadScore: score,\n      status: 'New',\n      source: 'Google Maps Scraper',\n      datescraped: new Date().toISOString().split('T')[0]\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{ json: { _empty: true } }];"
+          "jsCode": "const items = $input.all();\nconst seen = new Set();\nconst results = [];\n\nconst highFitIndustries = [\n  'real estate', 'law', 'legal', 'attorney', 'medical', 'dental', 'clinic',\n  'consulting', 'agency', 'marketing', 'insurance', 'accounting', 'finance',\n  'recruitment', 'staffing', 'financial', 'property management'\n];\nconst mediumFitIndustries = [\n  'restaurant', 'retail', 'salon', 'fitness', 'gym', 'spa', 'hotel',\n  'guest house', 'veterinary', 'vet', 'beauty', 'wellness'\n];\nconst lowFitIndustries = [\n  'manufacturing', 'logistics', 'construction', 'contractor', 'plumbing',\n  'electrician', 'hvac', 'landscaping', 'cleaning', 'automotive'\n];\n\nfor (const item of items) {\n  const email = (item.json.emails || item.json.email || '').toString().toLowerCase().trim();\n  if (!email || seen.has(email)) continue;\n  seen.add(email);\n\n  const industry = (item.json.industry || '').toLowerCase();\n  const businessName = (item.json.businessName || '').toLowerCase();\n  const combined = industry + ' ' + businessName;\n\n  // Contact completeness score\n  let score = 0;\n  if (email) score += 20;\n  if (item.json.phone) score += 15;\n  if (item.json.businessName) score += 15;\n  if (item.json.address) score += 10;\n  if (item.json.rating > 0) score += 10;\n  if (item.json.linkedin || item.json.facebook || item.json.instagram) score += 10;\n  if (item.json.website) score += 10;\n  if (item.json.phone && email) score += 10;\n\n  // Automation fit scoring\n  let automationFit = 'low';\n  const matchAny = (list, text) => list.some(t => text.includes(t));\n\n  if (matchAny(highFitIndustries, combined)) {\n    automationFit = 'high';\n    score += 20;\n  } else if (matchAny(mediumFitIndustries, combined)) {\n    automationFit = 'medium';\n    score += 10;\n  } else {\n    score += 5;\n  }\n\n  results.push({\n    json: {\n      ...item.json,\n      email: email,\n      leadScore: Math.min(score, 100),\n      automationFit: automationFit,\n      status: 'New',\n      source: 'Johannesburg Lead Scraper',\n      datescraped: new Date().toISOString().split('T')[0]\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{ json: { _empty: true } }];"
         },
         "id": "8245be47-2574-4582-b81d-aae0890e2173",
         "name": "Score Leads",
@@ -2153,7 +2115,7 @@
               "Social - Instagram": "={{ $('Score Leads').item.json.instagram }}",
               "Lead Score": "={{ $('Score Leads').item.json.leadScore }}",
               "Status": "New",
-              "Source": "Google Maps Scraper",
+              "Source": "Google Places API",
               "Date Scraped": "={{ $('Score Leads').item.json.datescraped }}"
             },
             "schema": [
@@ -2731,7 +2693,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const items = $('Score Leads').all();\nconst config = $('Search Config').first().json;\n\nconst totalLeads = items.filter(i => !i.json._empty).length;\nconst avgScore = totalLeads > 0\n  ? Math.round(items.reduce((sum, i) => sum + (i.json.leadScore || 0), 0) / totalLeads)\n  : 0;\n\nconst now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\n\nreturn {\n  json: {\n    subject: `Lead Scraper Complete: ${totalLeads} leads found`,\n    body: [\n      `<h2>Lead Scraper Run Complete</h2>`,\n      `<p><strong>Date:</strong> ${now}</p>`,\n      `<p><strong>Search:</strong> ${config.searchQuery} in ${config.location}</p>`,\n      `<hr>`,\n      `<p><strong>Total Leads Found:</strong> ${totalLeads}</p>`,\n      `<p><strong>Average Lead Score:</strong> ${avgScore}/100</p>`,\n      `<hr>`,\n      `<p>Check your <a href=\"https://airtable.com/appzcZpiIZ6QPtJXT\">Airtable CRM</a> for details.</p>`\n    ].join('\\n')\n  }\n};"
+          "jsCode": "const items = $('Score Leads').all();\nconst config = $('Search Config').first().json;\nconst now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\n\nconst allLeads = items.filter(i => !i.json._empty && (i.json.businessName || i.json['Business Name']));\nconst totalLeads = allLeads.length;\n\nconst leadsWithEmail = allLeads.filter(i => i.json.email || i.json['Email']);\nconst emailCount = leadsWithEmail.length;\nconst noEmailCount = totalLeads - emailCount;\n\nconst avgScore = totalLeads > 0\n  ? Math.round(allLeads.reduce((sum, i) => sum + (i.json.leadScore || i.json['Lead Score'] || 0), 0) / totalLeads)\n  : 0;\n\nconst highQuality = allLeads.filter(i => (i.json.leadScore || i.json['Lead Score'] || 0) >= 70);\n\nlet businessRows = '';\nfor (const lead of allLeads) {\n  const d = lead.json;\n  const name = d.businessName || d['Business Name'] || 'Unknown';\n  const email = d.email || d['Email'] || '';\n  const phone = d.phone || d['Phone'] || '-';\n  const score = d.leadScore || d['Lead Score'] || 0;\n  const scoreColor = score >= 70 ? '#27ae60' : score >= 40 ? '#f39c12' : '#e74c3c';\n  const outreach = email ? '&#9989; Queued' : '&#10060; No email';\n  businessRows += '<tr style=\"border-bottom: 1px solid #eee;\"><td style=\"padding: 8px;\">' + name + '</td><td style=\"padding: 8px;\">' + (email || '<em>Not found</em>') + '</td><td style=\"padding: 8px;\">' + phone + '</td><td style=\"padding: 8px; text-align: center; color: ' + scoreColor + '; font-weight: bold;\">' + score + '/100</td><td style=\"padding: 8px; text-align: center;\">' + outreach + '</td></tr>';\n}\n\nlet emailList = '';\nfor (const lead of leadsWithEmail) {\n  const d = lead.json;\n  const name = d.businessName || d['Business Name'] || 'Unknown';\n  const email = d.email || d['Email'];\n  emailList += '<li style=\"padding: 4px 0;\"><strong>' + name + '</strong> &mdash; ' + email + '</li>';\n}\n\nconst emailSection = emailCount > 0\n  ? '<h2 style=\"color: #333; border-bottom: 2px solid #27ae60; padding-bottom: 8px;\">Outreach Emails Sent To</h2><ul style=\"background: white; border-radius: 8px; padding: 16px 16px 16px 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);\">' + emailList + '</ul><p style=\"color: #666; font-size: 13px;\">Each lead receives a personalised AI-generated email tailored to their business and industry.</p>'\n  : '<div style=\"background: #fff3cd; border-left: 4px solid #f39c12; padding: 12px; margin-top: 16px; border-radius: 4px;\"><strong>No outreach emails this run.</strong> No new leads with email addresses were found.</div>';\n\nconst noEmailWarning = noEmailCount > 0\n  ? '<div style=\"background: #f8d7da; border-left: 4px solid #e74c3c; padding: 12px; margin-top: 16px; border-radius: 4px;\"><strong>' + noEmailCount + ' business(es)</strong> had no email on their website. Consider manual outreach via phone for these leads.</div>'\n  : '';\n\nconst body = '<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">'\n  + '<div style=\"background: #FF6D5A; color: white; padding: 20px; border-radius: 8px 8px 0 0;\">'\n  + '<h1 style=\"margin: 0; font-size: 22px;\">Lead Scraper Run Complete</h1>'\n  + '<p style=\"margin: 5px 0 0; opacity: 0.9;\">' + now + '</p>'\n  + '</div>'\n  + '<div style=\"padding: 20px; background: #f9f9f9;\">'\n  + '<h2 style=\"color: #333; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px;\">Search Parameters</h2>'\n  + '<table style=\"width: 100%; border-collapse: collapse;\">'\n  + '<tr><td style=\"padding: 4px 8px; font-weight: bold;\">Industry:</td><td>' + config.searchQuery + '</td></tr>'\n  + '<tr><td style=\"padding: 4px 8px; font-weight: bold;\">Location:</td><td>' + config.location + '</td></tr>'\n  + '<tr><td style=\"padding: 4px 8px; font-weight: bold;\">Max Results:</td><td>' + config.maxResults + '</td></tr>'\n  + '</table>'\n  + '<h2 style=\"color: #333; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px;\">Run Summary</h2>'\n  + '<table style=\"width: 100%; border-collapse: collapse; margin-bottom: 16px;\"><tr>'\n  + '<td style=\"background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 25%;\"><div style=\"font-size: 28px; font-weight: bold; color: #FF6D5A;\">' + totalLeads + '</div><div style=\"color: #666; font-size: 12px;\">Businesses Found</div></td>'\n  + '<td style=\"width: 8px;\"></td>'\n  + '<td style=\"background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 25%;\"><div style=\"font-size: 28px; font-weight: bold; color: #27ae60;\">' + emailCount + '</div><div style=\"color: #666; font-size: 12px;\">Emails Sent</div></td>'\n  + '<td style=\"width: 8px;\"></td>'\n  + '<td style=\"background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 25%;\"><div style=\"font-size: 28px; font-weight: bold; color: #3498db;\">' + avgScore + '</div><div style=\"color: #666; font-size: 12px;\">Avg Lead Score</div></td>'\n  + '<td style=\"width: 8px;\"></td>'\n  + '<td style=\"background: white; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 25%;\"><div style=\"font-size: 28px; font-weight: bold; color: #9b59b6;\">' + highQuality.length + '</div><div style=\"color: #666; font-size: 12px;\">High Quality (70+)</div></td>'\n  + '</tr></table>'\n  + '<h2 style=\"color: #333; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px;\">All Businesses Scraped</h2>'\n  + '<table style=\"width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);\">'\n  + '<thead><tr style=\"background: #FF6D5A; color: white;\">'\n  + '<th style=\"padding: 10px 8px; text-align: left;\">Business</th>'\n  + '<th style=\"padding: 10px 8px; text-align: left;\">Email</th>'\n  + '<th style=\"padding: 10px 8px; text-align: left;\">Phone</th>'\n  + '<th style=\"padding: 10px 8px; text-align: center;\">Score</th>'\n  + '<th style=\"padding: 10px 8px; text-align: center;\">Outreach</th>'\n  + '</tr></thead><tbody>' + businessRows + '</tbody></table>'\n  + emailSection\n  + noEmailWarning\n  + '<div style=\"margin-top: 20px; padding: 12px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);\">'\n  + '<p style=\"margin: 0;\">View all leads in <a href=\"https://airtable.com/appzcZpiIZ6QPtJXT\" style=\"color: #FF6D5A; font-weight: bold;\">Airtable CRM</a></p>'\n  + '</div>'\n  + '</div>'\n  + '<div style=\"background: #333; color: #999; padding: 12px 20px; border-radius: 0 0 8px 8px; font-size: 12px; text-align: center;\">'\n  + 'AnyVision Media Lead Scraper | Automated Report'\n  + '</div></div>';\n\nreturn {\n  json: {\n    subject: 'Lead Scraper: ' + totalLeads + ' found, ' + emailCount + ' emailed — ' + config.searchQuery + ' in ' + config.location,\n    body: body\n  }\n};"
         },
         "id": "1f7002bf-1734-4722-abe2-5562e549dbcb",
         "name": "Aggregate Results",
@@ -2803,7 +2765,7 @@
       },
       {
         "parameters": {
-          "content": "## STAGE 1: Triggers & Configuration\n\n**Schedule:** Runs weekly on Monday 9AM\n**Manual:** Click 'Test workflow' for ad-hoc runs\n**Config:** Set your search query, location, and sender details",
+          "content": "## STAGE 1: Triggers & Configuration\n\n**Schedule:** Runs every 6 hours starting 09:00 (09:00, 15:00, 21:00, 03:00)\n**Manual:** Click 'Test workflow' for ad-hoc runs\n**Config:** Set your search query, location, and sender details",
           "height": 140,
           "width": 340
         },

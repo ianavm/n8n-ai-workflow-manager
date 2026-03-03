@@ -1,0 +1,660 @@
+{
+  "name": "Marketing Dept - Strategy & Planning (WF-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "330236d1-bce6-49e4-8070-bd7cd7784e9f",
+      "name": "Weekly Monday 8:30AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "2a699c95-b152-4fc3-84e8-c5540b125ffa",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7b66eac0-db17-447f-b384-62ab6d9a11bf",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "c1238ca1-3a09-4e49-8d2e-5dcbbee9852f",
+              "name": "weekNumber",
+              "value": "={{ $now.format('yyyy') + '-W' + $now.format('WW') }}",
+              "type": "string"
+            },
+            {
+              "id": "07642be8-da50-410f-9b9c-f86c6209aafa",
+              "name": "weekStartDate",
+              "value": "={{ $now.startOf('week').format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "c5c44eee-66f0-4d20-896d-b1705a86e40f",
+              "name": "weekEndDate",
+              "value": "={{ $now.endOf('week').format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "adabae2a-1161-4f33-92ea-a5385264b02c",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "efd4322b-1275-4131-9844-b9f2686411fc",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "66feabc7-ff2e-4cb9-b68f-a950a8c04e6d",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblPHMyQMedBvcGQz"
+        },
+        "filterByFormula": "=({Week} = \"{{ $json.weekNumber }}\")"
+      },
+      "id": "72048736-c857-42cc-b11e-ee55f8d1db1a",
+      "name": "Read Research Insights",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        380
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblLI70ZD0DkJKXvI"
+        },
+        "filterByFormula": "=IS_AFTER({Published At}, DATEADD(TODAY(), -7, 'days'))"
+      },
+      "id": "aeca16d6-fb9e-4d76-8cc6-054737067467",
+      "name": "Read Last Week Performance",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        540
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblf3QGxX9K1y2h2H"
+        },
+        "filterByFormula": "=IS_AFTER({Created At}, DATEADD(TODAY(), -7, 'days'))"
+      },
+      "id": "1c02f1b2-3e59-441b-aa37-9ef43d42deda",
+      "name": "Read Last Week Content",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        700
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblq3SGdZtvbFcfkw"
+        },
+        "filterByFormula": "=AND(IS_AFTER({Date}, DATEADD(TODAY(), -1, 'days')), IS_BEFORE({Date}, DATEADD(TODAY(), 7, 'days')))"
+      },
+      "id": "cb63d41a-a468-40dc-acb1-fbb20c6dc511",
+      "name": "Check Existing Plans",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        860
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('System Config').first().json;\n\n// Gather research insights\nlet researchData = [];\ntry {\n  researchData = $('Read Research Insights').all().map(i => i.json);\n} catch(e) {}\n\n// Gather performance data\nlet perfData = [];\ntry {\n  perfData = $('Read Last Week Performance').all().map(i => i.json);\n} catch(e) {}\n\n// Gather last week's content\nlet lastContent = [];\ntry {\n  lastContent = $('Read Last Week Content').all().map(i => i.json);\n} catch(e) {}\n\n// Gather existing plans\nlet existingPlans = [];\ntry {\n  existingPlans = $('Check Existing Plans').all().map(i => i.json);\n} catch(e) {}\n\n// Build context string for AI\nlet context = `CONTENT STRATEGY CONTEXT\\n`;\ncontext += `Week: ${config.weekNumber} (${config.weekStartDate} to ${config.weekEndDate})\\n\\n`;\n\n// Research insights\ncontext += `RESEARCH INSIGHTS (from WF-01 Intelligence):\\n`;\nif (researchData.length > 0) {\n  for (const insight of researchData) {\n    context += `- [${insight['Source Type']}] ${insight.Title} (relevance: ${insight['Relevance Score']}/10)\\n`;\n    if (insight.Summary) context += `  Summary: ${insight.Summary}\\n`;\n    if (insight['Content Opportunities']) {\n      try {\n        const opps = JSON.parse(insight['Content Opportunities']);\n        for (const opp of opps) {\n          context += `  Opportunity: ${opp.topic || opp} — ${opp.angle || ''}\\n`;\n        }\n      } catch(e) {}\n    }\n  }\n} else {\n  context += `No research insights available this week. Use general industry knowledge.\\n`;\n}\n\n// Performance data\ncontext += `\\nLAST WEEK DISTRIBUTION PERFORMANCE:\\n`;\nif (perfData.length > 0) {\n  const successCount = perfData.filter(p => p.Status === 'Success').length;\n  const failCount = perfData.filter(p => p.Status === 'Failed').length;\n  const platforms = [...new Set(perfData.map(p => p.Platform))];\n  context += `- Total posts: ${perfData.length} (${successCount} success, ${failCount} failed)\\n`;\n  context += `- Platforms used: ${platforms.join(', ')}\\n`;\n} else {\n  context += `No distribution data from last week.\\n`;\n}\n\n// Last week's content topics (to avoid repetition)\ncontext += `\\nLAST WEEK CONTENT TOPICS (avoid repeating):\\n`;\nif (lastContent.length > 0) {\n  for (const content of lastContent.slice(0, 10)) {\n    context += `- ${content.Title || 'Untitled'}\\n`;\n  }\n} else {\n  context += `No content from last week.\\n`;\n}\n\n// Existing plans\nconst existingDates = existingPlans.map(p => p.Date).filter(Boolean);\ncontext += `\\nEXISTING PLANS THIS WEEK:\\n`;\nif (existingDates.length > 0) {\n  context += `Already planned dates: ${existingDates.join(', ')}\\n`;\n  context += `Only generate content for UNPLANNED dates.\\n`;\n} else {\n  context += `No existing plans — generate content for all 7 days.\\n`;\n}\n\nreturn {\n  json: {\n    strategyContext: context,\n    weekStart: config.weekStartDate,\n    weekEnd: config.weekEndDate,\n    existingDates: existingDates,\n    researchCount: researchData.length,\n    perfCount: perfData.length\n  }\n};"
+      },
+      "id": "571fc293-7ab1-40b6-ac0c-7f1b3b849e57",
+      "name": "Build Strategy Context",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1000,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 2000,\n  \"temperature\": 0.7,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the Content Strategist for AnyVision Media, a digital media and AI automation agency in South Africa.\\n\\n## Your Task\\nCreate a 7-day social media content calendar based on the provided research insights and performance data.\\n\\n## Company Context\\n- Services: AI workflow automation, web development, social media management, real estate tech\\n- Owner: Ian Immelman\\n- Target audience: Small to medium businesses looking to automate and scale\\n- Brand color: #FF6D5A\\n\\n## Content Mix Guidelines\\n- Educational (40%): Tips, how-tos, industry insights\\n- Engagement (30%): Questions, polls, behind-the-scenes, stories\\n- Promotional (30%): Case studies, service highlights, testimonials\\n\\n## Platform Strategy\\n- TikTok: Quick tips, trending hooks, short-form video scripts (Mon, Wed, Fri, Sun)\\n- Instagram: Visual content, carousels, stories, reels (Tue, Thu, Sat)\\n- Facebook: Community engagement, stories, longer-form posts (Mon, Wed, Thu)\\n\\n## Output Format (JSON array only, no markdown, no backticks):\\n[\\n  {\\n    \\\"date\\\": \\\"YYYY-MM-DD\\\",\\n    \\\"topic\\\": \\\"Specific, actionable topic title\\\",\\n    \\\"content_type\\\": \\\"social_post\\\",\\n    \\\"platforms\\\": [\\\"TikTok\\\", \\\"Instagram\\\", \\\"Facebook\\\"],\\n    \\\"brief\\\": \\\"2-3 sentence brief explaining the angle, key points to hit, and target audience segment\\\",\\n    \\\"campaign\\\": \\\"General Brand Awareness\\\"\\n  }\\n]\\n\\n## Rules\\n- Each day MUST have a unique angle \\u2014 no repeated topics within the week\\n- Reference specific trends or competitor gaps from the research when possible\\n- Not every post goes to all 3 platforms \\u2014 be strategic about platform selection\\n- Avoid topics already covered in the performance data (last 7 days)\\n- If research insights mention high-relevance trends, prioritize those\\n- Include a mix of evergreen and timely content\\n- Every brief must be specific enough for an AI writer to produce the content without further context\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.strategyContext) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "1a846943-c522-41d6-8e66-764bf54e4e8c",
+      "name": "AI Strategist",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1280,
+        500
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst contextData = $('Build Strategy Context').first().json;\nconst existingDates = contextData.existingDates || [];\n\nlet strategy;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content\n    .replace(/```json\\n?/g, '')\n    .replace(/```\\n?/g, '')\n    .trim();\n  const jsonMatch = cleaned.match(/\\[[\\s\\S]*\\]/);\n  strategy = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch(e) {\n  // Fallback: generate basic 7-day plan\n  const today = new Date();\n  strategy = [];\n  const fallbackTopics = [\n    'How AI automation helps small businesses save time',\n    'Behind the scenes: Building automated workflows',\n    'Top 3 tasks every business should automate',\n    'Client success story: Automation ROI',\n    'The future of AI in business operations',\n    'Quick tip: Automate your lead follow-up',\n    'Weekly wrap-up: Automation insights'\n  ];\n  for (let i = 0; i < 7; i++) {\n    const date = new Date(today);\n    date.setDate(date.getDate() + i);\n    const dateStr = date.toISOString().split('T')[0];\n    strategy.push({\n      date: dateStr,\n      topic: fallbackTopics[i],\n      content_type: 'social_post',\n      platforms: ['TikTok', 'Instagram', 'Facebook'],\n      brief: `Create engaging content about: ${fallbackTopics[i]}. Target SMBs interested in automation.`,\n      campaign: 'General Brand Awareness'\n    });\n  }\n}\n\n// Filter out dates that already have plans\nconst filtered = strategy.filter(entry => !existingDates.includes(entry.date));\n\n// Return each entry as a separate item for batch Airtable create\nif (filtered.length === 0) {\n  return { json: { message: 'All dates already planned', entries: 0 } };\n}\n\nreturn filtered.map(entry => ({\n  json: {\n    title: `${entry.date}: ${(entry.topic || '').substring(0, 50)}`,\n    date: entry.date,\n    contentType: entry.content_type || 'social_post',\n    topic: entry.topic,\n    platforms: entry.platforms || ['TikTok', 'Instagram'],\n    brief: entry.brief,\n    campaign: entry.campaign || 'General Brand Awareness',\n    tokensUsed: (input.usage ? input.usage.total_tokens : 0)\n  }\n}));"
+      },
+      "id": "178ce634-8415-4c18-9288-ec06e90cd70c",
+      "name": "Parse Strategy",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1540,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblq3SGdZtvbFcfkw"
+        },
+        "columns": {
+          "value": {
+            "Title": "={{ $json.title }}",
+            "Date": "={{ $json.date }}",
+            "Content Type": "={{ $json.contentType }}",
+            "Topic": "={{ $json.topic }}",
+            "Platform": "={{ $json.platforms }}",
+            "Status": "Planned",
+            "Brief": "={{ $json.brief }}",
+            "Campaign": "={{ $json.campaign }}"
+          },
+          "schema": [
+            {
+              "id": "Title",
+              "type": "string",
+              "display": true,
+              "displayName": "Title"
+            },
+            {
+              "id": "Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Date"
+            },
+            {
+              "id": "Content Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Content Type"
+            },
+            {
+              "id": "Topic",
+              "type": "string",
+              "display": true,
+              "displayName": "Topic"
+            },
+            {
+              "id": "Platform",
+              "type": "array",
+              "display": true,
+              "displayName": "Platform"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Brief",
+              "type": "string",
+              "display": true,
+              "displayName": "Brief"
+            },
+            {
+              "id": "Campaign",
+              "type": "string",
+              "display": true,
+              "displayName": "Campaign"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Title"
+          ]
+        },
+        "options": {}
+      },
+      "id": "49a5a667-27ab-4077-81a7-fb3bf697188a",
+      "name": "Create Calendar Entries",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1800,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\nconst contextData = $('Build Strategy Context').first().json;\n\nlet entries = [];\nlet totalTokens = 0;\ntry {\n  entries = $('Parse Strategy').all().map(i => i.json);\n  totalTokens = entries.reduce((sum, e) => sum + (e.tokensUsed || 0), 0);\n} catch(e) {}\n\nconst entriesHtml = entries.map(e =>\n  `<tr><td>${e.date || 'N/A'}</td><td>${e.topic || 'N/A'}</td><td>${(e.platforms || []).join(', ')}</td></tr>`\n).join('\\n');\n\nconst estimatedCost = (totalTokens / 1000000 * 3).toFixed(4);\n\nreturn {\n  json: {\n    subject: `Weekly Strategy: ${entries.length} calendar entries created`,\n    body: [\n      '<h2>Weekly Content Strategy Report</h2>',\n      `<p><strong>Date:</strong> ${now}</p>`,\n      `<p><strong>Research insights used:</strong> ${contextData.researchCount || 0}</p>`,\n      `<p><strong>Last week performance records:</strong> ${contextData.perfCount || 0}</p>`,\n      '<hr>',\n      '<h3>Content Calendar (This Week)</h3>',\n      '<table border=\"1\" cellpadding=\"6\" style=\"border-collapse:collapse\">',\n      '<tr><th>Date</th><th>Topic</th><th>Platforms</th></tr>',\n      entriesHtml || '<tr><td colspan=\"3\">No entries created</td></tr>',\n      '</table>',\n      '<hr>',\n      `<p><strong>Tokens Used:</strong> ${totalTokens.toLocaleString()}</p>`,\n      `<p><strong>Estimated Cost:</strong> $${estimatedCost}</p>`,\n      '<p>Content Calendar populated. WF-03 will generate content daily at 9:00 AM.</p>',\n    ].join('\\n')\n  }\n};"
+      },
+      "id": "a871d3a7-2416-4970-a743-92ce9f2b4908",
+      "name": "Build Strategy Summary",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2060,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "686ddc35-5f60-4a7a-8ec4-2b61c5b17519",
+      "name": "Send Strategy Report",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2300,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "88d5a707-b6c3-44ec-8e31-709e6dcd9b0c",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "MARKETING ERROR - Strategy & Planning",
+        "emailType": "html",
+        "message": "=<h2>Strategy & Planning Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "82d9b284-cc8a-4d43-b09c-9d8673744805",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-02: Strategy & Campaign Planning\n\n**Schedule:** Monday 8:30 AM SAST (after WF-01)\n**Purpose:** Reads research insights + performance data, AI generates 7-day content plan.\n**AI Model:** Claude Sonnet via OpenRouter\n**Output:** Content Calendar entries + weekly strategy email",
+        "height": 160,
+        "width": 420
+      },
+      "id": "wf02-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    },
+    {
+      "parameters": {
+        "content": "## Data Gathering\n\n4 parallel Airtable reads:\n1. Research Insights (this week)\n2. Distribution Log (last 7 days)\n3. Content (last 7 days, avoid repeats)\n4. Content Calendar (existing plans)",
+        "height": 140,
+        "width": 340
+      },
+      "id": "wf02-note-2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        620,
+        200
+      ],
+      "typeVersion": 1,
+      "name": "Note 2"
+    },
+    {
+      "parameters": {
+        "content": "## AI Strategy\n\n2000 max tokens, temp 0.7\nGenerates 7-day content calendar\nFilters dates with existing plans\nWrites directly to Content Calendar",
+        "height": 140,
+        "width": 300
+      },
+      "id": "wf02-note-3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1220,
+        320
+      ],
+      "typeVersion": 1,
+      "name": "Note 3"
+    }
+  ],
+  "connections": {
+    "Weekly Monday 8:30AM": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Research Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Last Week Performance",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Last Week Content",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Existing Plans",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Research Insights": {
+      "main": [
+        [
+          {
+            "node": "Build Strategy Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Last Week Performance": {
+      "main": [
+        [
+          {
+            "node": "Build Strategy Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Last Week Content": {
+      "main": [
+        [
+          {
+            "node": "Build Strategy Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Plans": {
+      "main": [
+        [
+          {
+            "node": "Build Strategy Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Strategy Context": {
+      "main": [
+        [
+          {
+            "node": "AI Strategist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Strategist": {
+      "main": [
+        [
+          {
+            "node": "Parse Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Strategy": {
+      "main": [
+        [
+          {
+            "node": "Create Calendar Entries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Calendar Entries": {
+      "main": [
+        [
+          {
+            "node": "Build Strategy Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Strategy Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Strategy Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

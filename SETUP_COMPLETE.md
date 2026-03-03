@@ -17,7 +17,7 @@
 
 ## Your Dedicated Airtable Base
 
-### 📊 Base: Lead Scraper - Fourways CRM
+### 📊 Base: Lead Scraper - Johannesburg CRM
 - **Base ID:** `app2ALQUP7CKEkHOz`
 - **Table ID:** `tblOsuh298hB9WWrA`
 - **Access:** https://airtable.com/app2ALQUP7CKEkHOz

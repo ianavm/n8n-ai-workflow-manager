@@ -1,0 +1,1268 @@
+{
+  "name": "Accounting Dept - Sales & Invoicing (WF-01)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8-17 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "016d0703-dab0-45b4-b8de-f02de5db10c5",
+      "name": "Hourly Invoice Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "945459cf-c283-4a42-848c-eea287b9665c",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/create-invoice",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "36d6c5c5-d04f-4f1e-b391-ea9fcbf4f095",
+      "name": "Invoice Request Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        800
+      ],
+      "typeVersion": 2,
+      "webhookId": "62d9241f-1eef-4f2f-8b11-54957fb22856"
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ac48ca9f-f16a-4880-ba78-8fd36e46b1e6",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "1d24fe90-ba7f-4707-bf29-5cab1f799517",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            },
+            {
+              "id": "b612b422-95c3-4782-b467-51e3c1984b6b",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "604bdf61-3d85-4fec-8c65-e9eeb81a72fb",
+              "name": "vatRate",
+              "value": "0.15",
+              "type": "string"
+            },
+            {
+              "id": "a0d28b78-d23f-4834-b394-6851d76e7336",
+              "name": "invoicePrefix",
+              "value": "AVM",
+              "type": "string"
+            },
+            {
+              "id": "8bbfb776-4e93-4650-b797-39f300fdeb83",
+              "name": "defaultCurrency",
+              "value": "ZAR",
+              "type": "string"
+            },
+            {
+              "id": "675dbeb1-5c25-437b-b183-74d38a7d4f05",
+              "name": "highValueThreshold",
+              "value": "50000",
+              "type": "string"
+            },
+            {
+              "id": "de27d58b-ee10-482d-8091-e3745a784c66",
+              "name": "xeroTenantId",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "427ff7f6-3c04-4774-9f50-a6baf32a9ddb",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        460,
+        600
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "filterByFormula": "{Status} = 'Draft'"
+      },
+      "id": "520137c2-398c-4e87-a98c-452278af3bd6",
+      "name": "Read Draft Invoices",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        600
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const airtableItems = $input.all();\nlet webhookData = null;\ntry { webhookData = $('Invoice Request Webhook').first(); } catch(e) { /* webhook not triggered */ }\n\nconst items = [];\n\n// Add Airtable draft invoices\nfor (const item of airtableItems) {\n  if (item.json && item.json['Invoice ID']) {\n    items.push(item.json);\n  }\n}\n\n// Add webhook invoice request if present\nif (webhookData && webhookData.json && webhookData.json.body) {\n  const body = webhookData.json.body;\n  items.push({\n    'Invoice ID': `INV-${Date.now()}`,\n    'Customer ID': body.customer_id || '',\n    'Customer Name': body.customer_name || '',\n    'Line Items JSON': JSON.stringify(body.line_items || []),\n    'Source': body.source || 'Manual',\n    'Status': 'Draft',\n    isWebhook: true,\n  });\n}\n\nif (items.length === 0) {\n  return [{json: {totalItems: 0, source: 'none'}}];\n}\nreturn items.map(item => ({json: item}));\n"
+      },
+      "id": "3b279037-ab49-4edb-94a8-4b9f9a5c9523",
+      "name": "Merge Sources",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        900,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "523c305f-8c95-4365-b967-a1e6439b6293",
+              "leftValue": "={{ $json['Invoice ID'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "7932317b-5b20-47a2-9eb8-e5a0598572a2",
+      "name": "Has Items?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1120,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "b7d8c1ec-03d5-41c0-92a5-b1268bd93c92",
+      "name": "Loop Over Invoices",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1360,
+        500
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblxHJrvob0OOSfTq"
+        },
+        "filterByFormula": "={Customer ID} = '{{ $json[\"Customer ID\"] }}'"
+      },
+      "id": "7217a42f-2210-4ec0-bb3a-83c1d7d95a84",
+      "name": "Lookup Customer",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1600,
+        500
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "31e47d36-4d7a-4c58-9292-c0e44efa175e",
+              "leftValue": "={{ $json['Customer Name'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "1a93b959-8659-451b-abc9-c13bcad6a9b8",
+      "name": "Customer Exists?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1820,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblxHJrvob0OOSfTq"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Customer ID": "={{ $json['Customer ID'] }}",
+            "Customer Name": "={{ $json['Customer Name'] }}",
+            "Email": "={{ $json.customerEmail || $json['Email'] || '' }}",
+            "Phone": "={{ $json.customerPhone || $json['Phone'] || '' }}",
+            "Preferred Channel": "Email",
+            "Status": "Active"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "8366155a-c122-4aca-a9c6-7c41d04c60dd",
+      "name": "Create Customer",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2060,
+        700
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoice = $('Loop Over Invoices').first().json;\nconst customerData = $input.first().json;\n\nreturn {\n  json: {\n    ...invoice,\n    customerName: customerData['Customer Name'] || invoice['Customer Name'] || '',\n    customerEmail: customerData['Email'] || invoice['Email'] || '',\n    customerPhone: customerData['Phone'] || invoice['Phone'] || '',\n    preferredChannel: customerData['Preferred Channel'] || 'Email',\n    xeroContactId: customerData['Xero Contact ID'] || '',\n    customerId: customerData['Customer ID'] || invoice['Customer ID'] || '',\n    paymentTerms: customerData['Payment Terms'] || '30 days',\n  }\n};\n"
+      },
+      "id": "4290d5e3-4de0-405d-a1fc-d36246a025e4",
+      "name": "Merge Customer Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2300,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblsqsVglPblQgORy"
+        },
+        "filterByFormula": "{Status} = 'Active'"
+      },
+      "id": "9ccdc99b-433f-413a-a51c-d18edefc514d",
+      "name": "Lookup Products",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2520,
+        500
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoice = $input.first().json;\nconst products = $('Lookup Products').all();\nconst vatRate = parseFloat($('System Config').first().json.vatRate) || 0.15;\n\nconst TAX_TYPE_MAP = {'STANDARD_15': 'OUTPUT2', 'ZERO_RATED': 'OUTPUTZERO', 'EXEMPT': 'EXEMPTOUTPUT'};\n\nconst lineItemsRaw = invoice['Line Items JSON'] || invoice.line_items || '[]';\nlet lineItems;\ntry {\n  lineItems = typeof lineItemsRaw === 'string' ? JSON.parse(lineItemsRaw) : lineItemsRaw;\n} catch(e) {\n  lineItems = [];\n}\n\nlet subtotal = 0;\nlet totalVat = 0;\nconst processedItems = [];\nconst xeroLineItems = [];\n\nfor (const item of lineItems) {\n  const product = products.find(p => p.json['Item Code'] === item.item_code || p.json['Item Code'] === item.code);\n  const unitPrice = item.unit_price || (product ? product.json['Unit Price'] : 0);\n  const qty = item.quantity || 1;\n  const vatCode = item.vat_rate_code || (product ? product.json['VAT Rate Code'] : 'STANDARD_15');\n  const taxType = TAX_TYPE_MAP[vatCode] || 'OUTPUT2';\n  \n  const lineSubtotal = unitPrice * qty;\n  const lineVatRate = vatCode === 'STANDARD_15' ? vatRate : 0;\n  const lineVat = lineSubtotal * lineVatRate;\n  \n  subtotal += lineSubtotal;\n  totalVat += lineVat;\n  \n  processedItems.push({\n    item_code: item.item_code || item.code,\n    description: item.description || (product ? product.json['Description'] : ''),\n    quantity: qty,\n    unit_price: unitPrice,\n    vat_rate_code: vatCode,\n    vat_rate: lineVatRate,\n    line_subtotal: lineSubtotal,\n    line_vat: lineVat,\n    line_total: lineSubtotal + lineVat,\n  });\n  \n  xeroLineItems.push({\n    ItemCode: item.item_code || item.code || (product ? product.json['Item Code'] : ''),\n    Description: item.description || (product ? product.json['Description'] : ''),\n    Quantity: qty,\n    UnitAmount: unitPrice,\n    TaxType: taxType,\n    AccountCode: (product ? product.json['Revenue Account Code'] : '') || '200',\n    LineAmount: lineSubtotal,\n  });\n}\n\nconst total = subtotal + totalVat;\n\nreturn {\n  json: {\n    ...invoice,\n    processedLineItems: processedItems,\n    lineItemsJson: JSON.stringify(xeroLineItems),\n    subtotal: Math.round(subtotal * 100) / 100,\n    vatAmount: Math.round(totalVat * 100) / 100,\n    total: Math.round(total * 100) / 100,\n    currency: 'ZAR',\n  }\n};\n"
+      },
+      "id": "b68ce7b7-9e29-44b6-9996-d145b9150d4d",
+      "name": "Calculate Tax",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2740,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoice = $input.first().json;\nconst prefix = $('System Config').first().json.invoicePrefix || 'AVM';\nconst timestamp = Date.now().toString().slice(-6);\nconst invoiceNumber = `${prefix}-${timestamp}`;\n\nreturn {\n  json: {\n    ...invoice,\n    invoiceNumber: invoiceNumber,\n  }\n};\n"
+      },
+      "id": "ec85ec18-e7b3-4896-afa3-335d8ada25c6",
+      "name": "Generate Invoice Number",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2960,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "8d4e5f00-e409-4065-98fc-c37feda117bb",
+              "leftValue": "={{ $json.total }}",
+              "rightValue": "={{ $('System Config').first().json.highValueThreshold }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "431383b0-2844-4b5e-b52e-25890a4ff6e9",
+      "name": "Check High Value",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        3180,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblGtffCPlRoHAtTk"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ 'TASK-' + Date.now() }}",
+            "Type": "Invoice Approval",
+            "Priority": "High",
+            "Status": "Open",
+            "Description": "=High-value invoice {{ $json.invoiceNumber }} for {{ $json.customerName }} - R {{ $json.total }}. Requires manual approval before sending.",
+            "Related Record ID": "={{ $json.invoiceNumber }}",
+            "Related Table": "Invoices",
+            "Owner": "ian@anyvisionmedia.com",
+            "Approval Token": "={{ $json.invoiceNumber }}-{{ Date.now() }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "b5aec598-c6e5-4d8f-9283-d6768df246d0",
+      "name": "Create Approval Task",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3420,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=APPROVAL REQUIRED: Invoice {{ $json.invoiceNumber }} - R {{ $json.total }}",
+        "emailType": "html",
+        "message": "=<h2>High-Value Invoice Approval Required</h2><p>Invoice <strong>{{ $json.invoiceNumber }}</strong> for <strong>{{ $json.customerName }}</strong> requires your approval before sending.</p><table style='border-collapse:collapse;width:100%;max-width:500px;'><tr><td style='padding:8px;border:1px solid #ddd;'><strong>Invoice #</strong></td><td style='padding:8px;border:1px solid #ddd;'>{{ $json.invoiceNumber }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;'><strong>Customer</strong></td><td style='padding:8px;border:1px solid #ddd;'>{{ $json.customerName }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;'><strong>Subtotal</strong></td><td style='padding:8px;border:1px solid #ddd;'>R {{ $json.subtotal }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;'><strong>VAT</strong></td><td style='padding:8px;border:1px solid #ddd;'>R {{ $json.vatAmount }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;font-size:18px;'><strong>Total</strong></td><td style='padding:8px;border:1px solid #ddd;font-size:18px;color:#FF6D5A;'><strong>R {{ $json.total }}</strong></td></tr></table><br><p>This invoice exceeds the high-value threshold of R 50,000.</p><p>Please review and approve or reject in the Airtable Tasks table.</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "77ca75ae-b79b-4bfb-a0a7-630504dc918d",
+      "name": "Send Approval Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        3660,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Invoice ID": "={{ $json['Invoice ID'] || $json.invoiceId }}",
+            "Status": "Pending Approval",
+            "Invoice Number": "={{ $json.invoiceNumber }}",
+            "Subtotal": "={{ $json.subtotal }}",
+            "VAT Amount": "={{ $json.vatAmount }}",
+            "Total": "={{ $json.total }}",
+            "Updated At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          },
+          "matchingColumns": [
+            "Invoice ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "8b304389-66de-44dc-acd5-a226f8f444b9",
+      "name": "Update Status Pending",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3900,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.xero.com/api.xro/2.0/Invoices",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "={{ $('System Config').first().json.xeroTenantId || '' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"Type\": \"ACCREC\",\n  \"Contact\": {\"ContactID\": \"{{ $json.xeroContactId || '' }}\"},\n  \"Date\": \"{{ $json.issueDate || $now.format('yyyy-MM-dd') }}\",\n  \"DueDate\": \"{{ $json.dueDate }}\",\n  \"InvoiceNumber\": \"{{ $json.invoiceNumber }}\",\n  \"Reference\": \"{{ $json.invoiceNumber }}\",\n  \"CurrencyCode\": \"ZAR\",\n  \"Status\": \"AUTHORISED\",\n  \"LineItems\": {{ $json.lineItemsJson }}\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ff828f63-29b1-4a0f-9f92-c62f8459fd7e",
+      "name": "Create Invoice in Xero",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3420,
+        700
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "tyznIxiWvzReo2gy",
+          "name": "Xero OAuth2 AVM"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Invoice ID": "={{ $json['Invoice ID'] || $json.invoiceId }}",
+            "Status": "Sent",
+            "Invoice Number": "={{ $json.invoiceNumber }}",
+            "Xero Invoice ID": "={{ $json.Invoices ? $json.Invoices[0].InvoiceID : '' }}",
+            "Subtotal": "={{ $json.subtotal }}",
+            "VAT Amount": "={{ $json.vatAmount }}",
+            "Total": "={{ $json.total }}",
+            "Sent At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+            "Issue Date": "={{ $json.issueDate || $now.format('yyyy-MM-dd') }}",
+            "Due Date": "={{ $json.dueDate || '' }}"
+          },
+          "matchingColumns": [
+            "Invoice ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "43d10208-b2e8-47ce-9ea5-747a2744e4d6",
+      "name": "Update Invoice Record",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3660,
+        700
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\nconst items = inv.processedLineItems || [];\n\nconst lineItemsHtml = items.map(item => \n  `<tr>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${item.item_code}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${item.description}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;text-align:center;\">${item.quantity}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;\">R ${item.unit_price.toFixed(2)}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;\">R ${item.line_vat.toFixed(2)}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;\">R ${item.line_total.toFixed(2)}</td>\n  </tr>`\n).join('\\n');\n\nconst html = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f4f4f4;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;margin:0 auto;background-color:#ffffff;\">\n    <tr>\n      <td style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">\n        <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">TAX INVOICE</h1>\n        <p style=\"margin:5px 0 0;color:#666;\">AnyVision Media</p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:20px 40px;\">\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n          <tr>\n            <td width=\"50%\" style=\"vertical-align:top;\">\n              <p style=\"margin:0;font-size:13px;color:#666;\">Bill To:</p>\n              <p style=\"margin:4px 0;font-size:15px;\"><strong>${inv.customerName || inv['Customer Name'] || ''}</strong></p>\n              <p style=\"margin:0;font-size:13px;color:#666;\">${inv.customerEmail || ''}</p>\n            </td>\n            <td width=\"50%\" style=\"vertical-align:top;text-align:right;\">\n              <p style=\"margin:0;font-size:13px;color:#666;\">Invoice #: <strong>${inv.invoiceNumber}</strong></p>\n              <p style=\"margin:4px 0;font-size:13px;color:#666;\">Date: ${inv.issueDate || inv['Issue Date'] || new Date().toISOString().split('T')[0]}</p>\n              <p style=\"margin:4px 0;font-size:13px;color:#666;\">Due: ${inv.dueDate || inv['Due Date'] || ''}</p>\n            </td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:0 40px 20px;\">\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n          <tr style=\"background-color:#f8f8f8;\">\n            <th style=\"padding:10px 8px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">Code</th>\n            <th style=\"padding:10px 8px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">Description</th>\n            <th style=\"padding:10px 8px;text-align:center;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">Qty</th>\n            <th style=\"padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">Unit Price</th>\n            <th style=\"padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">VAT</th>\n            <th style=\"padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">Total</th>\n          </tr>\n          ${lineItemsHtml}\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:0 40px 20px;\">\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n          <tr><td style=\"text-align:right;padding:4px 8px;color:#666;\">Subtotal:</td><td style=\"text-align:right;padding:4px 8px;width:120px;\"><strong>R ${inv.subtotal.toFixed(2)}</strong></td></tr>\n          <tr><td style=\"text-align:right;padding:4px 8px;color:#666;\">VAT (15%):</td><td style=\"text-align:right;padding:4px 8px;\"><strong>R ${inv.vatAmount.toFixed(2)}</strong></td></tr>\n          <tr style=\"border-top:2px solid #FF6D5A;\"><td style=\"text-align:right;padding:8px;font-size:18px;\">Total Due:</td><td style=\"text-align:right;padding:8px;font-size:18px;color:#FF6D5A;\"><strong>R ${inv.total.toFixed(2)}</strong></td></tr>\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;\">\n        <p style=\"margin:0 0 8px;font-size:14px;\"><strong>Payment Details:</strong></p>\n        <p style=\"margin:0;font-size:13px;color:#666;line-height:1.6;\">\n          Bank: [Bank Name]<br>\n          Account: [Account Number]<br>\n          Branch Code: [Branch Code]<br>\n          Reference: ${inv.invoiceNumber}\n        </p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:20px 40px;background-color:#f8f8f8;\">\n        <p style=\"margin:0;font-size:11px;color:#999;line-height:1.5;\">\n          AnyVision Media | Johannesburg, South Africa<br>\n          accounts@anyvisionmedia.com | Terms: ${inv.paymentTerms || '30 days'}\n        </p>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>`;\n\nreturn {\n  json: {\n    ...inv,\n    emailHtml: html,\n    emailSubject: 'Invoice ' + inv.invoiceNumber + ' from AnyVision Media - R ' + inv.total.toFixed(2),\n  }\n};\n"
+      },
+      "id": "574da0e9-64aa-4b34-84b0-ebd568503848",
+      "name": "Build Invoice HTML",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3900,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customerEmail }}",
+        "subject": "=Invoice {{ $json.invoiceNumber }} from AnyVision Media",
+        "emailType": "html",
+        "message": "={{ $json.emailHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "9304b22a-015c-426f-854b-e3f5e4a38cbb",
+      "name": "Send Invoice Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        4140,
+        700
+      ],
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "a7b82cc0-1156-46f6-af86-9b629f85264a",
+              "leftValue": "={{ $json.preferredChannel }}",
+              "rightValue": "WhatsApp",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "6cf96135-2ba1-4985-b47a-95d234e146fa",
+              "leftValue": "={{ $json.preferredChannel }}",
+              "rightValue": "Both",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        }
+      },
+      "id": "9afe416c-29c2-484f-8131-cc23c808830b",
+      "name": "Check WhatsApp Pref",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        4380,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v18.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.customerPhone }}\",\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"invoice_notification\",\n    \"language\": {\"code\": \"en\"},\n    \"components\": [{\n      \"type\": \"body\",\n      \"parameters\": [\n        {\"type\": \"text\", \"text\": \"{{ $json.customerName }}\"},\n        {\"type\": \"text\", \"text\": \"{{ $json.invoiceNumber }}\"},\n        {\"type\": \"text\", \"text\": \"R {{ $json.total }}\"}\n      ]\n    }]\n  }\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b8dd40a3-2ad0-49a1-8c14-a8d8468b6aba",
+      "name": "Send Invoice WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4620,
+        600
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dCAz6MBXpOXvMJrq",
+          "name": "WhatsApp account AVM Multi Agent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\nconst dueDate = new Date(inv.dueDate || inv['Due Date']);\n\nif (isNaN(dueDate.getTime())) {\n  return { json: { ...inv, nextReminderDate: null } };\n}\n\n// T-3: 3 days before due\nconst tMinus3 = new Date(dueDate);\ntMinus3.setDate(tMinus3.getDate() - 3);\n\nconst today = new Date();\ntoday.setHours(0, 0, 0, 0);\n\n// Find the next reminder date that's in the future\nconst reminderDates = [\n  { days: -3, date: tMinus3 },\n  { days: 0, date: new Date(dueDate) },\n  { days: 3, date: new Date(dueDate.getTime() + 3 * 86400000) },\n  { days: 7, date: new Date(dueDate.getTime() + 7 * 86400000) },\n  { days: 14, date: new Date(dueDate.getTime() + 14 * 86400000) },\n];\n\nlet nextReminder = null;\nfor (const r of reminderDates) {\n  if (r.date >= today) {\n    nextReminder = r.date.toISOString().split('T')[0];\n    break;\n  }\n}\n\nreturn {\n  json: {\n    ...inv,\n    nextReminderDate: nextReminder,\n    reminderCount: 0,\n  }\n};\n"
+      },
+      "id": "4bf53af0-a266-45e9-814c-81684e802732",
+      "name": "Schedule Follow-up",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4860,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Invoice ID": "={{ $json['Invoice ID'] || $json.invoiceId }}",
+            "Next Reminder Date": "={{ $json.nextReminderDate }}",
+            "Reminder Count": "={{ $json.reminderCount }}"
+          },
+          "matchingColumns": [
+            "Invoice ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "0c8d1408-8916-40ad-b07b-834c0ba56280",
+      "name": "Update Reminder Schedule",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        5100,
+        700
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblV4LPBYotAWW1RO"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now.toISO() }}",
+            "Workflow Name": "WF-01 Sales Invoicing",
+            "Event Type": "INVOICE_CREATED",
+            "Record Type": "Invoice",
+            "Record ID": "={{ $json.invoiceNumber }}",
+            "Action Taken": "=Invoice {{ $json.invoiceNumber }} created for {{ $json.customerName || $json['Customer Name'] }} - R {{ $json.total }}",
+            "Actor": "system",
+            "Result": "Success",
+            "Error Details": "",
+            "Metadata JSON": "={{ JSON.stringify({ customer: $json.customerName || $json['Customer Name'], amount: $json.total, currency: 'ZAR' }) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "8396664c-7efb-4b0d-8266-1b569a5524cd",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        5340,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "e2bf16c1-9fb4-4572-a723-4dda5ecdc3be",
+      "name": "Back to Loop",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        5560,
+        500
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst config = $('System Config').first().json;\n\nlet totalInvoiced = 0;\nlet invoiceCount = 0;\nlet pendingApproval = 0;\nlet sentCount = 0;\nconst summaryLines = [];\n\nfor (const item of items) {\n  const inv = item.json;\n  if (inv && inv.invoiceNumber) {\n    invoiceCount++;\n    totalInvoiced += inv.total || 0;\n    if (inv.Status === 'Pending Approval') {\n      pendingApproval++;\n    } else {\n      sentCount++;\n    }\n    summaryLines.push(`${inv.invoiceNumber} - ${inv.customerName || 'Unknown'} - R ${(inv.total || 0).toFixed(2)} [${inv.Status || 'Processed'}]`);\n  }\n}\n\nconst summaryHtml = `<h2>Invoice Processing Summary</h2>\n<p><strong>Date:</strong> ${config.todayDate}</p>\n<p><strong>Total Invoices Processed:</strong> ${invoiceCount}</p>\n<p><strong>Sent:</strong> ${sentCount} | <strong>Pending Approval:</strong> ${pendingApproval}</p>\n<p><strong>Total Invoiced:</strong> R ${totalInvoiced.toFixed(2)}</p>\n<hr>\n<ul>${summaryLines.map(l => '<li>' + l + '</li>').join('')}</ul>`;\n\nreturn {\n  json: {\n    summaryHtml: summaryHtml,\n    invoiceCount: invoiceCount,\n    totalInvoiced: totalInvoiced,\n    sentCount: sentCount,\n    pendingApproval: pendingApproval,\n  }\n};\n"
+      },
+      "id": "b5ce858a-024c-4aa9-8b62-f624e50dbd2a",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5800,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {},
+      "id": "277bcee5-2aff-4b27-888d-0e29fbd2af9a",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        1100
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=ERROR: Accounting WF-01 Sales & Invoicing - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+        "emailType": "html",
+        "message": "=<h2 style='color:#FF6D5A;'>Workflow Error: Sales & Invoicing (WF-01)</h2><p><strong>Time:</strong> {{ $now.format('yyyy-MM-dd HH:mm:ss') }}</p><p><strong>Error:</strong> {{ $json.execution?.error?.message || 'Unknown error' }}</p><p><strong>Node:</strong> {{ $json.execution?.lastNodeExecuted || 'Unknown' }}</p><p><strong>Execution ID:</strong> {{ $json.execution?.id || 'N/A' }}</p><hr><p>Please check the n8n execution log for details.</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "522a2eee-2ce3-463a-90c0-ea6e9b287ad4",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        460,
+        1100
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Hourly Invoice Check": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoice Request Webhook": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Draft Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Draft Invoices": {
+      "main": [
+        [
+          {
+            "node": "Merge Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Sources": {
+      "main": [
+        [
+          {
+            "node": "Has Items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Items?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Invoices": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lookup Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Customer": {
+      "main": [
+        [
+          {
+            "node": "Customer Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Customer Exists?": {
+      "main": [
+        [
+          {
+            "node": "Merge Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Customer": {
+      "main": [
+        [
+          {
+            "node": "Merge Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Customer Data": {
+      "main": [
+        [
+          {
+            "node": "Lookup Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Products": {
+      "main": [
+        [
+          {
+            "node": "Calculate Tax",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Tax": {
+      "main": [
+        [
+          {
+            "node": "Generate Invoice Number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Invoice Number": {
+      "main": [
+        [
+          {
+            "node": "Check High Value",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check High Value": {
+      "main": [
+        [
+          {
+            "node": "Create Approval Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Invoice in Xero",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Approval Task": {
+      "main": [
+        [
+          {
+            "node": "Send Approval Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Approval Email": {
+      "main": [
+        [
+          {
+            "node": "Update Status Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status Pending": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Invoice in Xero": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice Record": {
+      "main": [
+        [
+          {
+            "node": "Build Invoice HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Invoice HTML": {
+      "main": [
+        [
+          {
+            "node": "Send Invoice Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Invoice Email": {
+      "main": [
+        [
+          {
+            "node": "Check WhatsApp Pref",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check WhatsApp Pref": {
+      "main": [
+        [
+          {
+            "node": "Send Invoice WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Schedule Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Invoice WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Schedule Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Update Reminder Schedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Reminder Schedule": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Back to Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Back to Loop": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

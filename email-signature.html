@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Email Signature - Ian | AnyVision Media</title>
+  <!-- INSTRUCTIONS:
+    1. Open this file in your browser (double-click it)
+    2. Click the "Copy Signature" button
+    3. Go to Gmail -> Settings (gear) -> See all settings -> General -> Signature
+    4. Paste into the signature box (Ctrl+V)
+    5. Save changes at the bottom of the page
+  -->
+  <style>
+    body { margin: 0; padding: 40px; background: #f4f4f4; font-family: 'Segoe UI', sans-serif; }
+    .page-wrapper { max-width: 600px; margin: 0 auto; }
+    .copy-btn {
+      display: inline-block; padding: 12px 28px; margin-bottom: 24px;
+      background: #6C63FF; color: #fff; border: none; border-radius: 8px;
+      font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s;
+    }
+    .copy-btn:hover { background: #5a52e0; }
+    .copy-btn.copied { background: #00D4AA; }
+    .preview-label { font-size: 12px; color: #9CA3AF; margin-bottom: 8px; }
+    .sig-container { background: #fff; padding: 24px; border-radius: 8px; display: inline-block; }
+  </style>
+</head>
+<body>
+
+<div class="page-wrapper">
+  <button class="copy-btn" id="copyBtn" onclick="copySignature()">Copy Signature</button>
+  <div class="preview-label">Preview:</div>
+  <div class="sig-container">
+
+    <!-- ===== SIGNATURE START ===== -->
+    <div id="signature">
+    <table cellpadding="0" cellspacing="0" border="0" style="font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;">
+      <tr>
+        <td style="vertical-align:top;padding-right:18px;">
+          <a href="https://www.anyvisionmedia.com" target="_blank" style="text-decoration:none;">
+            <img src="https://www.anyvisionmedia.com/logo-icon.png" alt="AnyVision Media" width="70" style="display:block;border:0;width:70px;height:70px;" />
+          </a>
+        </td>
+        <td style="vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;">
+          <table cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;">
+                Ian
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;">
+                Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style="color:#6C63FF;font-weight:600;">AnyVision Media</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom:10px;">
+                <table cellpadding="0" cellspacing="0" border="0" width="200">
+                  <tr>
+                    <td width="100" style="height:2px;background-color:#6C63FF;font-size:0;line-height:0;">&nbsp;</td>
+                    <td width="100" style="height:2px;background-color:#00D4AA;font-size:0;line-height:0;">&nbsp;</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;color:#333333;padding-bottom:3px;">
+                <a href="mailto:ian@anyvisionmedia.com" style="color:#6C63FF;text-decoration:none;font-weight:500;">ian@anyvisionmedia.com</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:12px;color:#333333;padding-bottom:3px;">
+                <a href="https://www.anyvisionmedia.com" target="_blank" style="color:#6C63FF;text-decoration:none;font-weight:500;">www.anyvisionmedia.com</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:11px;color:#9CA3AF;padding-top:2px;">
+                Johannesburg, South Africa
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    </div>
+    <!-- ===== SIGNATURE END ===== -->
+
+  </div>
+</div>
+
+<script>
+function copySignature() {
+  var sig = document.getElementById('signature');
+  var btn = document.getElementById('copyBtn');
+
+  // Try modern Clipboard API with HTML MIME type
+  if (navigator.clipboard && window.ClipboardItem) {
+    var blob = new Blob([sig.innerHTML], { type: 'text/html' });
+    navigator.clipboard.write([new ClipboardItem({ 'text/html': blob })]).then(function() {
+      showCopied(btn);
+    }).catch(function() {
+      fallbackCopy(sig, btn);
+    });
+  } else {
+    fallbackCopy(sig, btn);
+  }
+}
+
+function fallbackCopy(sig, btn) {
+  var range = document.createRange();
+  range.selectNodeContents(sig);
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  document.execCommand('copy');
+  sel.removeAllRanges();
+  showCopied(btn);
+}
+
+function showCopied(btn) {
+  btn.textContent = 'Copied!';
+  btn.classList.add('copied');
+  setTimeout(function() {
+    btn.textContent = 'Copy Signature';
+    btn.classList.remove('copied');
+  }, 2000);
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1014 @@
+{
+  "name": "Accounting Dept - Payments & Reconciliation (WF-03)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "accounting/stripe-webhook",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "b215031c-f6e6-4130-9afa-83f6e6821b0b",
+      "name": "Stripe Payment Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        300
+      ],
+      "typeVersion": 2,
+      "webhookId": "0ec57485-b031-41aa-a79e-22b9012b0477"
+    },
+    {
+      "parameters": {
+        "path": "accounting/payfast-itn",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "fbf8adf4-4fb8-4a87-8627-853df0480b10",
+      "name": "PayFast ITN Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        500
+      ],
+      "typeVersion": 2,
+      "webhookId": "95b8d382-563d-4cc5-92c6-f4d11438ea65"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "7b7becc1-6890-4d1d-bf44-9c9b96e13011",
+      "name": "Daily Bank Import",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        700
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "97f3679f-9ff3-4807-aebd-47e42812b742",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        900
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b32d9e3f-8a30-48d6-9b8e-c12f4b3577ac",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "c87d863a-e69e-4352-b940-2114c6c16e7d",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            },
+            {
+              "id": "3e090744-e343-457a-a101-4e56fcd6e97c",
+              "name": "defaultCurrency",
+              "value": "ZAR",
+              "type": "string"
+            },
+            {
+              "id": "21d3b0f7-3e17-4a3d-80c6-3a5baf5cdf3b",
+              "name": "vatRate",
+              "value": "0.15",
+              "type": "string"
+            },
+            {
+              "id": "3997be10-e639-491e-a5f5-ce2d693ca458",
+              "name": "xeroTenantId",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c4f4f4d9-12dc-47d2-a487-45bb6a865140",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        500,
+        700
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\n\n// PayFast ITN signature validation\n// 1. Get all posted params except signature\nconst params = {};\nconst skipFields = ['signature'];\nfor (const [key, value] of Object.entries(body)) {\n  if (!skipFields.includes(key) && value !== '') {\n    params[key] = value;\n  }\n}\n\n// 2. Sort alphabetically and URL-encode\nconst sortedKeys = Object.keys(params).sort();\nconst paramString = sortedKeys.map(key => \n  `${key}=${encodeURIComponent(params[key]).replace(/%20/g, '+')}`\n).join('&');\n\n// 3. Add passphrase if set (from env or System Config)\nconst passphrase = $env.PAYFAST_PASSPHRASE || ''; // Set via PayFast merchant config\nconst stringToHash = passphrase ? `${paramString}&passphrase=${encodeURIComponent(passphrase)}` : paramString;\n\n// 4. MD5 hash\nconst crypto = require('crypto');\nconst calculatedSignature = crypto.createHash('md5').update(stringToHash).digest('hex');\n\nconst isValid = calculatedSignature === body.signature;\n\nreturn {\n  json: {\n    ...body,\n    isValid: isValid,\n    calculatedSignature: calculatedSignature,\n    receivedSignature: body.signature || '',\n    paymentStatus: body.payment_status,\n    amount: parseFloat(body.amount_gross || body.amount_net || '0'),\n    reference: body.m_payment_id || body.pf_payment_id || '',\n  }\n};"
+      },
+      "id": "62c99af8-ceb4-4bff-8900-58537404cb25",
+      "name": "Validate PayFast Signature",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        500,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "74c8333f-d422-4881-9ba5-5887c94e1d1a",
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "63d08357-e16f-4652-8671-e9ab8907d4c6",
+      "name": "PayFast Signature Valid?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        750,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblV4LPBYotAWW1RO",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Event Type": "PAYFAST_INVALID_SIGNATURE",
+            "Details": "={{ 'Invalid PayFast ITN signature. Received: ' + $json.receivedSignature + ', Calculated: ' + $json.calculatedSignature }}",
+            "Timestamp": "={{ $now.toISO() }}",
+            "Source": "PayFast ITN",
+            "Status": "Warning"
+          }
+        },
+        "options": {}
+      },
+      "id": "49922b9e-51a3-49f3-92fd-85562131a957",
+      "name": "Log Invalid PayFast",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1000,
+        620
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\n\n// Check if this came from System Config (schedule/manual trigger) with no actual payment data\n// System Config sets todayDate, companyName, etc. but no payment fields\nif (!body.body && !body.amount && !body.payment_intent && !body.m_payment_id\n    && !body.pf_payment_id && !body.amount_gross && !body.type\n    && (body.todayDate || body.companyName)) {\n  // No payment data available - this was a scheduled/manual trigger without webhook data\n  // TODO: In production, this path should call the Xero Bank Transactions API\n  // to fetch recent bank transactions before normalizing\n  return [{json: {_noPayment: true, reason: 'No payment data - bank import not yet configured'}}];\n}\n\nlet normalized;\n\n// Detect source\nif (body.type === 'payment_intent.succeeded' || body.object === 'event') {\n  // Stripe webhook\n  const pi = body.data ? body.data.object : body;\n  normalized = {\n    amount: (pi.amount || 0) / 100, // Stripe uses cents\n    currency: (pi.currency || 'zar').toUpperCase(),\n    reference: pi.metadata ? (pi.metadata.invoice_number || pi.id) : pi.id,\n    method: 'Stripe',\n    gatewayTransactionId: pi.id,\n    payerEmail: pi.receipt_email || (pi.charges ? pi.charges.data[0].billing_details.email : ''),\n    payerName: pi.metadata ? pi.metadata.customer_name : '',\n    dateReceived: new Date().toISOString().split('T')[0],\n  };\n} else if (body.pf_payment_id || body.payment_status) {\n  // PayFast ITN\n  normalized = {\n    amount: parseFloat(body.amount_gross || '0'),\n    currency: 'ZAR',\n    reference: body.m_payment_id || body.custom_str1 || '',\n    method: 'PayFast',\n    gatewayTransactionId: body.pf_payment_id,\n    payerEmail: body.email_address || '',\n    payerName: `${body.name_first || ''} ${body.name_last || ''}`.trim(),\n    dateReceived: new Date().toISOString().split('T')[0],\n  };\n} else {\n  // Manual/bank import\n  normalized = {\n    amount: parseFloat(body.amount || '0'),\n    currency: body.currency || 'ZAR',\n    reference: body.reference || body.description || '',\n    method: body.method || 'EFT',\n    gatewayTransactionId: body.transaction_id || '',\n    payerEmail: body.payer_email || '',\n    payerName: body.payer_name || '',\n    dateReceived: body.date || new Date().toISOString().split('T')[0],\n  };\n}\n\nnormalized.paymentId = `PAY-${Date.now()}`;\n\nreturn { json: normalized };"
+      },
+      "id": "64087f8b-300f-4bfd-aa71-d7e850c26c2a",
+      "name": "Normalize Payment Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1000,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblAjS2Ws2NjOtTRX",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Payment ID": "={{ $json.paymentId }}",
+            "Amount": "={{ $json.amount }}",
+            "Currency": "={{ $json.currency }}",
+            "Reference": "={{ $json.reference }}",
+            "Method": "={{ $json.method }}",
+            "Gateway Transaction ID": "={{ $json.gatewayTransactionId }}",
+            "Payer Email": "={{ $json.payerEmail }}",
+            "Payer Name": "={{ $json.payerName }}",
+            "Date Received": "={{ $json.dateReceived }}",
+            "Reconciliation Status": "Unmatched"
+          }
+        },
+        "options": {}
+      },
+      "id": "c465900d-d6b8-41dd-944e-033a0dbf200c",
+      "name": "Create Payment Record",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1250,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl0vZnALIvH72r2t",
+          "mode": "list"
+        },
+        "filterByFormula": "OR({Status}='Sent', {Status}='Partial', {Status}='Overdue')",
+        "options": {
+          "fields": [
+            "Invoice ID",
+            "Invoice Number",
+            "Customer ID",
+            "Customer Name",
+            "Total",
+            "Amount Paid",
+            "Balance Due",
+            "Status",
+            "Due Date"
+          ]
+        }
+      },
+      "id": "3beddcc3-2a85-4a98-8e13-b142584b8e5b",
+      "name": "Search Open Invoices",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1500,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const payment = $('Create Payment Record').first().json;\nconst invoices = $input.all().map(i => i.json ? i : {json: i});\nconst reference = (payment.reference || '').toUpperCase();\nconst amount = payment.amount;\n\nlet matchedInvoice = null;\nlet matchType = 'none';\n\n// 1. Try exact invoice number match in reference\nfor (const inv of invoices) {\n  const invNum = (inv.json['Invoice Number'] || '').toUpperCase();\n  if (invNum && reference.includes(invNum)) {\n    const invTotal = parseFloat(inv.json['Balance Due'] || inv.json['Total'] || 0);\n    if (Math.abs(amount - invTotal) < 0.50) {\n      matchedInvoice = inv.json;\n      matchType = 'exact';\n      break;\n    } else {\n      matchedInvoice = inv.json;\n      matchType = 'reference_match_amount_differs';\n      break;\n    }\n  }\n}\n\n// 2. If no reference match, try exact amount match (only if unique)\nif (!matchedInvoice) {\n  const amountMatches = invoices.filter(inv => {\n    const invTotal = parseFloat(inv.json['Balance Due'] || inv.json['Total'] || 0);\n    return Math.abs(amount - invTotal) < 0.50;\n  });\n  if (amountMatches.length === 1) {\n    matchedInvoice = amountMatches[0].json;\n    matchType = 'amount_match';\n  }\n}\n\nreturn {\n  json: {\n    ...payment,\n    matchFound: !!matchedInvoice,\n    matchType: matchType,\n    matchedInvoiceId: matchedInvoice ? matchedInvoice['Invoice ID'] : null,\n    matchedInvoiceNumber: matchedInvoice ? matchedInvoice['Invoice Number'] : null,\n    matchedCustomerId: matchedInvoice ? matchedInvoice['Customer ID'] : null,\n    matchedCustomerName: matchedInvoice ? matchedInvoice['Customer Name'] : null,\n    matchedInvoiceTotal: matchedInvoice ? parseFloat(matchedInvoice['Total'] || 0) : 0,\n    matchedBalanceDue: matchedInvoice ? parseFloat(matchedInvoice['Balance Due'] || matchedInvoice['Total'] || 0) : 0,\n    openInvoiceCount: invoices.length,\n    openInvoiceSummary: invoices.slice(0, 10).map(i => ({\n      id: i.json['Invoice ID'],\n      number: i.json['Invoice Number'],\n      customer: i.json['Customer Name'],\n      total: i.json['Total'],\n      balance: i.json['Balance Due'],\n    })),\n  }\n};"
+      },
+      "id": "f05536c0-9c2d-4afc-8bdc-68bc7d730ac9",
+      "name": "Exact Match Attempt",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1750,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "29aff2b8-fd4b-4282-84e9-36a10ed44cac",
+              "leftValue": "={{ $json.matchFound }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "41a9ae51-5f39-46dd-9c91-44c6d41391a4",
+      "name": "Match Found?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2000,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 500,\n  \"temperature\": 0,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a payment reconciliation assistant. Match a payment to the most likely invoice. Return JSON only: {matched_invoice_id, matched_invoice_number, confidence: 0-1, reasoning: string}. If no match, set confidence to 0.\"},\n    {\"role\": \"user\", \"content\": \"Payment: R{{ $json.amount }} from {{ $json.payerName || $json.payerEmail }}, reference: {{ $json.reference }}, method: {{ $json.method }}.\\n\\nOpen invoices:\\n{{ JSON.stringify($json.openInvoiceSummary) }}\"}\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "98929999-7dd8-4e5a-aea8-08634bda542a",
+      "name": "Fuzzy Match via AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2250,
+        550
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst payment = $('Exact Match Attempt').first().json;\n\nlet match;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  match = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch(e) {\n  match = { matched_invoice_id: null, confidence: 0, reasoning: 'Failed to parse AI response' };\n}\n\n// Look up matched invoice details for balance/total fields\nconst matchedInvoiceId = match.matched_invoice_id || null;\nconst matchedInvoiceNumber = match.matched_invoice_number || null;\nlet matchedBalanceDue = 0;\nlet matchedInvoiceTotal = 0;\nlet matchedCustomerId = null;\nlet matchedCustomerName = null;\n\nif (matchedInvoiceId || matchedInvoiceNumber) {\n  const invoices = $('Search Open Invoices').all();\n  const matchedInvoice = invoices.find(i =>\n    i.json['Invoice ID'] === matchedInvoiceId || i.json['Invoice Number'] === matchedInvoiceNumber\n  );\n  if (matchedInvoice) {\n    matchedBalanceDue = parseFloat(matchedInvoice.json['Balance Due'] || matchedInvoice.json['Total'] || 0);\n    matchedInvoiceTotal = parseFloat(matchedInvoice.json['Total'] || 0);\n    matchedCustomerId = matchedInvoice.json['Customer ID'] || null;\n    matchedCustomerName = matchedInvoice.json['Customer Name'] || null;\n  }\n}\n\nreturn {\n  json: {\n    ...payment,\n    matchFound: match.confidence > 0.5,\n    matchType: 'ai_fuzzy',\n    matchConfidence: match.confidence,\n    matchReasoning: match.reasoning || '',\n    matchedInvoiceId: matchedInvoiceId,\n    matchedInvoiceNumber: matchedInvoiceNumber,\n    matchedBalanceDue: matchedBalanceDue,\n    matchedInvoiceTotal: matchedInvoiceTotal,\n    matchedCustomerId: matchedCustomerId,\n    matchedCustomerName: matchedCustomerName,\n  }\n};"
+      },
+      "id": "fa2369b3-f7b4-4813-966a-81aa730c9cd0",
+      "name": "Parse AI Match",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2500,
+        550
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "9672d984-6fdb-4054-b6a7-3599a401ce90",
+              "leftValue": "={{ $json.matchConfidence }}",
+              "rightValue": 0.8,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "47fb0b7f-a52f-4ccc-92e8-8ca95b7a7134",
+      "name": "Auto-Match OK?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2750,
+        550
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblGtffCPlRoHAtTk",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task Type": "Manual Reconciliation",
+            "Status": "Open",
+            "Priority": "High",
+            "Title": "={{ 'Reconcile payment ' + $json.paymentId + ' - R' + $json.amount }}",
+            "Description": "={{ 'Payment of R' + $json.amount + ' from ' + ($json.payerName || $json.payerEmail || 'Unknown') + ' via ' + $json.method + '. Reference: ' + ($json.reference || 'None') + '. AI confidence: ' + ($json.matchConfidence || 0) + '. Reasoning: ' + ($json.matchReasoning || 'N/A') }}",
+            "Payment ID": "={{ $json.paymentId }}",
+            "Created Date": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "d10524ce-2223-4208-92c0-d046d676f189",
+      "name": "Create Manual Review Task",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3000,
+        700
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst paymentAmount = data.amount;\nconst balanceDue = data.matchedBalanceDue;\n\nlet status, newBalance, newAmountPaid, invoiceStatus;\n\nif (Math.abs(paymentAmount - balanceDue) < 0.50) {\n  status = 'exact';\n  newBalance = 0;\n  newAmountPaid = data.matchedInvoiceTotal;\n  invoiceStatus = 'Paid';\n} else if (paymentAmount < balanceDue) {\n  status = 'partial';\n  newBalance = Math.round((balanceDue - paymentAmount) * 100) / 100;\n  newAmountPaid = Math.round((data.matchedInvoiceTotal - newBalance) * 100) / 100;\n  invoiceStatus = 'Partial';\n} else {\n  status = 'overpayment';\n  newBalance = 0;\n  newAmountPaid = data.matchedInvoiceTotal;\n  invoiceStatus = 'Paid';\n}\n\nreturn {\n  json: {\n    ...data,\n    paymentType: status,\n    newBalanceDue: newBalance,\n    newAmountPaid: newAmountPaid,\n    overpaymentAmount: status === 'overpayment' ? Math.round((paymentAmount - balanceDue) * 100) / 100 : 0,\n    invoiceStatus: invoiceStatus,\n  }\n};"
+      },
+      "id": "ee361f7b-9661-4a4a-b104-2501dd1558d3",
+      "name": "Handle Partial/Over",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2250,
+        250
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.xero.com/api.xro/2.0/Payments",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "xero-tenant-id",
+              "value": "={{ $('System Config').first().json.xeroTenantId || '' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"Invoice\": {\n    \"InvoiceNumber\": \"{{ $json.matchedInvoiceNumber }}\"\n  },\n  \"Account\": {\n    \"Code\": \"090\"\n  },\n  \"Date\": \"{{ $json.dateReceived }}\",\n  \"Amount\": {{ $json.amount }},\n  \"Reference\": \"{{ $json.paymentId }} - {{ $json.method }}\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "1d36503a-bdc8-4071-ae3a-cb502dd6e638",
+      "name": "Post Payment to Xero",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2500,
+        250
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "tyznIxiWvzReo2gy",
+          "name": "Xero OAuth2 AVM"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl0vZnALIvH72r2t",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Invoice ID": "={{ $json.matchedInvoiceId }}",
+            "Status": "={{ $json.invoiceStatus }}",
+            "Amount Paid": "={{ $json.newAmountPaid }}",
+            "Balance Due": "={{ $json.newBalanceDue }}",
+            "Last Payment Date": "={{ $json.dateReceived }}",
+            "Last Payment Method": "={{ $json.method }}"
+          },
+          "matchingColumns": [
+            "Invoice ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "ccb8e22a-2085-432e-95cd-bd8cdf5bf684",
+      "name": "Update Invoice Status",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2750,
+        250
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblAjS2Ws2NjOtTRX",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Payment ID": "={{ $json.paymentId }}",
+            "Reconciliation Status": "Matched",
+            "Matched Invoice": "={{ $json.matchedInvoiceNumber }}",
+            "Match Type": "={{ $json.matchType }}",
+            "Payment Type": "={{ $json.paymentType }}",
+            "Xero Payment ID": "={{ $json.xeroPaymentId || '' }}",
+            "Reconciled Date": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "Payment ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "edd340c4-9dfb-4a86-aa4d-cf09969ab4a1",
+      "name": "Update Payment Status",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3000,
+        250
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Handle Partial/Over').first().json;\n\nconst html = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif;background-color:#f4f4f4;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;margin:0 auto;background-color:#ffffff;\">\n    <tr>\n      <td style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">\n        <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">PAYMENT RECEIPT</h1>\n        <p style=\"margin:5px 0 0;color:#666;\">AnyVision Media</p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:30px 40px;\">\n        <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">\n          Hi ${data.matchedCustomerName || 'Customer'},\n        </p>\n        <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">\n          Thank you for your payment. This confirms we have received:\n        </p>\n        <table width=\"100%\" style=\"margin:20px 0;border-collapse:collapse;\">\n          <tr><td style=\"padding:8px;color:#666;\">Amount Received:</td><td style=\"padding:8px;text-align:right;\"><strong>R ${data.amount.toFixed(2)}</strong></td></tr>\n          <tr><td style=\"padding:8px;color:#666;\">Payment Method:</td><td style=\"padding:8px;text-align:right;\">${data.method}</td></tr>\n          <tr><td style=\"padding:8px;color:#666;\">Date:</td><td style=\"padding:8px;text-align:right;\">${data.dateReceived}</td></tr>\n          <tr><td style=\"padding:8px;color:#666;\">Invoice:</td><td style=\"padding:8px;text-align:right;\">${data.matchedInvoiceNumber || 'N/A'}</td></tr>\n          <tr style=\"border-top:1px solid #eee;\"><td style=\"padding:8px;color:#666;\">Remaining Balance:</td><td style=\"padding:8px;text-align:right;\"><strong>R ${(data.newBalanceDue || 0).toFixed(2)}</strong></td></tr>\n        </table>\n        ${data.paymentType === 'partial' ? '<p style=\"color:#FF6D5A;font-size:14px;\">Note: This is a partial payment. The remaining balance is shown above.</p>' : ''}\n        ${data.paymentType === 'overpayment' ? '<p style=\"color:#FF6D5A;font-size:14px;\">Note: An overpayment of R ' + data.overpaymentAmount.toFixed(2) + ' was detected. This will be applied as a credit.</p>' : ''}\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;\">\n        <p style=\"margin:0;font-size:11px;color:#999;\">AnyVision Media | Johannesburg, South Africa | accounts@anyvisionmedia.com</p>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>`;\n\nreturn {\n  json: {\n    ...data,\n    receiptHtml: html,\n    receiptSubject: 'Payment Receipt - ' + (data.matchedInvoiceNumber || 'AnyVision Media'),\n    customerEmail: data.payerEmail || '',\n  }\n};"
+      },
+      "id": "886c9f9f-3327-47c2-8bff-4b823e9a2a6b",
+      "name": "Build Receipt HTML",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3250,
+        250
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.customerEmail }}",
+        "subject": "={{ $json.receiptSubject }}",
+        "emailType": "html",
+        "message": "={{ $json.receiptHtml }}",
+        "options": {
+          "senderName": "AnyVision Media Accounts",
+          "replyTo": "accounts@anyvisionmedia.com"
+        }
+      },
+      "id": "1bcecbd6-7ebc-4283-95e6-d7b528639402",
+      "name": "Send Receipt Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        3500,
+        250
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblV4LPBYotAWW1RO",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Event Type": "PAYMENT_RECONCILED",
+            "Payment ID": "={{ $json.paymentId }}",
+            "Invoice Number": "={{ $json.matchedInvoiceNumber || '' }}",
+            "Amount": "={{ $json.amount }}",
+            "Method": "={{ $json.method }}",
+            "Match Type": "={{ $json.matchType }}",
+            "Payment Type": "={{ $json.paymentType }}",
+            "Customer": "={{ $json.matchedCustomerName || $json.payerName || '' }}",
+            "Details": "={{ 'Payment R' + $json.amount + ' via ' + $json.method + ' matched to ' + ($json.matchedInvoiceNumber || 'N/A') + ' (' + $json.matchType + '). Status: ' + $json.invoiceStatus }}",
+            "Timestamp": "={{ $now.toISO() }}",
+            "Source": "WF-03 Auto Reconciliation",
+            "Status": "Success"
+          }
+        },
+        "options": {}
+      },
+      "id": "73e9d2af-78af-4473-b4d8-d1bc5ce0c441",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3750,
+        250
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "7afe1d8f-d868-4c73-92b5-fefd58b6edec",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        1100
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "accounts@anyvisionmedia.com",
+        "subject": "=WF-03 Error: Payments & Reconciliation - {{ $json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<h2>WF-03 Payments & Reconciliation Error</h2><p><strong>Workflow:</strong> {{ $json.workflow.name }}</p><p><strong>Node:</strong> {{ $json.execution.error.node.name }}</p><p><strong>Error:</strong> {{ $json.execution.error.message }}</p><p><strong>Time:</strong> {{ $now.toISO() }}</p><p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {
+          "senderName": "AVM Workflow Monitor"
+        }
+      },
+      "id": "e6bc7e76-7787-4202-b027-a73bc1941974",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        500,
+        1100
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Stripe Payment Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payment Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PayFast ITN Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate PayFast Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate PayFast Signature": {
+      "main": [
+        [
+          {
+            "node": "PayFast Signature Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PayFast Signature Valid?": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payment Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Invalid PayFast",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Bank Import": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payment Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payment Data": {
+      "main": [
+        [
+          {
+            "node": "Create Payment Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Payment Record": {
+      "main": [
+        [
+          {
+            "node": "Search Open Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Open Invoices": {
+      "main": [
+        [
+          {
+            "node": "Exact Match Attempt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exact Match Attempt": {
+      "main": [
+        [
+          {
+            "node": "Match Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Found?": {
+      "main": [
+        [
+          {
+            "node": "Handle Partial/Over",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fuzzy Match via AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fuzzy Match via AI": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Match": {
+      "main": [
+        [
+          {
+            "node": "Auto-Match OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-Match OK?": {
+      "main": [
+        [
+          {
+            "node": "Handle Partial/Over",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Manual Review Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Partial/Over": {
+      "main": [
+        [
+          {
+            "node": "Post Payment to Xero",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Payment to Xero": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice Status": {
+      "main": [
+        [
+          {
+            "node": "Update Payment Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Payment Status": {
+      "main": [
+        [
+          {
+            "node": "Build Receipt HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Receipt HTML": {
+      "main": [
+        [
+          {
+            "node": "Send Receipt Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Receipt Email": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

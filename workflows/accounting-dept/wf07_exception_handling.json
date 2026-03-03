@@ -1,0 +1,1087 @@
+{
+  "name": "Accounting Dept - Exception Handler (WF-07)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 8-17 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "982d0477-a1f3-4bec-abc5-875ae10d6bc1",
+      "name": "Task Poll Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "49ed9f51-7c7b-4389-8a13-e0d6daa842d0",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "accounting/approve",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "1c608804-5190-4a40-92c4-9da0e4dd8f18",
+      "name": "Approval Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        1200
+      ],
+      "typeVersion": 2,
+      "webhookId": "92801163-5939-40df-af16-a703c9896a22"
+    },
+    {
+      "parameters": {},
+      "id": "73293f73-30bc-4444-9687-f4ca2b42d6eb",
+      "name": "Manual Approval Test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        1400
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simulates a webhook GET request with query params\n// Change token to match an actual Task's Approval Token in Airtable\nreturn {\n  json: {\n    query: {\n      token: 'test-token-' + Date.now(),\n      action: 'approve'\n    }\n  }\n};\n"
+      },
+      "id": "f2ff88f0-2eb3-45db-a0b2-17e2cba1c0cc",
+      "name": "Sample Approval Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        1400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4d3cff47-5cd4-4c6d-bf68-46394b99c7ed",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "9ffa264c-145b-4c41-b7e5-12a789af90b8",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            },
+            {
+              "id": "640b6107-9157-463e-816c-4fdd6a122456",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "83a54ee0-3c5c-463e-8761-f3e0e39974ce",
+              "name": "defaultCurrency",
+              "value": "ZAR",
+              "type": "string"
+            },
+            {
+              "id": "b938ea18-c244-4c76-baf2-d5039053949b",
+              "name": "escalationEmail",
+              "value": "ian@anyvisionmedia.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "97681853-ead9-4ffe-9928-fa300588eab7",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        460,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblGtffCPlRoHAtTk"
+        },
+        "filterByFormula": "OR({Status} = 'Open', {Status} = 'In Progress', {Status} = 'Escalated')"
+      },
+      "id": "dd42db44-222e-4cc1-bb70-4fa50b823fed",
+      "name": "Read Open Tasks",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        700,
+        500
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "94d31f9e-7964-4d9f-b932-38f6970aa34f",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "a07ad916-a07b-4f6b-b006-cf47590f0a3f",
+      "name": "Has Tasks?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        940,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "d3885af3-ec01-4b39-90ae-56d98204abcd",
+      "name": "Loop Over Tasks",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1200,
+        400
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const task = $input.first().json;\nconst now = new Date();\nconst dueAt = task['Due At'] || task['Due Date'] || '';\n\nlet isOverdue = false;\nlet daysPastDue = 0;\n\nif (dueAt) {\n  const dueDate = new Date(dueAt);\n  if (!isNaN(dueDate.getTime())) {\n    isOverdue = now > dueDate;\n    daysPastDue = isOverdue ? Math.floor((now - dueDate) / 86400000) : 0;\n  }\n}\n\n// Only escalate if not already escalated\nconst shouldEscalate = isOverdue && task['Status'] !== 'Escalated';\n\nreturn {\n  json: {\n    ...task,\n    isOverdue: isOverdue,\n    shouldEscalate: shouldEscalate,\n    daysPastDue: daysPastDue,\n    taskId: task['Task ID'] || '',\n    airtableRecordId: task['id'] || '',\n  }\n};\n"
+      },
+      "id": "390ea543-0ef6-4185-b672-289a7fd7a473",
+      "name": "Check Overdue",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1460,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1a3aa5d8-c1cb-4098-ba9a-586f569ed8b9",
+              "leftValue": "={{ $json.shouldEscalate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "9769c131-d596-4b3c-a916-1c8528cb9c78",
+      "name": "Is Overdue?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1700,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblGtffCPlRoHAtTk"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ $json['Task ID'] }}",
+            "Status": "Escalated",
+            "Priority": "Urgent",
+            "Resolution Notes": "=Auto-escalated: {{ $json.daysPastDue }} days past due at {{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          },
+          "matchingColumns": [
+            "Task ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "08194a75-490a-4e35-8540-41027e903e69",
+      "name": "Escalate Task",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1960,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=ESCALATION: Overdue Task - {{ $json['Task Type'] || $json['Description'] || 'Unknown' }}",
+        "emailType": "html",
+        "message": "=<h2 style='color:#ef4444;'>Task Escalation Notice</h2><p>The following task has been automatically escalated due to being overdue.</p><table style='border-collapse:collapse;width:100%;max-width:500px;'><tr><td style='padding:8px;border:1px solid #ddd;background:#f8f8f8;'><strong>Task Type</strong></td><td style='padding:8px;border:1px solid #ddd;'>{{ $json['Task Type'] || 'N/A' }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;background:#f8f8f8;'><strong>Description</strong></td><td style='padding:8px;border:1px solid #ddd;'>{{ $json['Description'] || 'N/A' }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;background:#f8f8f8;'><strong>Priority</strong></td><td style='padding:8px;border:1px solid #ddd;color:#ef4444;font-weight:bold;'>Urgent (Escalated)</td></tr><tr><td style='padding:8px;border:1px solid #ddd;background:#f8f8f8;'><strong>Due Date</strong></td><td style='padding:8px;border:1px solid #ddd;'>{{ $json['Due At'] || $json['Due Date'] || 'N/A' }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;background:#f8f8f8;'><strong>Days Overdue</strong></td><td style='padding:8px;border:1px solid #ddd;color:#ef4444;'>{{ $json.daysPastDue }} days</td></tr><tr><td style='padding:8px;border:1px solid #ddd;background:#f8f8f8;'><strong>Related Record</strong></td><td style='padding:8px;border:1px solid #ddd;'>{{ $json['Related Invoice'] || $json['Related Bill'] || 'N/A' }}</td></tr><tr><td style='padding:8px;border:1px solid #ddd;background:#f8f8f8;'><strong>Assigned To</strong></td><td style='padding:8px;border:1px solid #ddd;'>{{ $json['Assigned To'] || 'Unassigned' }}</td></tr></table><br><p>Please review and take action on this task immediately.</p><p style='font-size:11px;color:#999;'>AnyVision Media Accounting System</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "398cedfa-0143-4574-9319-3cc3a85f2fd0",
+      "name": "Send Escalation Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2220,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const query = $input.first().json.query || $input.first().json;\nconst token = query.token || '';\nconst action = query.action || '';\n\nif (!token || !action) {\n  return { json: { isValid: false, error: 'Missing token or action parameter' } };\n}\n\nif (!['approve', 'reject'].includes(action)) {\n  return { json: { isValid: false, error: 'Invalid action. Must be approve or reject.' } };\n}\n\nreturn { json: { isValid: true, token, action } };\n"
+      },
+      "id": "b374b0eb-37cb-4b32-ab22-44fce78f556e",
+      "name": "Process Webhook Approval",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        1200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "4acec097-3799-4977-be2f-6170cd483509",
+              "leftValue": "={{ $json.isValid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "1f6c5a2a-034a-44d6-8dc3-dbb25a4d94ce",
+      "name": "Token Valid?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        700,
+        1200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({  html: '<!DOCTYPE html><html><head><meta charset=utf-8><style>body{font-family:Segoe UI,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f4f4f4;}.card{background:#fff;padding:40px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);text-align:center;max-width:400px;}h1{color:#ef4444;margin:0 0 8px;}p{color:#666;margin:0;}</style></head><body><div class=card><h1>Invalid Request</h1><p>' + ($json.error || 'The approval token is missing or invalid.') + '</p><p style=margin-top:16px;font-size:12px;color:#999;>AnyVision Media Accounting</p></div></body></html>'}) }}",
+        "options": {}
+      },
+      "id": "80376550-77bb-4539-8383-c6c431c64399",
+      "name": "Respond Invalid Token",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        960,
+        1600
+      ],
+      "typeVersion": 1.1,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblGtffCPlRoHAtTk"
+        },
+        "filterByFormula": "={Approval Token} = '{{ $json.token }}'"
+      },
+      "id": "d621147d-3d5b-4a69-a41a-b8dfa25e2f9e",
+      "name": "Lookup Task by Token",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        960,
+        1100
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const task = $input.first().json;\nconst action = $('Process Webhook Approval').first().json.action;\nconst token = $('Process Webhook Approval').first().json.token;\n\nif (!task || !task['Type']) {\n  return {\n    json: {\n      error: 'Task not found for the provided token',\n      token: token,\n      action: action,\n      routeKey: 'not_found',\n    }\n  };\n}\n\nconst taskType = task['Type'] || '';\nlet routeKey = 'reject';\n\nif (action === 'approve') {\n  if (taskType.toLowerCase().includes('invoice')) {\n    routeKey = 'approve_invoice';\n  } else if (taskType.toLowerCase().includes('bill')) {\n    routeKey = 'approve_bill';\n  } else {\n    routeKey = 'approve_invoice'; // default approval\n  }\n} else {\n  routeKey = 'reject';\n}\n\n// Determine related record ID and table\nlet relatedRecordId = '';\nlet relatedTable = 'Invoices';\nif (routeKey === 'approve_bill') {\n  relatedRecordId = task['Related Record ID'] || '';\n  relatedTable = 'Supplier Bills';\n} else {\n  relatedRecordId = task['Related Record ID'] || '';\n  relatedTable = 'Invoices';\n}\n\nreturn {\n  json: {\n    ...task,\n    action: action,\n    token: token,\n    routeKey: routeKey,\n    taskId: task['Task ID'] || '',\n    airtableRecordId: task['id'] || '',\n    relatedInvoice: task['Related Invoice'] || '',\n    relatedBill: task['Related Bill'] || '',\n    relatedRecordId: relatedRecordId,\n    relatedTable: relatedTable,\n    taskDescription: task['Description'] || '',\n  }\n};\n"
+      },
+      "id": "5ac9fc10-c7a8-4438-b3ef-c636d77f89ca",
+      "name": "Load Related Record",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1220,
+        1100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "approve_invoice",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeKey }}",
+                    "rightValue": "approve_invoice",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "approve_bill",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeKey }}",
+                    "rightValue": "approve_bill",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "reject",
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routeKey }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "cc30ca7d-64f6-4332-ba6a-94c31ae121c6",
+      "name": "Apply Decision Router",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1480,
+        1100
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst action = data.action;\nconst isApprove = action === 'approve';\n\n// Determine new status for the related record\nlet newStatus = 'Rejected';\nif (isApprove) {\n  newStatus = 'Approved';\n}\n\n// Build the response HTML\nconst html = `<!DOCTYPE html><html><head><meta charset=\"utf-8\">\n<style>body{font-family:'Segoe UI',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f4f4f4;}\n.card{background:#fff;padding:40px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1);text-align:center;max-width:400px;}\n.icon{font-size:48px;margin-bottom:16px;}\nh1{color:${isApprove ? '#22c55e' : '#ef4444'};margin:0 0 8px;}\np{color:#666;margin:0;}</style></head>\n<body><div class=\"card\">\n<div class=\"icon\">${isApprove ? '&#10004;' : '&#10006;'}</div>\n<h1>${isApprove ? 'Approved' : 'Rejected'}</h1>\n<p>${data.taskDescription || 'The record has been ' + action + 'd successfully.'}</p>\n<p style=\"margin-top:16px;font-size:12px;color:#999;\">AnyVision Media Accounting</p>\n</div></body></html>`;\n\nreturn {\n  json: {\n    ...data,\n    newStatus: newStatus,\n    responseHtml: html,\n    processedAt: new Date().toISOString(),\n  }\n};\n"
+      },
+      "id": "bd7fc644-7cb2-48b2-b866-fc2e41860895",
+      "name": "Execute Approval",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1740,
+        1100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "81e74a8b-07c5-49c4-b09a-2000d27fe629",
+              "leftValue": "={{ $json.relatedTable }}",
+              "rightValue": "Supplier Bills",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "448b66bf-b8b7-4eb6-9584-3900b0ce785a",
+      "name": "Is Bill?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1870,
+        1100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0vZnALIvH72r2t"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Invoice ID": "={{ $json.relatedRecordId }}",
+            "Status": "={{ $json.newStatus === 'Approved' ? 'Sent' : 'Cancelled' }}"
+          },
+          "matchingColumns": [
+            "Invoice ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "3050beb5-a021-4d0f-bfee-7794ef5ae281",
+      "name": "Update Invoice Record",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2000,
+        1000
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblRRe24Xlm1J3C1I"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Bill ID": "={{ $json.relatedRecordId }}",
+            "Approval Status": "={{ $json.newStatus }}",
+            "Approver": "ian@anyvisionmedia.com",
+            "Approved At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [
+            "Bill ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "26b6d74a-00f9-4512-87db-d6aa8f3c480e",
+      "name": "Update Bill Record",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2000,
+        1200
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblGtffCPlRoHAtTk"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Task ID": "={{ $('Execute Approval').first().json.taskId }}",
+            "Status": "Completed",
+            "Completed At": "={{ $now.format('yyyy-MM-dd') }}",
+            "Resolution Notes": "={{ $('Execute Approval').first().json.action === 'approve' ? 'Approved' : 'Rejected' }} via webhook"
+          },
+          "matchingColumns": [
+            "Task ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "44075e94-b4b9-4a66-9fcc-a1276729ab67",
+      "name": "Complete Task",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2260,
+        1100
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: $('Execute Approval').first().json.action, message: $('Execute Approval').first().json.action === 'approve' ? 'Record approved successfully' : 'Record rejected', processedAt: $('Execute Approval').first().json.processedAt }) }}",
+        "options": {}
+      },
+      "id": "af656800-d4c7-46e8-bb8b-9b4616d741a1",
+      "name": "Respond Approval HTML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        2780,
+        1100
+      ],
+      "typeVersion": 1.1,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblV4LPBYotAWW1RO"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now.toISO() }}",
+            "Workflow Name": "WF-07 Exception Handler",
+            "Event Type": "={{ $('Execute Approval').first().json.action === 'approve' ? 'BILL_APPROVED' : 'EXCEPTION' }}",
+            "Record Type": "Task",
+            "Record ID": "={{ $('Execute Approval').first().json.taskId || '' }}",
+            "Action Taken": "=Task {{ $('Execute Approval').first().json.action }}d. Related: {{ $('Execute Approval').first().json.relatedRecordId || 'N/A' }}",
+            "Actor": "ian@anyvisionmedia.com",
+            "Result": "Success",
+            "Error Details": "",
+            "Metadata JSON": "={{ JSON.stringify({ token: $('Execute Approval').first().json.token, action: $('Execute Approval').first().json.action, newStatus: $('Execute Approval').first().json.newStatus, processedAt: $('Execute Approval').first().json.processedAt }) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "e56716e0-a436-4191-8fbb-ccffbe57f777",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2520,
+        1100
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "386684f0-f901-473a-a59d-83e723e7784e",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        1600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=ERROR: Accounting WF-07 Exception Handler - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+        "emailType": "html",
+        "message": "=<h2 style='color:#FF6D5A;'>Workflow Error: Exception Handler (WF-07)</h2><p><strong>Time:</strong> {{ $now.format('yyyy-MM-dd HH:mm:ss') }}</p><p><strong>Error:</strong> {{ $json.execution?.error?.message || 'Unknown error' }}</p><p><strong>Node:</strong> {{ $json.execution?.lastNodeExecuted || 'Unknown' }}</p><p><strong>Execution ID:</strong> {{ $json.execution?.id || 'N/A' }}</p><hr><p>The exception handler encountered an error. Task polling and approval processing may be affected.</p><p>Please check the n8n execution log for details.</p><p style='font-size:11px;color:#999;'>AnyVision Media Accounting System</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "1aa1f2ea-9008-4f4a-a888-c6a8b5af9243",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        460,
+        1600
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Task Poll Schedule": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Open Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Open Tasks": {
+      "main": [
+        [
+          {
+            "node": "Has Tasks?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Tasks?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Loop Over Tasks": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Check Overdue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Overdue": {
+      "main": [
+        [
+          {
+            "node": "Is Overdue?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Overdue?": {
+      "main": [
+        [
+          {
+            "node": "Escalate Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalate Task": {
+      "main": [
+        [
+          {
+            "node": "Send Escalation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Escalation Email": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Webhook Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Approval Test": {
+      "main": [
+        [
+          {
+            "node": "Sample Approval Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sample Approval Data": {
+      "main": [
+        [
+          {
+            "node": "Process Webhook Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Webhook Approval": {
+      "main": [
+        [
+          {
+            "node": "Token Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token Valid?": {
+      "main": [
+        [
+          {
+            "node": "Lookup Task by Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Invalid Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Task by Token": {
+      "main": [
+        [
+          {
+            "node": "Load Related Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Related Record": {
+      "main": [
+        [
+          {
+            "node": "Apply Decision Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Decision Router": {
+      "main": [
+        [
+          {
+            "node": "Execute Approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Invalid Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Approval": {
+      "main": [
+        [
+          {
+            "node": "Is Bill?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Bill?": {
+      "main": [
+        [
+          {
+            "node": "Update Bill Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Invoice Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice Record": {
+      "main": [
+        [
+          {
+            "node": "Complete Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Bill Record": {
+      "main": [
+        [
+          {
+            "node": "Complete Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Complete Task": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond Approval HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

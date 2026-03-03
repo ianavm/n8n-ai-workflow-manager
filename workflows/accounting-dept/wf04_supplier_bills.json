@@ -1,0 +1,1543 @@
+{
+  "name": "Accounting Dept - Supplier Bills AP (WF-04)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8-17 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "d1d01e64-1f56-4f93-a54a-65c0d3fbb881",
+      "name": "Hourly Email Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        500
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "0f00948b-12fd-487a-8b34-a859e74e8c76",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        700
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1b099001-38e1-495b-92a7-5cda7506577c",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "a229ba06-c7df-4724-93af-9b06559e179f",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            },
+            {
+              "id": "9c0c0d25-64e4-4b01-8f07-114d29194b59",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "a80e4f2b-ee4d-4811-a7e1-d64ac194195c",
+              "name": "autoApproveThreshold",
+              "value": "10000",
+              "type": "number"
+            },
+            {
+              "id": "b4fda3a2-b177-42b5-a455-5463a7979874",
+              "name": "xeroTenantId",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "2dd9769b-e81c-46f3-87bc-e4074dfd758b",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 20,
+        "filters": {
+          "q": "is:unread has:attachment label:Bills",
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "id": "d429f31d-0279-4de2-b789-f240d919a3db",
+      "name": "Read Accounts Inbox",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        680,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ad7b5d10-cf91-48c4-bd70-a48598ab1f66",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "84c9067c-0f90-4893-b7b6-80d752669e98",
+      "name": "Has Bills?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        920,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "62e790a6-507c-4ad4-90eb-e3027d5b2264",
+      "name": "Loop Over Bills",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const email = $input.first().json;\n\nconst sender = email.from || email.sender || '';\nconst subject = email.subject || '';\nconst body = (email.text || email.snippet || '').substring(0, 3000);\nconst attachments = email.attachments || [];\n\nreturn {\n  json: {\n    emailId: email.id,\n    sender: sender,\n    subject: subject,\n    bodyText: body,\n    hasAttachment: attachments.length > 0,\n    attachmentCount: attachments.length,\n    receivedAt: email.date || new Date().toISOString(),\n    extractionInput: `From: ${sender}\\nSubject: ${subject}\\n\\n${body}`,\n  }\n};"
+      },
+      "id": "9df8e860-8d73-4524-8c6a-3996e285ec98",
+      "name": "Extract Email Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1400,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $(\"System Config\").first().json.aiModel }}\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are an accounts payable document processor. Extract the following fields from this supplier invoice/bill email.\\n\\nReturn JSON only, no markdown:\\n{\\n  \\\"supplier_name\\\": \\\"Company name of the supplier\\\",\\n  \\\"invoice_number\\\": \\\"Supplier's invoice number\\\",\\n  \\\"bill_date\\\": \\\"YYYY-MM-DD\\\",\\n  \\\"due_date\\\": \\\"YYYY-MM-DD (estimate if not shown: bill_date + 30 days)\\\",\\n  \\\"subtotal\\\": 0.00,\\n  \\\"vat_amount\\\": 0.00,\\n  \\\"total_amount\\\": 0.00,\\n  \\\"line_items\\\": [{\\\"description\\\": \\\"\\\", \\\"amount\\\": 0.00}],\\n  \\\"supplier_email\\\": \\\"sender email if available\\\",\\n  \\\"currency\\\": \\\"ZAR\\\",\\n  \\\"confidence\\\": 0.0-1.0\\n}\\n\\nRules:\\n- If VAT is 15% of subtotal, extract separately\\n- If only total is shown, estimate subtotal = total / 1.15 and VAT = total - subtotal\\n- Set confidence based on how clearly the data was extractable\\n- If a field is missing, use null\"},\n    {\"role\": \"user\", \"content\": {{ JSON.stringify($json.extractionInput) }}}\n  ],\n  \"temperature\": 0.1,\n  \"max_tokens\": 2000\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "e33b26b7-c4a2-4c5e-a37b-b5d8e4aab78f",
+      "name": "AI Document Extraction",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1640,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst emailData = $('Extract Email Data').first().json;\n\nlet extracted;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  extracted = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch(e) {\n  extracted = {\n    supplier_name: emailData.sender.split('<')[0].trim() || 'Unknown',\n    invoice_number: 'UNKNOWN',\n    bill_date: new Date().toISOString().split('T')[0],\n    due_date: null,\n    subtotal: 0,\n    vat_amount: 0,\n    total_amount: 0,\n    confidence: 0,\n  };\n}\n\n// Calculate due date if missing\nif (!extracted.due_date && extracted.bill_date) {\n  const billDate = new Date(extracted.bill_date);\n  billDate.setDate(billDate.getDate() + 30);\n  extracted.due_date = billDate.toISOString().split('T')[0];\n}\n\n// Validate/recalculate amounts\nif (extracted.total_amount && !extracted.subtotal) {\n  extracted.subtotal = Math.round(extracted.total_amount / 1.15 * 100) / 100;\n  extracted.vat_amount = Math.round((extracted.total_amount - extracted.subtotal) * 100) / 100;\n}\n\nreturn {\n  json: {\n    ...emailData,\n    ...extracted,\n    billId: `BILL-${Date.now()}`,\n  }\n};"
+      },
+      "id": "2832b0f7-9e00-4150-b02a-bb80829b4702",
+      "name": "Parse Extraction",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1880,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl3Qx26zY974kVNn"
+        },
+        "filterByFormula": "=OR({Supplier ID} = '{{ $json.supplier_name }}', {Email} = '{{ $json.supplier_email }}')"
+      },
+      "id": "9a13e03a-703e-4320-b638-0eeccdd63473",
+      "name": "Lookup Supplier",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2120,
+        400
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "f093a2cf-6d49-4e41-8a27-6811412868c6",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "52656c34-1525-4d7c-bfd8-2c64c3be865f",
+      "name": "Supplier Exists?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2360,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl3Qx26zY974kVNn"
+        },
+        "columns": {
+          "value": {
+            "Supplier ID": "={{ $('Parse Extraction').first().json.supplier_name }}",
+            "Email": "={{ $('Parse Extraction').first().json.supplier_email || '' }}",
+            "Payment Terms": "30 days",
+            "Active": true,
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": [
+            {
+              "id": "Supplier ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Supplier ID"
+            },
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email"
+            },
+            {
+              "id": "Payment Terms",
+              "type": "string",
+              "display": true,
+              "displayName": "Payment Terms"
+            },
+            {
+              "id": "Active",
+              "type": "boolean",
+              "display": true,
+              "displayName": "Active"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "73e96ea0-b472-4f03-a016-ae2e944ee29b",
+      "name": "Create Supplier",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2600,
+        560
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const extraction = $('Parse Extraction').first().json;\nconst supplierInput = $input.first().json;\n\n// Determine if supplier came from lookup or create\nconst supplierId = supplierInput.id || supplierInput['Supplier ID'] || `SUP-${Date.now()}`;\nconst supplierName = supplierInput['Supplier Name'] || extraction.supplier_name;\nconst supplierPaymentTerms = supplierInput['Default Payment Terms'] || '30 days';\nconst isKnownSupplier = !!supplierInput['Supplier Name'];\n\nreturn {\n  json: {\n    ...extraction,\n    supplierId: supplierId,\n    supplierName: supplierName,\n    supplierPaymentTerms: supplierPaymentTerms,\n    isKnownSupplier: isKnownSupplier,\n    supplierAirtableId: supplierInput.id || null,\n  }\n};"
+      },
+      "id": "457a9591-3726-4ae6-bef1-34f0179afee0",
+      "name": "Merge Supplier Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2840,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $(\"System Config\").first().json.aiModel }}\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You categorize supplier expenses. Return JSON only.\"},\n    {\"role\": \"user\", \"content\": \"Categorize this supplier expense into ONE of these categories:\\n- Software\\n- Hosting\\n- Marketing\\n- Office\\n- Professional Services\\n- Travel\\n- Equipment\\n- Other\\n\\nReturn JSON only: {\\\"category\\\": \\\"Category Name\\\", \\\"confidence\\\": 0.0-1.0, \\\"reasoning\\\": \\\"brief explanation\\\"}\\n\\nSupplier: {{ $json.supplierName }}\\nDescription: {{ $json.subject || \\\"Supplier invoice\\\" }}\\nAmount: R {{ $json.total_amount }}\"}\n  ],\n  \"temperature\": 0.1,\n  \"max_tokens\": 500\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "e55a2899-2f33-4c6c-aa81-dde367468ea5",
+      "name": "AI Categorize Expense",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3080,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst prevData = $('Merge Supplier Data').first().json;\n\nlet category = 'Other';\nlet categoryConfidence = 0;\nlet categoryReasoning = '';\n\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n  category = parsed.category || 'Other';\n  categoryConfidence = parsed.confidence || 0;\n  categoryReasoning = parsed.reasoning || '';\n} catch(e) {\n  category = 'Other';\n  categoryConfidence = 0;\n  categoryReasoning = 'AI parsing failed, defaulting to Other';\n}\n\nreturn {\n  json: {\n    ...prevData,\n    expenseCategory: category,\n    categoryConfidence: categoryConfidence,\n    categoryReasoning: categoryReasoning,\n  }\n};"
+      },
+      "id": "5f0d247b-d024-4fcc-a80c-6e573dd9729e",
+      "name": "Parse Category",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3320,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblRRe24Xlm1J3C1I"
+        },
+        "columns": {
+          "value": {
+            "Bill ID": "={{ $json.billId }}",
+            "Supplier Name": "={{ $json.supplierName }}",
+            "Bill Number": "={{ $json.invoice_number }}",
+            "Bill Date": "={{ $json.bill_date }}",
+            "Due Date": "={{ $json.due_date }}",
+            "Subtotal": "={{ $json.subtotal }}",
+            "VAT Amount": "={{ $json.vat_amount }}",
+            "Total Amount": "={{ $json.total_amount }}",
+            "Category": "={{ $json.expenseCategory }}",
+            "Approval Status": "Pending",
+            "Payment Status": "Unpaid",
+            "OCR Raw JSON": "={{ JSON.stringify({ emailId: $json.emailId, confidence: $json.confidence }) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": [
+            {
+              "id": "Bill ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Bill ID"
+            },
+            {
+              "id": "Supplier Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Supplier Name"
+            },
+            {
+              "id": "Bill Number",
+              "type": "string",
+              "display": true,
+              "displayName": "Bill Number"
+            },
+            {
+              "id": "Bill Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Bill Date"
+            },
+            {
+              "id": "Due Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Due Date"
+            },
+            {
+              "id": "Subtotal",
+              "type": "number",
+              "display": true,
+              "displayName": "Subtotal"
+            },
+            {
+              "id": "VAT Amount",
+              "type": "number",
+              "display": true,
+              "displayName": "VAT Amount"
+            },
+            {
+              "id": "Total Amount",
+              "type": "number",
+              "display": true,
+              "displayName": "Total Amount"
+            },
+            {
+              "id": "Category",
+              "type": "string",
+              "display": true,
+              "displayName": "Category"
+            },
+            {
+              "id": "Approval Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Approval Status"
+            },
+            {
+              "id": "Payment Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Payment Status"
+            },
+            {
+              "id": "OCR Raw JSON",
+              "type": "string",
+              "display": true,
+              "displayName": "OCR Raw JSON"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "a69ee501-bb76-4651-98e9-488ab684217d",
+      "name": "Create Bill Record",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3560,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "4ad7e23d-5aa3-41bd-ab00-8ce1d8c37cf7",
+              "leftValue": "={{ $('Parse Category').first().json.total_amount }}",
+              "rightValue": "={{ $('System Config').first().json.autoApproveThreshold }}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            },
+            {
+              "id": "0bb37851-816e-45c8-b7fe-3793b0569518",
+              "leftValue": "={{ $('Parse Category').first().json.isKnownSupplier }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "afb91c33-eb0e-43a3-b161-ba23813fdaab",
+      "name": "Check Auto Approve",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        3800,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblRRe24Xlm1J3C1I"
+        },
+        "columns": {
+          "value": {
+            "Bill ID": "={{ $('Parse Category').first().json.billId }}",
+            "Approval Status": "Auto Approved",
+            "Approved At": "={{ $now.format('yyyy-MM-dd') }}",
+            "Approver": "system (auto-approve < R10k)"
+          },
+          "schema": [
+            {
+              "id": "Bill ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Bill ID"
+            },
+            {
+              "id": "Approval Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Approval Status"
+            },
+            {
+              "id": "Approved At",
+              "type": "string",
+              "display": true,
+              "displayName": "Approved At"
+            },
+            {
+              "id": "Approver",
+              "type": "string",
+              "display": true,
+              "displayName": "Approver"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Bill ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "987eeed3-019c-4e1a-9859-da9e992b1b6e",
+      "name": "Auto Approve Bill",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        4040,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblGtffCPlRoHAtTk"
+        },
+        "columns": {
+          "value": {
+            "Task ID": "={{ 'TASK-' + Date.now() }}",
+            "Type": "Bill Approval",
+            "Description": "=Bill {{ $('Parse Category').first().json.invoice_number }} from {{ $('Parse Category').first().json.supplierName }} - R{{ $('Parse Category').first().json.total_amount }} requires manual approval (amount >= R10,000).",
+            "Status": "Open",
+            "Priority": "High",
+            "Owner": "ian@anyvisionmedia.com",
+            "Related Record ID": "={{ $('Parse Category').first().json.billId }}",
+            "Related Table": "Supplier Bills",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": [
+            {
+              "id": "Task ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Task ID"
+            },
+            {
+              "id": "Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Type"
+            },
+            {
+              "id": "Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Description"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Priority",
+              "type": "string",
+              "display": true,
+              "displayName": "Priority"
+            },
+            {
+              "id": "Owner",
+              "type": "string",
+              "display": true,
+              "displayName": "Owner"
+            },
+            {
+              "id": "Related Record ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Related Record ID"
+            },
+            {
+              "id": "Related Table",
+              "type": "string",
+              "display": true,
+              "displayName": "Related Table"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "9b04a7c8-0e4f-40b2-bf7f-a725ba6b18c9",
+      "name": "Create Approval Task",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        4040,
+        560
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=APPROVAL REQUIRED: Bill from {{ $('Parse Category').first().json.supplierName }} - R{{ $('Parse Category').first().json.total_amount }}",
+        "emailType": "html",
+        "message": "=<h2>Bill Approval Required</h2>\n<table border='1' cellpadding='8' cellspacing='0' style='border-collapse: collapse;'>\n<tr><td><strong>Supplier</strong></td><td>{{ $('Parse Category').first().json.supplierName }}</td></tr>\n<tr><td><strong>Invoice #</strong></td><td>{{ $('Parse Category').first().json.invoice_number }}</td></tr>\n<tr><td><strong>Bill Date</strong></td><td>{{ $('Parse Category').first().json.bill_date }}</td></tr>\n<tr><td><strong>Due Date</strong></td><td>{{ $('Parse Category').first().json.due_date }}</td></tr>\n<tr><td><strong>Subtotal</strong></td><td>R {{ $('Parse Category').first().json.subtotal }}</td></tr>\n<tr><td><strong>VAT</strong></td><td>R {{ $('Parse Category').first().json.vat_amount }}</td></tr>\n<tr><td><strong>Total</strong></td><td>R {{ $('Parse Category').first().json.total_amount }}</td></tr>\n<tr><td><strong>Category</strong></td><td>{{ $('Parse Category').first().json.expenseCategory }}</td></tr>\n<tr><td><strong>AI Confidence</strong></td><td>{{ $('Parse Category').first().json.confidence }}</td></tr>\n</table>\n<br>\n<p>This bill requires manual approval because the amount exceeds R10,000.</p>\n<p>Please review and respond to approve or reject this bill.</p>",
+        "options": {}
+      },
+      "id": "5149713e-e8a8-48e6-9c43-8f2b4e8b553a",
+      "name": "Send Approval Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        4280,
+        560
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblRRe24Xlm1J3C1I"
+        },
+        "columns": {
+          "value": {
+            "Bill ID": "={{ $('Parse Category').first().json.billId }}",
+            "Approval Status": "Awaiting Approval"
+          },
+          "schema": [
+            {
+              "id": "Bill ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Bill ID"
+            },
+            {
+              "id": "Approval Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Approval Status"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Bill ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "197ce824-c9a8-4a3f-9d1a-a38738d72883",
+      "name": "Update Bill Awaiting",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        4520,
+        560
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.xero.com/api.xro/2.0/Invoices",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "={{ $('System Config').first().json.xeroTenantId || '' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"Type\": \"ACCPAY\",\n  \"Contact\": {\"Name\": \"{{ $(\"Parse Category\").first().json.supplierName }}\"},\n  \"Date\": \"{{ $(\"Parse Category\").first().json.bill_date }}\",\n  \"DueDate\": \"{{ $(\"Parse Category\").first().json.due_date }}\",\n  \"InvoiceNumber\": \"{{ $(\"Parse Category\").first().json.invoice_number }}\",\n  \"CurrencyCode\": \"ZAR\",\n  \"Status\": \"AUTHORISED\",\n  \"LineItems\": [{\"Description\": \"{{ $(\"Parse Category\").first().json.supplierName }} - {{ $(\"Parse Category\").first().json.invoice_number }}\", \"Quantity\": 1, \"UnitAmount\": {{ $(\"Parse Category\").first().json.subtotal }}, \"TaxAmount\": {{ $(\"Parse Category\").first().json.vat_amount }}, \"AccountCode\": \"400\"}]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "56c8ace5-5d7b-4cf0-a2ac-04cac634d232",
+      "name": "Create Bill in Xero",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4280,
+        300
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "tyznIxiWvzReo2gy",
+          "name": "Xero OAuth2 AVM"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblRRe24Xlm1J3C1I"
+        },
+        "columns": {
+          "value": {
+            "Bill ID": "={{ $('Parse Category').first().json.billId }}",
+            "Xero Bill ID": "={{ $json.Invoices ? $json.Invoices[0].InvoiceID : ($json.InvoiceID || '') }}",
+            "Xero Status": "={{ $json.Invoices ? $json.Invoices[0].Status : ($json.Status || 'ERROR') }}",
+            "Synced to Xero At": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            {
+              "id": "Bill ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Bill ID"
+            },
+            {
+              "id": "Xero Bill ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Xero Bill ID"
+            },
+            {
+              "id": "Xero Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Xero Status"
+            },
+            {
+              "id": "Synced to Xero At",
+              "type": "string",
+              "display": true,
+              "displayName": "Synced to Xero At"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Bill ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "0bc25095-77bd-49ed-93b4-54c8e2974ea9",
+      "name": "Update Bill Xero ID",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        4520,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const billData = $('Parse Extraction').first().json;\nconst supplierData = $('Merge Supplier Data').first().json;\nconst data = $input.first().json;\nconst dueDate = billData.due_date;\nconst paymentTerms = supplierData.paymentTerms || supplierData['Payment Terms'] || '30';\nconst supplierTerms = supplierData.supplierPaymentTerms || paymentTerms + ' days';\n\nlet paymentDate;\nconst dueDateParsed = new Date(dueDate || data['Due Date']);\n\nif (isNaN(dueDateParsed.getTime())) {\n  const today = new Date();\n  today.setDate(today.getDate() + 30);\n  paymentDate = today.toISOString().split('T')[0];\n} else {\n  paymentDate = dueDateParsed.toISOString().split('T')[0];\n}\n\nreturn {\n  json: {\n    ...data,\n    scheduledPaymentDate: paymentDate,\n  }\n};"
+      },
+      "id": "6ebb8bf7-16cf-40d0-9717-de035ee1dce1",
+      "name": "Schedule Payment",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4760,
+        300
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblRRe24Xlm1J3C1I"
+        },
+        "columns": {
+          "value": {
+            "Bill ID": "={{ $('Parse Category').first().json.billId }}",
+            "Payment Status": "Scheduled",
+            "Scheduled Payment Date": "={{ $json.scheduledPaymentDate }}"
+          },
+          "schema": [
+            {
+              "id": "Bill ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Bill ID"
+            },
+            {
+              "id": "Payment Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Payment Status"
+            },
+            {
+              "id": "Scheduled Payment Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Scheduled Payment Date"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Bill ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "49de142b-3073-49c5-9b43-ca52f26091ff",
+      "name": "Update Payment Schedule",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        5000,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "removeLabels",
+        "messageId": "={{ $('Extract Email Data').first().json.emailId }}",
+        "labelIds": [
+          "UNREAD"
+        ],
+        "options": {}
+      },
+      "id": "59e876aa-dab6-4d79-b013-85abc80ea9db",
+      "name": "Mark Email Processed",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        5240,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblV4LPBYotAWW1RO"
+        },
+        "columns": {
+          "value": {
+            "Timestamp": "={{ $now.toISO() }}",
+            "Workflow Name": "WF-04 Supplier Bills AP",
+            "Event Type": "BILL_CREATED",
+            "Record Type": "Supplier Bill",
+            "Record ID": "={{ $('Parse Category').first().json.billId }}",
+            "Action Taken": "=Bill {{ $('Parse Category').first().json.invoice_number }} from {{ $('Parse Category').first().json.supplierName }} - R{{ $('Parse Category').first().json.total_amount }}",
+            "Actor": "system",
+            "Result": "Success",
+            "Error Details": "",
+            "Metadata JSON": "={{ JSON.stringify({ supplier: $('Parse Category').first().json.supplierName, amount: $('Parse Category').first().json.total_amount, category: $('Parse Category').first().json.expenseCategory, confidence: $('Parse Category').first().json.confidence }) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": [
+            {
+              "id": "Timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "Timestamp"
+            },
+            {
+              "id": "Workflow Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Workflow Name"
+            },
+            {
+              "id": "Event Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Event Type"
+            },
+            {
+              "id": "Record Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Record Type"
+            },
+            {
+              "id": "Record ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Record ID"
+            },
+            {
+              "id": "Action Taken",
+              "type": "string",
+              "display": true,
+              "displayName": "Action Taken"
+            },
+            {
+              "id": "Actor",
+              "type": "string",
+              "display": true,
+              "displayName": "Actor"
+            },
+            {
+              "id": "Result",
+              "type": "string",
+              "display": true,
+              "displayName": "Result"
+            },
+            {
+              "id": "Error Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Error Details"
+            },
+            {
+              "id": "Metadata JSON",
+              "type": "string",
+              "display": true,
+              "displayName": "Metadata JSON"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "56952c5c-c80d-43c6-a411-c2bceb47222f",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        5480,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nlet totalBills = 0;\nlet totalAmount = 0;\nlet autoApproved = 0;\nlet pendingApproval = 0;\nlet suppliers = new Set();\nlet categories = {};\n\nfor (const item of items) {\n  const data = item.json;\n  if (data.billId || data['Bill ID']) {\n    totalBills++;\n    totalAmount += parseFloat(data.total_amount || data['Total Amount'] || 0);\n    suppliers.add(data.supplierName || data['Supplier Name'] || 'Unknown');\n    const cat = data.expenseCategory || data['Expense Category'] || 'Other';\n    categories[cat] = (categories[cat] || 0) + 1;\n    if (data.approvalStatus === 'Auto Approved' || data['Approval Status'] === 'Auto Approved') {\n      autoApproved++;\n    } else {\n      pendingApproval++;\n    }\n  }\n}\n\nreturn {\n  json: {\n    summary: {\n      totalBills: totalBills,\n      totalAmount: Math.round(totalAmount * 100) / 100,\n      autoApproved: autoApproved,\n      pendingApproval: pendingApproval,\n      uniqueSuppliers: suppliers.size,\n      categories: categories,\n      processedAt: new Date().toISOString(),\n    }\n  }\n};"
+      },
+      "id": "d38bcac5-8d28-4919-9229-fe16e93e922c",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        920,
+        700
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "bbd7464b-dbf6-490d-a990-32f65057f456",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        1000
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=ACCOUNTING ERROR - WF-04 Supplier Bills: {{ $json.execution.error.message }}",
+        "message": "=<h2>Accounting Department Error - WF-04 Supplier Bills AP</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><strong>Timestamp:</strong> {{ $now.toISO() }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>\n<hr>\n<p>Please investigate and resolve this error. Supplier bill processing may be interrupted.</p>",
+        "options": {}
+      },
+      "id": "22cfd179-6de9-4a96-bdc9-023ff3c12e83",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        1000
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Hourly Email Check": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Accounts Inbox",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Accounts Inbox": {
+      "main": [
+        [
+          {
+            "node": "Has Bills?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Bills?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Bills",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Bills": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Email Data": {
+      "main": [
+        [
+          {
+            "node": "AI Document Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Document Extraction": {
+      "main": [
+        [
+          {
+            "node": "Parse Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Extraction": {
+      "main": [
+        [
+          {
+            "node": "Lookup Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Supplier": {
+      "main": [
+        [
+          {
+            "node": "Supplier Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supplier Exists?": {
+      "main": [
+        [
+          {
+            "node": "Merge Supplier Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Supplier": {
+      "main": [
+        [
+          {
+            "node": "Merge Supplier Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Supplier Data": {
+      "main": [
+        [
+          {
+            "node": "AI Categorize Expense",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Categorize Expense": {
+      "main": [
+        [
+          {
+            "node": "Parse Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Category": {
+      "main": [
+        [
+          {
+            "node": "Create Bill Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Bill Record": {
+      "main": [
+        [
+          {
+            "node": "Check Auto Approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Auto Approve": {
+      "main": [
+        [
+          {
+            "node": "Auto Approve Bill",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Approval Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto Approve Bill": {
+      "main": [
+        [
+          {
+            "node": "Create Bill in Xero",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Approval Task": {
+      "main": [
+        [
+          {
+            "node": "Send Approval Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Approval Email": {
+      "main": [
+        [
+          {
+            "node": "Update Bill Awaiting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Bill Awaiting": {
+      "main": [
+        [
+          {
+            "node": "Mark Email Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Bill in Xero": {
+      "main": [
+        [
+          {
+            "node": "Update Bill Xero ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Bill Xero ID": {
+      "main": [
+        [
+          {
+            "node": "Schedule Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Payment": {
+      "main": [
+        [
+          {
+            "node": "Update Payment Schedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Payment Schedule": {
+      "main": [
+        [
+          {
+            "node": "Mark Email Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Email Processed": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Bills",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

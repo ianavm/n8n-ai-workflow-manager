@@ -1,0 +1,853 @@
+{
+  "name": "Property Analyzer - Plausibility Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "property-analyzer/analyze",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "id": "ce5cc888-ffb1-470d-a066-cbcde32c87d2",
+      "name": "Analysis Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "3c69b935-587d-4c9c-a82f-a34e25c5ef88"
+    },
+    {
+      "parameters": {},
+      "id": "91a0c03d-6306-4c48-88be-dc6093114490",
+      "name": "Manual Test Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\"body\": {\"run_id\": \"PA-TEST-000001\", \"db_run_id\": \"00000000-0000-0000-0000-000000000000\", \"file_url\": \"https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf\", \"file_type\": \"pdf\", \"file_name\": \"test-property-brochure.pdf\", \"config\": {\"strategy_preset\": \"balanced\", \"investor_assumptions\": {\"deposit_pct\": 10, \"interest_rate_pct\": 11.75, \"loan_term_years\": 20, \"estimated_monthly_rental_zar\": null}, \"scoring_weights\": {\"document_completeness\": 0.15, \"location_amenities\": 0.2, \"crime_safety\": 0.2, \"market_growth\": 0.2, \"deal_financial\": 0.2, \"risk_red_flags\": 0.05}}, \"callback_url\": \"https://portal.anyvisionmedia.com/api/property-analyzer/webhook\", \"callback_secret\": \"TEST_SECRET_REPLACE_ME\"}}",
+        "options": {}
+      },
+      "id": "ade07bcb-d3a7-4597-8654-ca3809a0b8d3",
+      "name": "Set Test Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Works for both webhook trigger and manual test trigger\nconst input = $input.first().json;\nconst body = input.body || input;\n\n// Store callback info in staticData for error handler access\n// (Error Trigger runs in separate context, can't reference upstream nodes)\nconst staticData = $getWorkflowStaticData('global');\nstaticData.callback_url = body.callback_url || '';\nstaticData.callback_secret = body.callback_secret || '';\nstaticData.run_id = body.run_id || '';\nstaticData.request_start = Date.now();\n\nreturn [{ json: { body: { ...body, request_start: Date.now() } } }];\n"
+      },
+      "id": "71cee8b0-f6fb-4dfc-9f9d-153b428a4dfc",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.body.callback_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.body.callback_secret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"run_id\": \"{{ $json.body.run_id }}\", \"status\": \"parsing\" }",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "a7305830-8075-4076-b862-7c760b997897",
+      "name": "Update Status Parsing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Normalize Input').first().json.body.file_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "id": "7f79974e-de8e-4c22-8cd9-4dd57b9e44fa",
+      "name": "Download File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        0
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst webhookData = $('Normalize Input').first().json.body;\n\nconst hasBinary = Object.keys($input.first().binary || {}).length > 0;\nconst hasError = input.error || input.code >= 400;\n\nif (!hasBinary || hasError) {\n  const errorMsg = input.error?.message || input.message || 'File download failed - the signed URL may have expired';\n  try {\n    await this.helpers.httpRequest({\n      method: 'POST',\n      url: webhookData.callback_url,\n      headers: {\n        'Authorization': 'Bearer ' + webhookData.callback_secret,\n        'Content-Type': 'application/json'\n      },\n      body: JSON.stringify({\n        run_id: webhookData.run_id,\n        status: 'failed',\n        error_message: errorMsg\n      })\n    });\n  } catch (e) { /* callback failed too */ }\n\n  throw new Error(errorMsg);\n}\n\nreturn [{ json: { download_ok: true, file_type: webhookData.file_type }, binary: $input.first().binary }];\n"
+      },
+      "id": "5b603fce-24bd-4164-8c43-ddd3323cb1df",
+      "name": "Check Download",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Normalize Input').first().json.body.file_type }}",
+              "rightValue": "pdf",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "leftValue": "={{ $('Normalize Input').first().json.body.file_type }}",
+              "rightValue": "docx",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "289df4f0-d7ee-42d4-a23c-39eeb960d7cc",
+      "name": "Is Image?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build vision LLM request for image-based property documents\nconst binaryData = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst base64 = binaryData.toString('base64');\nconst fileType = $('Normalize Input').first().json.body.file_type || 'jpeg';\nconst mimeType = fileType === 'png' ? 'image/png' : 'image/jpeg';\n\nconst systemPrompt = \"You are an expert South African property document analyzer.\\nExtract structured facts from the provided property document text.\\n\\nReturn ONLY valid JSON matching this schema (use null for unknown fields):\\n{\\n  \\\"property_address\\\": string|null,\\n  \\\"suburb\\\": string|null,\\n  \\\"city\\\": string|null,\\n  \\\"province\\\": string|null,\\n  \\\"postal_code\\\": string|null,\\n  \\\"erf_number\\\": string|null,\\n  \\\"title_deed_number\\\": string|null,\\n  \\\"property_type\\\": \\\"freehold\\\"|\\\"sectional_title\\\"|\\\"estate\\\"|\\\"agricultural\\\"|\\\"commercial\\\"|\\\"industrial\\\"|\\\"mixed_use\\\"|\\\"vacant_land\\\"|null,\\n  \\\"zoning\\\": string|null,\\n  \\\"stand_size_sqm\\\": number|null,\\n  \\\"building_size_sqm\\\": number|null,\\n  \\\"bedrooms\\\": number|null,\\n  \\\"bathrooms\\\": number|null,\\n  \\\"garages\\\": number|null,\\n  \\\"parking_bays\\\": number|null,\\n  \\\"pool\\\": boolean,\\n  \\\"garden\\\": boolean,\\n  \\\"asking_price_zar\\\": number|null,\\n  \\\"municipal_valuation_zar\\\": number|null,\\n  \\\"monthly_levy_zar\\\": number|null,\\n  \\\"monthly_rates_zar\\\": number|null,\\n  \\\"special_levy_zar\\\": number|null,\\n  \\\"section_number\\\": string|null,\\n  \\\"participation_quota\\\": number|null,\\n  \\\"exclusive_use_areas\\\": string|null,\\n  \\\"body_corporate_name\\\": string|null,\\n  \\\"has_title_deed\\\": boolean,\\n  \\\"has_rates_clearance\\\": boolean,\\n  \\\"has_levy_clearance\\\": boolean,\\n  \\\"has_compliance_certs\\\": boolean,\\n  \\\"has_building_plans\\\": boolean,\\n  \\\"has_hoa_rules\\\": boolean,\\n  \\\"has_valuation_report\\\": boolean,\\n  \\\"has_offer_to_purchase\\\": boolean,\\n  \\\"seller_name\\\": string|null,\\n  \\\"seller_type\\\": \\\"private\\\"|\\\"estate_agent\\\"|\\\"bank\\\"|\\\"auction\\\"|\\\"developer\\\"|null,\\n  \\\"estate_agent\\\": string|null,\\n  \\\"extraction_confidence\\\": number (0-100)\\n}\\n\\nSA-specific notes:\\n- ERF = stand number in the deeds registry\\n- Sectional title = equivalent to condominium/strata\\n- Levies = body corporate monthly charges\\n- Rates = municipal property tax\\n- Voetstoots = sold as-is (auction term)\\n- All monetary values in ZAR (South African Rand)\\n\";\n\nreturn [{\n  json: {\n    model: 'anthropic/claude-sonnet-4-20250514',\n    messages: [\n      { role: 'system', content: systemPrompt },\n      {\n        role: 'user',\n        content: [\n          {\n            type: 'image_url',\n            image_url: { url: 'data:' + mimeType + ';base64,' + base64 }\n          },\n          {\n            type: 'text',\n            text: 'Extract all property facts from this property document image. Return ONLY the JSON object.'\n          }\n        ]\n      }\n    ],\n    max_tokens: 4000,\n    temperature: 0.1\n  }\n}];\n"
+      },
+      "id": "60a5c66c-63e4-4b15-b557-35d0ff94a76f",
+      "name": "Build Vision Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "7019b519-15d6-47b7-be3c-6f9edde2b90c",
+      "name": "Vision LLM Extract",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "00f0345f-893c-4284-9657-0b27819024cd",
+      "name": "Extract From File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst extractedItem = $input.first();\nlet textContent = extractedItem.json.data || extractedItem.json.text || '';\n\nif (!textContent || textContent.trim().length < 20) {\n  textContent = '[No text could be extracted from this document. It may be a scanned image or contain only graphics.]';\n}\n\ntextContent = textContent.replace(/[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f]/g, ' ');\n\nif (textContent.length > 30000) {\n  textContent = textContent.substring(0, 30000) + '\\n[TRUNCATED]';\n}\n\nreturn [{ json: { text_content: textContent, text_length: textContent.length } }];\n"
+      },
+      "id": "aecaea3f-8245-4bff-9423-39adc27440ed",
+      "name": "Extract Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst textContent = $json.text_content || '';\nconst systemPrompt = \"You are an expert South African property document analyzer.\\nExtract structured facts from the provided property document text.\\n\\nReturn ONLY valid JSON matching this schema (use null for unknown fields):\\n{\\n  \\\"property_address\\\": string|null,\\n  \\\"suburb\\\": string|null,\\n  \\\"city\\\": string|null,\\n  \\\"province\\\": string|null,\\n  \\\"postal_code\\\": string|null,\\n  \\\"erf_number\\\": string|null,\\n  \\\"title_deed_number\\\": string|null,\\n  \\\"property_type\\\": \\\"freehold\\\"|\\\"sectional_title\\\"|\\\"estate\\\"|\\\"agricultural\\\"|\\\"commercial\\\"|\\\"industrial\\\"|\\\"mixed_use\\\"|\\\"vacant_land\\\"|null,\\n  \\\"zoning\\\": string|null,\\n  \\\"stand_size_sqm\\\": number|null,\\n  \\\"building_size_sqm\\\": number|null,\\n  \\\"bedrooms\\\": number|null,\\n  \\\"bathrooms\\\": number|null,\\n  \\\"garages\\\": number|null,\\n  \\\"parking_bays\\\": number|null,\\n  \\\"pool\\\": boolean,\\n  \\\"garden\\\": boolean,\\n  \\\"asking_price_zar\\\": number|null,\\n  \\\"municipal_valuation_zar\\\": number|null,\\n  \\\"monthly_levy_zar\\\": number|null,\\n  \\\"monthly_rates_zar\\\": number|null,\\n  \\\"special_levy_zar\\\": number|null,\\n  \\\"section_number\\\": string|null,\\n  \\\"participation_quota\\\": number|null,\\n  \\\"exclusive_use_areas\\\": string|null,\\n  \\\"body_corporate_name\\\": string|null,\\n  \\\"has_title_deed\\\": boolean,\\n  \\\"has_rates_clearance\\\": boolean,\\n  \\\"has_levy_clearance\\\": boolean,\\n  \\\"has_compliance_certs\\\": boolean,\\n  \\\"has_building_plans\\\": boolean,\\n  \\\"has_hoa_rules\\\": boolean,\\n  \\\"has_valuation_report\\\": boolean,\\n  \\\"has_offer_to_purchase\\\": boolean,\\n  \\\"seller_name\\\": string|null,\\n  \\\"seller_type\\\": \\\"private\\\"|\\\"estate_agent\\\"|\\\"bank\\\"|\\\"auction\\\"|\\\"developer\\\"|null,\\n  \\\"estate_agent\\\": string|null,\\n  \\\"extraction_confidence\\\": number (0-100)\\n}\\n\\nSA-specific notes:\\n- ERF = stand number in the deeds registry\\n- Sectional title = equivalent to condominium/strata\\n- Levies = body corporate monthly charges\\n- Rates = municipal property tax\\n- Voetstoots = sold as-is (auction term)\\n- All monetary values in ZAR (South African Rand)\\n\";\n\nreturn [{\n  json: {\n    model: 'anthropic/claude-sonnet-4-20250514',\n    messages: [\n      { role: 'system', content: systemPrompt },\n      { role: 'user', content: 'Extract property facts from the following document text:\\n\\n' + textContent }\n    ],\n    max_tokens: 4000,\n    temperature: 0.1,\n    response_format: { type: 'json_object' }\n  }\n}];\n"
+      },
+      "id": "1a413f0c-70b6-4e0e-979c-39b1d9121b0d",
+      "name": "Build LLM Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "06effacc-354e-4b66-b4e5-49ab28271a9d",
+      "name": "LLM Extract Facts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst llmResponse = $input.first().json;\nconst prevData = $('Normalize Input').first().json.body;\n\nlet extracted;\ntry {\n  const content = llmResponse.choices[0].message.content;\n  let jsonStr = content;\n  if (jsonStr.includes('```')) {\n    jsonStr = jsonStr.replace(/```json?\\n?/g, '').replace(/```/g, '').trim();\n  }\n  extracted = JSON.parse(jsonStr);\n} catch (e) {\n  extracted = {\n    property_address: null, suburb: null, city: null, province: 'Gauteng',\n    extraction_confidence: 10,\n  };\n}\n\n// Field validation\nconst VALID_PROPERTY_TYPES = ['freehold', 'sectional_title', 'estate', 'agricultural', 'commercial', 'industrial', 'mixed_use', 'vacant_land'];\nconst VALID_SELLER_TYPES = ['private', 'estate_agent', 'bank', 'auction', 'developer'];\n\nif (extracted.property_type && !VALID_PROPERTY_TYPES.includes(extracted.property_type)) {\n  extracted.property_type = null;\n}\nif (extracted.seller_type && !VALID_SELLER_TYPES.includes(extracted.seller_type)) {\n  extracted.seller_type = null;\n}\n\nif (typeof extracted.extraction_confidence === 'number') {\n  extracted.extraction_confidence = Math.max(0, Math.min(100, extracted.extraction_confidence));\n} else {\n  extracted.extraction_confidence = 30;\n}\n\nconst numericFields = ['asking_price_zar', 'municipal_valuation_zar', 'monthly_levy_zar', 'monthly_rates_zar', 'special_levy_zar', 'stand_size_sqm', 'building_size_sqm'];\nfor (const field of numericFields) {\n  if (extracted[field] != null && (typeof extracted[field] !== 'number' || extracted[field] < 0)) {\n    extracted[field] = null;\n  }\n}\n\nconst boolFields = ['pool', 'garden', 'has_title_deed', 'has_rates_clearance', 'has_levy_clearance', 'has_compliance_certs', 'has_building_plans', 'has_hoa_rules', 'has_valuation_report', 'has_offer_to_purchase'];\nfor (const field of boolFields) {\n  extracted[field] = extracted[field] === true;\n}\n\nconst parts = [extracted.property_address, extracted.suburb, extracted.city, extracted.province].filter(Boolean);\nconst address_for_geocode = parts.join(', ') || 'Unknown, South Africa';\n\nreturn [{\n  json: {\n    extracted_facts: extracted,\n    address_for_geocode,\n    run_id: prevData.run_id,\n    config: prevData.config,\n    callback_url: prevData.callback_url,\n    callback_secret: prevData.callback_secret,\n    request_start: prevData.request_start,\n  }\n}];\n"
+      },
+      "id": "5af79695-0406-42e8-a986-21f13b0e5202",
+      "name": "Validate Extraction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.callback_secret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"run_id\": \"{{ $json.run_id }}\", \"status\": \"geocoding\", \"extracted_facts\": {{ JSON.stringify($json.extracted_facts) }} }",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "e51b39ec-6ff6-4321-ba7b-939332584b4c",
+      "name": "Update Status Geocoding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://nominatim.openstreetmap.org/search?q={{ encodeURIComponent($('Validate Extraction').first().json.address_for_geocode) }}&format=json&countrycodes=za&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "AnyVisionPropertyAnalyzer/1.0 (ian@anyvisionmedia.com)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "37114953-0cf7-4a1d-8e4f-d754f9032496",
+      "name": "Nominatim Geocode",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst geoResults = $input.first().json;\nconst prev = $('Validate Extraction').first().json;\nconst results = Array.isArray(geoResults) ? geoResults : [];\n\nlet geocode;\nif (results.length > 0) {\n  const r = results[0];\n  geocode = {\n    normalized_address: r.display_name || prev.address_for_geocode,\n    latitude: parseFloat(r.lat),\n    longitude: parseFloat(r.lon),\n    geocode_confidence: Math.min(100, parseFloat(r.importance || 0.5) * 100),\n    geocode_source: 'nominatim',\n    suburb_normalized: prev.extracted_facts.suburb,\n    municipality: null,\n    ward_number: null\n  };\n} else {\n  geocode = {\n    normalized_address: prev.address_for_geocode,\n    latitude: null, longitude: null,\n    geocode_confidence: 0,\n    geocode_source: 'nominatim',\n    suburb_normalized: null, municipality: null, ward_number: null\n  };\n}\n\nreturn [{ json: { ...prev, geocode } }];\n"
+      },
+      "id": "0cde3067-b66a-4c3a-9025-93feab3cacb5",
+      "name": "Process Geocode",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.callback_secret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"run_id\": \"{{ $json.run_id }}\", \"status\": \"enriching\", \"geocode\": {{ JSON.stringify($json.geocode) }} }",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "8a3d80e8-d120-489a-a5b0-8e783ad3f8f9",
+      "name": "Update Status Enriching",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://overpass-api.de/api/interpreter",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "text/plain",
+        "body": "={{ (() => {\nconst lat = $('Process Geocode').first().json.geocode.latitude;\nconst lon = $('Process Geocode').first().json.geocode.longitude;\nif (!lat || !lon) return 'out:json;';\nreturn `\n[out:json][timeout:25];\n(\n  node[\"amenity\"=\"school\"](around:2000,${lat},${lon});\n  node[\"amenity\"=\"hospital\"](around:5000,${lat},${lon});\n  node[\"amenity\"=\"clinic\"](around:5000,${lat},${lon});\n  node[\"shop\"=\"supermarket\"](around:2000,${lat},${lon});\n  node[\"shop\"=\"mall\"](around:3000,${lat},${lon});\n  node[\"amenity\"=\"restaurant\"](around:2000,${lat},${lon});\n  node[\"leisure\"=\"park\"](around:1000,${lat},${lon});\n  node[\"public_transport\"=\"station\"](around:1000,${lat},${lon});\n  node[\"highway\"=\"bus_stop\"](around:1000,${lat},${lon});\n  node[\"amenity\"=\"bank\"](around:2000,${lat},${lon});\n  node[\"amenity\"=\"pharmacy\"](around:2000,${lat},${lon});\n  node[\"amenity\"=\"fuel\"](around:3000,${lat},${lon});\n  node[\"leisure\"=\"fitness_centre\"](around:3000,${lat},${lon});\n);\nout body;`;\n})() }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "97d31de9-d084-4a6a-a4af-d967b08bf8de",
+      "name": "Overpass POI Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3300,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst overpassData = $input.first().json;\nconst prev = $('Process Geocode').first().json;\nconst lat = prev.geocode.latitude;\nconst lon = prev.geocode.longitude;\n\nfunction haversine(lat1, lon1, lat2, lon2) {\n  const R = 6371;\n  const dLat = (lat2 - lat1) * Math.PI / 180;\n  const dLon = (lon2 - lon1) * Math.PI / 180;\n  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;\n  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));\n}\n\nfunction categorize(tags) {\n  if (tags.amenity === 'school') return 'schools';\n  if (tags.amenity === 'hospital' || tags.amenity === 'clinic') return 'hospitals';\n  if (tags.shop === 'supermarket' || tags.shop === 'mall') return 'shopping';\n  if (tags.amenity === 'restaurant') return 'restaurants';\n  if (tags.leisure === 'park') return 'parks';\n  if (tags.public_transport === 'station' || tags.highway === 'bus_stop') return 'public_transport';\n  if (tags.amenity === 'bank') return 'banks';\n  if (tags.amenity === 'pharmacy') return 'pharmacies';\n  if (tags.amenity === 'fuel') return 'fuel_stations';\n  if (tags.leisure === 'fitness_centre') return 'gyms';\n  return null;\n}\n\nconst amenities = {\n  schools: [], hospitals: [], shopping: [], restaurants: [], parks: [],\n  public_transport: [], banks: [], pharmacies: [], fuel_stations: [], gyms: []\n};\n\nconst elements = overpassData?.elements || [];\nfor (const el of elements) {\n  if (!el.tags || !el.lat) continue;\n  const cat = categorize(el.tags);\n  if (!cat) continue;\n  const dist = lat && lon ? haversine(lat, lon, el.lat, el.lon) : 999;\n  amenities[cat].push({\n    name: el.tags.name || el.tags.amenity || el.tags.shop || 'Unnamed',\n    type: cat,\n    distance_km: Math.round(dist * 100) / 100,\n    lat: el.lat, lon: el.lon,\n    osm_id: String(el.id)\n  });\n}\n\nfor (const key of Object.keys(amenities)) {\n  amenities[key].sort((a, b) => a.distance_km - b.distance_km);\n}\n\nreturn [{ json: { ...prev, amenities, total_pois: elements.length } }];\n"
+      },
+      "id": "c6ea2b86-3a93-47a0-be48-91ae5af7a3b8",
+      "name": "Process POI Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.callback_secret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"run_id\": \"{{ $json.run_id }}\", \"status\": \"scoring\", \"enrichment\": [{ \"source\": \"overpass\", \"category\": \"amenities\", \"data\": {{ JSON.stringify($json.amenities) }}, \"confidence\": {{ $json.geocode.latitude ? 80 : 0 }} }] }",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "f757c8b3-9b34-41ec-b317-d466e6ae7768",
+      "name": "Update Status Scoring",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3740,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Property Analyzer Scoring Engine v1.1\n// Runs inside n8n Code node\n\nconst facts = $input.first().json.extracted_facts || {};\nconst geocode = $input.first().json.geocode || {};\nconst amenities = $input.first().json.amenities || {};\nconst config = $input.first().json.config || {};\nconst strategyPreset = config.strategy_preset || 'balanced';\n\n// Strategy-specific weight adjustments\nconst STRATEGY_WEIGHTS = {\n  balanced: {\n    document_completeness: 0.15,\n    location_amenities: 0.20,\n    crime_safety: 0.20,\n    market_growth: 0.20,\n    deal_financial: 0.20,\n    risk_red_flags: 0.05\n  },\n  conservative: {\n    document_completeness: 0.15,\n    location_amenities: 0.20,\n    crime_safety: 0.20,\n    market_growth: 0.15,\n    deal_financial: 0.15,\n    risk_red_flags: 0.15\n  },\n  aggressive: {\n    document_completeness: 0.10,\n    location_amenities: 0.15,\n    crime_safety: 0.15,\n    market_growth: 0.23,\n    deal_financial: 0.25,\n    risk_red_flags: 0.02\n  },\n  rental_yield: {\n    document_completeness: 0.10,\n    location_amenities: 0.20,\n    crime_safety: 0.20,\n    market_growth: 0.15,\n    deal_financial: 0.30,\n    risk_red_flags: 0.05\n  },\n  capital_growth: {\n    document_completeness: 0.10,\n    location_amenities: 0.20,\n    crime_safety: 0.15,\n    market_growth: 0.30,\n    deal_financial: 0.15,\n    risk_red_flags: 0.10\n  }\n};\n\nconst weights = STRATEGY_WEIGHTS[strategyPreset] || STRATEGY_WEIGHTS.balanced;\n\n// Helper\nfunction clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }\n\n// ---- 1. Document Completeness (0-100) ----\nfunction scoreDocumentCompleteness(f) {\n  let score = 0;\n  const factors = [];\n  const checks = [\n    ['has_title_deed', 15, 'Title deed present'],\n    ['has_rates_clearance', 15, 'Rates clearance certificate'],\n    ['has_compliance_certs', 15, 'Compliance certificates'],\n    ['has_valuation_report', 15, 'Valuation report included'],\n    ['has_building_plans', 10, 'Building plans available'],\n    ['has_offer_to_purchase', 15, 'Offer to purchase document'],\n  ];\n\n  if (f.property_type === 'sectional_title') {\n    checks.push(['has_levy_clearance', 10, 'Levy clearance certificate']);\n    checks.push(['has_hoa_rules', 5, 'HOA/Body corporate rules']);\n  } else {\n    checks[0][1] += 5;\n    checks[1][1] += 5;\n    checks[2][1] += 5;\n  }\n\n  for (const [field, pts, label] of checks) {\n    const present = f[field] === true;\n    score += present ? pts : 0;\n    factors.push({\n      name: label,\n      impact: present ? 'positive' : 'negative',\n      points: present ? pts : 0,\n      max_points: pts,\n      reason: present ? 'Document present' : 'Document missing',\n      source: 'document'\n    });\n  }\n\n  if (f.extraction_confidence > 90) {\n    score += 5;\n    factors.push({ name: 'High extraction confidence', impact: 'positive', points: 5, max_points: 5, reason: `Confidence: ${f.extraction_confidence}%`, source: 'extraction' });\n  }\n\n  if (!f.property_type) {\n    score -= 10;\n    factors.push({ name: 'Property type unknown', impact: 'negative', points: -10, max_points: 0, reason: 'Could not determine property type', source: 'extraction' });\n  }\n\n  return {\n    score: clamp(score, 0, 100),\n    weight: weights.document_completeness,\n    weighted_score: clamp(score, 0, 100) * weights.document_completeness,\n    confidence: f.extraction_confidence || 50,\n    factors,\n    summary: `${factors.filter(f => f.impact === 'positive').length} of ${checks.length} key documents present`\n  };\n}\n\n// ---- 2. Location & Amenities (0-100) ----\nfunction scoreLocationAmenities(am) {\n  if (!am || Object.keys(am).length === 0) {\n    return {\n      score: 50, weight: weights.location_amenities, weighted_score: 50 * weights.location_amenities,\n      confidence: 20, factors: [{ name: 'No amenity data', impact: 'neutral', points: 50, max_points: 100, reason: 'Enrichment data unavailable; using neutral estimate', source: 'degraded' }],\n      summary: 'No amenity data available'\n    };\n  }\n\n  let score = 0;\n  const factors = [];\n  const categories = [\n    { key: 'schools', maxPts: 15, thresholds: [[3, 15], [1, 10]], label: 'Schools nearby' },\n    { key: 'hospitals', maxPts: 15, thresholds: [[2, 15], [1, 10]], label: 'Hospitals/clinics' },\n    { key: 'shopping', maxPts: 10, thresholds: [[2, 10], [1, 7]], label: 'Shopping' },\n    { key: 'public_transport', maxPts: 15, thresholds: [[3, 15], [1, 10]], label: 'Public transport' },\n    { key: 'parks', maxPts: 10, thresholds: [[2, 10], [1, 7]], label: 'Parks' },\n    { key: 'banks', maxPts: 5, thresholds: [[1, 5]], label: 'Banks' },\n    { key: 'pharmacies', maxPts: 5, thresholds: [[1, 5]], label: 'Pharmacies' },\n    { key: 'restaurants', maxPts: 5, thresholds: [[2, 5], [1, 3]], label: 'Restaurants' },\n    { key: 'fuel_stations', maxPts: 5, thresholds: [[1, 5]], label: 'Fuel stations' },\n    { key: 'gyms', maxPts: 5, thresholds: [[1, 5]], label: 'Gyms' },\n  ];\n\n  for (const cat of categories) {\n    const items = am[cat.key] || [];\n    let pts = 0;\n    for (const [threshold, points] of cat.thresholds) {\n      if (items.length >= threshold) { pts = points; break; }\n    }\n    score += pts;\n    factors.push({\n      name: cat.label, impact: pts > 0 ? 'positive' : 'negative',\n      points: pts, max_points: cat.maxPts,\n      reason: `${items.length} found within radius`,\n      source: 'overpass_api'\n    });\n  }\n\n  const normalized = clamp(Math.round(score / 90 * 100), 0, 100);\n  return {\n    score: normalized, weight: weights.location_amenities,\n    weighted_score: normalized * weights.location_amenities,\n    confidence: 80, factors,\n    summary: `${factors.filter(f => f.impact === 'positive').length} of ${categories.length} amenity categories well-served`\n  };\n}\n\n// ---- 3. Crime & Safety (0-100) ----\nfunction scoreCrimeSafety() {\n  return {\n    score: 50, weight: weights.crime_safety,\n    weighted_score: 50 * weights.crime_safety,\n    confidence: 15,\n    factors: [{ name: 'Crime data pending', impact: 'neutral', points: 50, max_points: 100, reason: 'SAPS crime data integration pending (Phase 2)', source: 'degraded' }],\n    summary: 'Crime data not yet integrated - using neutral estimate'\n  };\n}\n\n// ---- 4. Market & Growth (0-100) ----\nfunction scoreMarketGrowth() {\n  return {\n    score: 50, weight: weights.market_growth,\n    weighted_score: 50 * weights.market_growth,\n    confidence: 15,\n    factors: [{ name: 'Market data pending', impact: 'neutral', points: 50, max_points: 100, reason: 'FNB HPI / market data integration pending (Phase 2)', source: 'degraded' }],\n    summary: 'Market trend data not yet integrated - using neutral estimate'\n  };\n}\n\n// ---- 5. Deal Financial Plausibility (0-100) ----\nfunction scoreDealFinancial(f) {\n  if (!f.asking_price_zar) {\n    return {\n      score: 50, weight: weights.deal_financial,\n      weighted_score: 50 * weights.deal_financial,\n      confidence: 15,\n      factors: [{ name: 'No asking price', impact: 'neutral', points: 50, max_points: 100, reason: 'Cannot assess financial viability without price', source: 'degraded' }],\n      summary: 'Price unknown - cannot assess deal financials'\n    };\n  }\n\n  let score = 0;\n  const factors = [];\n\n  if (f.municipal_valuation_zar && f.municipal_valuation_zar > 0) {\n    const ratio = f.asking_price_zar / f.municipal_valuation_zar;\n    let pts;\n    if (ratio < 0.9) { pts = 25; }\n    else if (ratio <= 1.1) { pts = 20; }\n    else if (ratio <= 1.3) { pts = 15; }\n    else { pts = 5; }\n    score += pts;\n    factors.push({ name: 'Price vs valuation', impact: pts >= 20 ? 'positive' : pts >= 15 ? 'neutral' : 'negative', points: pts, max_points: 25, reason: `Ratio: ${ratio.toFixed(2)}x municipal valuation`, source: 'calculation' });\n  } else {\n    score += 12;\n    factors.push({ name: 'Price vs valuation', impact: 'neutral', points: 12, max_points: 25, reason: 'Municipal valuation unknown', source: 'degraded' });\n  }\n\n  if (f.building_size_sqm && f.building_size_sqm > 0) {\n    const ppsm = f.asking_price_zar / f.building_size_sqm;\n    let pts;\n    if (ppsm < 15000) { pts = 20; }\n    else if (ppsm <= 25000) { pts = 15; }\n    else { pts = 8; }\n    score += pts;\n    factors.push({ name: 'Price per sqm', impact: pts >= 15 ? 'positive' : 'neutral', points: pts, max_points: 20, reason: `R${Math.round(ppsm).toLocaleString()}/m2`, source: 'calculation' });\n  }\n\n  const monthlyRent = config.investor_assumptions?.estimated_monthly_rental_zar;\n  const monthlyCosts = (f.monthly_levy_zar || 0) + (f.monthly_rates_zar || 0);\n  if (monthlyRent && monthlyRent > 0 && monthlyCosts > 0) {\n    const costRatio = monthlyCosts / monthlyRent;\n    let pts;\n    if (costRatio < 0.3) { pts = 20; }\n    else if (costRatio <= 0.5) { pts = 15; }\n    else { pts = 5; }\n    score += pts;\n    factors.push({ name: 'Costs vs rental income', impact: pts >= 15 ? 'positive' : 'negative', points: pts, max_points: 20, reason: `Monthly costs are ${Math.round(costRatio * 100)}% of estimated rent`, source: 'calculation' });\n  }\n\n  const finalScore = clamp(Math.round(score / 65 * 100), 0, 100);\n  return {\n    score: finalScore, weight: weights.deal_financial,\n    weighted_score: finalScore * weights.deal_financial,\n    confidence: f.municipal_valuation_zar ? 70 : 40,\n    factors,\n    summary: `Financial assessment based on ${factors.length} available metrics`\n  };\n}\n\n// ---- 6. Risk & Red Flags (0-100, 100 = no risks) ----\nfunction scoreRiskRedFlags(f) {\n  let score = 100;\n  const factors = [];\n  const redFlags = [];\n\n  const checks = [\n    [!f.has_title_deed, 20, 'Missing title deed', 'high'],\n    [!f.has_rates_clearance, 15, 'Missing rates clearance certificate', 'high'],\n    [f.seller_type === 'bank' || f.seller_type === 'auction', 10, 'Bank/auction sale (potential distress indicator)', 'medium'],\n    [f.special_levy_zar && f.special_levy_zar > 0, 10, 'Active special levy', 'medium'],\n    [f.asking_price_zar && f.municipal_valuation_zar && f.asking_price_zar > 2 * f.municipal_valuation_zar, 20, 'Price exceeds 2x municipal valuation', 'high'],\n    [f.extraction_confidence && f.extraction_confidence < 50, 15, 'Low document extraction confidence', 'medium'],\n  ];\n\n  for (const [condition, penalty, desc, severity] of checks) {\n    if (condition) {\n      score -= penalty;\n      factors.push({ name: desc, impact: 'negative', points: -penalty, max_points: 0, reason: desc, source: 'analysis' });\n      redFlags.push({ text: desc, severity, source: 'automated_analysis' });\n    }\n  }\n\n  score = clamp(score, 0, 100);\n  return {\n    score, weight: weights.risk_red_flags,\n    weighted_score: score * weights.risk_red_flags,\n    confidence: 75,\n    factors,\n    summary: redFlags.length === 0 ? 'No significant red flags detected' : `${redFlags.length} risk factor(s) identified`,\n    _red_flags: redFlags\n  };\n}\n\n// ---- Compute all subscores ----\nconst docScore = scoreDocumentCompleteness(facts);\nconst locScore = scoreLocationAmenities(amenities);\nconst crimeScore = scoreCrimeSafety();\nconst marketScore = scoreMarketGrowth();\nconst dealScore = scoreDealFinancial(facts);\nconst riskScore = scoreRiskRedFlags(facts);\n\nconst subscores = {\n  document_completeness: docScore,\n  location_amenities: locScore,\n  crime_safety: crimeScore,\n  market_growth: marketScore,\n  deal_financial: dealScore,\n  risk_red_flags: riskScore\n};\n\nconst overallScore = Math.round(\n  docScore.weighted_score +\n  locScore.weighted_score +\n  crimeScore.weighted_score +\n  marketScore.weighted_score +\n  dealScore.weighted_score +\n  riskScore.weighted_score\n);\n\nconst extractionConf = facts.extraction_confidence || 50;\nconst geocodeConf = geocode.geocode_confidence || 30;\nconst sourcesAvailable = [docScore, locScore, crimeScore, marketScore, dealScore].filter(s => s.confidence > 30).length;\nconst totalSources = 5;\nlet confidence = Math.round(extractionConf * 0.3 + geocodeConf * 0.2 + (sourcesAvailable / totalSources) * 50);\nconfidence = clamp(confidence, 15, 100);\n\nlet verdict;\nconst hasCritical = riskScore._red_flags.some(f => f.severity === 'critical');\nif (hasCritical) { verdict = 'caution'; }\nelse if (overallScore >= 80 && confidence >= 60) { verdict = 'strong_buy'; }\nelse if (overallScore >= 65 && confidence >= 50) { verdict = 'buy'; }\nelse if (overallScore >= 50 && confidence >= 40) { verdict = 'hold'; }\nelse if (overallScore >= 35) { verdict = 'caution'; }\nelse { verdict = 'avoid'; }\n\nconst verdictLabels = { strong_buy: 'Strong Buy', buy: 'Buy', hold: 'Hold', caution: 'Caution', avoid: 'Avoid' };\n\nconst pros = [];\nconst cons = [];\nfor (const [key, detail] of Object.entries(subscores)) {\n  for (const f of detail.factors) {\n    if (f.impact === 'positive' && f.points > 5) {\n      pros.push({ text: f.reason, source: f.source, category: key });\n    }\n    if (f.impact === 'negative' && f.points < -5) {\n      cons.push({ text: f.reason, source: f.source, category: key });\n    }\n  }\n}\n\nconst unknowns = [];\nif (!facts.asking_price_zar) unknowns.push({ text: 'Confirm asking price / reserve price', category: 'financial', requires_human_check: true });\nif (!facts.has_rates_clearance) unknowns.push({ text: 'Confirm rates clearance status', category: 'legal', requires_human_check: true });\nif (!facts.has_title_deed) unknowns.push({ text: 'Confirm title deed and ownership', category: 'legal', requires_human_check: true });\nif (facts.property_type === 'sectional_title' && !facts.has_levy_clearance) unknowns.push({ text: 'Confirm body corporate financials and levy clearance', category: 'legal', requires_human_check: true });\nunknowns.push({ text: 'Confirm current occupancy status', category: 'occupancy', requires_human_check: true });\nunknowns.push({ text: 'Confirm structural condition / defects', category: 'physical', requires_human_check: true });\nunknowns.push({ text: 'Verify rental comps for the area', category: 'financial', requires_human_check: true });\n\nconst failedSources = [crimeScore, marketScore].filter(s => s.confidence <= 20).map(s => s.summary);\nconst degraded = failedSources.length > 0;\n\nreturn [{\n  json: {\n    overall_score: overallScore,\n    confidence,\n    verdict,\n    verdict_summary: `${verdictLabels[verdict]} (Score: ${overallScore}/100, Confidence: ${confidence}%). Strategy: ${strategyPreset}.${degraded ? ' Note: Some data sources unavailable; scores may improve with more data.' : ''}`,\n    subscores,\n    pros,\n    cons,\n    red_flags: riskScore._red_flags,\n    unknowns,\n    scoring_metadata: {\n      strategy_preset: strategyPreset,\n      weights_used: weights,\n      data_sources_available: ['document', 'overpass_api'],\n      data_sources_failed: failedSources.length > 0 ? ['saps_crime', 'fnb_hpi', 'statssa'] : [],\n      degradation_applied: degraded,\n      degradation_reason: degraded ? 'Crime, market, and economic data sources not yet integrated' : null\n    }\n  }\n}];\n"
+      },
+      "id": "a7845ecf-9d93-4b01-a8eb-c7991f0a3a8a",
+      "name": "Compute Scores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst scores = $input.first().json;\nconst prev = $('Process POI Results').first().json;\n\nconst enrichment = [{\n  source: 'overpass', category: 'amenities',\n  data: prev.amenities, confidence: prev.geocode.latitude ? 80 : 0\n}];\n\nconst sources = [\n  { source_type: 'document', source_name: 'Uploaded property document', reliability: 'high' },\n  { source_type: 'api', source_name: 'Nominatim Geocoding (OpenStreetMap)', source_url: 'https://nominatim.openstreetmap.org', reliability: 'high' },\n  { source_type: 'api', source_name: 'Overpass API (OpenStreetMap POIs)', source_url: 'https://overpass-api.de', reliability: 'high' },\n  { source_type: 'api', source_name: 'OpenRouter / Claude Sonnet', source_url: 'https://openrouter.ai', reliability: 'high' },\n  { source_type: 'calculation', source_name: 'Scoring Engine v1.1', reliability: 'high' },\n];\n\nconst staticData = $getWorkflowStaticData('global');\nconst requestStart = prev.request_start || staticData.request_start || Date.now();\nconst processingTimeMs = Date.now() - requestStart;\n\nreturn [{\n  json: {\n    run_id: prev.run_id,\n    callback_url: prev.callback_url,\n    callback_secret: prev.callback_secret,\n    scores, enrichment, sources,\n    extracted_facts: prev.extracted_facts,\n    geocode: prev.geocode,\n    processing_time_ms: processingTimeMs,\n  }\n}];\n"
+      },
+      "id": "e7bba2c2-3baf-4b48-9d05-a6e8f4f3b8e4",
+      "name": "Build Final Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.callback_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.callback_secret }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  run_id: $json.run_id,\n  status: 'completed',\n  extracted_facts: $json.extracted_facts,\n  geocode: $json.geocode,\n  enrichment: $json.enrichment,\n  scores: $json.scores,\n  sources: $json.sources,\n  processing_time_ms: $json.processing_time_ms,\n  n8n_execution_id: $execution.id\n}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "1e3a1494-8ca5-489a-b422-ddbb9c86a82d",
+      "name": "Send Completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4400,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "fd947ec2-f76b-4d1b-a1e7-5c25c31ba0ae",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst error = $input.first().json;\n\n// Read callback info from staticData (set by Normalize Input node)\nconst staticData = $getWorkflowStaticData('global');\nconst callbackUrl = staticData.callback_url;\nconst callbackSecret = staticData.callback_secret;\nconst runId = staticData.run_id;\n\nif (callbackUrl && callbackSecret && runId) {\n  try {\n    await this.helpers.httpRequest({\n      method: 'POST',\n      url: callbackUrl,\n      headers: {\n        'Authorization': 'Bearer ' + callbackSecret,\n        'Content-Type': 'application/json'\n      },\n      body: JSON.stringify({\n        run_id: runId,\n        status: 'failed',\n        error_message: error.message || 'Unknown workflow error',\n        n8n_execution_id: $execution.id\n      })\n    });\n  } catch (e) {\n    // Callback failed too\n  }\n}\n\nreturn [{ json: { error: true, message: error.message, run_id: runId } }];\n"
+      },
+      "id": "260588ac-b8c4-4b64-ad87-3018ca4a78d3",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Analysis Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Test Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Test Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Test Data": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Update Status Parsing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status Parsing": {
+      "main": [
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File": {
+      "main": [
+        [
+          {
+            "node": "Check Download",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Download": {
+      "main": [
+        [
+          {
+            "node": "Is Image?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Image?": {
+      "main": [
+        [
+          {
+            "node": "Build Vision Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract From File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Vision Request": {
+      "main": [
+        [
+          {
+            "node": "Vision LLM Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vision LLM Extract": {
+      "main": [
+        [
+          {
+            "node": "Validate Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract From File": {
+      "main": [
+        [
+          {
+            "node": "Extract Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Text": {
+      "main": [
+        [
+          {
+            "node": "Build LLM Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build LLM Request": {
+      "main": [
+        [
+          {
+            "node": "LLM Extract Facts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Extract Facts": {
+      "main": [
+        [
+          {
+            "node": "Validate Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Extraction": {
+      "main": [
+        [
+          {
+            "node": "Update Status Geocoding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status Geocoding": {
+      "main": [
+        [
+          {
+            "node": "Nominatim Geocode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nominatim Geocode": {
+      "main": [
+        [
+          {
+            "node": "Process Geocode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Geocode": {
+      "main": [
+        [
+          {
+            "node": "Update Status Enriching",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status Enriching": {
+      "main": [
+        [
+          {
+            "node": "Overpass POI Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Overpass POI Query": {
+      "main": [
+        [
+          {
+            "node": "Process POI Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process POI Results": {
+      "main": [
+        [
+          {
+            "node": "Update Status Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status Scoring": {
+      "main": [
+        [
+          {
+            "node": "Compute Scores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Scores": {
+      "main": [
+        [
+          {
+            "node": "Build Final Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Final Payload": {
+      "main": [
+        [
+          {
+            "node": "Send Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    {
+      "name": "property-analyzer"
+    }
+  ]
+}

@@ -1,0 +1,607 @@
+{
+  "name": "Marketing Dept - Distribution (WF-04)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "738035ec-0035-42d3-b58e-a91e790d6d9b",
+      "name": "Daily 10AM Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [-1440, 336],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "b5956d75-9e6b-4ec1-ac68-e7e0ae6d838f",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [-1440, 544],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblkS0va5Dw4yPSuq"
+        },
+        "filterByFormula": "{Status} = \"Queued\"",
+        "options": {}
+      },
+      "id": "9e4266ed-4828-4326-8196-2913ac5b7504",
+      "name": "Read Publish Queue",
+      "type": "n8n-nodes-base.airtable",
+      "position": [-1200, 448],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "89b9c604-f851-4a10-b7b3-ac76a5e49a9d",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.id }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "550b55a8-c666-409c-9e28-161b6365e9b3",
+      "name": "Has Queue Items?",
+      "type": "n8n-nodes-base.if",
+      "position": [-960, 448],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "options": {
+          "batchSize": 1
+        }
+      },
+      "id": "8853546d-a60f-4878-b44a-e433a8baef7f",
+      "name": "Loop Over Queue",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [-720, 336],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblf3QGxX9K1y2h2H"
+        },
+        "filterByFormula": "=RECORD_ID() = \"{{ $json['Content ID'] }}\"",
+        "options": {}
+      },
+      "id": "9c137a72-127a-4179-a590-c1b40ab70f35",
+      "name": "Read Content",
+      "type": "n8n-nodes-base.airtable",
+      "position": [-480, 544],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $input.first().json;\nconst queueItem = $('Loop Over Queue').item.json;\n\n// Build the post text from content fields\nconst postText = content.Body || content.Title || 'Check out our latest update!';\n\nreturn {\n  json: {\n    postText: postText,\n    contentId: content.id || '',\n    queueId: queueItem.id || '',\n    calendarId: content['Calendar Entry ID'] || '',\n    title: content.Title || '',\n    platform: content.Platform || 'all',\n    contentID_field: queueItem['Content ID'] || ''\n  }\n};"
+      },
+      "id": "542838d5-aaaf-41f4-b52c-2f0198ff6142",
+      "name": "Format for Blotato",
+      "type": "n8n-nodes-base.code",
+      "position": [-240, 544],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "platform": "tiktok",
+        "accountId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "27801"
+        },
+        "postContentText": "={{ $json.postText }}",
+        "options": {}
+      },
+      "id": "21c2a021-70d5-4b51-8e7f-7463723947f2",
+      "name": "TikTok [BLOTATO]",
+      "type": "@blotato/n8n-nodes-blotato.blotato",
+      "position": [64, 144],
+      "typeVersion": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "accountId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "29194"
+        },
+        "postContentText": "={{ $json.postText }}",
+        "options": {}
+      },
+      "id": "7a0e0d1d-f9a0-431e-9d34-bca08e2c5677",
+      "name": "Instagram [BLOTATO]",
+      "type": "@blotato/n8n-nodes-blotato.blotato",
+      "position": [64, 288],
+      "typeVersion": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "platform": "facebook",
+        "accountId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "369"
+        },
+        "postContentText": "={{ $json.postText }}",
+        "facebookPageId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "161711670360847"
+        },
+        "options": {}
+      },
+      "id": "15f8f2b9-a8c1-49cb-b874-659949ab62a7",
+      "name": "Facebook [BLOTATO]",
+      "type": "@blotato/n8n-nodes-blotato.blotato",
+      "position": [64, 416],
+      "typeVersion": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "fc7b11bb-a95b-4549-811f-0290105c2ff9",
+      "name": "Merge Platform Results",
+      "type": "n8n-nodes-base.merge",
+      "position": [352, 544],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process merged results from all 3 platform posting attempts\nconst items = $input.all();\nconst platforms = ['TikTok', 'Instagram', 'Facebook'];\nconst formatData = $('Format for Blotato').first().json;\nconst now = new Date().toISOString().split('T')[0];\n\n// First pass: compute totals\nlet successCount = 0;\nlet failCount = 0;\nitems.forEach((item, i) => {\n  const hasError = !!(item.json.error || item.json.statusCode >= 400);\n  if (hasError) { failCount++; } else { successCount++; }\n});\n\n// Second pass: build log entries with correct final totals\nconst logEntries = items.map((item, i) => {\n  const platform = platforms[i] || 'Unknown';\n  const hasError = !!(item.json.error || item.json.statusCode >= 400);\n  return {\n    json: {\n      'Log ID': `LOG-${Date.now()}-${platform}`,\n      'Content ID': formatData.contentID_field || formatData.contentId || '',\n      'Platform': platform,\n      'Published At': now,\n      'Status': hasError ? 'Failed' : 'Success',\n      'Response': JSON.stringify(item.json).substring(0, 200),\n      _queueId: formatData.queueId || '',\n      _contentId: formatData.contentId || '',\n      _successCount: successCount,\n      _failCount: failCount\n    }\n  };\n});\nreturn logEntries;"
+      },
+      "id": "914a6231-19ef-434f-b69e-8af6c511d878",
+      "name": "Process Results",
+      "type": "n8n-nodes-base.code",
+      "position": [592, 544],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblLI70ZD0DkJKXvI"
+        },
+        "columns": {
+          "value": {
+            "Log ID": "={{ $json['Log ID'] }}",
+            "Content ID": "={{ $json['Content ID'] }}",
+            "Platform": "={{ $json['Platform'] }}",
+            "Published At": "={{ $json['Published At'] }}",
+            "Status": "={{ $json['Status'] }}",
+            "Response": "={{ $json['Response'] }}"
+          },
+          "schema": [
+            { "id": "Log ID", "type": "string", "display": true, "displayName": "Log ID" },
+            { "id": "Content ID", "type": "string", "display": true, "displayName": "Content ID" },
+            { "id": "Platform", "type": "string", "display": true, "displayName": "Platform" },
+            { "id": "Published At", "type": "string", "display": true, "displayName": "Published At" },
+            { "id": "Status", "type": "string", "display": true, "displayName": "Status" },
+            { "id": "Response", "type": "string", "display": true, "displayName": "Response" }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "c42cad15-f608-4b84-aee1-7ccf94c8a718",
+      "name": "Store Distribution Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [832, 544],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Take only the first item to prevent 9x loop-back from parallel platform posts.\n// All 9 distribution log entries are already stored — we just need one item\n// to carry _queueId/_contentId/_successCount/_failCount forward.\nreturn [$input.first()];"
+      },
+      "id": "dedup-loop-item-001",
+      "name": "Take First Item",
+      "type": "n8n-nodes-base.code",
+      "position": [952, 544],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblkS0va5Dw4yPSuq"
+        },
+        "columns": {
+          "value": {
+            "id": "={{ $json._queueId }}",
+            "Status": "Published",
+            "Published At": "={{ $now.format('yyyy-MM-dd') }}",
+            "Platform Results": "={{ $json._successCount + '/' + ($json._successCount + $json._failCount) + ' platforms succeeded' }}"
+          },
+          "schema": [
+            { "id": "id", "type": "string", "display": true, "displayName": "id" },
+            { "id": "Status", "type": "string", "display": true, "displayName": "Status" },
+            { "id": "Published At", "type": "string", "display": true, "displayName": "Published At" },
+            { "id": "Platform Results", "type": "string", "display": true, "displayName": "Platform Results" }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": ["id"]
+        },
+        "options": {}
+      },
+      "id": "ab4681c2-5d24-4ca1-add2-188468f227eb",
+      "name": "Update Queue Status",
+      "type": "n8n-nodes-base.airtable",
+      "position": [1072, 544],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblf3QGxX9K1y2h2H"
+        },
+        "columns": {
+          "value": {
+            "id": "={{ $json._contentId }}",
+            "Status": "Published"
+          },
+          "schema": [
+            { "id": "id", "type": "string", "display": true, "displayName": "id" },
+            { "id": "Status", "type": "string", "display": true, "displayName": "Status" }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": ["id"]
+        },
+        "options": {}
+      },
+      "id": "eb1c4088-6544-400c-9a46-5c50787381ca",
+      "name": "Content -> Published",
+      "type": "n8n-nodes-base.airtable",
+      "position": [1312, 544],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\nlet totalPublished = 0;\nlet totalFailed = 0;\n\ntry {\n  const items = $('Process Results').all();\n  if (items.length > 0) {\n    // All items now have the same final totals, so read from first item\n    totalPublished = items[0].json._successCount || 0;\n    totalFailed = items[0].json._failCount || 0;\n  }\n} catch(e) {\n  // No process results — queue was empty\n}\n\nreturn {\n  json: {\n    subject: `Marketing Distribution: ${totalPublished} posts published`,\n    body: [\n      '<h2>Daily Distribution Report</h2>',\n      `<p><strong>Date:</strong> ${now}</p>`,\n      '<hr>',\n      `<p><strong>Successful Posts:</strong> ${totalPublished}</p>`,\n      `<p><strong>Failed Posts:</strong> ${totalFailed}</p>`,\n      '<hr>',\n      '<p>Check your Airtable Distribution Log for per-platform details.</p>',\n    ].join('\\n')\n  }\n};"
+      },
+      "id": "fff30b5a-5d9d-468b-9d9e-fc70e56a4cc6",
+      "name": "Aggregate Distribution",
+      "type": "n8n-nodes-base.code",
+      "position": [1792, 336],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "c89cbe05-008a-4a4e-97be-361c11d406ab",
+      "name": "Send Distribution Summary",
+      "type": "n8n-nodes-base.gmail",
+      "position": [2032, 336],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "edb5a394-3b7b-4401-b38d-15376ee3f166",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [-1440, 816],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "MARKETING ERROR - Distribution",
+        "emailType": "html",
+        "message": "=<h2>Distribution Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "6f891682-2a85-4695-9a32-3af173e47482",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [-1200, 816],
+      "typeVersion": 2.1,
+      "webhookId": "dfd099f5-3123-4109-8516-0d69d21d482e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-04: Distribution & Publishing\n\n**Schedule:** Daily at 10:00 AM SAST (cron: 0 8 * * * UTC)\n**Purpose:** Reads publish queue, posts to 3 platforms via Blotato, logs results.\n**No AI tokens used** — pure distribution.",
+        "width": 400
+      },
+      "id": "b7708a1f-6c95-4de2-aa1e-302c59f6635c",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [-1504, 160],
+      "typeVersion": 1,
+      "name": "Note 1"
+    },
+    {
+      "parameters": {
+        "content": "## Platform Posting (Blotato)\n\nPosts in parallel to:\nTikTok, Instagram, Facebook\n\ncontinueOnFail on each platform node.",
+        "height": 130,
+        "width": 320
+      },
+      "id": "8a0bf07b-1f91-4301-bf01-28f11c875d91",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [0, 0],
+      "typeVersion": 1,
+      "name": "Note 2"
+    },
+    {
+      "parameters": {
+        "content": "## Result Logging\n\nMerge node (append mode, 3 inputs) collects all platform results.\nPer-platform results stored in Distribution Log (3 records).\nTake First Item deduplicates before loop-back.\nQueue and Content status updated to Published.",
+        "height": 120,
+        "width": 340
+      },
+      "id": "3d0fd720-c6b9-4d27-9868-9543a0cca6a1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [544, 336],
+      "typeVersion": 1,
+      "name": "Note 3"
+    }
+  ],
+  "connections": {
+    "Daily 10AM Trigger": {
+      "main": [
+        [
+          { "node": "Read Publish Queue", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          { "node": "Read Publish Queue", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Read Publish Queue": {
+      "main": [
+        [
+          { "node": "Has Queue Items?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Has Queue Items?": {
+      "main": [
+        [
+          { "node": "Loop Over Queue", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Aggregate Distribution", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Loop Over Queue": {
+      "main": [
+        [
+          { "node": "Aggregate Distribution", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Read Content", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Read Content": {
+      "main": [
+        [
+          { "node": "Format for Blotato", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Format for Blotato": {
+      "main": [
+        [
+          { "node": "TikTok [BLOTATO]", "type": "main", "index": 0 },
+          { "node": "Instagram [BLOTATO]", "type": "main", "index": 0 },
+          { "node": "Facebook [BLOTATO]", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "TikTok [BLOTATO]": {
+      "main": [
+        [
+          { "node": "Merge Platform Results", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Instagram [BLOTATO]": {
+      "main": [
+        [
+          { "node": "Merge Platform Results", "type": "main", "index": 1 }
+        ]
+      ]
+    },
+    "Facebook [BLOTATO]": {
+      "main": [
+        [
+          { "node": "Merge Platform Results", "type": "main", "index": 2 }
+        ]
+      ]
+    },
+    "Merge Platform Results": {
+      "main": [
+        [
+          { "node": "Process Results", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Process Results": {
+      "main": [
+        [
+          { "node": "Store Distribution Log", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Store Distribution Log": {
+      "main": [
+        [
+          { "node": "Take First Item", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Take First Item": {
+      "main": [
+        [
+          { "node": "Update Queue Status", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Update Queue Status": {
+      "main": [
+        [
+          { "node": "Content -> Published", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Content -> Published": {
+      "main": [
+        [
+          { "node": "Loop Over Queue", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Aggregate Distribution": {
+      "main": [
+        [
+          { "node": "Send Distribution Summary", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          { "node": "Error Notification", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5e29b98ac016474bbaa188119322bbd3129dd99d846912cff4e9c01c7bdc7b8a"
+  },
+  "pinData": {},
+  "tags": []
+}

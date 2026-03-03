@@ -1,0 +1,844 @@
+{
+  "name": "Accounting Dept - Master Data & Audit (WF-06)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "fe496191-2c63-45d5-971d-9922414f05f8",
+      "name": "Hourly Config Refresh",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "aab938e7-2db7-429b-a6ce-ef861dfdb999",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c31427ad-700e-4f80-85de-1ce8ae1bf1e2",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "932a6db3-2223-4b8e-99c8-92e0789831be",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            },
+            {
+              "id": "e79d4f01-32a7-4fed-b394-c6d35b42a7ed",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "45c6698c-ca5d-42fe-8580-3cd663086dbc",
+              "name": "defaultCurrency",
+              "value": "ZAR",
+              "type": "string"
+            },
+            {
+              "id": "b7fe9d85-dd54-426a-8467-d1f1d382bf34",
+              "name": "vatRate",
+              "value": "0.15",
+              "type": "string"
+            },
+            {
+              "id": "c7e9d09a-9083-4af3-8196-db8248744bbf",
+              "name": "xeroTenantId",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "d0f668e1-329e-4a4c-aac8-d03f8e96bd10",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblDXcgsYXVphpDVb"
+        },
+        "filterByFormula": ""
+      },
+      "id": "ce93380a-0e0d-46f1-b116-860cae249249",
+      "name": "Read System Config",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        500
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst config = {};\n\nfor (const item of items) {\n  const key = item.json.Key || item.json['Key'];\n  const value = item.json.Value || item.json['Value'];\n  if (key && value) {\n    try {\n      config[key] = JSON.parse(value);\n    } catch(e) {\n      config[key] = value;\n    }\n  }\n}\n\nreturn {\n  json: {\n    configCount: Object.keys(config).length,\n    config: config,\n    vatRate: config.vat_standard_rate ? config.vat_standard_rate.rate : 0.15,\n    currency: config.default_currency ? config.default_currency.code : 'ZAR',\n    approvalThreshold: config.approval_threshold ? config.approval_threshold.auto_approve_below : 10000,\n    highValueThreshold: config.high_value_invoice_threshold ? config.high_value_invoice_threshold.threshold : 50000,\n    invoicePrefix: config.invoice_prefix ? config.invoice_prefix.prefix : 'AVM',\n    nextInvoiceNumber: config.invoice_prefix ? config.invoice_prefix.next_number : 1001,\n    cachedAt: new Date().toISOString()\n  }\n};"
+      },
+      "id": "6973d89a-bed9-4fe0-907d-74ccf5e00499",
+      "name": "Cache Config Values",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        920,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblV4LPBYotAWW1RO"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now.toISO() }}",
+            "Workflow Name": "WF-06 Master Data & Audit",
+            "Event Type": "MASTER_DATA_CHANGE",
+            "Record Type": "System Config",
+            "Record ID": "config-cache",
+            "Action Taken": "System config cache refreshed",
+            "Actor": "system",
+            "Result": "Success",
+            "Error Details": "",
+            "Metadata JSON": "={{ JSON.stringify({ cachedAt: $json['cachedAt'], configCount: $json['configCount'] }) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "aa89baad-5db7-4a8d-900f-424b72466425",
+      "name": "Log Config Read",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1160,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "accounting/audit-log",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "2dc28ab3-2d6b-4dd6-ab5d-79102b2fe108",
+      "name": "Audit Log Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        900
+      ],
+      "typeVersion": 2,
+      "webhookId": "00cafc67-cbba-43dd-a185-6b8e5a328466"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\n\nconst required = ['workflow', 'event_type', 'record_type', 'record_id', 'action', 'actor'];\nconst missing = required.filter(f => !body[f]);\n\nif (missing.length > 0) {\n  throw new Error(`Missing required audit fields: ${missing.join(', ')}`);\n}\n\nconst timestamp = new Date().toISOString();\n\nreturn {\n  json: {\n    timestamp: timestamp,\n    workflow: body.workflow,\n    event_type: body.event_type,\n    record_type: body.record_type,\n    record_id: String(body.record_id),\n    action: body.action,\n    actor: body.actor,\n    result: body.result || 'Success',\n    error: body.error || '',\n    metadata: body.metadata ? JSON.stringify(body.metadata) : ''\n  }\n};"
+      },
+      "id": "70cb4445-026b-4984-8d5d-d8baf11f0a4f",
+      "name": "Validate Audit Entry",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        440,
+        900
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblV4LPBYotAWW1RO"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json['timestamp'] }}",
+            "Workflow Name": "={{ $json['workflow'] }}",
+            "Event Type": "={{ $json['event_type'] }}",
+            "Record Type": "={{ $json['record_type'] }}",
+            "Record ID": "={{ $json['record_id'] }}",
+            "Action Taken": "={{ $json['action'] }}",
+            "Actor": "={{ $json['actor'] }}",
+            "Result": "={{ $json['result'] }}",
+            "Error Details": "={{ $json['error'] }}",
+            "Metadata JSON": "={{ $json['metadata'] }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "59d80323-c382-4aa6-9aa2-0e3f83757237",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        900
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'logged', timestamp: $json['timestamp'] }) }}",
+        "options": {}
+      },
+      "id": "ccad9c82-a3a3-4e73-9105-5092023bb514",
+      "name": "Respond Audit Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        920,
+        900
+      ],
+      "typeVersion": 1.1,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "89980cb6-da7a-4f41-87a1-08c1122827d7",
+      "name": "Manual Audit Test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        1000
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  json: {\n    body: {\n      workflow: 'WF-06 Manual Test',\n      event_type: 'MASTER_DATA_CHANGE',\n      record_type: 'System Config',\n      record_id: 'test-' + Date.now(),\n      action: 'Manual audit log test entry',\n      actor: 'manual-test',\n      result: 'Success',\n      error: '',\n      metadata: { test: true, timestamp: new Date().toISOString() }\n    }\n  }\n};"
+      },
+      "id": "bd0b60ef-8799-475c-a6d2-9aa2993faebb",
+      "name": "Sample Audit Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        440,
+        1000
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "path": "accounting/customer",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d599e3ed-abbf-4a2c-98e9-522a3cd21535",
+      "name": "Customer CRUD Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        1200
+      ],
+      "typeVersion": 2,
+      "webhookId": "8e3b24a9-7423-4b0f-8351-d786e4052798"
+    },
+    {
+      "parameters": {},
+      "id": "ae89a342-5d5b-4446-b130-a71fa77dace6",
+      "name": "Manual Customer Test",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        1300
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  json: {\n    body: {\n      action: 'create',\n      'Customer ID': 'CUST-TEST-' + Date.now(),\n      'Legal Name': 'Test Company (Pty) Ltd',\n      'Trading Name': 'Test Co',\n      'Email': 'test@example.com',\n      'Phone': '+27 11 555 0100',\n      'Billing Address': '123 Test Street, Sandton, 2196',\n      'VAT Number': '4000000000',\n      'Default Payment Terms': '30 days',\n      'Credit Limit': 50000,\n      'Risk Flag': 'Low',\n      'Preferred Channel': 'Email',\n      'Active': true,\n      'Created At': new Date().toISOString().split('T')[0],\n      'Updated At': new Date().toISOString().split('T')[0]\n    }\n  }\n};"
+      },
+      "id": "6d10a33a-8a91-41a4-8027-2bf1f1cf679b",
+      "name": "Sample Customer Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        440,
+        1300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\n\n// Validate email\nconst email = body.email || body.Email || '';\nif (email && !email.match(/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/)) {\n  throw new Error(`Invalid email format: ${email}`);\n}\n\n// Validate VAT number (SA format: 10 digits)\nconst vat = body.vat_number || body['VAT Number'] || '';\nif (vat && !vat.match(/^\\d{10}$/)) {\n  // Log warning but don't block\n}\n\nconst customerId = body.customer_id || body['Customer ID'] || `CUST-${Date.now()}`;\n\nreturn {\n  json: {\n    'Customer ID': customerId,\n    'Legal Name': body.legal_name || body['Legal Name'] || '',\n    'Trading Name': body.trading_name || body['Trading Name'] || '',\n    'Email': email,\n    'Phone': body.phone || body['Phone'] || '',\n    'Billing Address': body.billing_address || body['Billing Address'] || '',\n    'VAT Number': vat,\n    'Default Payment Terms': body.payment_terms || body['Default Payment Terms'] || '30 days',\n    'Credit Limit': body.credit_limit || body['Credit Limit'] || 0,\n    'Risk Flag': body.risk_flag || body['Risk Flag'] || 'Low',\n    'Preferred Channel': body.preferred_channel || body['Preferred Channel'] || 'Email',\n    'Active': true,\n    'Created At': new Date().toISOString().split('T')[0],\n    'Updated At': new Date().toISOString().split('T')[0],\n    // Pass through for Xero sync\n    legal_name: body.legal_name || body['Legal Name'] || '',\n    email: email,\n    vat_number: vat,\n  }\n};"
+      },
+      "id": "cc315183-3491-47bd-8d65-d1bcffd7197d",
+      "name": "Validate Customer Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        440,
+        1200
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "appMmUkZzdDSiY1RS"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblxHJrvob0OOSfTq"
+        },
+        "columns": {
+          "value": {
+            "Customer ID": "={{ $json['Customer ID'] }}",
+            "Legal Name": "={{ $json['Legal Name'] }}",
+            "Trading Name": "={{ $json['Trading Name'] }}",
+            "Email": "={{ $json['Email'] }}",
+            "Phone": "={{ $json['Phone'] }}",
+            "Billing Address": "={{ $json['Billing Address'] }}",
+            "VAT Number": "={{ $json['VAT Number'] }}",
+            "Default Payment Terms": "={{ $json['Default Payment Terms'] }}",
+            "Credit Limit": "={{ $json['Credit Limit'] }}",
+            "Risk Flag": "={{ $json['Risk Flag'] }}",
+            "Preferred Channel": "={{ $json['Preferred Channel'] }}",
+            "Active": "={{ $json['Active'] }}",
+            "Created At": "={{ $json['Created At'] }}",
+            "Updated At": "={{ $json['Updated At'] }}"
+          },
+          "schema": [
+            {
+              "id": "Customer ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Customer ID"
+            },
+            {
+              "id": "Legal Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Legal Name"
+            },
+            {
+              "id": "Trading Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Trading Name"
+            },
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email"
+            },
+            {
+              "id": "Phone",
+              "type": "string",
+              "display": true,
+              "displayName": "Phone"
+            },
+            {
+              "id": "Billing Address",
+              "type": "string",
+              "display": true,
+              "displayName": "Billing Address"
+            },
+            {
+              "id": "VAT Number",
+              "type": "string",
+              "display": true,
+              "displayName": "VAT Number"
+            },
+            {
+              "id": "Default Payment Terms",
+              "type": "string",
+              "display": true,
+              "displayName": "Default Payment Terms"
+            },
+            {
+              "id": "Credit Limit",
+              "type": "number",
+              "display": true,
+              "displayName": "Credit Limit"
+            },
+            {
+              "id": "Risk Flag",
+              "type": "string",
+              "display": true,
+              "displayName": "Risk Flag"
+            },
+            {
+              "id": "Preferred Channel",
+              "type": "string",
+              "display": true,
+              "displayName": "Preferred Channel"
+            },
+            {
+              "id": "Active",
+              "type": "boolean",
+              "display": true,
+              "displayName": "Active"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            },
+            {
+              "id": "Updated At",
+              "type": "string",
+              "display": true,
+              "displayName": "Updated At"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Customer ID"
+          ]
+        },
+        "options": {}
+      },
+      "id": "9c741ba6-c93a-47bf-ab93-91109f415c33",
+      "name": "Upsert Customer",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        1200
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.xero.com/api.xro/2.0/Contacts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "={{ $('System Config').first().json.xeroTenantId || '' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"Contacts\": [{\n    \"Name\": \"{{ $json.legal_name || $json['Legal Name'] }}\",\n    \"EmailAddress\": \"{{ $json.email || $json['Email'] }}\",\n    \"TaxNumber\": \"{{ $json.vat_number || $json['VAT Number'] || '' }}\"\n  }]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "cbcc7769-a5dd-449a-bbe0-e8b6e452e09e",
+      "name": "Sync Customer to Xero",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1160,
+        1200
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "tyznIxiWvzReo2gy",
+          "name": "Xero OAuth2 AVM"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'success', customer_id: $('Upsert Customer').first().json['Customer ID'] || $('Upsert Customer').first().json['id'], synced_to_xero: true }) }}",
+        "options": {}
+      },
+      "id": "c1325485-486a-4f34-bce2-ca69f3cb7962",
+      "name": "Respond Customer",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1400,
+        1200
+      ],
+      "typeVersion": 1.1,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "ea40b63f-cbb9-4b9c-b0b5-206af3bd83b6",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        1400
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "ACCOUNTING ERROR - {{ $json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<h2>Accounting Department Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "c413c216-6426-49df-a678-7f57eeb18de8",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        1400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Config Refresh Flow\n\nRuns hourly (or manually) to:\n1. Set system defaults (date, company, AI model, currency, VAT)\n2. Read all config from Airtable System Config table\n3. Parse JSON values into structured config object\n4. Log the refresh to Audit Log",
+        "width": 1000,
+        "height": 260
+      },
+      "id": "e6edc004-38ef-4024-ab5a-3f7d0f1ce933",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        160,
+        320
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Audit Log Webhook\n\nPOST /accounting/audit-log\n\nAccepts: {workflow, event_type, record_type, record_id, action, actor, result, error, metadata}\n\nCalled by other accounting workflows (WF-07 to WF-10) to log all actions.",
+        "width": 800,
+        "height": 200
+      },
+      "id": "6e6face4-0119-4cc0-a9f6-c6dd061d09aa",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        160,
+        820
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Customer CRUD Webhook\n\nPOST /accounting/customer\n\nAccepts: {action: 'create'|'update', customer data}\n\nValidates email/VAT, upserts to Airtable Customers table, syncs to Xero Contacts API.",
+        "width": 1300,
+        "height": 200
+      },
+      "id": "a210b94e-99c5-4a2c-ad34-70107d0255e2",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        160,
+        1120
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Error Handling\n\nCatches any unhandled errors and sends notification email to ian@anyvisionmedia.com.",
+        "width": 400,
+        "height": 140
+      },
+      "id": "36100c98-021a-4462-b485-2dd28c30e03d",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        160,
+        1340
+      ],
+      "typeVersion": 1
+    }
+  ],
+  "connections": {
+    "Hourly Config Refresh": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read System Config": {
+      "main": [
+        [
+          {
+            "node": "Cache Config Values",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cache Config Values": {
+      "main": [
+        [
+          {
+            "node": "Log Config Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Audit Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Audit Test": {
+      "main": [
+        [
+          {
+            "node": "Sample Audit Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sample Audit Data": {
+      "main": [
+        [
+          {
+            "node": "Validate Audit Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Audit Entry": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond Audit Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Customer CRUD Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Customer Test": {
+      "main": [
+        [
+          {
+            "node": "Sample Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sample Customer Data": {
+      "main": [
+        [
+          {
+            "node": "Validate Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Customer Data": {
+      "main": [
+        [
+          {
+            "node": "Upsert Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Customer": {
+      "main": [
+        [
+          {
+            "node": "Sync Customer to Xero",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Customer to Xero": {
+      "main": [
+        [
+          {
+            "node": "Respond Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

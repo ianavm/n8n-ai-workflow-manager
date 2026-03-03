@@ -807,6 +807,49 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "dnt-check-001",
+              "leftValue": "={{ ($json.categories || []).includes('DNT') }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1000001-0040-4000-8000-000000000040",
+      "name": "Has DNT Label?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        310,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "c1000001-0041-4000-8000-000000000041",
+      "name": "Skip - DNT",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        310,
+        576
+      ]
+    },
+    {
+      "parameters": {
         "content": "## Email Classifier - Agent Trigger Template\n\n**To set up a new agent:**\n1. Duplicate this workflow\n2. Rename to: Email Classifier - [Agent Name]\n3. Open 'Prepare Email Data' → change AGENT_NAME and AGENT_EMAIL\n4. Open 'Classify Email (Sub-Workflow)' → set Master Workflow ID\n5. Click each Outlook node → assign agent's credential\n6. Activate and test\n\n**Time per agent: ~5 minutes**",
         "height": 340,
         "width": 350
@@ -863,6 +906,24 @@
     },
     "Outlook Trigger": {
       "main": [
+        [
+          {
+            "node": "Has DNT Label?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has DNT Label?": {
+      "main": [
+        [
+          {
+            "node": "Skip - DNT",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Prepare Email Data",

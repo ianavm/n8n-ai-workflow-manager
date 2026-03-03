@@ -1,0 +1,787 @@
+{
+  "name": "WhatsApp Multi-Agent (Security Patched)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "8a1b72e8-b183-4c7c-adaf-828ffb9e4f7a",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-3232, 736]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6b4625d5-f23a-4800-8095-5db67a153efd",
+      "name": "WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-3088, 832],
+      "webhookId": "whatsapp-webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agent-status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e212f823-dbe9-4190-b578-139bfb1dfd36",
+      "name": "Agent Status Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-3008, 464],
+      "webhookId": "agent-status"
+    },
+    {
+      "parameters": {
+        "jsCode": "// STEP 1: Parse Message - Dual Format (Cloud API + Twilio)\n// Auto-detects incoming format and normalizes to common structure\n\ntry {\n  const data = $input.first().json;\n  const now = Date.now();\n  let to, from, body, messageId, waId, profileName, hasMedia, mediaUrl, mediaType, isGroup, msgType;\n\n  if (data.object === 'whatsapp_business_account') {\n    // ========== CLOUD API FORMAT ==========\n    const entry = data.entry?.[0];\n    const change = entry?.changes?.[0];\n    const value = change?.value;\n    const message = value?.messages?.[0];\n    const contact = value?.contacts?.[0];\n    const metadata = value?.metadata;\n\n    if (!message) {\n      return {\n        parseSuccess: false,\n        error: true,\n        errorType: 'not_a_message',\n        errorMessage: 'Webhook event is not a message (possibly a status update)',\n        timestamp: new Date().toISOString()\n      };\n    }\n\n    to = metadata?.display_phone_number?.replace(/\\\\D/g, '') || metadata?.phone_number_id || '';\n    from = (message.from || '').replace(/\\\\D/g, '');\n    waId = contact?.wa_id || from;\n    profileName = contact?.profile?.name || '';\n    messageId = message.id || `msg_${now}`;\n    msgType = message.type || 'text';\n    hasMedia = false;\n\n    if (msgType === 'text') {\n      body = message.text?.body || '';\n    } else if (['image', 'video', 'audio', 'document'].includes(msgType)) {\n      body = message[msgType]?.caption || '';\n      hasMedia = true;\n      mediaUrl = message[msgType]?.id || null;\n      mediaType = message[msgType]?.mime_type || msgType;\n    } else if (msgType === 'location') {\n      body = `Location: ${message.location?.latitude}, ${message.location?.longitude}`;\n    } else if (msgType === 'contacts') {\n      body = `Shared contact: ${message.contacts?.[0]?.name?.formatted_name || 'Unknown'}`;\n    } else {\n      body = '';\n    }\n\n    isGroup = false;\n    mediaUrl = mediaUrl || null;\n    mediaType = mediaType || null;\n\n  } else {\n    // ========== TWILIO FORMAT ==========\n    to = (data.To || data.to || '').replace(/\\\\D/g, '');\n    from = (data.From || data.from || '').replace(/\\\\D/g, '');\n    waId = data.WaId || data.waId || from;\n    profileName = data.ProfileName || data.profileName || '';\n    messageId = data.MessageSid || data.messageSid || `msg_${now}`;\n    body = data.Body || data.body || '';\n\n    const numMedia = parseInt(data.NumMedia || data.numMedia || '0');\n    hasMedia = numMedia > 0;\n    mediaUrl = data.MediaUrl0 || data.mediaUrl0 || null;\n    mediaType = data.MediaContentType0 || data.mediaContentType0 || null;\n\n    isGroup = from.includes('-') ||\n      (data.From || '').includes('@g.us') ||\n      !!data.GroupId || !!data.groupId ||\n      !!data.Participant || !!data.participant;\n\n    if (!hasMedia) { msgType = 'text'; }\n    else if (mediaType?.includes('image')) { msgType = 'image'; }\n    else if (mediaType?.includes('video')) { msgType = 'video'; }\n    else if (mediaType?.includes('audio')) { msgType = 'audio'; }\n    else { msgType = 'document'; }\n  }\n\n  if (!to || !from) {\n    throw new Error('Missing required fields: To or From');\n  }\n\n  // SECURITY: Sanitize message body\n  body = (body || '').trim();\n  body = body.replace(/[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]/g, '');\n  if (body.length > 2000) {\n    body = body.substring(0, 2000);\n  }\n\n  return {\n    messageId: messageId,\n    to: to,\n    from: from,\n    waId: waId,\n    body: body,\n    type: msgType,\n    isGroup: isGroup,\n    groupId: isGroup ? (data.GroupId || data.groupId || from.split('-')[0]) : null,\n    participant: isGroup ? (data.Participant || data.participant || from.split('-')[1]) : null,\n    hasMedia: hasMedia,\n    mediaUrl: mediaUrl,\n    mediaType: mediaType,\n    profileName: profileName,\n    timestamp: new Date().toISOString(),\n    processingStartTime: now,\n    parseSuccess: true,\n    sourceFormat: data.object === 'whatsapp_business_account' ? 'cloud_api' : 'twilio'\n  };\n\n} catch (error) {\n  return {\n    parseSuccess: false,\n    error: true,\n    errorType: 'parse_error',\n    errorMessage: error.message,\n    timestamp: new Date().toISOString()\n  };\n}"
+      },
+      "id": "b250dba8-6bfa-4e87-9c74-c79932f17dd5",
+      "name": "1 Parse Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2800, 752],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.parseSuccess }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b555a53a-9aee-4dae-8aaa-b7b70807f763",
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-2608, 752]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.isGroup }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "20e4ecb7-60df-42ed-83f9-d95a85993ac5",
+      "name": "2 Block Groups?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-2400, 656]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": { "__rl": true, "value": "appzcZpiIZ6QPtJXT", "mode": "list" },
+        "table": { "__rl": true, "value": "tblAgents", "mode": "list" },
+        "filterByFormula": "=AND({whatsapp_number} = '{{ $json.to }}', {is_active} = TRUE())",
+        "options": {}
+      },
+      "id": "518c594c-65b8-4374-a97c-4e74440a709a",
+      "name": "3 Find Agent",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [-2208, 560],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetween": 500,
+      "credentials": {
+        "airtableTokenApi": { "id": "ZyBrcAO6fps7YB3u", "name": "Whatsapp Multi Agent" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "isNotEmpty" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "51ae3209-12ae-42f0-b17c-8e86ace25b95",
+      "name": "Agent Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-2000, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "// STEP 4: Merge Agent Data\n// SECURITY FIX: Separate sensitive fields from main data flow\n// Access token is stored in _private (not passed to AI)\n\nconst message = $node['2 Block Groups?'].json;\nconst agentRecord = $input.first().json;\nconst fields = agentRecord.fields || agentRecord;\n\n// SECURITY: Sensitive data stored separately - NOT passed downstream to AI\nconst _private = {\n  whatsappAccessToken: fields.whatsapp_access_token || fields.cloud_api_access_token || '',\n  whatsappBusinessAccountId: fields.whatsapp_business_account_id || '',\n  whatsappPhoneNumberId: fields.whatsapp_phone_number_id || fields.cloud_api_phone_number_id || '',\n  twilioSubAccountSid: fields.twilio_sub_account_sid || '',\n  twilioAuthToken: fields.twilio_auth_token || ''\n};\n\nconst agent = {\n  recordId: agentRecord.id,\n  id: fields.agent_id || agentRecord.id,\n  name: fields.agent_name || 'Agent',\n  email: fields.email || '',\n  whatsappNumber: fields.whatsapp_number || '',\n  companyName: fields.company_name || 'Real Estate Agency',\n  region: fields.region || '',\n  language: fields.language || 'en',\n  timezone: fields.timezone || 'UTC',\n  isActive: fields.is_active !== false,\n  autoReply: fields.auto_reply !== false,\n  isOnline: fields.is_online === true,\n  lastSeen: fields.last_seen || null,\n  onlineThresholdMinutes: parseInt(fields.online_threshold_minutes || '5'),\n  googleCalendarId: fields.google_calendar_id || 'primary',\n  airtableBaseId: fields.airtable_base_id || 'appzcZpiIZ6QPtJXT',\n  aiModel: fields.ai_model || 'gpt-4',\n  aiTemperature: parseFloat(fields.ai_temperature || '0.7'),\n  maxResponseLength: parseInt(fields.max_response_length || '300'),\n  primaryApi: fields.primary_api || 'cloud_api'\n};\n\nlet currentlyOnline = agent.isOnline;\nif (agent.lastSeen) {\n  const minutesSinceLastSeen = (Date.now() - new Date(agent.lastSeen).getTime()) / 60000;\n  if (minutesSinceLastSeen > agent.onlineThresholdMinutes) {\n    currentlyOnline = false;\n  }\n}\n\nreturn {\n  messageId: message.messageId,\n  from: message.from,\n  to: message.to,\n  waId: message.waId,\n  body: message.body,\n  type: message.type,\n  profileName: message.profileName,\n  hasMedia: message.hasMedia,\n  mediaUrl: message.mediaUrl,\n  mediaType: message.mediaType,\n  agent: agent,\n  agentId: agent.id,\n  agentName: agent.name,\n  agentRecordId: agent.recordId,\n  agentIsOnline: currentlyOnline,\n  replyTo: `whatsapp:+${message.from}`,\n  replyFrom: `whatsapp:+${message.to}`,\n  timestamp: message.timestamp,\n  processingStartTime: message.processingStartTime,\n  _private: _private\n};"
+      },
+      "id": "d5f1e1e5-9354-43c2-94e5-37d0457b5608",
+      "name": "4 Merge Agent Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1808, 464],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v18.0/{{ $json._private.whatsappPhoneNumberId }}/{{ $json.waId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json._private.whatsappAccessToken }}"
+            }
+          ]
+        },
+        "options": {
+          "response": { "response": { "neverError": true } },
+          "timeout": 5000
+        }
+      },
+      "id": "1f5eb578-7589-4f24-b938-ca250ec8bf25",
+      "name": "5 Get Contact Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-1600, 464],
+      "credentials": {
+        "httpHeaderAuth": { "id": "xymp9Nho08mRW2Wz", "name": "Header Auth account 2" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// STEP 6: Check Blocking Conditions\n// SECURITY FIX: Strip _private from output so tokens don't flow to AI\n\nconst message = $node['4 Merge Agent Data'].json;\nconst contactResponse = $input.first().json;\n\nlet shouldBlock = false;\nlet blockReason = null;\nlet contactLabels = [];\nlet isPinned = false;\n\nif (contactResponse && !contactResponse.error) {\n  contactLabels = contactResponse.labels || [];\n  isPinned = contactResponse.is_pinned === true || contactResponse.isPinned === true;\n  \n  const dntLabels = ['dnt', 'do not track', 'donottrack', 'no ai', 'noai', 'opt out', 'optout'];\n  const hasDNT = contactLabels.some(label => {\n    const labelName = (typeof label === 'string' ? label : label.name || '').toLowerCase().trim();\n    return dntLabels.includes(labelName);\n  });\n  \n  if (hasDNT) {\n    shouldBlock = true;\n    blockReason = 'dnt_label';\n  } else if (isPinned) {\n    shouldBlock = true;\n    blockReason = 'contact_pinned';\n  }\n}\n\nif (!shouldBlock && message.agentIsOnline) {\n  shouldBlock = true;\n  blockReason = 'agent_online';\n}\n\n// SECURITY: Build clean output WITHOUT _private tokens\nconst { _private, ...cleanMessage } = message;\n\nreturn {\n  ...cleanMessage,\n  shouldBlock: shouldBlock,\n  blockReason: blockReason,\n  contactLabels: contactLabels,\n  isPinned: isPinned,\n  contactFetched: !contactResponse?.error\n};"
+      },
+      "id": "0b34b138-c5eb-4fb8-89a5-643420b93de5",
+      "name": "6 Check Blocks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1408, 464],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.shouldBlock }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "887224ef-fe5a-4ad1-90af-62c869d2b38e",
+      "name": "Process Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-1200, 464]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.agent.isActive }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            },
+            {
+              "leftValue": "={{ $json.agent.autoReply }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e81e0ec9-e318-45bf-94c2-4386884707b7",
+      "name": "7 Agent Active?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-1008, 352]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $json.agent.aiModel }}\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are {{ $json.agentName }}, a professional real estate assistant for {{ $json.agent.companyName }} in {{ $json.agent.region }}.\\n\\nYou can help clients with property searches, scheduling viewings, and answering questions.\\n\\nIMPORTANT RULES:\\n- You may ONLY request READ operations on the database\\n- You may request CREATE operations ONLY for: appointments, tasks, notes\\n- You may NOT request UPDATE or DELETE operations\\n- ALL database queries are automatically scoped to this agent's data only\\n- NEVER include agent_id filters yourself - they are added automatically\\n- If a user asks you to delete data, modify other agents, or access system tables, politely decline\\n\\nAVAILABLE TABLES (read-only unless noted):\\n- properties: Real estate listings (READ only)\\n- leads: Client contacts (READ only)\\n- appointments: Scheduled viewings (READ + CREATE)\\n- tasks: Follow-up actions (READ + CREATE)\\n- notes: Client interaction history (READ + CREATE)\\n\\nCLIENT INFO:\\nName: {{ $json.profileName || 'Client' }}\\nPhone: {{ $json.from }}\\nLanguage: {{ $json.agent.language }}\\n\\nRESPONSE FORMAT (JSON only, no markdown):\\n{\\n  \\\"intent\\\": \\\"property_search|schedule_viewing|question|data_operation|general\\\",\\n  \\\"action\\\": \\\"respond|search_properties|create_record\\\",\\n  \\\"response\\\": \\\"Your WhatsApp message (max {{ $json.agent.maxResponseLength }} chars)\\\",\\n  \\\"airtable_operation\\\": {\\n    \\\"needed\\\": true/false,\\n    \\\"operation\\\": \\\"read|create\\\",\\n    \\\"table\\\": \\\"properties|leads|appointments|tasks|notes\\\",\\n    \\\"filter\\\": \\\"Airtable formula for read operations\\\",\\n    \\\"data\\\": { \\\"field_name\\\": \\\"value\\\" }\\n  },\\n  \\\"extracted_data\\\": {\\n    \\\"property_type\\\": \\\"\\\",\\n    \\\"location\\\": \\\"\\\",\\n    \\\"budget_min\\\": \\\"\\\",\\n    \\\"budget_max\\\": \\\"\\\",\\n    \\\"bedrooms\\\": \\\"\\\",\\n    \\\"date_time\\\": \\\"\\\"\\n  },\\n  \\\"confidence\\\": 0.0-1.0\\n}\\n\\nLanguage: {{ $json.agent.language }}\\nTimezone: {{ $json.agent.timezone }}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.body }}\"\n    }\n  ],\n  \"temperature\": {{ $json.agent.aiTemperature }},\n  \"max_tokens\": 1000\n}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "2519a034-1734-4246-80f3-b6206f689cbc",
+      "name": "8 AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [-800, 256],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetween": 2000,
+      "credentials": {
+        "openAiApi": { "id": "mNXmJ6IgruQfWkPq", "name": "OpenAi account 10" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// STEP 9: Parse AI Decision\n// SECURITY FIX: Validate and restrict AI-requested operations\n// - Only allow read/create (no update/delete)\n// - Only allow known tables\n// - Inject agent_id scoping into all filters and creates\n\nconst message = $node['7 Agent Active?'].json;\nconst aiResponse = $input.first().json;\n\nlet parsed = {\n  intent: 'general',\n  action: 'respond',\n  response: 'Thank you for your message. How can I assist you today?',\n  airtable_operation: { needed: false, operation: 'read', table: 'properties', filter: '', data: {} },\n  extracted_data: {},\n  confidence: 0.5\n};\n\ntry {\n  const content = aiResponse.choices?.[0]?.message?.content || '';\n  const jsonMatch = content.match(/```(?:json)?\\s*([\\s\\S]*?)\\s*```/);\n  const jsonString = jsonMatch ? jsonMatch[1] : content;\n  const aiParsed = JSON.parse(jsonString.trim());\n  \n  parsed = {\n    intent: aiParsed.intent || parsed.intent,\n    action: aiParsed.action || parsed.action,\n    response: aiParsed.response || parsed.response,\n    airtable_operation: {\n      needed: aiParsed.airtable_operation?.needed || false,\n      operation: aiParsed.airtable_operation?.operation || 'read',\n      table: aiParsed.airtable_operation?.table || 'properties',\n      filter: aiParsed.airtable_operation?.filter || '',\n      data: aiParsed.airtable_operation?.data || {}\n    },\n    extracted_data: aiParsed.extracted_data || {},\n    confidence: aiParsed.confidence || parsed.confidence\n  };\n  \n  const maxLength = message.agent.maxResponseLength || 300;\n  if (parsed.response.length > maxLength) {\n    parsed.response = parsed.response.substring(0, maxLength - 3) + '...';\n  }\n} catch (error) {\n  // Use default parsed object\n}\n\n// =========================================\n// SECURITY: Validate and scope AI operations\n// =========================================\nconst agentId = message.agentId;\nconst op = parsed.airtable_operation;\n\nif (op.needed) {\n  // 1. RESTRICT operations: only read and create allowed\n  const allowedOps = ['read', 'create'];\n  if (!allowedOps.includes(op.operation)) {\n    op.needed = false;\n    parsed.response += '\\n\\n_That operation is not permitted._';\n  }\n  \n  // 2. RESTRICT tables\n  const allowedTables = ['properties', 'leads', 'appointments', 'tasks', 'notes'];\n  if (!allowedTables.includes(op.table)) {\n    op.needed = false;\n    parsed.response += '\\n\\n_That table is not accessible._';\n  }\n  \n  // 3. CREATE: only allowed on appointments, tasks, notes\n  const createAllowedTables = ['appointments', 'tasks', 'notes'];\n  if (op.operation === 'create' && !createAllowedTables.includes(op.table)) {\n    op.needed = false;\n    parsed.response += '\\n\\n_Cannot create records in that table._';\n  }\n  \n  // 4. INJECT agent_id scoping\n  if (op.needed && op.operation === 'read') {\n    const agentFilter = `{agent_id} = '${agentId}'`;\n    if (op.filter && op.filter.trim()) {\n      op.filter = `AND(${agentFilter}, ${op.filter})`;\n    } else {\n      op.filter = agentFilter;\n    }\n  }\n  \n  if (op.needed && op.operation === 'create') {\n    op.data = op.data || {};\n    op.data.agent_id = agentId;\n  }\n}\n\nreturn {\n  ...message,\n  intent: parsed.intent,\n  action: parsed.action,\n  aiResponse: parsed.response,\n  airtableOperation: op,\n  extractedData: parsed.extracted_data,\n  confidence: parsed.confidence\n};"
+      },
+      "id": "2d1751f7-f09b-4732-ba22-89b8a7d2299b",
+      "name": "9 Parse AI Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-608, 256],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.airtableOperation.needed }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ee587bb4-713b-426c-9335-3c906ec00fa6",
+      "name": "Need Airtable?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-400, 256]
+    },
+    {
+      "parameters": {
+        "jsCode": "// STEP 10: Route Operation\n// SECURITY FIX: Validates operation type before routing\n\nconst data = $input.first().json;\nconst op = data.airtableOperation;\n\nconst validOperations = ['read', 'create'];\nif (!validOperations.includes(op.operation)) {\n  throw new Error(`Blocked operation: ${op.operation}`);\n}\n\nconst validTables = ['properties', 'leads', 'appointments', 'tasks', 'notes'];\nif (!validTables.includes(op.table)) {\n  throw new Error(`Blocked table: ${op.table}`);\n}\n\nreturn {\n  ...data,\n  airtableRoute: op.operation,\n  airtableTable: op.table,\n  airtableFilter: op.filter || '',\n  airtableData: op.data || {},\n  airtableBaseId: data.agent.airtableBaseId\n};"
+      },
+      "id": "21295061-2726-4b40-8ae1-33a3baaf67bb",
+      "name": "Route Operation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-208, 160],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.airtableRoute }}",
+                    "rightValue": "create",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "outputIndex": 0
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.airtableRoute }}",
+                    "rightValue": "read",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "outputIndex": 1
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-switch-node-for-routing",
+      "name": "CRUD Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [0, 160],
+      "notes": "SECURITY FIX: Routes to ONLY the correct operation (was parallel before)"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": { "__rl": true, "value": "={{ $json.airtableBaseId }}", "mode": "id" },
+        "table": { "__rl": true, "value": "={{ $json.airtableTable }}", "mode": "name" },
+        "columns": { "mappingMode": "defineBelow", "value": "={{ $json.airtableData }}" },
+        "options": {}
+      },
+      "id": "1aacd972-703f-4722-88d0-9e18f023837b",
+      "name": "CREATE Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [208, 64],
+      "credentials": {
+        "airtableTokenApi": { "id": "ZyBrcAO6fps7YB3u", "name": "Whatsapp Multi Agent" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": { "__rl": true, "value": "={{ $json.airtableBaseId }}", "mode": "id" },
+        "table": { "__rl": true, "value": "={{ $json.airtableTable }}", "mode": "name" },
+        "filterByFormula": "={{ $json.airtableFilter }}",
+        "options": {}
+      },
+      "id": "1b4be86d-14fc-423f-a5c8-25ed6682c262",
+      "name": "READ Records",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [208, 256],
+      "credentials": {
+        "airtableTokenApi": { "id": "ZyBrcAO6fps7YB3u", "name": "Whatsapp Multi Agent" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// STEP 11: Prepare Final Response\n// SECURITY FIX: Redacts sensitive data, uses safe references\n\nconst message = $node['9 Parse AI Decision'].json;\nlet finalResponse = message.aiResponse;\nlet airtableSuccess = false;\n\nif ($input.first()?.json && message.airtableOperation?.needed) {\n  const result = $input.first().json;\n  if (!result.error) {\n    airtableSuccess = true;\n    if (!finalResponse.toLowerCase().includes('updated') &&\n        !finalResponse.toLowerCase().includes('created') &&\n        !finalResponse.toLowerCase().includes('saved')) {\n      finalResponse += ' Done.';\n    }\n  } else {\n    finalResponse += '\\n\\n_Note: Database update is pending._';\n  }\n}\n\nif (!finalResponse.includes(message.agentName) &&\n    !finalResponse.includes(message.agent.companyName) &&\n    finalResponse.length < message.agent.maxResponseLength - 50) {\n  finalResponse += `\\n\\n-- ${message.agentName}\\n${message.agent.companyName}`;\n}\n\nconst processingTime = Date.now() - message.processingStartTime;\n\nreturn {\n  messageId: message.messageId,\n  to: message.replyTo,\n  from: message.replyFrom,\n  body: finalResponse,\n  agentId: message.agentId,\n  agentName: message.agentName,\n  airtableExecuted: message.airtableOperation?.needed || false,\n  airtableSuccess: airtableSuccess,\n  airtableOperation: message.airtableOperation?.operation || null,\n  airtableTable: message.airtableOperation?.table || null,\n  processingTimeMs: processingTime,\n  processingTimeSec: (processingTime / 1000).toFixed(2),\n  readyToSend: true,\n  timestamp: new Date().toISOString(),\n  context: {\n    intent: message.intent,\n    action: message.action,\n    confidence: message.confidence\n  }\n};"
+      },
+      "id": "5330d156-4fcf-422c-a67d-7cb2c8bd3cde",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [416, 160],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $('4 Merge Agent Data').first().json._private.whatsappPhoneNumberId }}/messages",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('4 Merge Agent Data').first().json._private.whatsappAccessToken }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.to.replace('whatsapp:', '').replace('+', '') }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": {{ JSON.stringify($json.body) }}\n  }\n}",
+        "options": {
+          "response": { "response": { "neverError": true } },
+          "timeout": 10000
+        }
+      },
+      "id": "32dcb92d-c52c-4f11-890d-ecbdf135a5e9",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [608, 160],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetween": 1000,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": { "__rl": true, "value": "appzcZpiIZ6QPtJXT", "mode": "list" },
+        "table": { "__rl": true, "value": "tblMessageLog", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "message_id": "={{ $json.messageId }}",
+            "agent_id": "={{ $json.agentId }}",
+            "agent_name": "={{ $json.agentName }}",
+            "from_number": "={{ $json.to.replace('whatsapp:', '') }}",
+            "to_number": "={{ $json.from.replace('whatsapp:', '') }}",
+            "message_body": "={{ $json.body.substring(0, 500) }}",
+            "intent": "={{ $json.context.intent }}",
+            "action": "={{ $json.context.action }}",
+            "confidence": "={{ $json.context.confidence }}",
+            "airtable_executed": "={{ $json.airtableExecuted }}",
+            "airtable_success": "={{ $json.airtableSuccess }}",
+            "airtable_operation": "={{ $json.airtableOperation }}",
+            "airtable_table": "={{ $json.airtableTable }}",
+            "processing_time_ms": "={{ $json.processingTimeMs }}",
+            "status": "sent"
+          }
+        },
+        "options": {}
+      },
+      "id": "1130c457-53a8-4875-888a-a97b0f63fb49",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [816, 160],
+      "credentials": {
+        "airtableTokenApi": { "id": "ZyBrcAO6fps7YB3u", "name": "Whatsapp Multi Agent" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"messageId\": \"{{ $json.messageId }}\", \"agent\": \"{{ $json.agentName }}\", \"processingTime\": \"{{ $json.processingTimeSec }}s\" }",
+        "options": {}
+      },
+      "id": "3a06a6b3-1bc0-4f4a-8b80-9fcbfed4cce2",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1024, 160]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": { "__rl": true, "value": "appzcZpiIZ6QPtJXT", "mode": "list" },
+        "table": { "__rl": true, "value": "tblBlockedMessages", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "from_number": "={{ $json.from }}",
+            "to_number": "={{ $json.to }}",
+            "message_preview": "={{ $json.body.substring(0, 100) }}",
+            "block_reason": "={{ $json.blockReason || ($json.isGroup ? 'group_message' : 'unknown') }}",
+            "agent_id": "={{ $json.agentId || 'not_found' }}",
+            "is_group": "={{ $json.isGroup || false }}",
+            "is_pinned": "={{ $json.isPinned || false }}",
+            "agent_online": "={{ $json.agentIsOnline || false }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "20052dd8-0d6f-4e65-9025-9980d03e4b1d",
+      "name": "Log Blocked",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [-1200, 656],
+      "credentials": {
+        "airtableTokenApi": { "id": "ZyBrcAO6fps7YB3u", "name": "Whatsapp Multi Agent" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"blocked\": true, \"reason\": \"{{ $json.blockReason || 'unknown' }}\" }",
+        "options": {}
+      },
+      "id": "5b063f2d-b7b6-461e-8d53-11eee63a603a",
+      "name": "Blocked Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [-1008, 656]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": { "__rl": true, "value": "appzcZpiIZ6QPtJXT", "mode": "list" },
+        "table": { "__rl": true, "value": "tblErrors", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "error_type": "={{ $json.errorType || 'unknown' }}",
+            "error_message": "={{ $json.errorMessage || $json.error || 'Unknown error' }}",
+            "execution_id": "={{ $execution.id }}",
+            "workflow_name": "={{ $workflow.name }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "262b9046-a6bd-4493-9b52-a2905f5ebf4d",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [-2608, 960],
+      "credentials": {
+        "airtableTokenApi": { "id": "ZyBrcAO6fps7YB3u", "name": "Whatsapp Multi Agent" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"error\": true, \"message\": \"Invalid request\" }",
+        "options": {}
+      },
+      "id": "a218ce11-4bc4-4edf-91e7-ba8d36f0bc93",
+      "name": "Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [-2848, 1072]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Agent Status Update Parser\n\nconst data = $input.first().json;\n\nif (!data.agent_id) {\n  throw new Error('Missing required field: agent_id');\n}\n\nif (!data.status || !['online', 'offline'].includes(data.status)) {\n  throw new Error('Status must be \"online\" or \"offline\"');\n}\n\nreturn {\n  agentId: data.agent_id,\n  status: data.status,\n  source: data.source || 'api',\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "0d72f783-bb55-4d95-8165-77d61dab42ec",
+      "name": "Parse Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2816, 464],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": { "__rl": true, "value": "appzcZpiIZ6QPtJXT", "mode": "list" },
+        "table": { "__rl": true, "value": "tblAgents", "mode": "list" },
+        "filterByFormula": "={agent_id} = '{{ $json.agentId }}'",
+        "options": {}
+      },
+      "id": "cbb9f0c0-2e78-4633-a356-bad35fe0957b",
+      "name": "Find Agent",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [-2608, 464],
+      "credentials": {
+        "airtableTokenApi": { "id": "ZyBrcAO6fps7YB3u", "name": "Whatsapp Multi Agent" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": { "__rl": true, "value": "appzcZpiIZ6QPtJXT", "mode": "list" },
+        "table": { "__rl": true, "value": "tblAgents", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "is_online": "={{ $node['Parse Status'].json.status === 'online' }}",
+            "last_seen": "={{ $node['Parse Status'].json.timestamp }}",
+            "status_source": "={{ $node['Parse Status'].json.source }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "eb99b004-41a0-4ca9-a451-b86e0b6aae99",
+      "name": "Update Status",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [-2416, 464],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "credentials": {
+        "airtableTokenApi": { "id": "ZyBrcAO6fps7YB3u", "name": "Whatsapp Multi Agent" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"agent\": \"{{ $node['Parse Status'].json.agentId }}\", \"status\": \"{{ $node['Parse Status'].json.status }}\" }",
+        "options": {}
+      },
+      "id": "16f1039b-03dc-4229-96ac-00c20139f1ad",
+      "name": "Status Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [-2208, 560]
+    },
+    {
+      "parameters": {},
+      "id": "241cf553-e127-4e5f-b9e1-57fefee95213",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [-1968, 944]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Global Error Handler\n// SECURITY FIX: Redacts sensitive fields before logging\n\nconst error = $input.first().json;\n\nreturn {\n  timestamp: new Date().toISOString(),\n  errorType: 'workflow_error',\n  errorMessage: (error.message || error.error || 'Unknown error').substring(0, 500),\n  nodeName: error.node?.name || 'Unknown',\n  nodeType: error.node?.type || 'Unknown',\n  executionId: $execution.id,\n  workflowName: $workflow.name,\n  workflowId: $workflow.id\n};"
+      },
+      "id": "957816cd-8b5a-4914-abef-02b9db7f4144",
+      "name": "Handle Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1776, 944],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": { "__rl": true, "value": "appzcZpiIZ6QPtJXT", "mode": "list" },
+        "table": { "__rl": true, "value": "tblErrors", "mode": "list" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "error_type": "={{ $json.errorType }}",
+            "error_message": "={{ $json.errorMessage }}",
+            "node_name": "={{ $json.nodeName }}",
+            "node_type": "={{ $json.nodeType }}",
+            "execution_id": "={{ $json.executionId }}",
+            "workflow_name": "={{ $json.workflowName }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "e21bdd57-df0b-4545-9719-4e1d6f47bd55",
+      "name": "Log to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [-1568, 944],
+      "credentials": {
+        "airtableTokenApi": { "id": "ZyBrcAO6fps7YB3u", "name": "Whatsapp Multi Agent" }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": { "updates": ["messages"], "options": {} },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [-3312, 560],
+      "id": "e9662fbb-c176-4564-8dae-ef6e5bae8ca8",
+      "name": "WhatsApp Trigger",
+      "webhookId": "caf0e707-57db-4e26-95a5-b511c8ae20c7",
+      "credentials": {
+        "whatsAppTriggerApi": { "id": "rUyqIX1gaBs3ae6Q", "name": "WhatsApp OAuth AVM Multi Agent" }
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook": {
+      "main": [[
+        { "node": "Error Response", "type": "main", "index": 0 },
+        { "node": "1 Parse Message", "type": "main", "index": 0 }
+      ]]
+    },
+    "Agent Status Webhook": {
+      "main": [[{ "node": "Parse Status", "type": "main", "index": 0 }]]
+    },
+    "1 Parse Message": {
+      "main": [[{ "node": "Valid?", "type": "main", "index": 0 }]]
+    },
+    "Valid?": {
+      "main": [
+        [{ "node": "2 Block Groups?", "type": "main", "index": 0 }],
+        [{ "node": "Log Error", "type": "main", "index": 0 }]
+      ]
+    },
+    "2 Block Groups?": {
+      "main": [
+        [{ "node": "3 Find Agent", "type": "main", "index": 0 }],
+        [{ "node": "Log Blocked", "type": "main", "index": 0 }]
+      ]
+    },
+    "3 Find Agent": {
+      "main": [[{ "node": "Agent Found?", "type": "main", "index": 0 }]]
+    },
+    "Agent Found?": {
+      "main": [
+        [{ "node": "4 Merge Agent Data", "type": "main", "index": 0 }],
+        [{ "node": "Log Blocked", "type": "main", "index": 0 }]
+      ]
+    },
+    "4 Merge Agent Data": {
+      "main": [[{ "node": "5 Get Contact Info", "type": "main", "index": 0 }]]
+    },
+    "5 Get Contact Info": {
+      "main": [[{ "node": "6 Check Blocks", "type": "main", "index": 0 }]]
+    },
+    "6 Check Blocks": {
+      "main": [[{ "node": "Process Message?", "type": "main", "index": 0 }]]
+    },
+    "Process Message?": {
+      "main": [
+        [{ "node": "7 Agent Active?", "type": "main", "index": 0 }],
+        [{ "node": "Log Blocked", "type": "main", "index": 0 }]
+      ]
+    },
+    "7 Agent Active?": {
+      "main": [
+        [{ "node": "8 AI Analysis", "type": "main", "index": 0 }],
+        [{ "node": "Log Blocked", "type": "main", "index": 0 }]
+      ]
+    },
+    "8 AI Analysis": {
+      "main": [[{ "node": "9 Parse AI Decision", "type": "main", "index": 0 }]]
+    },
+    "9 Parse AI Decision": {
+      "main": [[{ "node": "Need Airtable?", "type": "main", "index": 0 }]]
+    },
+    "Need Airtable?": {
+      "main": [
+        [{ "node": "Route Operation", "type": "main", "index": 0 }],
+        [{ "node": "Prepare Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Route Operation": {
+      "main": [[{ "node": "CRUD Switch", "type": "main", "index": 0 }]]
+    },
+    "CRUD Switch": {
+      "main": [
+        [{ "node": "CREATE Record", "type": "main", "index": 0 }],
+        [{ "node": "READ Records", "type": "main", "index": 0 }]
+      ]
+    },
+    "CREATE Record": {
+      "main": [[{ "node": "Prepare Response", "type": "main", "index": 0 }]]
+    },
+    "READ Records": {
+      "main": [[{ "node": "Prepare Response", "type": "main", "index": 0 }]]
+    },
+    "Prepare Response": {
+      "main": [[{ "node": "Send WhatsApp", "type": "main", "index": 0 }]]
+    },
+    "Send WhatsApp": {
+      "main": [[{ "node": "Log Success", "type": "main", "index": 0 }]]
+    },
+    "Log Success": {
+      "main": [[{ "node": "Success Response", "type": "main", "index": 0 }]]
+    },
+    "Log Blocked": {
+      "main": [[{ "node": "Blocked Response", "type": "main", "index": 0 }]]
+    },
+    "Log Error": { "main": [[]] },
+    "Parse Status": {
+      "main": [[{ "node": "Find Agent", "type": "main", "index": 0 }]]
+    },
+    "Find Agent": {
+      "main": [[{ "node": "Update Status", "type": "main", "index": 0 }]]
+    },
+    "Update Status": {
+      "main": [[{ "node": "Status Response", "type": "main", "index": 0 }]]
+    },
+    "Error Trigger": {
+      "main": [[{ "node": "Handle Error", "type": "main", "index": 0 }]]
+    },
+    "Handle Error": {
+      "main": [[{ "node": "Log to Airtable", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "5e29b98ac016474bbaa188119322bbd3129dd99d846912cff4e9c01c7bdc7b8a"
+  }
+}
