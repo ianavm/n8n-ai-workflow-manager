@@ -54,7 +54,7 @@ Every variant MUST include:
 - **CTA Primary**: "Book a Free AI Strategy Call"
 - **CTA Secondary**: "See Our Work"
 - **Stats**: "50+ AI projects delivered", "3x average ROI", "98% client retention", "12+ industries served"
-- **Testimonial 1**: "AnyVision helped us automate 60% of our customer support with AI, saving $2M annually." — Sarah Chen, VP Operations, TechScale Inc.
+- **Testimonial 1**: "AnyVision helped us automate 60% of our customer support with AI, saving R36M annually." — Sarah Chen, VP Operations, TechScale Inc.
 - **Testimonial 2**: "Their AI integration was seamless. Our team was productive with the new tools within a week." — Marcus Rivera, CTO, DataFlow Systems
 - **Testimonial 3**: "The computer vision solution they built cut our QA inspection time by 85%." — Priya Patel, Director of Engineering, ManuTech Global
 
