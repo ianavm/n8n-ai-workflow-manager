@@ -7,8 +7,8 @@
   },
   "instances": {
     "production": {
-      "base_url": "https://n8n.anyvisionmedia.com",
-      "label": "AnyVision Production"
+      "base_url": "https://ianimmelman89.app.n8n.cloud",
+      "label": "AnyVision Production (n8n Cloud)"
     },
     "staging": {
       "base_url": "http://localhost:5678",
@@ -156,33 +156,142 @@
       "conversation_window_messages": 10
     }
   },
-  "property_analyzer": {
+  "seo_social_dept": {
+    "airtable_base_id": "apptjjBx34z9340tK",
+    "tables": {
+      "keywords": "tblUiQHxgrNqV2FyS",
+      "serp_snapshots": "tblUEQ12rf4ln1lPr",
+      "engagement_log": "tblVToraszRHs4zIJ",
+      "leads": "tblwOPTPY85Tcj7NJ",
+      "seo_audits": "tblfUHKT8d0oJIEL1",
+      "analytics_snapshots": "tblPBAnhRf6K1le6F",
+      "scoring_log": "tblkbhbifd3PI6plT",
+      "content_topics": "tbljaHug3yScfhrcf"
+    },
+    "schedules": {
+      "trend_discovery": "Mon/Thu 06:00 SAST",
+      "seo_content": "Daily 09:30 SAST",
+      "publishing": "Daily 10:30 SAST",
+      "engagement": "Every 30min 07:00-21:00 SAST",
+      "lead_capture": "Webhook (real-time)",
+      "seo_maintenance": "Sun 02:00 SAST",
+      "analytics": "Mon 06:00 SAST + Monthly 1st"
+    },
     "ai": {
       "model": "anthropic/claude-sonnet-4-20250514",
-      "provider": "openrouter",
-      "max_tokens_extraction": 4000,
-      "max_tokens_research": 2000
+      "max_tokens_seo_analysis": 1500,
+      "max_tokens_content_gen": 2000,
+      "max_tokens_engagement": 500,
+      "max_tokens_report": 2000,
+      "quality_threshold": 6,
+      "daily_token_budget": 50000
     },
-    "scoring_defaults": {
-      "document_completeness": 0.15,
-      "location_amenities": 0.20,
-      "crime_safety": 0.20,
-      "market_growth": 0.20,
-      "deal_financial": 0.20,
-      "risk_red_flags": 0.05
+    "scoring_weights": {
+      "engagement": {
+        "likes": 0.2,
+        "comments": 0.3,
+        "shares": 0.3,
+        "saves": 0.2
+      },
+      "lead": {
+        "source_quality": 0.3,
+        "engagement_depth": 0.2,
+        "company_fit": 0.2,
+        "recency": 0.15,
+        "completeness": 0.15
+      },
+      "keyword": {
+        "search_volume": 0.3,
+        "difficulty_inverse": 0.2,
+        "current_rank": 0.25,
+        "trend_direction": 0.25
+      }
     },
-    "overpass_radius_km": {
-      "schools": 2,
-      "hospitals": 5,
-      "shopping": 2,
-      "transport": 1,
-      "parks": 1,
-      "banks": 2,
-      "fuel": 3
+    "seo_audit": {
+      "title_keyword_points": 15,
+      "meta_description_points": 10,
+      "h1_count_points": 10,
+      "word_count_points": 10,
+      "internal_links_points": 10,
+      "no_broken_links_points": 15,
+      "alt_text_points": 10,
+      "page_speed_points": 10,
+      "mobile_friendly_points": 5,
+      "schema_markup_points": 5
+    }
+  },
+  "bridge": {
+    "lead_scraper": {
+      "airtable_base_id": "app2ALQUP7CKEkHOz",
+      "table_leads": "tblOsuh298hB9WWrA"
     },
-    "geocode_provider": "nominatim",
-    "storage_bucket": "property-docs",
-    "max_file_size_mb": 10
+    "seo_social": {
+      "airtable_base_id": "apptjjBx34z9340tK",
+      "table_leads": "tblwOPTPY85Tcj7NJ"
+    },
+    "email_manager": {
+      "email_log_sheet_id": "1Adp3x0ler5H69Cih5tbMLqWEgZMziebhnOEWbMPTvaA",
+      "email_log_tab": "Email Log",
+      "leads_sheet_id": "1G2P9gYuPKtqhDkkJaTVLbuA_yxj_IqTI7vuCfhFLklM",
+      "leads_tab": "Leads"
+    },
+    "scoring_workflow_id": "0US5H9smGsrCUsv7",
+    "schedules": {
+      "lead_sync": "Every 2 hours",
+      "email_reply_matcher": "Every 5 minutes",
+      "unified_scoring": "Daily 06:30 SAST",
+      "warm_nurture": "Daily 11:00 SAST"
+    },
+    "nurture": {
+      "stage_delays_days": [0, 3, 7],
+      "max_stages": 3
+    }
+  },
+  "document_intake": {
+    "google_sheets_id": "REPLACE_WITH_SHEETS_ID",
+    "tabs": {
+      "document_log": "Document_Log",
+      "property_registry": "Property_Registry",
+      "review_queue": "Review_Queue",
+      "audit_log": "Audit_Log",
+      "admin_config": "Admin_Config",
+      "duplicate_log": "Duplicate_Log"
+    },
+    "google_drive": {
+      "incoming_folder_id": "REPLACE_AFTER_GDRIVE_SETUP",
+      "properties_folder_id": "REPLACE_AFTER_GDRIVE_SETUP"
+    },
+    "doc_type_folder_map": {
+      "FICA": "01_FICA",
+      "Offer_to_Purchase": "02_OTP",
+      "Mandate": "03_Mandate",
+      "Title_Deed": "04_Title_Deed",
+      "Municipal_Document": "05_Municipal",
+      "Bond_Finance": "06_Bond_Finance",
+      "Compliance_Certificate": "07_Compliance",
+      "Sectional_Scheme": "08_Sectional_Scheme",
+      "Entity_Document": "09_Entity_Docs",
+      "Other": "10_Other"
+    },
+    "ai": {
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "confidence_threshold": 0.75,
+      "max_tokens_classification": 2000,
+      "temperature": 0.1
+    },
+    "schedules": {
+      "email_poll": "Every minute",
+      "review_poll": "Every 5 minutes",
+      "daily_summary": "08:00 SAST",
+      "duplicate_check": "real-time"
+    },
+    "notification_email": "ian@anyvisionmedia.com",
+    "max_pdf_pages": 50,
+    "doc_types": [
+      "FICA", "Offer_to_Purchase", "Mandate", "Title_Deed",
+      "Municipal_Document", "Bond_Finance", "Compliance_Certificate",
+      "Sectional_Scheme", "Entity_Document", "Other"
+    ]
   },
   "clients": {
     "anyvision": {
