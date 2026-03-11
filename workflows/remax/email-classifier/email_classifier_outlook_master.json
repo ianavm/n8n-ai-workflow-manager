@@ -1,0 +1,148 @@
+{
+  "name": "Email Classifier - Master (Sub-Workflow)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b1000001-0001-4000-8000-000000000001",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.classificationPrompt }}",
+        "options": {
+          "systemMessage": "You are the AI Email Manager for AnyVision Media, a digital media and technology agency. Your job is to analyze incoming business emails and return a structured JSON classification.\n\n## Your Task\nFor every email you receive, analyze it and return ONLY a valid JSON object. No markdown formatting, no backticks, no explanation text — just the raw JSON.\n\n## Company Context\n- Company: AnyVision Media (digital media, AI solutions, web development)\n- Owner: Ian Immelman (ian@anyvisionmedia.com)\n- Services: AI workflow automation, web development, social media management, real estate tech solutions\n- Tone: Professional but approachable, tech-savvy\n\n## JSON Output Format\nReturn exactly this structure:\n{\n  \"sender\": \"<sender email address>\",\n  \"sender_name\": \"<sender display name>\",\n  \"subject\": \"<email subject line>\",\n  \"intent\": \"<1 sentence: what the sender wants or needs>\",\n  \"tone\": \"<one of: formal, informal, urgent, angry, friendly, neutral>\",\n  \"urgency\": \"<one of: high, medium, low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance, Customer_Support, Sales, Management, Admin, Legal, Internal, Spam_Irrelevant>\",\n  \"tags\": [\"<applicable tags from the list below>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<a professional draft reply if action_required is true, otherwise null>\",\n  \"summary\": \"<1-2 sentence summary of the email>\",\n  \"escalation_needed\": true or false\n}\n\n## Department Classification Rules\n- **Accounting_Finance**: Invoices, payments, billing inquiries, refund requests, financial statements, tax documents\n- **Customer_Support**: Service complaints, technical issues, bug reports, account help, feature requests\n- **Sales**: New business enquiries, pricing requests, partnership proposals, lead generation, RFP responses\n- **Management**: Strategic decisions, legal matters, high-level partnerships, media/PR, executive communications, escalated complaints\n- **Admin**: Documentation, compliance, vendor setup, office operations, routine administrative tasks\n- **Legal**: Contracts, legal threats, regulatory matters, NDAs, terms of service\n- **Internal**: Team communications, internal updates, HR matters\n- **Spam_Irrelevant**: Unsolicited marketing, phishing attempts, suspicious links, irrelevant promotions, newsletters not subscribed to\n\n## Available Tags\nInvoice, Payment, Refund, Complaint, New_Lead, Contract, Meeting_Request, Follow_Up, Escalation, Urgent\n\n## Urgency Rules\nMark as HIGH if any of these apply:\n- Subject contains \"urgent\", \"ASAP\", \"immediate\", \"critical\"\n- Legal threats or regulatory deadlines\n- Payment disputes or overdue invoices\n- Escalated customer complaints\n- Time-sensitive business opportunities\n\n## Response Writing Rules (for suggested_response)\nWhen action_required is true, write a professional, well-structured reply that:\n\n**FORMATTING REQUIREMENTS:**\n- Use proper line breaks (\\n\\n between paragraphs)\n- Start with a personalized greeting: \"Hi [name],\" or \"Dear [name],\"\n- Separate greeting, body paragraphs, and closing with blank lines\n- Keep paragraphs short (2-3 sentences max)\n- End with a professional signature block\n\n**STRUCTURE:**\n1. **Greeting** - Personalized with sender's name\n2. **Acknowledgment** - Thank them and acknowledge their specific concern\n3. **Response** - Address their question or request (1-2 paragraphs)\n4. **Next Steps** - What happens next (if applicable)\n5. **Closing** - Professional sign-off\n6. **Signature** - AnyVision Media Team contact info\n\n**CONTENT GUIDELINES:**\n- Acknowledge receipt of their email\n- Address their specific concern or question\n- Be professional, warm, and concise\n- Never promise specific timelines without verification\n- Never confirm financial or legal decisions\n- Never reveal that this is an automated system\n- Match their tone (formal vs casual) appropriately\n\n**EXAMPLE FORMAT:**\n```\nHi [Name],\n\nThank you for reaching out to AnyVision Media. I've received your inquiry regarding [specific topic].\n\n[Address their main concern or question here. Keep it concise and helpful.]\n\n[Optional: Next steps or additional information]\n\nIf you have any other questions, please don't hesitate to reach out.\n\nBest regards,\nAnyVision Media Team\nian@anyvisionmedia.com\n```\n\nWhen action_required is false or the email is spam, set suggested_response to null.\n\nCRITICAL: Return ONLY the JSON object. No other text.",
+          "maxIterations": 1,
+          "returnIntermediateSteps": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        480,
+        400
+      ],
+      "id": "b1000001-0002-4000-8000-000000000002",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5.1",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        400,
+        680
+      ],
+      "id": "b1000001-0003-4000-8000-000000000003",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Execute Workflow Trigger').item.json.messageId }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        520,
+        680
+      ],
+      "id": "b1000001-0004-4000-8000-000000000004",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // Get the original email data passed from the agent trigger workflow\n  const emailData = $('Execute Workflow Trigger').first().json;\n\n  let parsed;\n  try {\n    // AI Agent outputs to item.json.output (string)\n    let aiContent = item.json.output || '';\n\n    // Fallback: try HTTP Request format if output is empty\n    if (!aiContent && item.json.choices) {\n      aiContent = item.json.choices[0].message.content;\n    }\n\n    // Clean any markdown formatting\n    const cleaned = aiContent\n      .replace(/```json\\n?/g, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n\n    parsed = JSON.parse(cleaned);\n  } catch (e) {\n    // Fallback classification when AI fails\n    parsed = {\n      sender: emailData.from || 'unknown',\n      sender_name: 'Unknown',\n      subject: emailData.subject || 'No Subject',\n      intent: 'Classification failed - manual review required',\n      tone: 'neutral',\n      urgency: 'medium',\n      action_required: true,\n      department: 'Admin',\n      tags: ['Escalation'],\n      is_spam: false,\n      suggested_response: null,\n      summary: 'Email could not be auto-classified. Manual review required.',\n      escalation_needed: true\n    };\n  }\n\n  results.push({\n    json: {\n      original_from: emailData.from || '',\n      original_to: emailData.to || '',\n      original_subject: emailData.subject || '',\n      original_date: emailData.date || '',\n      original_body: emailData.body || '',\n      original_message_id: emailData.messageId || '',\n      original_thread_id: emailData.threadId || '',\n      has_original_attachments: emailData.hasAttachments || false,\n      agent_name: emailData.agentName || 'Unknown Agent',\n      agent_email: emailData.agentEmail || '',\n      sender: parsed.sender || emailData.from || '',\n      sender_name: parsed.sender_name || 'Unknown',\n      subject: parsed.subject || emailData.subject || '',\n      intent: parsed.intent || '',\n      tone: parsed.tone || 'neutral',\n      urgency: parsed.urgency || 'medium',\n      action_required: parsed.action_required || false,\n      department: parsed.department || 'Admin',\n      tags: parsed.tags || [],\n      tags_string: (parsed.tags || []).join(', '),\n      is_spam: parsed.is_spam || false,\n      suggested_response: parsed.suggested_response || '',\n      summary: parsed.summary || '',\n      escalation_needed: parsed.escalation_needed || false,\n      processed_at: new Date().toISOString(),\n      ticket_number: 'TKT-' + Date.now()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "b1000001-0005-4000-8000-000000000005",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Master Classification Sub-Workflow\n\n**Purpose:** Centralized AI brain for email classification.\nCalled by per-agent trigger workflows via Execute Sub-Workflow.\n\n**Input:** Normalized email data (from, to, subject, body, messageId, agentName, agentEmail, classificationPrompt)\n\n**Output:** Full classification JSON including:\ndepartment, urgency, suggested_response, tags, agent_name, etc.\n\n**No Outlook credentials needed** — this is pure AI logic.\nUpdate classification logic HERE and all agents get the fix.\n\n**AI Model:** OpenRouter (gpt-5.1)\n**Credential:** OpenRouter 2WC",
+        "height": 400,
+        "width": 350
+      },
+      "id": "b1000001-0006-4000-8000-000000000006",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5e29b98ac016474bbaa188119322bbd3129dd99d846912cff4e9c01c7bdc7b8a"
+  }
+}

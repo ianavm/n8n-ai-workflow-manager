@@ -1,0 +1,259 @@
+{
+  "name": "CONTENT-01 Performance Feedback Loop",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 3"
+            }
+          ]
+        }
+      },
+      "id": "dbd764dc-d5c4-46b1-82fc-c3b49c64015f",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblf3QGxX9K1y2h2H",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Status} = 'Published', IS_AFTER({Published Date}, DATEADD(TODAY(), -30, 'days')))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "cff7d8a0-885f-4925-8126-e6c3abaacd68",
+      "name": "Read Published Content",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate engagement scores by content type and topic from last 30 days\nconst items = $input.all();\n\nconst byType = {};\nconst byTopic = {};\n\nfor (const item of items) {\n  const d = item.json;\n  const contentType = d['Content Type'] || d.Type || 'Unknown';\n  const topic = d.Topic || d.Category || 'General';\n  const engagement = (d['Engagement Score'] || d.Engagement || 0);\n  const impressions = d.Impressions || d.Views || 0;\n  const clicks = d.Clicks || 0;\n  const shares = d.Shares || 0;\n  const comments = d.Comments || 0;\n\n  // Aggregate by content type\n  if (!byType[contentType]) {\n    byType[contentType] = {\n      type: contentType,\n      totalEngagement: 0,\n      totalImpressions: 0,\n      totalClicks: 0,\n      totalShares: 0,\n      totalComments: 0,\n      count: 0,\n    };\n  }\n  byType[contentType].totalEngagement += engagement;\n  byType[contentType].totalImpressions += impressions;\n  byType[contentType].totalClicks += clicks;\n  byType[contentType].totalShares += shares;\n  byType[contentType].totalComments += comments;\n  byType[contentType].count++;\n\n  // Aggregate by topic\n  if (!byTopic[topic]) {\n    byTopic[topic] = {\n      topic,\n      totalEngagement: 0,\n      totalImpressions: 0,\n      totalClicks: 0,\n      count: 0,\n    };\n  }\n  byTopic[topic].totalEngagement += engagement;\n  byTopic[topic].totalImpressions += impressions;\n  byTopic[topic].totalClicks += clicks;\n  byTopic[topic].count++;\n}\n\n// Compute averages and sort\nconst typeStats = Object.values(byType).map(t => ({\n  ...t,\n  avgEngagement: t.count > 0 ? Math.round(t.totalEngagement / t.count * 100) / 100 : 0,\n  engagementRate: t.totalImpressions > 0\n    ? Math.round(t.totalEngagement / t.totalImpressions * 10000) / 100\n    : 0,\n})).sort((a, b) => b.avgEngagement - a.avgEngagement);\n\nconst topicStats = Object.values(byTopic).map(t => ({\n  ...t,\n  avgEngagement: t.count > 0 ? Math.round(t.totalEngagement / t.count * 100) / 100 : 0,\n  engagementRate: t.totalImpressions > 0\n    ? Math.round(t.totalEngagement / t.totalImpressions * 10000) / 100\n    : 0,\n})).sort((a, b) => b.avgEngagement - a.avgEngagement);\n\nconst totalPieces = items.length;\nconst topTypes = typeStats.slice(0, 5);\nconst topTopics = topicStats.slice(0, 5);\nconst bottomTypes = typeStats.length > 3 ? typeStats.slice(-2) : [];\nconst bottomTopics = topicStats.length > 3 ? topicStats.slice(-2) : [];\n\nreturn {\n  json: {\n    totalContentPieces: totalPieces,\n    periodDays: 30,\n    typeStats,\n    topicStats,\n    topTypes: topTypes.map(t => t.type),\n    topTopics: topTopics.map(t => t.topic),\n    bottomTypes: bottomTypes.map(t => t.type),\n    bottomTopics: bottomTopics.map(t => t.topic),\n    generatedAt: new Date().toISOString(),\n  }\n};"
+      },
+      "id": "473acde9-739b-4d78-9076-efd662577e28",
+      "name": "Aggregate Engagement",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AVM Content Performance Analyst. Analyze 30-day content engagement data and generate actionable recommendations. Focus on: 1) Which content types perform best and should be scaled, 2) Which topics resonate most with the audience, 3) Underperforming areas to deprioritize or improve, 4) 3-5 specific new content topic suggestions based on patterns. Format as a structured brief with sections. Currency is ZAR (R). Keep under 400 words.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"30-Day Content Performance Summary:\\n\\nTotal pieces analyzed: {{ $json.totalContentPieces }}\\n\\nBy Content Type:\\n{{ JSON.stringify($json.typeStats, null, 2) }}\\n\\nBy Topic:\\n{{ JSON.stringify($json.topicStats, null, 2) }}\\n\\nTop performing types: {{ $json.topTypes.join(', ') || 'N/A' }}\\nTop performing topics: {{ $json.topTopics.join(', ') || 'N/A' }}\\nBottom performing types: {{ $json.bottomTypes.join(', ') || 'N/A' }}\\nBottom performing topics: {{ $json.bottomTopics.join(', ') || 'N/A' }}\\n\\nProvide content strategy recommendations and suggest new topics.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "857ab62d-77da-4816-8bb3-56ec1316d3f8",
+      "name": "AI Content Analyst",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract AI recommendation and prepare Airtable record\nconst response = $input.first().json;\nconst recommendation = (response.choices && response.choices[0])\n  ? response.choices[0].message.content\n  : 'AI recommendation unavailable.';\n\nconst stats = $('Aggregate Engagement').first().json;\n\nreturn {\n  json: {\n    recommendation,\n    topTypes: stats.topTypes,\n    topTopics: stats.topTopics,\n    bottomTypes: stats.bottomTypes,\n    bottomTopics: stats.bottomTopics,\n    totalContentPieces: stats.totalContentPieces,\n    generatedAt: new Date().toISOString(),\n  }\n};"
+      },
+      "id": "e0ac42a4-ac20-4b1a-8663-3db7c8325905",
+      "name": "Extract Recommendations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljaHug3yScfhrcf",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Topic": "=AI Recommendations - {{ $now.format('yyyy-MM-dd') }}",
+            "Source": "Performance Feedback Loop",
+            "AI Recommendation": "={{ $json.recommendation }}",
+            "Top Types": "={{ $json.topTypes.join(', ') }}",
+            "Top Topics": "={{ $json.topTopics.join(', ') }}",
+            "Content Pieces Analyzed": "={{ $json.totalContentPieces }}",
+            "Status": "New"
+          }
+        },
+        "options": {}
+      },
+      "id": "b29470d8-3ea0-4820-90d5-927c16b39fdc",
+      "name": "Save to Content Topics",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=AVM Content Performance Insights - {{ $now.format('yyyy-MM-dd') }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n<div style=\"background: #FF6D5A; padding: 20px; text-align: center;\">\n<h1 style=\"color: white; margin: 0;\">Content Performance Feedback</h1>\n<p style=\"color: white; margin: 5px 0;\">30-Day Analysis | {{ $now.format('yyyy-MM-dd') }}</p>\n</div>\n<div style=\"padding: 20px;\">\n<h2 style=\"color: #333;\">AI Recommendations</h2>\n<div style=\"background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; white-space: pre-wrap;\">{{ $('Extract Recommendations').first().json.recommendation }}</div>\n<h2 style=\"color: #333;\">Key Metrics</h2>\n<ul>\n<li><strong>Content pieces analyzed:</strong> {{ $('Extract Recommendations').first().json.totalContentPieces }}</li>\n<li><strong>Top content types:</strong> {{ $('Extract Recommendations').first().json.topTypes.join(', ') || 'N/A' }}</li>\n<li><strong>Top topics:</strong> {{ $('Extract Recommendations').first().json.topTopics.join(', ') || 'N/A' }}</li>\n<li><strong>Underperforming types:</strong> {{ $('Extract Recommendations').first().json.bottomTypes.join(', ') || 'None' }}</li>\n<li><strong>Underperforming topics:</strong> {{ $('Extract Recommendations').first().json.bottomTopics.join(', ') || 'None' }}</li>\n</ul>\n</div>\n<div style=\"background: #f0f0f0; padding: 15px; text-align: center; font-size: 12px; color: #666;\">\nGenerated by AVM Content Agent | {{ $now.format('yyyy-MM-dd HH:mm') }}\n</div>\n</div>",
+        "options": {}
+      },
+      "id": "49c22cb7-eda1-4548-a11d-6f1436c0bef4",
+      "name": "Send Insights Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Published Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Published Content": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Engagement": {
+      "main": [
+        [
+          {
+            "node": "AI Content Analyst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Content Analyst": {
+      "main": [
+        [
+          {
+            "node": "Extract Recommendations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Recommendations": {
+      "main": [
+        [
+          {
+            "node": "Save to Content Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Content Topics": {
+      "main": [
+        [
+          {
+            "node": "Send Insights Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "content",
+    "analytics",
+    "feedback-loop",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_content_agent.py",
+    "built_at": "2026-03-09T14:15:08.325987"
+  }
+}

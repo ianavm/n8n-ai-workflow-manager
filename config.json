@@ -135,7 +135,12 @@
       "agents": "tblHCkr9weKQAHZoB",
       "message_log": "tbl72lkYHRbZHIK4u",
       "blocked_messages": "tbluSD0m6zIAVmsGm",
-      "errors": "tblM6CJi7pyWQWmeD"
+      "errors": "tblM6CJi7pyWQWmeD",
+      "properties": "tblUFcG2FXrc0gsAj",
+      "appointments": "tblcfbzWkQBg8371Y",
+      "leads": "tblXBHOpJbxozBCRK",
+      "tasks": "tbluQzwLUNtrVsBXR",
+      "notes": "tblU9LBeWnX9aiJEs"
     },
     "meta": {
       "app_id": "1453028196166220",
@@ -154,6 +159,14 @@
       "max_mps": 20,
       "conversation_history_hours": 24,
       "conversation_window_messages": 10
+    },
+    "multi_agent": {
+      "max_agents": 10,
+      "opt_out_keywords": ["STOP", "UNSUBSCRIBE", "OPT OUT", "CANCEL", "QUIT", "END"],
+      "resubscribe_keywords": ["START", "SUBSCRIBE", "OPT IN", "RESUME"],
+      "default_handoff_threshold": 0.4,
+      "default_working_hours": "08:00-17:00",
+      "default_working_days": "1,2,3,4,5"
     }
   },
   "seo_social_dept": {
@@ -292,6 +305,84 @@
       "Municipal_Document", "Bond_Finance", "Compliance_Certificate",
       "Sectional_Scheme", "Entity_Document", "Other"
     ]
+  },
+  "orchestrator": {
+    "airtable_base_id": "REPLACE_AFTER_SETUP",
+    "tables": {
+      "agent_registry": "REPLACE_AFTER_SETUP",
+      "events": "REPLACE_AFTER_SETUP",
+      "kpi_snapshots": "REPLACE_AFTER_SETUP",
+      "escalation_queue": "REPLACE_AFTER_SETUP",
+      "decision_log": "REPLACE_AFTER_SETUP"
+    },
+    "schedules": {
+      "health_check": "Every 15 minutes",
+      "kpi_aggregation": "Daily 06:00 SAST",
+      "weekly_report": "Mon 07:00 SAST",
+      "cross_dept_router": "Webhook (real-time)"
+    },
+    "thresholds": {
+      "health_critical": 30,
+      "health_warning": 60,
+      "anomaly_z_score": 2.5,
+      "max_auto_retries": 3
+    },
+    "agents": {
+      "marketing": {
+        "id": "agent_marketing",
+        "workflows": ["twSg4SfNdlmdITHj", "CWQ9zjCTaf56RBe6", "ygwBtSysINRWHJxB", "ZEcxIC9M5ehQvsbg", "5XZFaoQxfyJOlqje", "ipsnBC5Xox4DWgBg", "u7LSuq6zmAY8P7fU", "M67NBeAEHfDIJ9wz", "BpZ4LkxKjHoGfjUq", "Xlu3tGHgM5DDXnkl", "Y80dDSmWQfUlfvib", "0US5H9smGsrCUsv7"]
+      },
+      "finance": {
+        "id": "agent_finance",
+        "workflows": ["twSg4SfNdlmdITHj", "CWQ9zjCTaf56RBe6", "ygwBtSysINRWHJxB", "ZEcxIC9M5ehQvsbg", "f0Wh4SOxbODbs4TE", "gwMuSElYqDTRGFKa", "EmpOzaaDGqsLvg5j"]
+      },
+      "content": {
+        "id": "agent_content",
+        "workflows": ["ygwBtSysINRWHJxB", "ipsnBC5Xox4DWgBg", "u7LSuq6zmAY8P7fU"]
+      },
+      "client_relations": {
+        "id": "agent_client_relations",
+        "workflows": []
+      },
+      "support": {
+        "id": "agent_support",
+        "workflows": []
+      },
+      "whatsapp": {
+        "id": "agent_whatsapp",
+        "workflows": []
+      }
+    }
+  },
+  "support": {
+    "airtable_base_id": "REPLACE_AFTER_SETUP",
+    "tables": {
+      "tickets": "REPLACE_AFTER_SETUP",
+      "knowledge_base": "REPLACE_AFTER_SETUP",
+      "sla_config": "REPLACE_AFTER_SETUP"
+    },
+    "sla": {
+      "P1_response_hours": 1,
+      "P1_resolution_hours": 4,
+      "P2_response_hours": 4,
+      "P2_resolution_hours": 24,
+      "P3_response_hours": 8,
+      "P3_resolution_hours": 72,
+      "P4_response_hours": 24,
+      "P4_resolution_hours": 168
+    },
+    "auto_resolve_confidence": 0.85
+  },
+  "client_relations": {
+    "health_score_weights": {
+      "usage": 0.3,
+      "payment": 0.25,
+      "engagement": 0.25,
+      "support": 0.2
+    },
+    "churn_risk_threshold": 40,
+    "renewal_reminder_days": [90, 60, 30, 14, 7],
+    "onboarding_sequence_days": [0, 3, 7]
   },
   "clients": {
     "anyvision": {

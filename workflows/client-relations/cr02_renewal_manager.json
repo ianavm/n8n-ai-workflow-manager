@@ -1,0 +1,552 @@
+{
+  "name": "Client Relations - Renewal Manager (CR-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "b53d7404-e0ca-457b-b4f0-bc3feea661c6",
+      "name": "Daily 09:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "ec1fb4de-7652-4064-8001-0c23519f3f01",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c473aa49-57af-40ea-9e7f-53379245ea12",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "236837e2-e37f-4e77-ad95-1fc6dd6b5b60",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "c9f67843-62c1-4efd-a363-60d74a2c7e22",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://portal.anyvisionmedia.com/api/billing/subscriptions",
+        "authentication": "none",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "3879f839-9859-42b6-84cc-318c173219c4",
+      "name": "Fetch Subscriptions",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter subscriptions by expiry window and join with health context\nconst input = $input.first().json;\nconst subscriptions = input.body || input.data || input || [];\nconst subList = Array.isArray(subscriptions) ? subscriptions : (subscriptions.subscriptions || []);\n\nconst now = new Date();\nconst results = {\n  expiring_30: [],\n  expiring_60: [],\n  expiring_90: [],\n  expired: [],\n};\n\nfor (const sub of subList) {\n  const expiryDate = new Date(sub.expires_at || sub.end_date || sub.renewal_date);\n  const daysUntil = Math.round((expiryDate - now) / (1000 * 60 * 60 * 24));\n  const healthScore = sub.health_score || sub.composite_score || 50;\n\n  const record = {\n    client_id: sub.client_id || sub.id,\n    client_email: sub.email || sub.client_email || '',\n    client_name: sub.name || sub.client_name || '',\n    plan: sub.plan || sub.subscription_plan || 'unknown',\n    expires_at: expiryDate.toISOString(),\n    days_until_expiry: daysUntil,\n    health_score: healthScore,\n    health_status: healthScore >= 60 ? 'healthy' : 'at_risk',\n    monthly_value: sub.monthly_value || sub.amount || 0,\n  };\n\n  if (daysUntil < 0) {\n    results.expired.push(record);\n  } else if (daysUntil <= 30) {\n    results.expiring_30.push(record);\n  } else if (daysUntil <= 60) {\n    results.expiring_60.push(record);\n  } else if (daysUntil <= 90) {\n    results.expiring_90.push(record);\n  }\n}\n\nconst allExpiring = [...results.expiring_30, ...results.expiring_60, ...results.expiring_90];\nconst healthyRenewals = allExpiring.filter(r => r.health_status === 'healthy');\nconst atRiskRenewals = allExpiring.filter(r => r.health_status === 'at_risk');\n\nreturn {\n  json: {\n    healthy_renewals: healthyRenewals,\n    at_risk_renewals: atRiskRenewals,\n    expired: results.expired,\n    summary: {\n      total_expiring: allExpiring.length,\n      healthy_count: healthyRenewals.length,\n      at_risk_count: atRiskRenewals.length,\n      expired_count: results.expired.length,\n    }\n  }\n};"
+      },
+      "id": "cbc94ee9-4e4f-4dd1-b950-b7b22f6db93e",
+      "name": "Filter Renewals",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.summary.healthy_count }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gt"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "healthy_renewal"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.summary.at_risk_count }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gt"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "at_risk_renewal"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.summary.expired_count }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gt"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "expired"
+            }
+          ]
+        }
+      },
+      "id": "e3bdc9d9-3d30-4c1a-989d-bbe662b7c9a1",
+      "name": "Route Renewal Type",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.healthy_renewals.map(r => r.client_email).join(',') }}",
+        "subject": "=Your AnyVision Media subscription is coming up for renewal",
+        "emailType": "html",
+        "message": "=<h2>Subscription Renewal Reminder</h2>\n<p>Hi there,</p>\n<p>Your subscription with AnyVision Media is approaching its renewal date. We're glad to have you on board!</p>\n<p><strong>Details:</strong></p>\n<ul>\n{{ $json.healthy_renewals.map(r => '<li>' + r.client_name + ' - ' + r.plan + ' (expires ' + r.expires_at.substring(0,10) + ', ' + r.days_until_expiry + ' days)</li>').join('') }}\n</ul>\n<p>No action needed - your subscription will auto-renew. If you have any questions, just reply to this email.</p>\n<p>Best regards,<br>AnyVision Media Team</p>",
+        "options": {}
+      },
+      "id": "c0145231-b4ba-4f92-aa6a-0e29f06d7123",
+      "name": "Send Renewal Reminder",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1440,
+        250
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Category": "Renewal_At_Risk",
+            "Source Workflow": "CR-02 Renewal Manager",
+            "Priority": "High",
+            "Description": "={{ $json.summary.at_risk_count }} at-risk renewals need personal outreach",
+            "Details": "={{ JSON.stringify($json.at_risk_renewals.map(r => ({name: r.client_name, email: r.client_email, plan: r.plan, days: r.days_until_expiry, health: r.health_score}))) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+            "Status": "Open"
+          },
+          "schema": [
+            {
+              "id": "Category",
+              "type": "string",
+              "display": true,
+              "displayName": "Category"
+            },
+            {
+              "id": "Source Workflow",
+              "type": "string",
+              "display": true,
+              "displayName": "Source Workflow"
+            },
+            {
+              "id": "Priority",
+              "type": "string",
+              "display": true,
+              "displayName": "Priority"
+            },
+            {
+              "id": "Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Description"
+            },
+            {
+              "id": "Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Details"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "8fdb2aef-5d54-43c6-b02c-ddc7eb87c808",
+      "name": "Escalate At-Risk Renewal",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1440,
+        450
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=URGENT: {{ $json.summary.expired_count }} expired subscriptions",
+        "emailType": "html",
+        "message": "=<h2 style=\"color:#FF6D5A;\">Expired Subscriptions</h2>\n<p>The following subscriptions have expired and need immediate attention:</p>\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n<tr style=\"background:#FF6D5A;color:white;\"><th>Client</th><th>Email</th><th>Plan</th><th>Expired</th><th>Health</th></tr>\n{{ $json.expired.map(r => '<tr><td>' + r.client_name + '</td><td>' + r.client_email + '</td><td>' + r.plan + '</td><td>' + r.expires_at.substring(0,10) + '</td><td>' + r.health_score + '/100</td></tr>').join('') }}\n</table>",
+        "options": {}
+      },
+      "id": "f6e5bff3-8d8b-4990-a5b0-17e9c7ab416a",
+      "name": "Alert Expired",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1440,
+        650
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event Type": "renewal_check_completed",
+            "Source": "CR-02",
+            "Details": "={{ JSON.stringify($('Filter Renewals').first().json.summary) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          },
+          "schema": [
+            {
+              "id": "Event Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Event Type"
+            },
+            {
+              "id": "Source",
+              "type": "string",
+              "display": true,
+              "displayName": "Source"
+            },
+            {
+              "id": "Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Details"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "3a29b361-585c-43ee-9415-eea2c60ab360",
+      "name": "Log Renewal Event",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1680,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "e5703592-85af-4aec-822a-b9a51dcf5aa2",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "CR-02 ERROR - Renewal Manager",
+        "emailType": "html",
+        "message": "=<h2>Renewal Manager Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "84b4fe5a-f828-4592-8a2e-0ce9f42d586f",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## CR-02: Renewal Manager\n\n**Schedule:** Daily 09:00 SAST\n**Purpose:** Check subscription expiry dates, auto-remind healthy clients, escalate at-risk, alert on expired.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "cr02-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Daily 09:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Subscriptions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Subscriptions": {
+      "main": [
+        [
+          {
+            "node": "Filter Renewals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Renewals": {
+      "main": [
+        [
+          {
+            "node": "Route Renewal Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Renewal Type": {
+      "main": [
+        [
+          {
+            "node": "Send Renewal Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Escalate At-Risk Renewal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert Expired",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Renewal Reminder": {
+      "main": [
+        [
+          {
+            "node": "Log Renewal Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalate At-Risk Renewal": {
+      "main": [
+        [
+          {
+            "node": "Log Renewal Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Expired": {
+      "main": [
+        [
+          {
+            "node": "Log Renewal Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

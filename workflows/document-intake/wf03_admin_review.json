@@ -1,0 +1,547 @@
+{
+  "name": "Document Intake - Admin Review (WF-DI-03)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## WF-DI-03: Admin Review\nPolls Review_Queue sheet for admin decisions.\nProcesses approvals, reclassifications, and errors.",
+        "width": 450,
+        "height": 100,
+        "color": 3
+      },
+      "id": "6afa6dff-7dc2-4518-84ef-6e25925be6e9",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        180,
+        80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "71ed68cb-8205-4d53-acbd-7e090c1bc09a",
+      "name": "Poll Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a69997eb-77d7-4e4b-a76c-c7290a30eff4",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Review_Queue",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "d88d6716-c785-4d17-9ad4-64d80e9590f7",
+      "name": "Read Review Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter for items where admin has filled in an action but status is still open\nconst items = $input.all();\nconst actionable = items.filter(item => {\n  const row = item.json;\n  return row.admin_action\n    && row.admin_action.trim() !== ''\n    && row.status === 'open'\n    && row.admin_email\n    && row.admin_email.trim() !== '';\n});\n\nif (actionable.length === 0) {\n  return [{ json: { _noItems: true, count: 0 } }];\n}\n\nreturn actionable;\n"
+      },
+      "id": "f2c40e1d-a545-453f-89d6-59226b611423",
+      "name": "Filter Actionable",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._noItems }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "f91edbf9-4e24-4121-a5a6-d2147cb7cc62",
+      "name": "Has Items?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "b564e44a-c033-4ac0-ae6c-bbd6e05f43a3",
+      "name": "Read Document Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match review item to its document record and prepare updates\nconst reviewItem = $('Filter Actionable').first().json;\nconst allDocs = $input.all().map(i => i.json);\n\nconst docRecord = allDocs.find(d => d.doc_id === reviewItem.doc_id);\n\nif (!docRecord) {\n  return [{ json: { error: 'Document not found: ' + reviewItem.doc_id, reviewItem } }];\n}\n\nconst action = reviewItem.admin_action.trim().toLowerCase();\nconst docTypeFolderMap = {\"FICA\": \"01_FICA\", \"Offer_to_Purchase\": \"02_OTP\", \"Mandate\": \"03_Mandate\", \"Title_Deed\": \"04_Title_Deed\", \"Municipal_Document\": \"05_Municipal\", \"Bond_Finance\": \"06_Bond_Finance\", \"Compliance_Certificate\": \"07_Compliance\", \"Sectional_Scheme\": \"08_Sectional_Scheme\", \"Entity_Document\": \"09_Entity_Docs\", \"Other\": \"10_Other\"};\n\nlet finalDocType = docRecord.doc_type;\nlet finalPropertyId = docRecord.property_id;\nlet status = 'processed';\n\nif (action === 'reclassify' && reviewItem.correct_doc_type) {\n  finalDocType = reviewItem.correct_doc_type;\n}\nif (reviewItem.correct_property_id) {\n  finalPropertyId = reviewItem.correct_property_id;\n}\nif (action === 'flag_error') {\n  status = 'error';\n}\n\nreturn [{\n  json: {\n    reviewId: reviewItem.review_id,\n    docId: reviewItem.doc_id,\n    action,\n    adminEmail: reviewItem.admin_email,\n    adminNotes: reviewItem.admin_notes || '',\n    finalDocType,\n    finalPropertyId,\n    status,\n    rawDriveFileId: docRecord.raw_drive_file_id,\n    categoryFolder: docTypeFolderMap[finalDocType] || '10_Other',\n    originalStatus: docRecord.status,\n    originalDocType: docRecord.doc_type,\n  }\n}];\n"
+      },
+      "id": "1a7381f1-0390-4b57-bd74-cf1b0375da93",
+      "name": "Process Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "doc_id": "={{ $json.docId }}",
+            "doc_type": "={{ $json.finalDocType }}",
+            "property_id": "={{ $json.finalPropertyId }}",
+            "status": "={{ $json.status }}",
+            "reviewed_by": "={{ $json.adminEmail }}",
+            "reviewed_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "doc_id"
+          ],
+          "schema": [
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type"
+            },
+            {
+              "id": "property_id",
+              "type": "string",
+              "display": true,
+              "displayName": "property_id"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            },
+            {
+              "id": "reviewed_by",
+              "type": "string",
+              "display": true,
+              "displayName": "reviewed_by"
+            },
+            {
+              "id": "reviewed_at",
+              "type": "string",
+              "display": true,
+              "displayName": "reviewed_at"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8548ec89-c15b-46aa-8c5d-fb04fc81e9b7",
+      "name": "Update Document Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Review_Queue",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "review_id": "={{ $('Process Action').first().json.reviewId }}",
+            "status": "resolved"
+          },
+          "matchingColumns": [
+            "review_id"
+          ],
+          "schema": [
+            {
+              "id": "review_id",
+              "type": "string",
+              "display": true,
+              "displayName": "review_id"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ac096d92-1d52-4b2d-9067-c0537b2343cb",
+      "name": "Resolve Review",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1780,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audit_id": "=AUD-{{ $now.toMillis() }}-rev",
+            "timestamp": "={{ $now.toISO() }}",
+            "actor": "={{ $('Process Action').first().json.adminEmail }}",
+            "action": "review_resolved",
+            "doc_id": "={{ $('Process Action').first().json.docId }}",
+            "before_value": "={{ JSON.stringify({status: $('Process Action').first().json.originalStatus, doc_type: $('Process Action').first().json.originalDocType}) }}",
+            "after_value": "={{ JSON.stringify({status: $('Process Action').first().json.status, doc_type: $('Process Action').first().json.finalDocType, action: $('Process Action').first().json.action}) }}",
+            "notes": "={{ $('Process Action').first().json.adminNotes }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "audit_id",
+              "type": "string",
+              "display": true,
+              "displayName": "audit_id"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            },
+            {
+              "id": "actor",
+              "type": "string",
+              "display": true,
+              "displayName": "actor"
+            },
+            {
+              "id": "action",
+              "type": "string",
+              "display": true,
+              "displayName": "action"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "before_value",
+              "type": "string",
+              "display": true,
+              "displayName": "before_value"
+            },
+            {
+              "id": "after_value",
+              "type": "string",
+              "display": true,
+              "displayName": "after_value"
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "displayName": "notes"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2a499252-d763-4064-9741-ae19c2bf07b0",
+      "name": "Audit Log - Review",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2000,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Process Action').first().json.adminEmail }}",
+        "subject": "=Document Review Processed - {{ $('Process Action').first().json.docId }}",
+        "emailType": "html",
+        "message": "=<h3>Review Processed</h3><p>Document <strong>{{ $('Process Action').first().json.docId }}</strong> has been {{ $('Process Action').first().json.action }}d.</p><p>Type: {{ $('Process Action').first().json.finalDocType }}</p><p>Notes: {{ $('Process Action').first().json.adminNotes || 'None' }}</p><p style=\"color:#888; font-size:12px;\">Processed at {{ $now.toISO() }}</p>",
+        "options": {}
+      },
+      "id": "11e0e1f1-b0d3-4936-a924-59f225582b45",
+      "name": "Confirm Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2220,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Poll Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Review Queue": {
+      "main": [
+        [
+          {
+            "node": "Filter Actionable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Actionable": {
+      "main": [
+        [
+          {
+            "node": "Has Items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Items?": {
+      "main": [
+        [
+          {
+            "node": "Read Document Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Read Document Log": {
+      "main": [
+        [
+          {
+            "node": "Process Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Action": {
+      "main": [
+        [
+          {
+            "node": "Update Document Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Document Log": {
+      "main": [
+        [
+          {
+            "node": "Resolve Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Review": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log - Review": {
+      "main": [
+        [
+          {
+            "node": "Confirm Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

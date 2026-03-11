@@ -1,0 +1,607 @@
+{
+  "name": "SEO Social - SEO Maintenance (WF-10)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "785bd3c8-bce5-442e-bfa5-d0571347dab7",
+      "name": "Weekly Sun 2AM SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "840ed83a-15af-4b4b-8d7e-d46888de19fe",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3d8d9bb0-4415-42f5-a3bd-36959e85b12b",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "cc776183-509a-465f-8f6c-32e2ac323d49",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "c8b36f7e-52aa-4fb3-bab5-54cca8b69d22",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "278b5015-f898-461d-991a-29a8e3caf9a1",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbljaHug3yScfhrcf"
+        },
+        "filterByFormula": "=({Status} = 'Active')"
+      },
+      "id": "5d7719b6-c077-4b41-a2f4-c3d0a6993cfa",
+      "name": "Read Content Topics",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        500
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "batchSize": 1
+        }
+      },
+      "id": "30040d93-9ea1-47e7-8475-53f77c5fe4fe",
+      "name": "Loop Over Pages",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        920,
+        500
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const topic = $json;\nconst url = topic.URL || topic.Page_URL || 'https://www.anyvisionmedia.com';\n\nlet crawlResult = { url: url, title: '', wordCount: 0, hasH1: false, hasMeta: false, brokenLinks: 0, internalLinks: 0, success: false };\n\ntry {\n  const html = await this.helpers.httpRequest({\n    method: 'GET', url: url, timeout: 15000,\n    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AnyVisionSEOBot/1.0)' }\n  });\n  const text = html.replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '').replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();\n  crawlResult.wordCount = text.split(' ').length;\n  crawlResult.title = (html.match(/<title[^>]*>(.*?)<\\/title>/i) || [])[1] || '';\n  crawlResult.hasH1 = /<h1[^>]*>/i.test(html);\n  crawlResult.hasMeta = /<meta[^>]*name=[\"']description[\"'][^>]*>/i.test(html);\n  crawlResult.success = true;\n\n  // Extract and check links\n  const linkRegex = /href=[\"'](https?:\\/\\/[^\"']+)[\"']/gi;\n  let linkMatch;\n  const links = [];\n  while ((linkMatch = linkRegex.exec(html)) !== null && links.length < 10) {\n    links.push(linkMatch[1]);\n  }\n  crawlResult.internalLinks = links.filter(l => l.includes('anyvisionmedia.com')).length;\n\n  // Check first 5 links for broken\n  for (const link of links.slice(0, 5)) {\n    try {\n      await this.helpers.httpRequest({ method: 'HEAD', url: link, timeout: 5000 });\n    } catch(e) {\n      crawlResult.brokenLinks++;\n    }\n  }\n} catch(e) {\n  crawlResult.error = e.message;\n}\n\nreturn { json: { ...crawlResult, topicId: topic.id, topicName: topic.Topic || topic.Name || '' } };"
+      },
+      "id": "f498c046-e22f-446b-b2c0-08311094dfde",
+      "name": "Crawl Page & Check Links",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1160,
+        600
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={{ encodeURIComponent($json.url) }}&strategy=mobile",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "8fb23618-082a-4525-83d7-20a85804101d",
+      "name": "PageSpeed API",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1400,
+        600
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const crawl = $('Crawl Page & Check Links').first().json;\nconst pagespeed = $input.first().json;\n\n// Extract PageSpeed score\nlet psScore = 50;\ntry { psScore = Math.round((pagespeed.lighthouseResult.categories.performance.score || 0.5) * 100); } catch(e) {}\n\n// Deterministic SEO scoring formula\nconst speedScore = psScore;\nconst contentScore = Math.min(100, (crawl.wordCount || 0) / 20 + (crawl.hasH1 ? 20 : 0) + (crawl.hasMeta ? 20 : 0));\nconst linkScore = Math.max(0, 100 - (crawl.brokenLinks || 0) * 25 + (crawl.internalLinks || 0) * 10);\nconst techScore = (crawl.success ? 50 : 0) + (crawl.title ? 25 : 0) + (crawl.hasMeta ? 25 : 0);\n\nconst composite = Math.round(speedScore * 0.30 + contentScore * 0.25 + linkScore * 0.25 + techScore * 0.20);\n\nreturn {\n  json: {\n    url: crawl.url,\n    topicId: crawl.topicId,\n    topicName: crawl.topicName,\n    scores: { speed: speedScore, content: contentScore, links: linkScore, technical: techScore },\n    composite_score: Math.min(100, composite),\n    grade: composite >= 80 ? 'Healthy' : composite >= 60 ? 'Needs Work' : composite >= 40 ? 'Poor' : 'Critical',\n    crawlData: { wordCount: crawl.wordCount, hasH1: crawl.hasH1, hasMeta: crawl.hasMeta, brokenLinks: crawl.brokenLinks, internalLinks: crawl.internalLinks },\n    pagespeedScore: psScore,\n    auditDate: $('System Config').first().json.todayDate\n  }\n};"
+      },
+      "id": "221fcfbb-5832-46f3-8c49-74e23f117a74",
+      "name": "Compute SEO Score",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1640,
+        600
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 1000,\n  \"temperature\": 0.5,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a technical SEO auditor for AnyVision Media, a digital media and AI automation agency in South Africa.\\n\\n## Your Task\\nAnalyze the provided crawl data (page speed, broken links, content structure) and generate actionable SEO recommendations.\\n\\n## Analysis Areas\\n1. **Performance**: Page speed scores, Core Web Vitals\\n2. **Technical**: Broken links, redirect chains, crawl errors\\n3. **Content**: Thin content, duplicate content, missing meta tags\\n4. **Mobile**: Mobile-friendliness, responsive issues\\n5. **Authority**: Internal linking structure, link equity distribution\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"overall_score\\\": 72,\\n  \\\"issues\\\": [\\n    {\\n      \\\"severity\\\": \\\"critical|warning|info\\\",\\n      \\\"category\\\": \\\"performance|technical|content|mobile|authority\\\",\\n      \\\"description\\\": \\\"what is wrong\\\",\\n      \\\"recommendation\\\": \\\"how to fix it\\\",\\n      \\\"impact\\\": \\\"high|medium|low\\\",\\n      \\\"effort\\\": \\\"quick_fix|moderate|major\\\"\\n    }\\n  ],\\n  \\\"quick_wins\\\": [\\n    {\\\"action\\\": \\\"what to do\\\", \\\"expected_impact\\\": \\\"description\\\", \\\"priority\\\": 1}\\n  ],\\n  \\\"summary\\\": \\\"2-3 sentence executive summary of site health\\\"\\n}\\n\\n## Rules\\n- Prioritize issues by impact (critical first)\\n- Include at least 3 actionable quick wins\\n- Reference South African hosting/CDN context where relevant\\n- Be specific about recommendations, not generic\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify('Page: ' + $json.url + '\\nSEO Score: ' + $json.composite_score + '/100 (' + $json.grade + ')\\nPageSpeed: ' + $json.pagespeedScore + '/100\\nCrawl Data: ' + JSON.stringify($json.crawlData) + '\\nScore Breakdown: ' + JSON.stringify($json.scores)) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "47a8387b-1048-4496-9b26-d30c85278162",
+      "name": "AI SEO Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1880,
+        600
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblfUHKT8d0oJIEL1"
+        },
+        "columns": {
+          "value": {
+            "URL": "={{ $('Compute SEO Score').first().json.url }}",
+            "Topic": "={{ $('Compute SEO Score').first().json.topicName }}",
+            "Composite Score": "={{ $('Compute SEO Score').first().json.composite_score }}",
+            "Grade": "={{ $('Compute SEO Score').first().json.grade }}",
+            "PageSpeed Score": "={{ $('Compute SEO Score').first().json.pagespeedScore }}",
+            "Score Details": "={{ JSON.stringify($('Compute SEO Score').first().json.scores) }}",
+            "Crawl Data": "={{ JSON.stringify($('Compute SEO Score').first().json.crawlData) }}",
+            "AI Analysis": "={{ $json.choices ? $json.choices[0].message.content : '' }}",
+            "Audit Date": "={{ $('Compute SEO Score').first().json.auditDate }}"
+          },
+          "schema": [
+            {
+              "id": "URL",
+              "type": "string",
+              "display": true,
+              "displayName": "URL"
+            },
+            {
+              "id": "Topic",
+              "type": "string",
+              "display": true,
+              "displayName": "Topic"
+            },
+            {
+              "id": "Composite Score",
+              "type": "number",
+              "display": true,
+              "displayName": "Composite Score"
+            },
+            {
+              "id": "Grade",
+              "type": "string",
+              "display": true,
+              "displayName": "Grade"
+            },
+            {
+              "id": "PageSpeed Score",
+              "type": "number",
+              "display": true,
+              "displayName": "PageSpeed Score"
+            },
+            {
+              "id": "Score Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Score Details"
+            },
+            {
+              "id": "Crawl Data",
+              "type": "string",
+              "display": true,
+              "displayName": "Crawl Data"
+            },
+            {
+              "id": "AI Analysis",
+              "type": "string",
+              "display": true,
+              "displayName": "AI Analysis"
+            },
+            {
+              "id": "Audit Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Audit Date"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "3cfa336a-518b-4512-8d95-25377d9811fd",
+      "name": "Store SEO Audit",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2120,
+        600
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbljaHug3yScfhrcf"
+        },
+        "columns": {
+          "value": {
+            "SEO Score": "={{ $('Compute SEO Score').first().json.composite_score }}",
+            "Last Audit": "={{ $('Compute SEO Score').first().json.auditDate }}"
+          },
+          "schema": [
+            {
+              "id": "SEO Score",
+              "type": "number",
+              "display": true,
+              "displayName": "SEO Score"
+            },
+            {
+              "id": "Last Audit",
+              "type": "string",
+              "display": true,
+              "displayName": "Last Audit"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "5e115d1d-2d73-4658-b034-31b8bd59d7a7",
+      "name": "Update Topic Score",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2360,
+        600
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\nlet audits = [];\ntry { audits = $('Compute SEO Score').all().map(i => i.json); } catch(e) {}\nconst avgScore = audits.length > 0 ? Math.round(audits.reduce((s, a) => s + a.composite_score, 0) / audits.length) : 0;\nconst rowsHtml = audits.map(a => `<tr><td>${a.url}</td><td>${a.composite_score}</td><td>${a.grade}</td><td>${a.pagespeedScore}</td></tr>`).join('\\n');\nreturn { json: {\n  subject: `SEO Maintenance Report: Avg Score ${avgScore}/100 (${audits.length} pages)`,\n  body: ['<h2 style=\"color:#FF6D5A\">Weekly SEO Maintenance Report</h2>', `<p><strong>Date:</strong> ${now}</p>`, `<p><strong>Pages audited:</strong> ${audits.length}</p>`, `<p><strong>Average SEO score:</strong> ${avgScore}/100</p>`, '<hr>', '<table border=\"1\" cellpadding=\"6\" style=\"border-collapse:collapse\"><tr><th>URL</th><th>SEO Score</th><th>Grade</th><th>PageSpeed</th></tr>', rowsHtml, '</table>', '<hr>', '<p>Full audit details in SEO Audits table.</p>'].join('\\n')\n}};"
+      },
+      "id": "422710eb-929a-41b6-b371-2e38b1b7f903",
+      "name": "Build SEO Report",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2600,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "4b1033bc-3af0-48aa-822b-bbb98e3c989f",
+      "name": "Send SEO Report",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2840,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "7a795bf5-ff74-48ec-833b-331d3847cb3b",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "55447ef6-2757-4223-a0fe-8d62aa7dac25",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-10: SEO Maintenance\n\n**Schedule:** Weekly Sunday 2AM SAST\n**Purpose:** Crawl pages, check broken links, PageSpeed API, AI SEO analysis.\n**Output:** SEO Audits table + Content Topics score update + report email.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "wf10-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Weekly Sun 2AM SAST": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Content Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Content Topics": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Pages": {
+      "main": [
+        [
+          {
+            "node": "Build SEO Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crawl Page & Check Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl Page & Check Links": {
+      "main": [
+        [
+          {
+            "node": "PageSpeed API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PageSpeed API": {
+      "main": [
+        [
+          {
+            "node": "Compute SEO Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute SEO Score": {
+      "main": [
+        [
+          {
+            "node": "AI SEO Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI SEO Analysis": {
+      "main": [
+        [
+          {
+            "node": "Store SEO Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store SEO Audit": {
+      "main": [
+        [
+          {
+            "node": "Update Topic Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Topic Score": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build SEO Report": {
+      "main": [
+        [
+          {
+            "node": "Send SEO Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

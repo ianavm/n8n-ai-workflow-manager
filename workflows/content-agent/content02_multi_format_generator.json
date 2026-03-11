@@ -1,0 +1,248 @@
+{
+  "name": "CONTENT-02 Multi-Format Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "content-generate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "72c994ea-dd39-4464-8272-6ee283329100",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "6d485f0c-e3e3-4309-882e-fb56e68f12cb"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse webhook input: content ID + target formats\nconst input = $input.first().json;\nconst body = input.body || input;\n\nconst contentId = body.contentId || body.content_id || body.id || '';\nconst targetFormats = body.formats || body.targetFormats\n  || ['blog', 'social', 'newsletter', 'video-script'];\nconst tone = body.tone || 'professional';\nconst audience = body.audience || 'business owners';\n\nif (!contentId) {\n  throw new Error('Missing required field: contentId. Send {\"contentId\": \"recXXX\", \"formats\": [\"blog\",\"social\"]}');\n}\n\nreturn {\n  json: {\n    contentId,\n    targetFormats: Array.isArray(targetFormats)\n      ? targetFormats\n      : targetFormats.split(',').map(f => f.trim()),\n    tone,\n    audience,\n  }\n};"
+      },
+      "id": "e18a1e3b-e0f0-4c7f-aa80-3c113b714610",
+      "name": "Parse Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblf3QGxX9K1y2h2H",
+          "mode": "id"
+        },
+        "filterByFormula": "=RECORD_ID() = '{{ $json.contentId }}'",
+        "options": {}
+      },
+      "id": "eccf0631-8a32-4fb6-9eb5-9efb6809448a",
+      "name": "Read Source Content",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 3000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AVM Multi-Format Content Generator. Given source content, generate variants for the requested formats. Output a JSON array where each element has 'format' and 'content' keys. Supported formats: blog (800-1200 words SEO-optimized article), social (platform-optimized posts for Instagram/LinkedIn/Twitter with hashtags), newsletter (email-friendly summary with CTA), video-script (90-second script with scene directions and talking points). Maintain brand voice: professional, approachable, South African business context. Currency is ZAR (R).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Source Content:\\nTitle: {{ $json.Title || $json.Name || 'Untitled' }}\\nType: {{ $json['Content Type'] || $json.Type || 'Article' }}\\nBody: {{ ($json.Content || $json.Body || $json.Description || 'No content body available').substring(0, 4000) }}\\nTopic: {{ $json.Topic || $json.Category || 'General' }}\\n\\nTarget formats: {{ $('Parse Input').first().json.targetFormats.join(', ') }}\\nTone: {{ $('Parse Input').first().json.tone }}\\nAudience: {{ $('Parse Input').first().json.audience }}\\n\\nGenerate all requested format variants. Return as a JSON array: ```json\\n[{\"format\": \"...\", \"content\": \"...\"}]\\n```\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "9388da98-7d86-4116-a7d7-0a5b06f45910",
+      "name": "AI Format Generator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split AI-generated variants into separate items for Airtable batch create\nconst response = $input.first().json;\nconst aiText = (response.choices && response.choices[0])\n  ? response.choices[0].message.content\n  : '';\n\nconst sourceData = $('Read Source Content').first().json;\nconst params = $('Parse Input').first().json;\nconst contentId = params.contentId;\nconst sourceTitle = sourceData.Title || sourceData.Name || 'Untitled';\n\n// Parse variants from AI response (expects JSON array or sectioned text)\nlet variants = [];\ntry {\n  // Try parsing as JSON first (with or without code fences)\n  const jsonMatch = aiText.match(/```json\\s*([\\s\\S]*?)```/) || aiText.match(/\\[[\\s\\S]*\\]/);\n  if (jsonMatch) {\n    variants = JSON.parse(jsonMatch[1] || jsonMatch[0]);\n  }\n} catch (e) {\n  // Fall back to section-based parsing\n}\n\nif (variants.length === 0) {\n  // Parse sections delimited by format headers (e.g., \"## Blog\", \"## Social\")\n  const sections = aiText.split(/^##\\s+/m).filter(s => s.trim());\n  for (const section of sections) {\n    const lines = section.trim().split('\\n');\n    const format = lines[0].trim().replace(/[:#]/g, '').trim();\n    const content = lines.slice(1).join('\\n').trim();\n    if (format && content) {\n      variants.push({ format, content });\n    }\n  }\n}\n\n// If still empty, return the whole response as a single variant\nif (variants.length === 0) {\n  variants.push({ format: 'general', content: aiText });\n}\n\nreturn variants.map((v, idx) => ({\n  json: {\n    'Source Content ID': contentId,\n    'Source Title': sourceTitle,\n    'Format': v.format || v.type || `variant_${idx}`,\n    'Generated Content': v.content || v.text || '',\n    'Tone': params.tone,\n    'Audience': params.audience,\n    'Status': 'Draft',\n    'Generated At': new Date().toISOString(),\n  }\n}));"
+      },
+      "id": "92ea39a4-1890-4a76-ae88-1e22d884a084",
+      "name": "Split Variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Source Content ID": "={{ $json['Source Content ID'] }}",
+            "Source Title": "={{ $json['Source Title'] }}",
+            "Format": "={{ $json.Format }}",
+            "Generated Content": "={{ $json['Generated Content'] }}",
+            "Tone": "={{ $json.Tone }}",
+            "Audience": "={{ $json.Audience }}",
+            "Status": "={{ $json.Status }}",
+            "Generated At": "={{ $json['Generated At'] }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "b1445d3b-62dc-4305-a1d7-574546b9724c",
+      "name": "Save Content Variants",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"contentId\": \"{{ $('Parse Input').first().json.contentId }}\",\n  \"variantsGenerated\": {{ $('Split Variants').all().length }},\n  \"formats\": {{ JSON.stringify($('Split Variants').all().map(i => i.json.Format)) }},\n  \"message\": \"Content variants generated and saved to Airtable\"\n}",
+        "options": {}
+      },
+      "id": "7ecd1675-99d7-4522-8ec9-7c1b014ec9d7",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Input": {
+      "main": [
+        [
+          {
+            "node": "Read Source Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Source Content": {
+      "main": [
+        [
+          {
+            "node": "AI Format Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Format Generator": {
+      "main": [
+        [
+          {
+            "node": "Split Variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Variants": {
+      "main": [
+        [
+          {
+            "node": "Save Content Variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Content Variants": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "content",
+    "generation",
+    "multi-format",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_content_agent.py",
+    "built_at": "2026-03-09T14:15:08.326726"
+  }
+}

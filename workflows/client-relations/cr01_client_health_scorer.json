@@ -1,0 +1,508 @@
+{
+  "name": "Client Relations - Health Scorer (CR-01)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "5a6ac898-4e8e-4371-bbde-a300da93591c",
+      "name": "Daily 08:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "b70bf467-3348-4852-a42f-c0874eb630b7",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cfb437ad-2447-49b2-a12e-f2d9149f7b39",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "f394a089-d0c6-4c5c-8ee9-7b0371e61cc1",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            },
+            {
+              "id": "16701fd2-7e5f-412c-9ddd-754a08857881",
+              "name": "portalUrl",
+              "value": "https://portal.anyvisionmedia.com",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "bf1110af-e8f0-4d6b-ab5f-de035473a308",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://portal.anyvisionmedia.com/api/admin/clients",
+        "authentication": "none",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "142244b1-f11e-4e6e-ba00-170439e9687a",
+      "name": "Fetch All Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Client Health Scorer - scores each client on 4 dimensions\nconst clients = $input.first().json.body || $input.first().json || [];\nconst clientList = Array.isArray(clients) ? clients : (clients.data || clients.clients || []);\n\nconst results = [];\nfor (const client of clientList) {\n  // Usage frequency (0-25): based on logins/actions in last 30 days\n  const usageRaw = client.usage_count || client.logins_30d || 0;\n  const usageScore = Math.min(25, Math.round(usageRaw / 4));\n\n  // Payment history (0-25): based on on-time payment ratio\n  const paymentRatio = client.payment_on_time_ratio || client.payment_score || 0;\n  const paymentScore = Math.min(25, Math.round(paymentRatio * 25));\n\n  // Portal engagement (0-25): based on features used, pages visited\n  const engagement = client.portal_engagement || client.features_used || 0;\n  const engagementScore = Math.min(25, Math.round(engagement * 2.5));\n\n  // Support tickets (0-25): inverse - fewer open tickets = healthier\n  const openTickets = client.open_tickets || 0;\n  const ticketScore = Math.max(0, 25 - (openTickets * 5));\n\n  const composite = usageScore + paymentScore + engagementScore + ticketScore;\n\n  results.push({\n    client_id: client.id || client.client_id || 'unknown',\n    client_email: client.email || '',\n    client_name: client.name || client.company || '',\n    plan: client.plan || client.subscription || 'unknown',\n    scores: {\n      usage: usageScore,\n      payment: paymentScore,\n      engagement: engagementScore,\n      support: ticketScore\n    },\n    composite_score: composite,\n    health_grade: composite >= 80 ? 'Healthy' : composite >= 60 ? 'Stable' : composite >= 40 ? 'At Risk' : 'Critical',\n    scored_at: new Date().toISOString()\n  });\n}\n\nconst atRisk = results.filter(r => r.composite_score < 40);\nconst avgScore = results.length > 0 ? Math.round(results.reduce((a, b) => a + b.composite_score, 0) / results.length) : 0;\n\nreturn {\n  json: {\n    clients: results,\n    at_risk_clients: atRisk,\n    summary: {\n      total_clients: results.length,\n      avg_score: avgScore,\n      at_risk_count: atRisk.length,\n      healthy_count: results.filter(r => r.composite_score >= 80).length,\n      scored_at: new Date().toISOString()\n    }\n  }\n};"
+      },
+      "id": "8a3c10d3-c591-4b8a-aef1-483e844eb9f7",
+      "name": "Score Clients",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.summary.at_risk_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "cde3a823-7591-4f93-931a-daed0d56ee07",
+      "name": "Any At Risk?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Category": "Client_Churn_Risk",
+            "Source Workflow": "CR-01 Client Health Scorer",
+            "Priority": "High",
+            "Description": "={{ $json.summary.at_risk_count }} clients with health score < 40. Avg score: {{ $json.summary.avg_score }}",
+            "Details": "={{ JSON.stringify($json.at_risk_clients.map(c => ({name: c.client_name, email: c.client_email, score: c.composite_score}))) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+            "Status": "Open"
+          },
+          "schema": [
+            {
+              "id": "Category",
+              "type": "string",
+              "display": true,
+              "displayName": "Category"
+            },
+            {
+              "id": "Source Workflow",
+              "type": "string",
+              "display": true,
+              "displayName": "Source Workflow"
+            },
+            {
+              "id": "Priority",
+              "type": "string",
+              "display": true,
+              "displayName": "Priority"
+            },
+            {
+              "id": "Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Description"
+            },
+            {
+              "id": "Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Details"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "3d30023b-50d3-488b-9875-859decd07278",
+      "name": "Create Escalation",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://portal.anyvisionmedia.com/api/admin/agents",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({agent: 'agent_client_relations', status: 'healthy', last_run: $now.format('yyyy-MM-dd HH:mm:ss'), metrics: {total_clients: $json.summary.total_clients, avg_score: $json.summary.avg_score, at_risk: $json.summary.at_risk_count}}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "df3e9d9e-478f-4d5c-bb2c-e59283203461",
+      "name": "Update Agent Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1400,
+        500
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=CLIENT CHURN RISK: {{ $('Score Clients').first().json.summary.at_risk_count }} clients at risk",
+        "emailType": "html",
+        "message": "=<h2>Client Churn Risk Alert</h2>\n<p>The following clients have health scores below 40 (Critical):</p>\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n<tr style=\"background:#FF6D5A;color:white;\">\n<th>Client</th><th>Email</th><th>Score</th><th>Grade</th><th>Weakest Area</th>\n</tr>\n{{ $json.at_risk_clients.map(c => {\n  const scores = c.scores;\n  const weakest = Object.entries(scores).sort((a,b) => a[1]-b[1])[0];\n  return '<tr><td>' + c.client_name + '</td><td>' + c.client_email + '</td><td>' + c.composite_score + '/100</td><td>' + c.health_grade + '</td><td>' + weakest[0] + ' (' + weakest[1] + '/25)</td></tr>';\n}).join('') }}\n</table>\n<p><strong>Total at-risk:</strong> {{ $json.at_risk_clients.length }} clients</p>\n<p><strong>Action required:</strong> Review each client and schedule personal outreach.</p>",
+        "options": {}
+      },
+      "id": "d0f9b6ff-da37-4ad2-8498-41cd6569441d",
+      "name": "Alert At-Risk Clients",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1640,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event Type": "health_score_completed",
+            "Source": "CR-01",
+            "Details": "={{ JSON.stringify($('Score Clients').first().json.summary) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          },
+          "schema": [
+            {
+              "id": "Event Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Event Type"
+            },
+            {
+              "id": "Source",
+              "type": "string",
+              "display": true,
+              "displayName": "Source"
+            },
+            {
+              "id": "Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Details"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "57543bc2-ae4e-4c0c-9f55-1e3f5fdda39c",
+      "name": "Log Health Score Event",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1640,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "b403533d-b13f-44af-80f9-e8af47135f6f",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "CR-01 ERROR - Client Health Scorer",
+        "emailType": "html",
+        "message": "=<h2>Client Health Scorer Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "7d792200-6448-45e2-bca7-06fe22d00e2e",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## CR-01: Client Health Scorer\n\n**Schedule:** Daily 08:00 SAST\n**Purpose:** Score each client on 4 dimensions (usage, payment, engagement, support) and flag at-risk clients for intervention.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "cr01-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Daily 08:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Clients": {
+      "main": [
+        [
+          {
+            "node": "Score Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Clients": {
+      "main": [
+        [
+          {
+            "node": "Any At Risk?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any At Risk?": {
+      "main": [
+        [
+          {
+            "node": "Create Escalation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alert At-Risk Clients",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Agent Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Escalation": {
+      "main": [
+        [
+          {
+            "node": "Update Agent Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Agent Status": {
+      "main": [
+        [
+          {
+            "node": "Log Health Score Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,436 @@
+{
+  "name": "Support Agent - KB Builder (SUP-04)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "ae3a6a11-5da5-4726-964b-e19c05c052af",
+      "name": "Weekly Sun 20:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "da7b4cb3-daa9-4146-919b-13971f55afa8",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Status} = 'Resolved', IS_AFTER({Resolved At}, DATEADD(TODAY(), -7, 'days')))"
+      },
+      "id": "e2cdb66f-dca4-4591-866c-ccc01da18fcd",
+      "name": "Read Resolved Tickets",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Group resolved tickets by category and find patterns\nconst tickets = $input.all();\nconst groups = {};\n\nfor (const item of tickets) {\n  const fields = item.json.fields || item.json;\n  const category = fields['Category'] || fields.category || 'General';\n  const subject = fields['Subject'] || fields.subject || '';\n  const resolution = fields['Resolution Notes'] || fields.resolution_notes || '';\n  const aiSummary = fields['AI Summary'] || fields.ai_summary || '';\n\n  if (!groups[category]) {\n    groups[category] = [];\n  }\n  groups[category].push({\n    ticket_id: fields['Ticket ID'] || item.json.id || 'unknown',\n    subject: subject,\n    ai_summary: aiSummary,\n    resolution: resolution,\n  });\n}\n\n// Find patterns (categories with 2+ tickets)\nconst patterns = [];\nfor (const [category, ticketList] of Object.entries(groups)) {\n  if (ticketList.length >= 2) {\n    patterns.push({\n      category: category,\n      count: ticketList.length,\n      tickets: ticketList,\n    });\n  }\n}\n\nreturn {\n  json: {\n    patterns: patterns,\n    total_resolved: tickets.length,\n    categories_with_patterns: patterns.length,\n  }\n};"
+      },
+      "id": "404cd664-aa0c-4a06-89eb-c0af15746fe6",
+      "name": "Group Tickets",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 2500,\n  \"temperature\": 0.5,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a knowledge base curator for AnyVision Media, a digital media and AI automation agency in South Africa.\\n\\n## Your Task\\nAnalyze resolved support tickets from the past week and identify patterns that should become new Knowledge Base articles.\\n\\n## Article Structure\\nFor each new article:\\n1. Title: Clear, searchable title\\n2. Body: Step-by-step resolution with context\\n3. Category: FAQ, Troubleshooting, How-To, or Policy\\n4. Tags: Comma-separated relevant tags\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"articles\\\": [\\n    {\\n      \\\"title\\\": \\\"Article title\\\",\\n      \\\"body\\\": \\\"Full article body with step-by-step instructions\\\",\\n      \\\"category\\\": \\\"FAQ|Troubleshooting|How-To|Policy\\\",\\n      \\\"tags\\\": \\\"tag1, tag2, tag3\\\",\\n      \\\"source_tickets\\\": [\\\"ticket_id_1\\\", \\\"ticket_id_2\\\"]\\n    }\\n  ],\\n  \\\"patterns_found\\\": [\\n    {\\\"pattern\\\": \\\"description\\\", \\\"frequency\\\": 5, \\\"suggested_action\\\": \\\"action\\\"}\\n  ],\\n  \\\"summary\\\": \\\"Brief summary of KB updates\\\"\\n}\\n\\n## Rules\\n- Only create articles for issues that appeared 2+ times\\n- Write for a non-technical audience\\n- Include South African context where relevant\\n- Maximum 5 new articles per batch\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify('RESOLVED TICKET PATTERNS:\\n' + JSON.stringify($json.patterns).substring(0, 4000) + '\\n\\nTotal resolved this week: ' + $json.total_resolved + '\\nCategories with patterns: ' + $json.categories_with_patterns) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "239e5287-8510-4ac9-b9b4-5cf09b7ef0b4",
+      "name": "AI Generate KB Articles",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI-generated KB articles\nconst input = $input.first().json;\n\nlet kbData;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  kbData = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch(e) {\n  return { json: { error: 'Failed to parse KB articles', raw: input } };\n}\n\n// Return individual articles for batch creation\nconst items = (kbData.articles || []).map(article => ({\n  json: {\n    title: article.title,\n    body: article.body,\n    category: article.category,\n    tags: article.tags,\n    source_tickets: (article.source_tickets || []).join(', '),\n  }\n}));\n\nreturn items.length > 0 ? items : [{ json: { error: 'No articles generated' } }];"
+      },
+      "id": "f1eade70-4e6c-4462-af81-36ef759bac13",
+      "name": "Parse KB Articles",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Article ID": "={{ 'KB-' + $now.format('yyyyMMdd') + '-' + Math.random().toString(36).substring(2, 6).toUpperCase() }}",
+            "Title": "={{ $json.title }}",
+            "Body": "={{ $json.body }}",
+            "Category": "={{ $json.category }}",
+            "Tags": "={{ $json.tags }}",
+            "Usage Count": 0,
+            "Last Updated": "={{ $now.format('yyyy-MM-dd') }}",
+            "Created By": "AI (SUP-04)"
+          },
+          "schema": [
+            {
+              "id": "Article ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Article ID"
+            },
+            {
+              "id": "Title",
+              "type": "string",
+              "display": true,
+              "displayName": "Title"
+            },
+            {
+              "id": "Body",
+              "type": "string",
+              "display": true,
+              "displayName": "Body"
+            },
+            {
+              "id": "Category",
+              "type": "string",
+              "display": true,
+              "displayName": "Category"
+            },
+            {
+              "id": "Tags",
+              "type": "string",
+              "display": true,
+              "displayName": "Tags"
+            },
+            {
+              "id": "Usage Count",
+              "type": "number",
+              "display": true,
+              "displayName": "Usage Count"
+            },
+            {
+              "id": "Last Updated",
+              "type": "string",
+              "display": true,
+              "displayName": "Last Updated"
+            },
+            {
+              "id": "Created By",
+              "type": "string",
+              "display": true,
+              "displayName": "Created By"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "1953e335-4b2e-4c18-9a5f-16e5e44d7ac4",
+      "name": "Create KB Articles",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event Type": "kb_articles_generated",
+            "Source": "SUP-04",
+            "Details": "={{ JSON.stringify({articles_created: $input.all().length, total_resolved_reviewed: $('Group Tickets').first().json.total_resolved}) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          },
+          "schema": [
+            {
+              "id": "Event Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Event Type"
+            },
+            {
+              "id": "Source",
+              "type": "string",
+              "display": true,
+              "displayName": "Source"
+            },
+            {
+              "id": "Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Details"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "64a8c631-5cc7-44f3-a1f1-aafcb062c4d4",
+      "name": "Log KB Build Event",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1640,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "8fd8d8d9-703e-4b36-8711-9747ccfb1a6b",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SUP-04 ERROR - KB Builder",
+        "emailType": "html",
+        "message": "=<h2>KB Builder Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "fbc8057f-19e4-484e-a9fc-dd416dd23272",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## SUP-04: KB Builder\n\n**Schedule:** Weekly Sun 20:00 SAST\n**Purpose:** Analyze resolved tickets, AI-generate new KB articles from patterns, auto-create in Airtable.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "sup04-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Weekly Sun 20:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Read Resolved Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Resolved Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Resolved Tickets": {
+      "main": [
+        [
+          {
+            "node": "Group Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group Tickets": {
+      "main": [
+        [
+          {
+            "node": "AI Generate KB Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate KB Articles": {
+      "main": [
+        [
+          {
+            "node": "Parse KB Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse KB Articles": {
+      "main": [
+        [
+          {
+            "node": "Create KB Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create KB Articles": {
+      "main": [
+        [
+          {
+            "node": "Log KB Build Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

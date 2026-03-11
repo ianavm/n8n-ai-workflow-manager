@@ -1,0 +1,286 @@
+{
+  "name": "Client Relations - Onboarding Automation (CR-03)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "client-onboarding",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b05bce64-4a19-4449-9eab-2537103cb78b",
+      "name": "Onboarding Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 2,
+      "webhookId": "1c300dbf-6974-4700-b884-f85728ac8f78"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract client data from webhook body\nconst body = $json.body || $json;\nconst client = {\n  email: (body.email || body.client_email || '').toLowerCase().trim(),\n  name: body.name || body.client_name || body.full_name || '',\n  company: body.company || body.organization || '',\n  plan: body.plan || body.subscription_plan || 'starter',\n  phone: body.phone || '',\n  source: body.source || body.utm_source || 'direct',\n};\n\nif (!client.email) {\n  throw new Error('Client email is required for onboarding');\n}\n\nreturn { json: { client } };"
+      },
+      "id": "c32da06b-d089-4c7d-aa18-bf0d816e9621",
+      "name": "Extract Client Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.client.email }}",
+        "subject": "=Welcome to AnyVision Media, {{ $json.client.name || 'there' }}!",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;margin:0 auto;\">\n<div style=\"background:#FF6D5A;padding:30px;text-align:center;\">\n<h1 style=\"color:white;margin:0;\">Welcome to AnyVision Media!</h1>\n</div>\n<div style=\"padding:30px;background:#f9f9f9;\">\n<p>Hi {{ $json.client.name || 'there' }},</p>\n<p>Welcome aboard! We're thrilled to have {{ $json.client.company || 'you' }} as part of the AnyVision Media family.</p>\n<h3 style=\"color:#FF6D5A;\">Getting Started in 3 Easy Steps:</h3>\n<ol>\n<li><strong>Log in to your portal:</strong> <a href=\"https://portal.anyvisionmedia.com\">portal.anyvisionmedia.com</a></li>\n<li><strong>Complete your profile:</strong> Add your business details and preferences</li>\n<li><strong>Explore your dashboard:</strong> See real-time analytics and workflow status</li>\n</ol>\n<h3 style=\"color:#FF6D5A;\">Your Plan: {{ $json.client.plan }}</h3>\n<p>Here's what's included with your plan and how to make the most of it:</p>\n<ul>\n<li>AI-powered workflow automation</li>\n<li>Real-time performance dashboard</li>\n<li>Dedicated support via email or WhatsApp</li>\n</ul>\n<p>If you have any questions, simply reply to this email or reach out to us anytime.</p>\n<p>Looking forward to building something amazing together!</p>\n<p>Best regards,<br><strong>Ian Immelman</strong><br>AnyVision Media</p>\n</div>\n</div>",
+        "options": {}
+      },
+      "id": "1233ef3c-198c-456d-8185-0cf1a2881c34",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event Type": "client_onboarded",
+            "Source": "CR-03",
+            "Details": "={{ JSON.stringify({email: $('Extract Client Data').first().json.client.email, name: $('Extract Client Data').first().json.client.name, plan: $('Extract Client Data').first().json.client.plan}) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          },
+          "schema": [
+            {
+              "id": "Event Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Event Type"
+            },
+            {
+              "id": "Source",
+              "type": "string",
+              "display": true,
+              "displayName": "Source"
+            },
+            {
+              "id": "Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Details"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "bb08a491-6c52-4ceb-8092-86b3b8ca40aa",
+      "name": "Log Onboarding Event",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true, message: 'Onboarding initiated', client_email: $('Extract Client Data').first().json.client.email, plan: $('Extract Client Data').first().json.client.plan}) }}",
+        "options": {}
+      },
+      "id": "799b6146-3f09-4d6a-97b4-62364cae287e",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=New Client Onboarded: {{ $('Extract Client Data').first().json.client.name }} ({{ $('Extract Client Data').first().json.client.plan }})",
+        "emailType": "html",
+        "message": "=<h2>New Client Onboarded</h2>\n<p><strong>Name:</strong> {{ $('Extract Client Data').first().json.client.name }}</p>\n<p><strong>Email:</strong> {{ $('Extract Client Data').first().json.client.email }}</p>\n<p><strong>Company:</strong> {{ $('Extract Client Data').first().json.client.company }}</p>\n<p><strong>Plan:</strong> {{ $('Extract Client Data').first().json.client.plan }}</p>\n<p><strong>Source:</strong> {{ $('Extract Client Data').first().json.client.source }}</p>",
+        "options": {}
+      },
+      "id": "b24fb656-fe71-4df7-9aa6-b5809e7d8233",
+      "name": "Notify Owner",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        920,
+        600
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "624a8a0c-ae0a-4ac8-a416-2a46b2749fb2",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        800
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "CR-03 ERROR - Onboarding Automation",
+        "emailType": "html",
+        "message": "=<h2>Onboarding Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "928e2d85-79ac-4742-8681-2816253779d9",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        800
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## CR-03: Onboarding Automation\n\n**Trigger:** Webhook POST /client-onboarding\n**Purpose:** Send welcome email, log event, notify owner on new client signup.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "cr03-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Onboarding Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Client Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Client Data": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Log Onboarding Event",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Onboarding Event": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

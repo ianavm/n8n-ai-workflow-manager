@@ -1,0 +1,501 @@
+{
+  "name": "ORCH-01 Health Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "5d8c9d9c-f6b5-4fba-acf7-815df4f57511",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build flat list of all workflow IDs grouped by agent for health checking\nconst agentWorkflows = {\"agent_marketing\": [\"twSg4SfNdlmdITHj\", \"CWQ9zjCTaf56RBe6\", \"ygwBtSysINRWHJxB\", \"ZEcxIC9M5ehQvsbg\", \"5XZFaoQxfyJOlqje\", \"ipsnBC5Xox4DWgBg\", \"u7LSuq6zmAY8P7fU\", \"M67NBeAEHfDIJ9wz\", \"BpZ4LkxKjHoGfjUq\", \"Xlu3tGHgM5DDXnkl\", \"Y80dDSmWQfUlfvib\", \"0US5H9smGsrCUsv7\", \"IqODyj5suLusrkIx\", \"tOT9DtpE8DspXSjm\", \"0ynfcpEwHrPaghTl\", \"OlHyOU8mHxJ1uZuc\"], \"agent_finance\": [\"twSg4SfNdlmdITHj\", \"CWQ9zjCTaf56RBe6\", \"ygwBtSysINRWHJxB\", \"ZEcxIC9M5ehQvsbg\", \"f0Wh4SOxbODbs4TE\", \"gwMuSElYqDTRGFKa\", \"EmpOzaaDGqsLvg5j\"], \"agent_content\": [\"ygwBtSysINRWHJxB\", \"ipsnBC5Xox4DWgBg\", \"u7LSuq6zmAY8P7fU\"], \"agent_client_relations\": [], \"agent_support\": [], \"agent_whatsapp\": []};\n\nconst checkItems = [];\nfor (const [agentId, workflowIds] of Object.entries(agentWorkflows)) {\n  for (const wfId of workflowIds) {\n    checkItems.push({\n      json: { agentId, workflowId: wfId }\n    });\n  }\n}\n\n// Deduplicate workflow IDs (some shared across agents)\nconst seen = new Set();\nconst unique = checkItems.filter(item => {\n  const key = item.json.workflowId;\n  if (seen.has(key)) return false;\n  seen.add(key);\n  return true;\n});\n\nreturn unique;"
+      },
+      "id": "1863b652-0976-4bc9-ac0e-10ed00055afc",
+      "name": "Build Agent List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "610c6292-1020-4585-bb3d-a72eb637ceed",
+      "name": "Batch Workflows",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://ianimmelman89.app.n8n.cloud/api/v1/executions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "workflowId",
+              "value": "={{ $json.workflowId }}"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            },
+            {
+              "name": "status",
+              "value": "error,success"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2e695a6e-7bb5-455d-a7dc-96fbdedea306",
+      "name": "Fetch Executions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xymp9Nho08mRW2Wz",
+          "name": "n8n API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0e315d5c-5feb-455a-bd55-02c4f2a22393",
+              "name": "workflowId",
+              "value": "={{ $('Batch Workflows').item.json.workflowId }}",
+              "type": "string"
+            },
+            {
+              "id": "3157b32e-a6d2-4029-9ac4-243b2072c075",
+              "name": "agentId",
+              "value": "={{ $('Batch Workflows').item.json.agentId }}",
+              "type": "string"
+            },
+            {
+              "id": "3dd33624-2a6b-4109-a49e-9eb4b20afb86",
+              "name": "executions",
+              "value": "={{ $json.data }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2fe0f121-738a-44fc-b21e-211dfe4a96b7",
+      "name": "Map Results",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate execution results into per-agent health scores\nconst executionResults = $input.all();\nconst agentWorkflows = {\"agent_marketing\": [\"twSg4SfNdlmdITHj\", \"CWQ9zjCTaf56RBe6\", \"ygwBtSysINRWHJxB\", \"ZEcxIC9M5ehQvsbg\", \"5XZFaoQxfyJOlqje\", \"ipsnBC5Xox4DWgBg\", \"u7LSuq6zmAY8P7fU\", \"M67NBeAEHfDIJ9wz\", \"BpZ4LkxKjHoGfjUq\", \"Xlu3tGHgM5DDXnkl\", \"Y80dDSmWQfUlfvib\", \"0US5H9smGsrCUsv7\", \"IqODyj5suLusrkIx\", \"tOT9DtpE8DspXSjm\", \"0ynfcpEwHrPaghTl\", \"OlHyOU8mHxJ1uZuc\"], \"agent_finance\": [\"twSg4SfNdlmdITHj\", \"CWQ9zjCTaf56RBe6\", \"ygwBtSysINRWHJxB\", \"ZEcxIC9M5ehQvsbg\", \"f0Wh4SOxbODbs4TE\", \"gwMuSElYqDTRGFKa\", \"EmpOzaaDGqsLvg5j\"], \"agent_content\": [\"ygwBtSysINRWHJxB\", \"ipsnBC5Xox4DWgBg\", \"u7LSuq6zmAY8P7fU\"], \"agent_client_relations\": [], \"agent_support\": [], \"agent_whatsapp\": []};\n\n// Build execution status map: workflowId -> {success, error, total}\nconst statusMap = {};\nfor (const item of executionResults) {\n  const d = item.json;\n  const wfId = d.workflowId;\n  if (!statusMap[wfId]) {\n    statusMap[wfId] = { success: 0, error: 0, total: 0, workflowId: wfId };\n  }\n  const executions = d.executions || [];\n  for (const exec of executions) {\n    statusMap[wfId].total++;\n    if (exec.status === 'success') statusMap[wfId].success++;\n    else if (exec.status === 'error') statusMap[wfId].error++;\n  }\n}\n\n// Compute per-agent health\nconst agentScores = [];\nfor (const [agentId, workflowIds] of Object.entries(agentWorkflows)) {\n  if (workflowIds.length === 0) {\n    agentScores.push({\n      json: {\n        agentId,\n        healthScore: 100,\n        status: 'Active',\n        workflowsChecked: 0,\n        totalExecutions: 0,\n        totalErrors: 0,\n        errorWorkflows: [],\n      }\n    });\n    continue;\n  }\n\n  let totalExecs = 0;\n  let totalSuccess = 0;\n  let totalErrors = 0;\n  const errorWorkflows = [];\n\n  for (const wfId of workflowIds) {\n    const s = statusMap[wfId] || { success: 0, error: 0, total: 0 };\n    totalExecs += s.total;\n    totalSuccess += s.success;\n    totalErrors += s.error;\n    if (s.error > 0) {\n      errorWorkflows.push({ workflowId: wfId, errors: s.error, total: s.total });\n    }\n  }\n\n  const successRate = totalExecs > 0 ? (totalSuccess / totalExecs * 100) : 50;\n  let healthScore = Math.round(successRate);\n  if (totalErrors > 5) healthScore = Math.max(0, healthScore - 20);\n\n  let status = 'Active';\n  if (healthScore < 60) status = 'Degraded';\n  if (healthScore < 30) status = 'Down';\n\n  agentScores.push({\n    json: {\n      agentId,\n      healthScore,\n      status,\n      workflowsChecked: workflowIds.length,\n      totalExecutions: totalExecs,\n      totalErrors,\n      successRate: Math.round(successRate * 10) / 10,\n      errorWorkflows,\n    }\n  });\n}\n\nreturn agentScores;"
+      },
+      "id": "dd7018bf-f846-42e8-bc52-63b2cff1c2ea",
+      "name": "Compute Health Scores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// For each agent, decide: OK / auto-fix / escalate\nconst agents = $input.all();\nconst results = [];\n\nfor (const agent of agents) {\n  const d = agent.json;\n  const action = { ...d };\n\n  if (d.status === 'Active') {\n    action.action = 'none';\n    action.actionLabel = 'Healthy - no action needed';\n  } else if (d.status === 'Degraded' && d.totalErrors <= 3) {\n    action.action = 'auto_retry';\n    action.actionLabel = 'Auto-retry failed workflows';\n    action.retryWorkflows = d.errorWorkflows.map(w => w.workflowId);\n  } else if (d.status === 'Degraded' && d.totalErrors > 3) {\n    action.action = 'escalate';\n    action.actionLabel = 'Multiple failures - escalating to human';\n    action.severity = 'P3';\n  } else if (d.status === 'Down') {\n    action.action = 'escalate';\n    action.actionLabel = 'Agent DOWN - immediate escalation';\n    action.severity = 'P1';\n  } else {\n    action.action = 'none';\n    action.actionLabel = 'No action required';\n  }\n\n  results.push({ json: action });\n}\n\nreturn results;"
+      },
+      "id": "0c70f2ef-ebf6-4031-96a7-ea1aa0b29118",
+      "name": "Decide Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "none",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Healthy"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "auto_retry",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Auto Fix"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "escalate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Escalate"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0e78c551-f04c-443b-8e99-0df3d1cefb4c",
+      "name": "Route Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Status": "={{ $json.status }}",
+            "Health Score": "={{ $json.healthScore }}"
+          }
+        },
+        "options": {},
+        "matchingColumns": [
+          "Agent ID"
+        ]
+      },
+      "id": "a91d8fef-ce1e-4327-95bb-1a57739530fc",
+      "name": "Update Registry Healthy",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        100
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Decision ID": "=dec_{{ $now.format('yyyyMMddHHmmss') }}_{{ $json.agentId }}",
+            "Agent ID": "={{ $json.agentId }}",
+            "Decision Type": "auto_retry",
+            "Context": "={{ JSON.stringify($json.errorWorkflows) }}",
+            "Decision": "={{ $json.actionLabel }}",
+            "Outcome": "Pending",
+            "Confidence": 0.8
+          }
+        },
+        "options": {}
+      },
+      "id": "10f0745e-4707-4922-b5ba-db1abfac8072",
+      "name": "Log Auto Fix Decision",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Title": "=Agent {{ $json.agentId }} - {{ $json.status }}: {{ $json.totalErrors }} errors",
+            "Agent ID": "={{ $json.agentId }}",
+            "Severity": "={{ $json.severity || 'P3' }}",
+            "Category": "Workflow Failure",
+            "Description": "=Agent {{ $json.agentId }} has {{ $json.totalErrors }} errors across {{ $json.workflowsChecked }} workflows. Health score: {{ $json.healthScore }}. Error workflows: {{ JSON.stringify($json.errorWorkflows) }}",
+            "Recommended Action": "={{ $json.actionLabel }}",
+            "Status": "Open",
+            "Owner": "ian@anyvisionmedia.com"
+          }
+        },
+        "options": {}
+      },
+      "id": "a5175be4-3017-44dd-ba51-47d49bed63fd",
+      "name": "Create Escalation",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        520
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=AVM ALERT: Agent {{ $('Create Escalation').item.json.fields['Agent ID'] }} - {{ $('Decide Action').item.json.severity }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial; max-width: 600px; margin: 0 auto;\">\n<div style=\"background: #FF6D5A; padding: 15px; text-align: center;\">\n<h2 style=\"color: white; margin: 0;\">AVM Agent Alert</h2>\n</div>\n<div style=\"padding: 20px;\">\n<p><strong>Agent:</strong> {{ $('Decide Action').item.json.agentId }}</p>\n<p><strong>Status:</strong> {{ $('Decide Action').item.json.status }}</p>\n<p><strong>Health Score:</strong> {{ $('Decide Action').item.json.healthScore }}%</p>\n<p><strong>Errors:</strong> {{ $('Decide Action').item.json.totalErrors }}</p>\n<p><strong>Severity:</strong> {{ $('Decide Action').item.json.severity }}</p>\n<p><strong>Action:</strong> {{ $('Decide Action').item.json.actionLabel }}</p>\n<hr>\n<p style=\"font-size: 12px; color: #666;\">Generated by AVM Central Orchestrator</p>\n</div></div>",
+        "options": {}
+      },
+      "id": "196c6136-a6e5-4996-b6bf-1ab849cce3b7",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2240,
+        520
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Agent List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Agent List": {
+      "main": [
+        [
+          {
+            "node": "Batch Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Workflows": {
+      "main": [
+        [
+          {
+            "node": "Fetch Executions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compute Health Scores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Executions": {
+      "main": [
+        [
+          {
+            "node": "Map Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map Results": {
+      "main": [
+        [
+          {
+            "node": "Batch Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Health Scores": {
+      "main": [
+        [
+          {
+            "node": "Decide Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Action": {
+      "main": [
+        [
+          {
+            "node": "Route Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Action": {
+      "main": [
+        [
+          {
+            "node": "Update Registry Healthy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Auto Fix Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Escalation": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "orchestrator",
+    "health-monitor",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_orchestrator.py",
+    "built_at": "2026-03-09T14:06:26.285888"
+  }
+}

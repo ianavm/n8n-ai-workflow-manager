@@ -1,9 +1,9 @@
 {
-  "name": "WhatsApp Multi-Agent v2 (Cloud API)",
+  "name": "WhatsApp Multi-Agent v3 (10 Agents)",
   "nodes": [
     {
       "parameters": {},
-      "id": "f80a1140-8736-4bea-8aed-0e0c7da4efc5",
+      "id": "a31e6da8-0299-4f2f-be6a-41be8b44c2b2",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
           "messages"
         ]
       },
-      "id": "fcd14d41-14c5-4029-a38a-785db37df375",
+      "id": "c920219a-2cc0-4259-8629-7da96ae3c3f7",
       "name": "WhatsApp Trigger",
       "type": "n8n-nodes-base.whatsAppTrigger",
       "typeVersion": 1,
@@ -26,7 +26,7 @@
         -3200,
         600
       ],
-      "webhookId": "09b51e30-5095-42ac-b8a0-0d43bbd8e3ea",
+      "webhookId": "7cadce35-a595-4e71-ab03-66662f69a5ae",
       "credentials": {
         "whatsAppTriggerApi": {
           "id": "rUyqIX1gaBs3ae6Q",
@@ -38,7 +38,7 @@
       "parameters": {
         "jsCode": "// Parse WhatsApp Cloud API message\ntry {\n  const data = $input.first().json;\n  const now = Date.now();\n\n  // Cloud API format\n  const entry = data.entry?.[0];\n  const change = entry?.changes?.[0];\n  const value = change?.value;\n  const message = value?.messages?.[0];\n  const contact = value?.contacts?.[0];\n  const metadata = value?.metadata;\n\n  if (!message) {\n    return {\n      parseSuccess: false,\n      error: true,\n      errorType: 'not_a_message',\n      errorMessage: 'Not a message event (status update or other)',\n      timestamp: new Date().toISOString()\n    };\n  }\n\n  const phoneNumberId = metadata?.phone_number_id || '';\n  const from = (message.from || '').replace(/\\\\D/g, '');\n  const waId = contact?.wa_id || from;\n  const profileName = contact?.profile?.name || '';\n  const cloudApiMessageId = message.id || '';\n  const msgType = message.type || 'text';\n\n  let body = '';\n  let hasMedia = false;\n  let mediaUrl = null;\n  let mediaType = null;\n\n  if (msgType === 'text') {\n    body = message.text?.body || '';\n  } else if (['image', 'video', 'audio', 'document'].includes(msgType)) {\n    body = message[msgType]?.caption || '';\n    hasMedia = true;\n    mediaUrl = message[msgType]?.id || null;\n    mediaType = message[msgType]?.mime_type || msgType;\n  } else if (msgType === 'location') {\n    body = `Location: ${message.location?.latitude}, ${message.location?.longitude}`;\n  } else if (msgType === 'contacts') {\n    body = `Shared contact: ${message.contacts?.[0]?.name?.formatted_name || 'Unknown'}`;\n  }\n\n  // Sanitize\n  body = (body || '').trim().replace(/[\\\\x00-\\\\x08\\\\x0B\\\\x0C\\\\x0E-\\\\x1F]/g, '');\n  if (body.length > 2000) body = body.substring(0, 2000);\n\n  if (!phoneNumberId || !from) {\n    throw new Error('Missing phoneNumberId or from');\n  }\n\n  // Loop prevention: ignore messages from our own number\n  if (from === phoneNumberId) {\n    return {\n      parseSuccess: false,\n      error: true,\n      errorType: 'self_message',\n      errorMessage: 'Ignoring own message (loop prevention)',\n      timestamp: new Date().toISOString()\n    };\n  }\n\n  // Deduplication: reject recently-seen message IDs\n  const staticData = $getWorkflowStaticData('global');\n  if (!staticData.recentMsgIds) staticData.recentMsgIds = {};\n  const dedupNow = Date.now();\n  for (const [mid, ts] of Object.entries(staticData.recentMsgIds)) {\n    if (dedupNow - ts > 60000) delete staticData.recentMsgIds[mid];\n  }\n  if (cloudApiMessageId && staticData.recentMsgIds[cloudApiMessageId]) {\n    return {\n      parseSuccess: false,\n      error: true,\n      errorType: 'duplicate',\n      errorMessage: 'Duplicate message (already processed)',\n      timestamp: new Date().toISOString()\n    };\n  }\n  if (cloudApiMessageId) staticData.recentMsgIds[cloudApiMessageId] = dedupNow;\n\n  return {\n    messageId: `msg_${now}`,\n    cloudApiMessageId: cloudApiMessageId,\n    phoneNumberId: phoneNumberId,\n    from: from,\n    waId: waId,\n    body: body,\n    type: msgType,\n    isGroup: false,\n    hasMedia: hasMedia,\n    mediaUrl: mediaUrl,\n    mediaType: mediaType,\n    profileName: profileName,\n    timestamp: new Date().toISOString(),\n    processingStartTime: now,\n    parseSuccess: true\n  };\n\n} catch (error) {\n  return {\n    parseSuccess: false,\n    error: true,\n    errorType: 'parse_error',\n    errorMessage: error.message,\n    timestamp: new Date().toISOString()\n  };\n}"
       },
-      "id": "31d022f0-009f-4df8-81da-fffe51b9c49c",
+      "id": "9a5077da-48fe-44eb-878e-29b62f5081ee",
       "name": "Parse Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -66,7 +66,7 @@
           ]
         }
       },
-      "id": "6e0a0a62-aa84-44ab-a4c2-d710960baf9a",
+      "id": "4f6685c0-2154-4c7b-91f7-b6e712346561",
       "name": "Valid?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -88,7 +88,7 @@
           "timeout": 5000
         }
       },
-      "id": "3e2007cc-5fde-4d96-a6dd-a2de5cdb7465",
+      "id": "82af623d-9b51-4118-bc33-1c017f2304b6",
       "name": "Send Read Receipt",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -122,7 +122,7 @@
           ]
         }
       },
-      "id": "3b5aecd9-ce89-4fcf-8bb6-90428f867d3c",
+      "id": "7ac0e2cf-1020-4110-b596-c5e7cec1f4e6",
       "name": "Block Groups?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -147,7 +147,7 @@
         "filterByFormula": "=AND({whatsapp_number} = '{{ $('Parse Message').first().json.phoneNumberId }}', {is_active} = TRUE())",
         "options": {}
       },
-      "id": "27839d20-b443-41be-8b6f-44ed9860123c",
+      "id": "0103a16c-9567-4098-8dfc-02d8daf20f32",
       "name": "Find Agent",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
@@ -182,7 +182,7 @@
           ]
         }
       },
-      "id": "1835aa66-d7a0-4489-8dc2-a988f088b7f8",
+      "id": "59eb60c9-3f70-4647-82eb-c78c1f602cbe",
       "name": "Agent Found?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -193,9 +193,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge message data with agent profile\nconst message = $('Parse Message').first().json;\nconst agentRecord = $input.first().json;\nconst fields = agentRecord.fields || agentRecord;\n\nconst agent = {\n  recordId: agentRecord.id,\n  id: fields.agent_id || agentRecord.id,\n  agentName: fields.agent_name || 'Assistant',\n  email: fields.email || '',\n  companyName: fields.company_name || 'AnyVision Media',\n  region: fields.region || 'South Africa',\n  language: fields.language || 'en',\n  timezone: fields.timezone || 'Africa/Johannesburg',\n  isActive: fields.is_active !== false,\n  autoReply: fields.auto_reply !== false,\n  isOnline: fields.is_online === true,\n  lastSeen: fields.last_seen || null,\n  onlineThresholdMinutes: parseInt(fields.online_threshold_minutes || '5'),\n  botType: fields.bot_type || 'business',\n  customSystemPrompt: fields.custom_system_prompt || '',\n  aiModel: fields.openrouter_model || fields.ai_model || 'anthropic/claude-sonnet-4-20250514',\n  aiTemperature: parseFloat(fields.ai_temperature || '0.7'),\n  maxResponseLength: parseInt(fields.max_response_length || '500'),\n  airtableBaseId: fields.airtable_base_id || 'appzcZpiIZ6QPtJXT',\n  whatsappPhoneNumberId: message.phoneNumberId,\n};\n\n// Build conversation ID for history lookup\nconst conversationId = `${agent.id}_${message.from}`;\n\nreturn {\n  ...message,\n  agent: agent,\n  agentId: agent.id,\n  agentName: agent.agentName,\n  agentRecordId: agent.recordId,\n  conversationId: conversationId,\n};\n"
+        "jsCode": "// Merge message data with agent profile\nconst message = $('Parse Message').first().json;\nconst agentRecord = $input.first().json;\nconst fields = agentRecord.fields || agentRecord;\n\nconst agent = {\n  recordId: agentRecord.id,\n  id: fields.agent_id || agentRecord.id,\n  agentName: fields.agent_name || 'Assistant',\n  email: fields.email || '',\n  companyName: fields.company_name || 'AnyVision Media',\n  region: fields.region || 'South Africa',\n  language: fields.language || 'en',\n  timezone: fields.timezone || 'Africa/Johannesburg',\n  isActive: fields.is_active !== false,\n  autoReply: fields.auto_reply !== false,\n  isOnline: fields.is_online === true,\n  lastSeen: fields.last_seen || null,\n  onlineThresholdMinutes: parseInt(fields.online_threshold_minutes || '5'),\n  botType: fields.bot_type || 'business',\n  customSystemPrompt: fields.custom_system_prompt || '',\n  aiModel: fields.openrouter_model || fields.ai_model || 'anthropic/claude-sonnet-4-20250514',\n  aiTemperature: parseFloat(fields.ai_temperature || '0.7'),\n  maxResponseLength: parseInt(fields.max_response_length || '500'),\n  airtableBaseId: fields.airtable_base_id || 'appzcZpiIZ6QPtJXT',\n  whatsappPhoneNumberId: message.phoneNumberId,\n  workingHours: fields.working_hours || null,\n  workingDays: fields.working_days || null,\n  afterHoursMessage: fields.after_hours_message || 'Thank you for your message. We are currently outside business hours and will respond on the next business day.',\n  welcomeMessage: fields.welcome_message || `Hi {{ profileName || 'there' }}! Welcome to ${fields.company_name || 'our service'}. I am ${fields.agent_name || 'your AI assistant'}. How can I help you today?`,\n  notificationEmail: fields.notification_email || fields.email || '',\n  notificationPhone: fields.notification_phone || null,\n  handoffConfidenceThreshold: parseFloat(fields.handoff_confidence_threshold || '0.4'),\n  maxMessagesPerHour: parseInt(fields.max_messages_per_hour || '30'),\n};\n\n// Build conversation ID for history lookup\nconst conversationId = `${agent.id}_${message.from}`;\n\nreturn {\n  ...message,\n  agent: agent,\n  agentId: agent.id,\n  agentName: agent.agentName,\n  agentRecordId: agent.recordId,\n  conversationId: conversationId,\n};\n"
       },
-      "id": "eadc315f-0274-4795-9327-cf7f278e2f37",
+      "id": "8a452ca5-0f5f-4a77-bf84-3085b504c32d",
       "name": "Merge Agent Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -236,7 +236,7 @@
         },
         "options": {}
       },
-      "id": "7f01c2cc-a6c3-42e6-9636-f841109b65bc",
+      "id": "f9659f14-3227-4f82-aac0-94585704e1a1",
       "name": "Log Incoming",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
@@ -278,7 +278,7 @@
           "maxRecords": 10
         }
       },
-      "id": "031eaa09-116b-4b4f-84c2-98c31606d3c4",
+      "id": "31820171-de87-4352-aeee-cea2a4fca5c3",
       "name": "Fetch History",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
@@ -297,9 +297,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build AI context: blocking check + conversation history\nconst message = $('Merge Agent Data').first().json;\nconst historyRaw = $input.all();\n\n// Check if agent is online\nlet shouldBlock = false;\nlet blockReason = null;\n\nif (message.agent.isOnline && message.agent.lastSeen) {\n  const minutesSince = (Date.now() - new Date(message.agent.lastSeen).getTime()) / 60000;\n  if (minutesSince < message.agent.onlineThresholdMinutes) {\n    shouldBlock = true;\n    blockReason = 'agent_online';\n  }\n}\n\n// Build conversation history for AI\nconst conversationMessages = [];\nconst records = historyRaw\n  .map(item => item.json)\n  .filter(r => r && (r.fields || r.message_body))\n  .reverse();\n\nfor (const record of records) {\n  const f = record.fields || record;\n  const body = f.message_body || '';\n  if (!body) continue;\n\n  if (f.direction === 'inbound') {\n    conversationMessages.push({ role: 'user', content: body });\n  } else if (f.direction === 'outbound') {\n    conversationMessages.push({ role: 'assistant', content: body });\n  }\n}\n\n// Remove the last inbound message from history (it's the current one)\nif (conversationMessages.length > 0 &&\n    conversationMessages[conversationMessages.length - 1].role === 'user') {\n  conversationMessages.pop();\n}\n\n// Rate limiting: count inbound messages in last 5 minutes\nconst fiveMinAgo = Date.now() - 300000;\nconst recentInbound = records.filter(r => {\n  const f = r.fields || r;\n  return f.direction === 'inbound' && new Date(f.timestamp).getTime() > fiveMinAgo;\n}).length;\nif (recentInbound > 10 && !shouldBlock) {\n  shouldBlock = true;\n  blockReason = 'rate_limited';\n}\n\n// 24-hour session window check\nlet sessionExpired = false;\nconst inboundRecords = records.filter(r => {\n  const f = r.fields || r;\n  return f.direction === 'inbound';\n});\n// If we have previous inbound messages, check the oldest one in our window\n// The 24h check applies to our LAST outbound reply to this user\nconst lastOutbound = records.filter(r => {\n  const f = r.fields || r;\n  return f.direction === 'outbound';\n}).pop();\nif (lastOutbound) {\n  const f = lastOutbound.fields || lastOutbound;\n  const hoursSince = (Date.now() - new Date(f.timestamp).getTime()) / 3600000;\n  // If our last reply was > 24h ago and user hasn't messaged since, session expired\n  // Actually: WhatsApp 24h window starts from USER's last message, not ours\n  // So we check last user message timestamp\n}\n// WhatsApp rule: 24h window from user's LAST inbound message\n// Since current message IS from user, session is always active for this reply\n// Session expiry only matters for PROACTIVE messages (not replies)\n// For safety, mark expired if NO recent user messages in history\n// In practice, since we're replying to a user message, session is active\nsessionExpired = false; // Reply to user = always within 24h window\n\nreturn {\n  ...message,\n  shouldBlock: shouldBlock,\n  blockReason: blockReason,\n  sessionExpired: sessionExpired,\n  conversationHistory: conversationMessages,\n  historyCount: conversationMessages.length,\n};\n"
+        "jsCode": "// Build AI context: blocking check + conversation history\nconst message = $('Merge Agent Data').first().json;\nconst historyRaw = $input.all();\n\n// Check if agent is online\nlet shouldBlock = false;\nlet blockReason = null;\n\nif (message.agent.isOnline && message.agent.lastSeen) {\n  const minutesSince = (Date.now() - new Date(message.agent.lastSeen).getTime()) / 60000;\n  if (minutesSince < message.agent.onlineThresholdMinutes) {\n    shouldBlock = true;\n    blockReason = 'agent_online';\n  }\n}\n\n// Build conversation history for AI\nconst conversationMessages = [];\nconst records = historyRaw\n  .map(item => item.json)\n  .filter(r => r && (r.fields || r.message_body))\n  .reverse();\n\nfor (const record of records) {\n  const f = record.fields || record;\n  const body = f.message_body || '';\n  if (!body) continue;\n\n  if (f.direction === 'inbound') {\n    conversationMessages.push({ role: 'user', content: body });\n  } else if (f.direction === 'outbound') {\n    conversationMessages.push({ role: 'assistant', content: body });\n  }\n}\n\n// Remove the last inbound message from history (it's the current one)\nif (conversationMessages.length > 0 &&\n    conversationMessages[conversationMessages.length - 1].role === 'user') {\n  conversationMessages.pop();\n}\n\n// Rate limiting: count inbound messages in last 5 minutes\nconst fiveMinAgo = Date.now() - 300000;\nconst recentInbound = records.filter(r => {\n  const f = r.fields || r;\n  return f.direction === 'inbound' && new Date(f.timestamp).getTime() > fiveMinAgo;\n}).length;\nif (recentInbound > 10 && !shouldBlock) {\n  shouldBlock = true;\n  blockReason = 'rate_limited';\n}\n\n// 24-hour session window check\nlet sessionExpired = false;\nconst inboundRecords = records.filter(r => {\n  const f = r.fields || r;\n  return f.direction === 'inbound';\n});\n// If we have previous inbound messages, check the oldest one in our window\n// The 24h check applies to our LAST outbound reply to this user\nconst lastOutbound = records.filter(r => {\n  const f = r.fields || r;\n  return f.direction === 'outbound';\n}).pop();\nif (lastOutbound) {\n  const f = lastOutbound.fields || lastOutbound;\n  const hoursSince = (Date.now() - new Date(f.timestamp).getTime()) / 3600000;\n  // If our last reply was > 24h ago and user hasn't messaged since, session expired\n  // Actually: WhatsApp 24h window starts from USER's last message, not ours\n  // So we check last user message timestamp\n}\n// WhatsApp rule: 24h window from user's LAST inbound message\n// Since current message IS from user, session is always active for this reply\n// Session expiry only matters for PROACTIVE messages (not replies)\n// For safety, mark expired if NO recent user messages in history\n// In practice, since we're replying to a user message, session is active\nsessionExpired = false; // Reply to user = always within 24h window\n\n// Enforce conversation window limit\nconst windowSize = message.agent.conversationWindow || 10;\nconst limitedHistory = conversationMessages.slice(-windowSize);\n\nreturn {\n  ...message,\n  shouldBlock: shouldBlock,\n  blockReason: blockReason,\n  sessionExpired: sessionExpired,\n  conversationHistory: limitedHistory,\n  historyCount: limitedHistory.length,\n};\n"
       },
-      "id": "cbfcabe0-661f-4c98-984d-39365d0535f6",
+      "id": "647da302-0d67-49d8-838a-016a937d991b",
       "name": "Build AI Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -327,7 +327,7 @@
           ]
         }
       },
-      "id": "55ca68dd-7994-4fef-8816-76151c55e5b5",
+      "id": "b1cf4522-f38c-4417-b998-f26843b8a90f",
       "name": "Process Message?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -362,7 +362,7 @@
           ]
         }
       },
-      "id": "9a414979-1b61-4ea1-80b4-75cde5452bea",
+      "id": "a68a0495-ec7d-47d6-a7ef-4c63656a2e65",
       "name": "Agent Active?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
@@ -397,7 +397,7 @@
           "timeout": 30000
         }
       },
-      "id": "cd6fa30a-62c1-4cda-9a83-e8bdc254de7d",
+      "id": "ea021842-c99c-4c16-8c6e-e63faf6dc562",
       "name": "AI Analysis",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -417,9 +417,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse AI response - handles both JSON and plain text\nconst input = $input.first().json;\n\n// If AI failed, fallback already prepared the response\nif (input.aiFailed) {\n  return input;\n}\n\nconst message = $('Build AI Context').first().json;\nconst aiResponse = input;\nconst botType = message.agent.botType;\n\nconst content = aiResponse.choices?.[0]?.message?.content || '';\n\n// For business bots, AI responds in plain text (no Airtable ops)\nif (botType === 'business' || botType === 'custom') {\n  let response = content.trim();\n  const maxLen = message.agent.maxResponseLength || 500;\n  if (response.length > maxLen) response = response.substring(0, maxLen - 3) + '...';\n\n  return {\n    ...message,\n    intent: 'general',\n    action: 'respond',\n    aiResponse: response,\n    airtableOperation: { needed: false },\n    confidence: 0.9,\n  };\n}\n\n// For real_estate bots, try to parse JSON\nlet parsed = {\n  intent: 'general',\n  action: 'respond',\n  response: content.trim(),\n  airtable_operation: { needed: false },\n  confidence: 0.5,\n};\n\ntry {\n  const jsonMatch = content.match(/```(?:json)?\\\\s*([\\\\s\\\\S]*?)\\\\s*```/);\n  const jsonString = jsonMatch ? jsonMatch[1] : content;\n  const aiParsed = JSON.parse(jsonString.trim());\n\n  parsed = {\n    intent: aiParsed.intent || 'general',\n    action: aiParsed.action || 'respond',\n    response: aiParsed.response || content.trim(),\n    airtable_operation: {\n      needed: aiParsed.airtable_operation?.needed || false,\n      operation: aiParsed.airtable_operation?.operation || 'read',\n      table: aiParsed.airtable_operation?.table || 'properties',\n      filter: aiParsed.airtable_operation?.filter || '',\n      data: aiParsed.airtable_operation?.data || {},\n    },\n    confidence: aiParsed.confidence || 0.5,\n  };\n} catch (e) {\n  // Not JSON - use plain text response\n}\n\n// Security: validate operations\nconst op = parsed.airtable_operation;\nif (op.needed) {\n  const allowedOps = ['create', 'read'];\n  const allowedTables = ['properties', 'leads', 'appointments', 'tasks', 'notes'];\n  if (!allowedOps.includes(op.operation)) op.needed = false;\n  if (!allowedTables.includes(op.table)) op.needed = false;\n  // Scope filter to agent\n  if (op.operation === 'read' && op.filter && !op.filter.includes(message.agentId)) {\n    op.filter = `AND({agent_id} = '${message.agentId}', ${op.filter})`;\n  }\n  if (op.operation === 'create' && op.data) {\n    op.data.agent_id = message.agentId;\n  }\n}\n\nlet response = parsed.response;\nconst maxLen = message.agent.maxResponseLength || 500;\nif (response.length > maxLen) response = response.substring(0, maxLen - 3) + '...';\n\nreturn {\n  ...message,\n  intent: parsed.intent,\n  action: parsed.action,\n  aiResponse: response,\n  airtableOperation: op,\n  confidence: parsed.confidence,\n};\n"
+        "jsCode": "// Parse AI response - handles both JSON and plain text\nconst input = $input.first().json;\n\n// If AI failed, fallback already prepared the response\nif (input.aiFailed) {\n  return input;\n}\n\nconst message = $('Build AI Context').first().json;\nconst aiResponse = input;\nconst botType = message.agent.botType;\n\nconst content = aiResponse.choices?.[0]?.message?.content || '';\n\n// For business bots, AI responds in plain text (no Airtable ops)\nif (botType === 'business' || botType === 'custom') {\n  let response = content.trim();\n  const maxLen = message.agent.maxResponseLength || 500;\n  if (response.length > maxLen) response = response.substring(0, maxLen - 3) + '...';\n\n  return {\n    ...message,\n    intent: 'general',\n    action: 'respond',\n    aiResponse: response,\n    airtableOperation: { needed: false },\n    confidence: 0.9,\n  };\n}\n\n// For real_estate bots, try to parse JSON\nlet parsed = {\n  intent: 'general',\n  action: 'respond',\n  response: content.trim(),\n  airtable_operation: { needed: false },\n  confidence: 0.5,\n};\n\ntry {\n  const jsonMatch = content.match(/```(?:json)?\\\\s*([\\\\s\\\\S]*?)\\\\s*```/);\n  const jsonString = jsonMatch ? jsonMatch[1] : content;\n  const aiParsed = JSON.parse(jsonString.trim());\n\n  parsed = {\n    intent: aiParsed.intent || 'general',\n    action: aiParsed.action || 'respond',\n    response: aiParsed.response || content.trim(),\n    airtable_operation: {\n      needed: aiParsed.airtable_operation?.needed || false,\n      operation: aiParsed.airtable_operation?.operation || 'read',\n      table: aiParsed.airtable_operation?.table || 'properties',\n      filter: aiParsed.airtable_operation?.filter || '',\n      data: aiParsed.airtable_operation?.data || {},\n    },\n    confidence: aiParsed.confidence || 0.5,\n  };\n} catch (e) {\n  // Not JSON - use plain text response\n}\n\n// Security: validate operations\nconst op = parsed.airtable_operation;\nif (op.needed) {\n  const allowedOps = ['create', 'read'];\n  const allowedTables = ['properties', 'leads', 'appointments', 'tasks', 'notes'];\n  if (!allowedOps.includes(op.operation)) op.needed = false;\n  if (!allowedTables.includes(op.table)) op.needed = false;\n  // Scope filter to agent\n  if (op.operation === 'read' && op.filter && !op.filter.includes(message.agentId)) {\n    op.filter = `AND({agent_id} = '${message.agentId}', ${op.filter})`;\n  }\n  if (op.operation === 'create' && op.data) {\n    op.data.agent_id = message.agentId;\n  }\n}\n\nlet response = parsed.response;\nconst maxLen = message.agent.maxResponseLength || 500;\nif (response.length > maxLen) response = response.substring(0, maxLen - 3) + '...';\n\n// Handoff detection\nconst handoffKeywords = ['speak to human', 'real person', 'manager', 'complain', 'complaint', 'talk to someone', 'speak to someone', 'actual person'];\nconst threshold = message.agent.handoffConfidenceThreshold || 0.4;\nconst needsHandoff = parsed.confidence < threshold ||\n  parsed.intent === 'escalate' ||\n  handoffKeywords.some(kw => (message.body || '').toLowerCase().includes(kw));\n\nif (needsHandoff) {\n  response = response + '\\n\\nI have notified ' + message.agentName + ' who will be in touch with you shortly.';\n  if (response.length > maxLen) response = response.substring(0, maxLen - 3) + '...';\n}\n\nreturn {\n  ...message,\n  intent: parsed.intent,\n  action: parsed.action,\n  aiResponse: response,\n  airtableOperation: op,\n  confidence: parsed.confidence,\n  needsHandoff: needsHandoff,\n  handoffReason: needsHandoff ? (parsed.confidence < threshold ? 'low_confidence' : 'user_requested') : null,\n};\n"
       },
-      "id": "ffe71c78-7287-499a-99a2-697829b309b5",
+      "id": "d83ab2a4-bb37-4a3f-a67a-1a9a818f632d",
       "name": "Parse AI Decision",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -447,13 +447,13 @@
           ]
         }
       },
-      "id": "14fa8d07-beb3-43f1-91a0-fbd702ab70ab",
+      "id": "24da09f4-8ec3-48a5-af9d-8fa23d734520",
       "name": "Need Airtable?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        -320,
-        400
+        -100,
+        500
       ]
     },
     {
@@ -498,13 +498,13 @@
           "fallbackOutput": "extra"
         }
       },
-      "id": "80a39803-be07-4bc0-ace7-31733c44fe5d",
+      "id": "54851043-08f5-44a2-ba51-d398ab48d10e",
       "name": "CRUD Switch",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        -100,
-        300
+        120,
+        400
       ]
     },
     {
@@ -526,13 +526,13 @@
         },
         "options": {}
       },
-      "id": "5f4effc4-80c8-4c68-9c24-fddbb31ef279",
+      "id": "c97c457d-a354-40a1-b345-98cd3a5fac95",
       "name": "CREATE Record",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
       "position": [
-        120,
-        200
+        340,
+        300
       ],
       "credentials": {
         "airtableTokenApi": {
@@ -558,13 +558,13 @@
         "filterByFormula": "={{ $json.airtableOperation.filter }}",
         "options": {}
       },
-      "id": "eed5e56c-7261-42bb-9ca3-26e5377f31b9",
+      "id": "6e887106-bcdc-4d39-a0e4-6826610202e9",
       "name": "READ Records",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
       "position": [
-        120,
-        400
+        340,
+        500
       ],
       "credentials": {
         "airtableTokenApi": {
@@ -578,13 +578,13 @@
       "parameters": {
         "jsCode": "// Prepare final response for WhatsApp delivery\nconst message = $('Parse AI Decision').first().json;\nlet finalResponse = message.aiResponse || 'Thank you for your message.';\n\n// Strip markdown (WhatsApp doesn't render it)\nfunction stripMarkdown(text) {\n  return text\n    .replace(/```[\\\\s\\\\S]*?```/g, '')           // remove code blocks\n    .replace(/`([^`]+)`/g, '$1')                // inline code -> plain\n    .replace(/^#{1,6}\\\\s+(.+)$/gm, '$1')       // headers -> plain text\n    .replace(/\\\\*\\\\*(.+?)\\\\*\\\\*/g, '*$1*')     // **bold** -> *bold* (WA format)\n    .replace(/__(.+?)__/g, '*$1*')              // __bold__ -> *bold*\n    .replace(/\\\\[([^\\\\]]+)\\\\]\\\\(([^)]+)\\\\)/g, '$1: $2') // [text](url) -> text: url\n    .replace(/^[\\\\s]*[-*+]\\\\s+/gm, '- ')       // normalize bullets\n    .replace(/^>\\\\s?/gm, '')                    // remove blockquotes\n    .replace(/\\\\n{3,}/g, '\\\\n\\\\n')              // collapse excess newlines\n    .trim();\n}\nfinalResponse = stripMarkdown(finalResponse);\n\n// Calculate processing time\nconst processingTime = Date.now() - message.processingStartTime;\n\nreturn {\n  messageId: message.messageId,\n  to: message.from,\n  phoneNumberId: message.agent.whatsappPhoneNumberId,\n  body: finalResponse,\n  agentId: message.agentId,\n  agentName: message.agentName,\n  conversationId: message.conversationId,\n  processingTimeMs: processingTime,\n  processingTimeSec: (processingTime / 1000).toFixed(2),\n  timestamp: new Date().toISOString(),\n  context: {\n    intent: message.intent,\n    action: message.action,\n    confidence: message.confidence,\n    historyCount: message.historyCount,\n  },\n};\n"
       },
-      "id": "41204638-dac1-4996-a562-35fe98adfe58",
+      "id": "9b7ea4e3-4caf-44f1-8454-9787ba994238",
       "name": "Prepare Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        340,
-        400
+        560,
+        500
       ],
       "alwaysOutputData": true
     },
@@ -601,13 +601,13 @@
           "timeout": 15000
         }
       },
-      "id": "3f9a6945-9f13-4df1-a9f0-7bbb21e4185e",
+      "id": "f3a3de19-bbe0-46c3-acb0-87543d552640",
       "name": "Send WhatsApp",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        560,
-        400
+        780,
+        500
       ],
       "retryOnFail": true,
       "maxTries": 3,
@@ -651,13 +651,13 @@
         },
         "options": {}
       },
-      "id": "1e08ace4-fdda-4ecf-9b18-b6ab88c9ec2e",
+      "id": "53575965-745e-4793-811b-0986690b02f5",
       "name": "Log Success",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
       "position": [
-        780,
-        400
+        1000,
+        500
       ],
       "credentials": {
         "airtableTokenApi": {
@@ -695,7 +695,7 @@
         },
         "options": {}
       },
-      "id": "67934b96-9784-492b-a401-9ae3f7c9193d",
+      "id": "38a914c0-9b08-4a7e-83bf-32776e1198ca",
       "name": "Log Blocked",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
@@ -713,7 +713,7 @@
     },
     {
       "parameters": {},
-      "id": "281b7e82-89c4-4790-9713-b2b86a470b61",
+      "id": "1db74a37-f3cb-40cd-af13-5d60480d50e6",
       "name": "Error Trigger",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
@@ -726,7 +726,7 @@
       "parameters": {
         "jsCode": "const error = $input.first().json;\nreturn {\n  timestamp: new Date().toISOString(),\n  errorType: 'workflow_error',\n  errorMessage: (error.message || error.error || 'Unknown error').substring(0, 500),\n  nodeName: error.node?.name || 'Unknown',\n  nodeType: error.node?.type || 'Unknown',\n  executionId: $execution.id,\n  workflowName: $workflow.name,\n};\n"
       },
-      "id": "b72d33f5-6819-41af-ade2-8b38e18d5348",
+      "id": "98ada9b8-529f-4726-a6f3-2d404d3b6692",
       "name": "Handle Error",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -763,7 +763,7 @@
         },
         "options": {}
       },
-      "id": "22837ffa-9009-43b5-92fb-02e86de011a3",
+      "id": "d3ed95c8-b184-428c-a104-cfa0b381586e",
       "name": "Log Error",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
@@ -804,7 +804,7 @@
         },
         "options": {}
       },
-      "id": "0a6fe372-8686-4b3f-a4fb-4eff3c94805e",
+      "id": "1def6489-f046-4dd1-bec8-cb75efc00dd3",
       "name": "Log Parse Error",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
@@ -827,7 +827,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "3f6543b2-3263-4282-9017-6c0e0583322f",
+      "id": "feac580d-fa58-47f5-9143-9d2511330632",
       "name": "Agent Status Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -835,13 +835,13 @@
         -3200,
         1300
       ],
-      "webhookId": "cf93f9fa-f41f-4371-b0ed-60d568dc0360"
+      "webhookId": "c947c0b2-42be-4801-86b8-afd3fe5d7c87"
     },
     {
       "parameters": {
         "jsCode": "const data = $input.first().json;\nif (!data.agent_id) throw new Error('Missing agent_id');\nif (!data.status || !['online', 'offline'].includes(data.status)) {\n  throw new Error('Status must be online or offline');\n}\nreturn {\n  agentId: data.agent_id,\n  status: data.status,\n  timestamp: new Date().toISOString(),\n};\n"
       },
-      "id": "101ee018-89f0-4062-8d86-623e43b7593e",
+      "id": "83de6ab8-ec8c-4bcd-9c8e-351daab08752",
       "name": "Parse Status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -867,7 +867,7 @@
         "filterByFormula": "={agent_id} = '{{ $json.agentId }}'",
         "options": {}
       },
-      "id": "0834effe-488a-4c22-978b-54ff629b13c8",
+      "id": "4f049b7d-646e-485f-b09a-855a09ba69bd",
       "name": "Find Agent Status",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
@@ -909,7 +909,7 @@
         },
         "options": {}
       },
-      "id": "f0fa47a8-c633-46ad-adbb-afe4a68b4adc",
+      "id": "62442658-ab06-4247-8da0-92d6fa18c27e",
       "name": "Update Agent Status",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
@@ -932,7 +932,7 @@
         "responseBody": "={ \"success\": true, \"agent\": \"{{ $(\"Parse Status\").first().json.agentId }}\", \"status\": \"{{ $(\"Parse Status\").first().json.status }}\" }",
         "options": {}
       },
-      "id": "cb138883-da3a-44f5-bc2f-44815ade4f46",
+      "id": "0b55d6cc-58bf-40a7-9722-2e1160b7bdc2",
       "name": "Status Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
@@ -943,43 +943,116 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check if message is an opt-out keyword\nconst message = $('Parse Message').first().json;\nconst body = (message.body || '').trim().toUpperCase();\nconst optOutKeywords = [\"STOP\", \"UNSUBSCRIBE\", \"OPT OUT\", \"CANCEL\", \"QUIT\", \"END\"];\nconst isOptOut = optOutKeywords.some(kw => body === kw || body.startsWith(kw + ' '));\n\nreturn {\n  ...message,\n  isOptOut: isOptOut,\n};\n"
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbluSD0m6zIAVmsGm",
+          "mode": "list"
+        },
+        "filterByFormula": "=AND({from_number} = '{{ $('Parse Message').first().json.from }}', {agent_id} = '{{ $json.agent_id || $json.id }}', {block_reason} = 'user_opted_out')",
+        "options": {}
       },
-      "id": "bd8f0176-1e5e-4d46-9ca5-eb6b94ca8dd8",
+      "id": "b734ae2b-2f32-4c1a-a54e-361bd8d9d467",
+      "name": "Check Opt-Out History",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -1860,
+        600
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "CTVAhYlNsJFMX2lE",
+          "name": "Whatsapp Multi Agent"
+        }
+      },
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check opt-out/resubscribe keywords and opt-out history\nconst message = $('Parse Message').first().json;\nconst agentRecord = $('Find Agent').first().json;\nconst agentFields = agentRecord.fields || agentRecord;\nconst historyItems = $input.all();\n\nconst body = (message.body || '').trim().toUpperCase();\nconst optOutKeywords = [\"STOP\", \"UNSUBSCRIBE\", \"OPT OUT\", \"CANCEL\", \"QUIT\", \"END\"];\nconst resubKeywords = [\"START\", \"SUBSCRIBE\", \"OPT IN\", \"RESUME\"];\n\nconst isOptOut = optOutKeywords.some(kw => body === kw || body.startsWith(kw + ' '));\nconst isResubscribe = resubKeywords.some(kw => body === kw || body.startsWith(kw + ' '));\n\n// Check if user was previously opted out for this agent\nconst wasPreviouslyOptedOut = historyItems.some(item => {\n  const r = item.json;\n  return r && (r.id || r.fields);\n});\n\nreturn {\n  ...message,\n  agentId: agentFields.agent_id || agentRecord.id,\n  agentName: agentFields.agent_name || 'Assistant',\n  agentRecordId: agentRecord.id,\n  isOptOut: isOptOut,\n  isResubscribe: isResubscribe,\n  wasPreviouslyOptedOut: wasPreviouslyOptedOut && !isResubscribe,\n};\n"
+      },
+      "id": "615ee47a-860b-4bed-8bc7-e565a21c5812",
       "name": "Check Opt-Out",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2300,
-        700
+        -1640,
+        600
       ],
       "alwaysOutputData": true
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false
-          },
-          "conditions": [
+        "rules": {
+          "values": [
             {
-              "leftValue": "={{ $json.isOptOut }}",
-              "rightValue": false,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.isResubscribe }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputLabel": "Resubscribe"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.isOptOut }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputLabel": "Opt-Out"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.wasPreviouslyOptedOut }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputLabel": "Previously Opted Out"
             }
           ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
         }
       },
-      "id": "17d42403-d708-4066-bd7e-ac668b9536ea",
-      "name": "Not Opted Out?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
+      "id": "27fa10a6-b20c-4073-89c4-0a97ebac0d09",
+      "name": "Opt-Out Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
       "position": [
-        -2080,
-        700
+        -1420,
+        600
       ]
     },
     {
@@ -990,18 +1063,47 @@
         "nodeCredentialType": "whatsAppApi",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.from }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"You have been unsubscribed and will no longer receive automated messages from us. Reply START to re-subscribe at any time.\"\n  }\n}",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.from }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"Welcome back! You have been re-subscribed and will receive messages from us again. Reply STOP at any time to unsubscribe.\"\n  }\n}",
         "options": {
           "timeout": 10000
         }
       },
-      "id": "a826519c-c1f4-40ea-a957-d3f7bfc2c5ae",
+      "id": "83722c79-6992-4990-afac-77d40d65687c",
+      "name": "Send Resubscribe Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1200,
+        400
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "dCAz6MBXpOXvMJrq",
+          "name": "WhatsApp account AVM Multi Agent"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.phoneNumberId }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.from }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"As required by the Protection of Personal Information Act (POPIA), you have been unsubscribed and will no longer receive automated messages from us. Reply START to re-subscribe at any time.\"\n  }\n}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "0ba87b66-f786-4cc0-a4a8-a5b0491c995c",
       "name": "Send Opt-Out Confirmation",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -1860,
-        800
+        -1200,
+        600
       ],
       "credentials": {
         "whatsAppApi": {
@@ -1032,19 +1134,64 @@
             "to_number": "={{ $json.phoneNumberId }}",
             "message_preview": "={{ ($json.body || '').substring(0, 100) }}",
             "block_reason": "user_opted_out",
-            "agent_id": "not_resolved",
+            "agent_id": "={{ $json.agentId }}",
+            "is_group": false,
+            "agent_online": false,
+            "opt_out_confirmed": true
+          }
+        },
+        "options": {}
+      },
+      "id": "9154326f-dbe7-4c2d-9a55-a0612e4508e5",
+      "name": "Log Opt-Out",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -980,
+        600
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "CTVAhYlNsJFMX2lE",
+          "name": "Whatsapp Multi Agent"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbluSD0m6zIAVmsGm",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "from_number": "={{ $json.from }}",
+            "to_number": "={{ $json.phoneNumberId }}",
+            "message_preview": "={{ ($json.body || '').substring(0, 100) }}",
+            "block_reason": "previously_opted_out",
+            "agent_id": "={{ $json.agentId }}",
             "is_group": false,
             "agent_online": false
           }
         },
         "options": {}
       },
-      "id": "63a38247-f45d-429c-ac5c-e3728bf98f19",
-      "name": "Log Opt-Out",
+      "id": "188b390c-a9bb-4fff-b524-66b44342ff44",
+      "name": "Log Previously Opted Out",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2,
       "position": [
-        -1640,
+        -1200,
         800
       ],
       "credentials": {
@@ -1059,7 +1206,7 @@
       "parameters": {
         "jsCode": "// Check if AI Analysis succeeded or failed\nconst aiResult = $input.first().json;\nconst context = $('Build AI Context').first().json;\n\n// Detect failure: continueOnFail returns error info\nconst hasError = aiResult.error || !aiResult.choices || aiResult.choices.length === 0;\n\nif (hasError) {\n  // AI failed - return canned response\n  return {\n    ...context,\n    aiFailed: true,\n    aiResponse: 'Thank you for your message. I am experiencing a temporary issue. A team member will get back to you shortly.',\n    intent: 'error_fallback',\n    action: 'respond',\n    airtableOperation: { needed: false },\n    confidence: 0,\n  };\n}\n\n// AI succeeded - pass through to Parse AI Decision\nreturn aiResult;\n"
       },
-      "id": "175b9837-5169-4e4f-9b32-1d7174b14fcb",
+      "id": "68078008-157d-45a7-a23c-7ea309db7427",
       "name": "AI Fallback Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1068,6 +1215,232 @@
         400
       ],
       "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if current time is within agent's working hours\nconst message = $input.first().json;\nconst agent = message.agent;\n\n// If no working hours configured, always on\nif (!agent.workingHours || !agent.workingDays) {\n  return { ...message, withinWorkingHours: true };\n}\n\nconst tz = agent.timezone || 'Africa/Johannesburg';\nconst now = new Date();\n\n// Get current time in agent's timezone\nconst timeStr = now.toLocaleTimeString('en-GB', { timeZone: tz, hour12: false });\nconst dayOfWeek = now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' });\nconst dayMap = { 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 0 };\nconst currentDay = dayMap[dayOfWeek] || 0;\n\n// Check working days (CSV like '1,2,3,4,5')\nconst workingDays = agent.workingDays.split(',').map(d => parseInt(d.trim()));\nif (!workingDays.includes(currentDay)) {\n  return { ...message, withinWorkingHours: false };\n}\n\n// Check working hours (format: '08:00-17:00')\nconst [startStr, endStr] = agent.workingHours.split('-').map(s => s.trim());\nconst currentMinutes = parseInt(timeStr.split(':')[0]) * 60 + parseInt(timeStr.split(':')[1]);\nconst startMinutes = parseInt(startStr.split(':')[0]) * 60 + parseInt(startStr.split(':')[1]);\nconst endMinutes = parseInt(endStr.split(':')[0]) * 60 + parseInt(endStr.split(':')[1]);\n\nconst withinHours = currentMinutes >= startMinutes && currentMinutes < endMinutes;\n\nreturn { ...message, withinWorkingHours: withinHours };\n"
+      },
+      "id": "3fbade4f-fa71-4469-a199-c9f6633b8d76",
+      "name": "Check Working Hours",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1640,
+        100
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.withinWorkingHours }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "455024e8-42d3-4764-a395-75b3d4294761",
+      "name": "Within Hours?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1420,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.agent.whatsappPhoneNumberId }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.from }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": {{ JSON.stringify($json.agent.afterHoursMessage) }}\n  }\n}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "bdebc757-7865-407d-84e8-8765e9326ec3",
+      "name": "Send After Hours Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1200,
+        0
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "dCAz6MBXpOXvMJrq",
+          "name": "WhatsApp account AVM Multi Agent"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "list"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbluSD0m6zIAVmsGm",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "from_number": "={{ $json.from }}",
+            "to_number": "={{ $json.agent.whatsappPhoneNumberId }}",
+            "message_preview": "={{ ($json.body || '').substring(0, 100) }}",
+            "block_reason": "after_hours",
+            "agent_id": "={{ $json.agentId }}",
+            "is_group": false,
+            "agent_online": false
+          }
+        },
+        "options": {}
+      },
+      "id": "ceed3974-af3e-475c-b4f6-80788bcff63e",
+      "name": "Log After Hours",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2,
+      "position": [
+        -980,
+        0
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "CTVAhYlNsJFMX2lE",
+          "name": "Whatsapp Multi Agent"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.historyCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "f9abe8dd-27ac-4ba4-ba7b-94ef610d6ec0",
+      "name": "First Contact?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1200,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.agent.whatsappPhoneNumberId }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.from }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": {{ JSON.stringify($json.agent.welcomeMessage) }}\n  }\n}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "4667e7f3-66f4-4966-a539-5154ecc6a0ce",
+      "name": "Send Welcome Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -980,
+        100
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "dCAz6MBXpOXvMJrq",
+          "name": "WhatsApp account AVM Multi Agent"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.needsHandoff }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "cffa59cd-285b-4579-b9ba-d3aea3f623ff",
+      "name": "Handoff Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.agent.whatsappPhoneNumberId }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"{{ $json.agent.notificationPhone || $json.agent.whatsappPhoneNumberId }}\",\n  \"type\": \"text\",\n  \"text\": {\n    \"body\": \"HANDOFF ALERT: {{ $json.profileName || $json.from }} needs human assistance.\\nMessage: {{ $json.body.substring(0, 200) }}\\nConfidence: {{ $json.confidence }}\\nConversation: {{ $json.conversationId }}\"\n  }\n}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "0281b45d-5603-45e4-a77c-327edadb829b",
+      "name": "Notify Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -100,
+        300
+      ],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "dCAz6MBXpOXvMJrq",
+          "name": "WhatsApp account AVM Multi Agent"
+        }
+      },
+      "continueOnFail": true
     }
   ],
   "connections": {
@@ -1131,35 +1504,6 @@
       "main": [
         [
           {
-            "node": "Check Opt-Out",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Log Blocked",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check Opt-Out": {
-      "main": [
-        [
-          {
-            "node": "Not Opted Out?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Not Opted Out?": {
-      "main": [
-        [
-          {
             "node": "Find Agent",
             "type": "main",
             "index": 0
@@ -1167,18 +1511,7 @@
         ],
         [
           {
-            "node": "Send Opt-Out Confirmation",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send Opt-Out Confirmation": {
-      "main": [
-        [
-          {
-            "node": "Log Opt-Out",
+            "node": "Log Blocked",
             "type": "main",
             "index": 0
           }
@@ -1200,7 +1533,7 @@
       "main": [
         [
           {
-            "node": "Merge Agent Data",
+            "node": "Check Opt-Out History",
             "type": "main",
             "index": 0
           }
@@ -1214,7 +1547,94 @@
         ]
       ]
     },
+    "Check Opt-Out History": {
+      "main": [
+        [
+          {
+            "node": "Check Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Opt-Out": {
+      "main": [
+        [
+          {
+            "node": "Opt-Out Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Opt-Out Router": {
+      "main": [
+        [
+          {
+            "node": "Send Resubscribe Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Opt-Out Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Previously Opted Out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Agent Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Opt-Out Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Log Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Merge Agent Data": {
+      "main": [
+        [
+          {
+            "node": "Check Working Hours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Working Hours": {
+      "main": [
+        [
+          {
+            "node": "Within Hours?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Within Hours?": {
       "main": [
         [
           {
@@ -1224,6 +1644,24 @@
           },
           {
             "node": "Fetch History",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send After Hours Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send After Hours Reply": {
+      "main": [
+        [
+          {
+            "node": "Log After Hours",
             "type": "main",
             "index": 0
           }
@@ -1242,6 +1680,35 @@
       ]
     },
     "Build AI Context": {
+      "main": [
+        [
+          {
+            "node": "First Contact?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "First Contact?": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Message": {
       "main": [
         [
           {
@@ -1312,6 +1779,29 @@
     },
     "Parse AI Decision": {
       "main": [
+        [
+          {
+            "node": "Handoff Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handoff Check": {
+      "main": [
+        [
+          {
+            "node": "Notify Agent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "Need Airtable?",

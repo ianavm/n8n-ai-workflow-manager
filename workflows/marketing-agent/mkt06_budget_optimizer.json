@@ -1,0 +1,286 @@
+{
+  "name": "MKT-06 Budget Optimizer",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "2b430e04-dbf9-4c26-9cf1-8f7339b5e363",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblPBAnhRf6K1le6F",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Snapshot Date}, DATEADD(TODAY(), -30, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "53833d0e-9bac-44c8-9844-52ceb6183c4b",
+      "name": "Read Analytics Snapshots",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6bf3d3ed-539b-4043-9839-743c680f284c",
+              "name": "totalTokens",
+              "value": "0",
+              "type": "number"
+            },
+            {
+              "id": "e32d1d9d-a848-4625-9c5a-53f12d8a7853",
+              "name": "periodDays",
+              "value": "30",
+              "type": "number"
+            },
+            {
+              "id": "9e3efe1c-a562-4e10-b49c-3ae183d219c2",
+              "name": "source",
+              "value": "placeholder - connect to OpenRouter usage API",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f055b6b8-d29e-4308-afdb-86edd0f13982",
+      "name": "Read Token Usage",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute per-channel ROI from 30-day analytics and identify top/bottom performers\nconst analyticsItems = $('Read Analytics Snapshots').all();\nconst tokenData = $('Read Token Usage').first().json;\n\n// Aggregate by channel/platform\nconst channelPerf = {};\nfor (const item of analyticsItems) {\n  const d = item.json;\n  const channel = d.Platform || d.Channel || 'Organic';\n  if (!channelPerf[channel]) {\n    channelPerf[channel] = {\n      channel,\n      totalEngagement: 0,\n      totalImpressions: 0,\n      totalContent: 0,\n      dates: [],\n    };\n  }\n  channelPerf[channel].totalEngagement += d.Engagement || d['Total Engagement'] || 0;\n  channelPerf[channel].totalImpressions += d.Impressions || d.Pageviews || 0;\n  channelPerf[channel].totalContent++;\n  if (d.Date || d['Snapshot Date']) {\n    channelPerf[channel].dates.push(d.Date || d['Snapshot Date']);\n  }\n}\n\n// Compute engagement rate and rank\nconst channels = Object.values(channelPerf).map(c => {\n  c.engagementRate = c.totalImpressions > 0\n    ? (c.totalEngagement / c.totalImpressions * 100)\n    : 0;\n  return c;\n});\n\nchannels.sort((a, b) => b.engagementRate - a.engagementRate);\n\nconst topPerformers = channels.slice(0, 3).map(c => c.channel);\nconst bottomPerformers = channels.length > 3\n  ? channels.slice(-2).map(c => c.channel)\n  : [];\n\n// Token/cost summary\nconst totalTokens = tokenData.totalTokens || 0;\nconst estimatedCostZAR = (totalTokens / 1000 * 0.05).toFixed(2);\n\nreturn {\n  json: {\n    periodDays: 30,\n    channelCount: channels.length,\n    channels: channels.map(c => ({\n      channel: c.channel,\n      engagement: c.totalEngagement,\n      impressions: c.totalImpressions,\n      engagementRate: Math.round(c.engagementRate * 100) / 100,\n      contentPieces: c.totalContent,\n    })),\n    topPerformers,\n    bottomPerformers,\n    totalTokensUsed: totalTokens,\n    estimatedAICostZAR: parseFloat(estimatedCostZAR),\n    generatedAt: new Date().toISOString(),\n  }\n};"
+      },
+      "id": "d09fdc3f-a9f3-4b4e-8ddc-ba60652956f0",
+      "name": "Compute Budget Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AVM Budget Optimization Agent. Analyze 30-day channel performance data and recommend budget reallocation. Consider: 1) Engagement rate trends per channel, 2) Cost efficiency (AI token spend vs output), 3) Recommended % allocation per channel. Format as a clear executive brief with a budget table. Currency is ZAR (R). Keep under 400 words.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"30-Day Marketing Performance Analysis:\\n\\n{{ JSON.stringify($json) }}\\n\\nTop performers: {{ $json.topPerformers.join(', ') }}\\nBottom performers: {{ $json.bottomPerformers.join(', ') || 'N/A' }}\\nAI cost (30d): R{{ $json.estimatedAICostZAR }}\\n\\nGenerate budget reallocation recommendations.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "13918c2b-1397-427b-9593-3d46508c24be",
+      "name": "AI Budget Advisor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event ID": "=evt_mkt06_{{ $now.format('yyyyMMddHHmmss') }}",
+            "Event Type": "kpi_update",
+            "Source Agent": "agent_marketing",
+            "Target Agent": "agent_orchestrator",
+            "Priority": "Medium",
+            "Status": "Completed",
+            "Payload": "={{ JSON.stringify({ type: 'budget_optimization', topPerformers: $('Compute Budget Analysis').first().json.topPerformers, channelCount: $('Compute Budget Analysis').first().json.channelCount }) }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "5495f437-5032-412e-b146-912e2a807722",
+      "name": "Log KPI Event",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=AVM Weekly Budget Optimization Report - {{ $now.format('yyyy-MM-dd') }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n<div style=\"background: #FF6D5A; padding: 20px; text-align: center;\">\n<h1 style=\"color: white; margin: 0;\">Weekly Budget Optimization</h1>\n<p style=\"color: white; margin: 5px 0;\">30-Day Performance Analysis</p>\n</div>\n<div style=\"padding: 20px;\">\n<h2 style=\"color: #333;\">AI Recommendation</h2>\n<div style=\"background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; white-space: pre-wrap;\">{{ $('AI Budget Advisor').first().json.choices[0].message.content }}</div>\n<h2 style=\"color: #333;\">Key Metrics</h2>\n<ul>\n<li><strong>Channels analyzed:</strong> {{ $('Compute Budget Analysis').first().json.channelCount }}</li>\n<li><strong>Top performers:</strong> {{ $('Compute Budget Analysis').first().json.topPerformers.join(', ') }}</li>\n<li><strong>AI cost (30d):</strong> R{{ $('Compute Budget Analysis').first().json.estimatedAICostZAR }}</li>\n</ul>\n</div>\n<div style=\"background: #f0f0f0; padding: 15px; text-align: center; font-size: 12px; color: #666;\">\nGenerated by AVM Marketing Agent | {{ $now.format('yyyy-MM-dd HH:mm') }}\n</div>\n</div>",
+        "options": {}
+      },
+      "id": "c7806bd9-745d-4331-a806-3883b9fccab7",
+      "name": "Send Budget Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1440,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Analytics Snapshots",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Token Usage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Analytics Snapshots": {
+      "main": [
+        [
+          {
+            "node": "Compute Budget Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Token Usage": {
+      "main": [
+        [
+          {
+            "node": "Compute Budget Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Budget Analysis": {
+      "main": [
+        [
+          {
+            "node": "AI Budget Advisor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Budget Advisor": {
+      "main": [
+        [
+          {
+            "node": "Log KPI Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log KPI Event": {
+      "main": [
+        [
+          {
+            "node": "Send Budget Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "marketing",
+    "budget",
+    "optimization",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_marketing_agent.py",
+    "built_at": "2026-03-09T14:11:31.394313"
+  }
+}

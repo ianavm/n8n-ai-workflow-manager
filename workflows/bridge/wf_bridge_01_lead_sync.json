@@ -1,0 +1,362 @@
+{
+  "name": "Bridge - Lead Sync (BRIDGE-01)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "02d21cc1-321c-4f0b-aeaa-ba70837c4077",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "90940c1a-1c0d-4b9a-9a7d-5c5f2e4ab95d",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "ccb7873b-e6a6-4db8-9d6a-fed0b510f93d",
+              "name": "threeDaysAgo",
+              "value": "={{ $now.minus({days: 3}).format('yyyy-MM-dd') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a431b05c-8784-48b8-82db-ee32d4aa08da",
+      "name": "Set Dates",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app2ALQUP7CKEkHOz",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOsuh298hB9WWrA",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Date Scraped}, '{{ $json.threeDaysAgo }}')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "badb147f-b2e0-468c-bd96-c25c3b084bfc",
+      "name": "Read Scraper Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        640,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "options": {
+          "fields": [
+            "Email",
+            "Status",
+            "Lead Score",
+            "Scraper Record ID"
+          ]
+        }
+      },
+      "id": "663e0bdd-ba08-4663-b215-f88a3d3e9a60",
+      "name": "Read SEO Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        640,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get scraper leads and SEO leads\nconst scraperLeads = $('Read Scraper Leads').all();\nconst seoLeads = $('Read SEO Leads').all();\n\n// Build set of existing emails in SEO table\nconst existingEmails = new Set(\n  seoLeads.map(l => (l.json.Email || '').toLowerCase()).filter(e => e)\n);\n\n// Build map of SEO leads for reverse sync\nconst seoLeadMap = {};\nfor (const lead of seoLeads) {\n  const scraperRecId = lead.json['Scraper Record ID'];\n  if (scraperRecId) {\n    seoLeadMap[scraperRecId] = lead.json;\n  }\n}\n\nconst newLeads = [];\nconst reverseSync = [];\n\nfor (const item of scraperLeads) {\n  const s = item.json;\n  const email = (s.Email || '').toLowerCase();\n\n  if (!email) continue;\n\n  // Check if already in SEO table\n  if (!existingEmails.has(email)) {\n    newLeads.push({\n      json: {\n        _action: 'create',\n        Email: email,\n        Name: s['Business Name'] || '',\n        Company: s['Business Name'] || '',\n        Phone: s.Phone || '',\n        Source: 'Direct',\n        Medium: 'outbound',\n        Campaign: (s.Industry || '') + ' - ' + (s.Location || 'Johannesburg'),\n        'Lead Score': s['Lead Score'] || 0,\n        Status: s.Status || 'New',\n        'Page URL': s.Website || '',\n        'Created At': s['Date Scraped'] || $now.format('yyyy-MM-dd'),\n        'Scraper Record ID': s.id || '',\n        'Source System': 'Outbound_Scraper',\n        'Touch Count': 1,\n      }\n    });\n  }\n\n  // Reverse sync: check if SEO lead status changed\n  if (s.id && seoLeadMap[s.id]) {\n    const seoLead = seoLeadMap[s.id];\n    const seoStatus = seoLead.Status || '';\n    const scraperStatus = s.Status || '';\n\n    if (seoStatus !== scraperStatus &&\n        ['Responded', 'Converted', 'Qualified'].includes(seoStatus)) {\n      reverseSync.push({\n        json: {\n          _action: 'reverse_sync',\n          scraper_record_id: s.id,\n          new_status: seoStatus,\n        }\n      });\n    }\n  }\n}\n\nreturn [{\n  json: {\n    newCount: newLeads.length,\n    reverseSyncCount: reverseSync.length,\n    totalScraperLeads: scraperLeads.length,\n    totalSeoLeads: seoLeads.length,\n    newLeads: newLeads.map(l => l.json),\n    reverseSync: reverseSync.map(r => r.json),\n  }\n}];"
+      },
+      "id": "b415a9f8-8edc-4466-b7ff-57fe0d6e2d78",
+      "name": "Dedup & Transform",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.newCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "13236646-c92d-42a5-83af-92e617e1124a",
+      "name": "Has New Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $json.newLeads || [];\nreturn items.map(lead => ({ json: lead }));"
+      },
+      "id": "c86a447b-b114-4c5c-bfe6-1147b04161aa",
+      "name": "Split New Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": []
+        },
+        "options": {}
+      },
+      "id": "ea6ef5e7-06f2-47d3-9f5b-4b7b78251c86",
+      "name": "Create in SEO Table",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Bridge Lead Sync - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+        "message": "=<h3>Bridge Lead Sync Complete</h3>\n<p><strong>Scraper leads scanned:</strong> {{ $('Dedup & Transform').first().json.totalScraperLeads }}</p>\n<p><strong>New leads synced to SEO table:</strong> {{ $('Dedup & Transform').first().json.newCount }}</p>\n<p><strong>Reverse status syncs:</strong> {{ $('Dedup & Transform').first().json.reverseSyncCount }}</p>\n<p><em>Run at {{ $now.format('yyyy-MM-dd HH:mm') }} SAST</em></p>",
+        "options": {}
+      },
+      "id": "38d6a48b-ae3c-41ce-ae09-119399d0b4e5",
+      "name": "Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## BRIDGE-01: Lead Sync\nMirrors scraper leads into the SEO Leads table.\nRuns every 2 hours.\n\n**Flow:** Read scraper leads (last 3 days) -> Dedup against SEO table -> Create new -> Summary email",
+        "width": 400,
+        "height": 120
+      },
+      "id": "1d0e4249-0aac-40cd-8aac-06ae199c3cb7",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Dates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Dates": {
+      "main": [
+        [
+          {
+            "node": "Read Scraper Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read SEO Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Scraper Leads": {
+      "main": [
+        [
+          {
+            "node": "Dedup & Transform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read SEO Leads": {
+      "main": [
+        [
+          {
+            "node": "Dedup & Transform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup & Transform": {
+      "main": [
+        [
+          {
+            "node": "Has New Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has New Leads?": {
+      "main": [
+        [
+          {
+            "node": "Split New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split New Leads": {
+      "main": [
+        [
+          {
+            "node": "Create in SEO Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create in SEO Table": {
+      "main": [
+        [
+          {
+            "node": "Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

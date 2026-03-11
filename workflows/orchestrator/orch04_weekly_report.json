@@ -1,0 +1,310 @@
+{
+  "name": "ORCH-04 Weekly Report Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "e8b0c46a-4736-485b-b186-12999ddc5801",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Snapshot Date}, DATEADD(TODAY(), -7, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "c5731232-0bc4-4b36-bf5e-8f94ba818d3a",
+      "name": "Read KPI History",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        140
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Created At}, DATEADD(TODAY(), -7, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "e360330b-5322-4a0a-a392-e59932090a94",
+      "name": "Read Escalations",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        340
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Created At}, DATEADD(TODAY(), -7, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "b4894e77-d337-4e5d-8b36-cff7324e1f76",
+      "name": "Read Decisions",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        540
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "febd9130-4861-4b06-80a0-a954b9a77d59",
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AVM Operations Intelligence Agent. Generate a concise executive summary for the weekly operations report. Focus on: 1) Key wins, 2) Areas of concern, 3) Recommendations. Use bullet points. Reference specific metrics. Be concise (max 400 words). Currency is ZAR (R).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Weekly Operations Data:\\n\\nKPI Snapshots (7 days): {{ JSON.stringify($('Read KPI History').all().map(i => i.json)) }}\\n\\nEscalations: {{ JSON.stringify($('Read Escalations').all().map(i => i.json)) }}\\n\\nAI Decisions Made: {{ $('Read Decisions').all().length }}\\n\\nGenerate the executive summary.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "cc49871c-c262-43c7-a9de-8784afb57ffa",
+      "name": "AI Generate Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        940,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format weekly report data into HTML email body\nconst kpiData = $('Read KPI History').all();\nconst escalations = $('Read Escalations').all();\nconst decisions = $('Read Decisions').all();\nconst aiSummary = $('AI Generate Summary').first().json;\n\nconst reportDate = $now.format('yyyy-MM-dd');\nconst weekStart = $now.minus({days: 7}).format('yyyy-MM-dd');\n\n// Build agent summary table rows\nlet agentRows = '';\nconst agentMap = {};\nfor (const item of kpiData) {\n  const d = item.json;\n  const agentId = d['Agent ID'] || '';\n  if (!agentMap[agentId]) {\n    agentMap[agentId] = { total: 0, leads: 0, content: 0, revenue: 0, successRates: [] };\n  }\n  agentMap[agentId].leads += d['Leads Generated'] || 0;\n  agentMap[agentId].content += d['Content Published'] || 0;\n  agentMap[agentId].revenue += d['Revenue ZAR'] || 0;\n  if (d['Success Rate']) agentMap[agentId].successRates.push(d['Success Rate']);\n  agentMap[agentId].total++;\n}\n\nfor (const [agentId, data] of Object.entries(agentMap)) {\n  const avgSuccess = data.successRates.length > 0\n    ? Math.round(data.successRates.reduce((a, b) => a + b, 0) / data.successRates.length)\n    : 0;\n  const name = agentId.replace('agent_', '').replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());\n  agentRows += `<tr>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${name}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;text-align:center;\">${avgSuccess}%</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;text-align:center;\">${data.leads}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;text-align:center;\">${data.content}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;text-align:right;\">R${data.revenue.toLocaleString()}</td>\n  </tr>`;\n}\n\nconst summaryText = (aiSummary.choices && aiSummary.choices[0])\n  ? aiSummary.choices[0].message.content\n  : 'AI summary unavailable.';\n\nconst openEscalations = escalations.filter(e => e.json.Status === 'Open').length;\nconst totalDecisions = decisions.length;\n\nconst html = `\n<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n  <div style=\"background: #FF6D5A; padding: 20px; text-align: center;\">\n    <h1 style=\"color: white; margin: 0;\">AVM Weekly Operations Report</h1>\n    <p style=\"color: white; margin: 5px 0;\">${weekStart} to ${reportDate}</p>\n  </div>\n\n  <div style=\"padding: 20px;\">\n    <h2 style=\"color: #333;\">Executive Summary</h2>\n    <div style=\"background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;\">\n      ${summaryText.replace(/\\\\n/g, '<br>')}\n    </div>\n\n    <h2 style=\"color: #333;\">Agent Performance</h2>\n    <table style=\"width: 100%; border-collapse: collapse; margin-bottom: 20px;\">\n      <thead>\n        <tr style=\"background: #f0f0f0;\">\n          <th style=\"padding: 10px; text-align: left;\">Agent</th>\n          <th style=\"padding: 10px; text-align: center;\">Success Rate</th>\n          <th style=\"padding: 10px; text-align: center;\">Leads</th>\n          <th style=\"padding: 10px; text-align: center;\">Content</th>\n          <th style=\"padding: 10px; text-align: right;\">Revenue</th>\n        </tr>\n      </thead>\n      <tbody>${agentRows}</tbody>\n    </table>\n\n    <div style=\"display: flex; gap: 20px; margin-bottom: 20px;\">\n      <div style=\"flex: 1; background: ${openEscalations > 0 ? '#fff3f0' : '#f0fff0'}; padding: 15px; border-radius: 8px; text-align: center;\">\n        <div style=\"font-size: 24px; font-weight: bold; color: ${openEscalations > 0 ? '#FF6D5A' : '#22c55e'};\">${openEscalations}</div>\n        <div>Open Escalations</div>\n      </div>\n      <div style=\"flex: 1; background: #f0f0ff; padding: 15px; border-radius: 8px; text-align: center;\">\n        <div style=\"font-size: 24px; font-weight: bold; color: #6366f1;\">${totalDecisions}</div>\n        <div>AI Decisions Made</div>\n      </div>\n    </div>\n  </div>\n\n  <div style=\"background: #f0f0f0; padding: 15px; text-align: center; font-size: 12px; color: #666;\">\n    Generated by AVM Central Orchestrator | ${new Date().toISOString()}\n  </div>\n</div>\n`;\n\nreturn { json: { html, subject: `AVM Weekly Report: ${weekStart} to ${reportDate}`, summaryText } };"
+      },
+      "id": "b4cd7ba6-4fc6-47c1-998f-d218091bba53",
+      "name": "Format Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "9a625da0-c4fc-48bb-afff-dee0b8eb35f0",
+      "name": "Send Weekly Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1380,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read KPI History",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Escalations",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Decisions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read KPI History": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Escalations": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Read Decisions": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Summary": {
+      "main": [
+        [
+          {
+            "node": "Format Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Report": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "orchestrator",
+    "reporting",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_orchestrator.py",
+    "built_at": "2026-03-09T14:06:26.288876"
+  }
+}

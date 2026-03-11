@@ -1,0 +1,459 @@
+{
+  "name": "Bridge - Unified Scoring (BRIDGE-03)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 4 * * *"
+            }
+          ]
+        }
+      },
+      "id": "8cf78b09-3631-40d4-b8d2-fbe9e2c11036",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=OR({Grade} = '', {Grade} = BLANK())",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "6d275eac-468f-44ad-98f3-6acebe72db3a",
+      "name": "Read Unscored Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "id": "2cbe8092-094c-4cf6-9e54-351a5bb9611a",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\n// Scoring weights from config\nconst weights = {\n  source_quality: 0.3,\n  engagement_depth: 0.2,\n  company_fit: 0.2,\n  recency: 0.15,\n  completeness: 0.15,\n};\n\n// Source quality scores\nconst sourceScores = {\n  'organic': 1.0,\n  'social': 0.8,\n  'referral': 0.6,\n  'Direct': 0.4,\n  'outbound': 0.4,\n};\n\nconst jhbKeywords = ['johannesburg', 'jhb', 'jozi', 'sandton', 'fourways', 'randburg', 'midrand', 'roodepoort', 'gauteng'];\n\nfor (const item of items) {\n  const lead = item.json;\n\n  // Source quality (0-1)\n  const source = lead.Source || lead.Medium || 'outbound';\n  const sourceQuality = sourceScores[source.toLowerCase()] || 0.4;\n\n  // Engagement depth (0-1) - normalize touch count\n  const touchCount = lead['Touch Count'] || 1;\n  const engagementDepth = Math.min(touchCount / 10, 1.0);\n\n  // Company fit (0-1) - industry match + location\n  let companyFit = 0.5; // baseline\n  const campaign = (lead.Campaign || '').toLowerCase();\n  const company = (lead.Company || '').toLowerCase();\n\n  // Johannesburg area bonus\n  if (jhbKeywords.some(k => campaign.includes(k) || company.includes(k))) {\n    companyFit += 0.3;\n  }\n  // Has company name\n  if (lead.Company) companyFit += 0.1;\n  companyFit = Math.min(companyFit, 1.0);\n\n  // Recency (0-1) - exponential decay\n  let recency = 0.5;\n  const lastActivity = lead['Last Activity'] || lead['Created At'];\n  if (lastActivity) {\n    const daysSince = Math.floor((Date.now() - new Date(lastActivity).getTime()) / (1000 * 60 * 60 * 24));\n    recency = Math.exp(-daysSince / 14); // half-life of ~14 days\n  }\n\n  // Completeness (0-1) - % of fields filled\n  const fields = ['Email', 'Phone', 'Company', 'Page URL', 'Name'];\n  const filled = fields.filter(f => lead[f] && lead[f].toString().trim()).length;\n  const completeness = filled / fields.length;\n\n  // Composite score (0-100)\n  const compositeScore = Math.round(\n    (sourceQuality * weights.source_quality +\n     engagementDepth * weights.engagement_depth +\n     companyFit * weights.company_fit +\n     recency * weights.recency +\n     completeness * weights.completeness) * 100\n  );\n\n  // Grade\n  let grade = 'Cold';\n  if (compositeScore >= 80) grade = 'Hot';\n  else if (compositeScore >= 50) grade = 'Warm';\n\n  results.push({\n    json: {\n      recordId: lead.id,\n      email: lead.Email,\n      compositeScore,\n      grade,\n      entity_type: 'lead',\n      details: {\n        source_quality: sourceQuality,\n        engagement_depth: engagementDepth,\n        company_fit: companyFit,\n        recency,\n        completeness,\n      },\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "2a353c5f-6380-4faf-b1e3-8bf1a6882dbc",
+      "name": "Build Scoring Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "0US5H9smGsrCUsv7",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "81d7cb8c-0da7-4104-9b63-5978f70adc6d",
+      "name": "Execute WF-SCORE",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "id": "={{ $('Build Scoring Payload').item.json.recordId }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Lead Score": "={{ $('Build Scoring Payload').item.json.compositeScore }}",
+            "Grade": "={{ $('Build Scoring Payload').item.json.grade }}",
+            "Last Activity": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Lead Score",
+              "displayName": "Lead Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            },
+            {
+              "id": "Grade",
+              "displayName": "Grade",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "78df44d1-5860-4891-8c6e-cf17c3d40e49",
+      "name": "Update Score & Grade",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Build Scoring Payload').item.json.grade }}",
+                    "rightValue": "Hot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "Hot"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Build Scoring Payload').item.json.grade }}",
+                    "rightValue": "Warm",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "Warm"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "916c0299-b70b-4f7a-a032-65203a266343",
+      "name": "Route by Grade",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1540,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=HOT LEAD: {{ $('Build Scoring Payload').item.json.email }} (Score: {{ $('Build Scoring Payload').item.json.compositeScore }})",
+        "message": "=<h3>Hot Lead Detected by Scoring Engine</h3>\n<p><strong>Email:</strong> {{ $('Build Scoring Payload').item.json.email }}</p>\n<p><strong>Score:</strong> {{ $('Build Scoring Payload').item.json.compositeScore }}/100</p>\n<p><strong>Grade:</strong> Hot</p>\n<p><strong>Details:</strong></p>\n<ul>\n<li>Source Quality: {{ Math.round($('Build Scoring Payload').item.json.details.source_quality * 100) }}%</li>\n<li>Engagement: {{ Math.round($('Build Scoring Payload').item.json.details.engagement_depth * 100) }}%</li>\n<li>Company Fit: {{ Math.round($('Build Scoring Payload').item.json.details.company_fit * 100) }}%</li>\n<li>Recency: {{ Math.round($('Build Scoring Payload').item.json.details.recency * 100) }}%</li>\n<li>Completeness: {{ Math.round($('Build Scoring Payload').item.json.details.completeness * 100) }}%</li>\n</ul>\n<p><em>Action: Review and follow up immediately</em></p>",
+        "options": {}
+      },
+      "id": "a7cf8170-a1e1-4f01-b59a-bf9d29e70309",
+      "name": "Hot Lead Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1780,
+        100
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "id": "={{ $('Build Scoring Payload').item.json.recordId }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Nurture Stage": 1,
+            "Next Nurture Date": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nurture Stage",
+              "displayName": "Nurture Stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "56a9aeb4-401e-43fd-988f-a0536bfeaead",
+      "name": "Queue for Nurture",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1780,
+        320
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Bridge Scoring Complete - {{ $now.format('yyyy-MM-dd') }}",
+        "message": "=<h3>Unified Scoring Complete</h3>\n<p><strong>Leads scored:</strong> {{ $input.all().length }}</p>\n<p><em>Run at {{ $now.format('yyyy-MM-dd HH:mm') }} SAST</em></p>\n<p>Check the SEO Leads table for updated Grade column (Hot/Warm/Cold).</p>",
+        "options": {}
+      },
+      "id": "a2cb22e8-c0c4-47d2-b32a-28e46c63bba4",
+      "name": "Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## BRIDGE-03: Unified Scoring\nScores all unscored leads using config.json weights.\nRoutes Hot leads to email alert, queues Warm for nurture.\nRuns daily at 6:30 AM SAST.",
+        "width": 400,
+        "height": 120
+      },
+      "id": "f6e34c58-edff-44d1-a793-7e33c7c29fff",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Unscored Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Unscored Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Build Scoring Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Build Scoring Payload": {
+      "main": [
+        [
+          {
+            "node": "Execute WF-SCORE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute WF-SCORE": {
+      "main": [
+        [
+          {
+            "node": "Update Score & Grade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Score & Grade": {
+      "main": [
+        [
+          {
+            "node": "Route by Grade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Grade": {
+      "main": [
+        [
+          {
+            "node": "Hot Lead Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue for Nurture",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hot Lead Alert": {
+      "main": [
+        [
+          {
+            "node": "Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue for Nurture": {
+      "main": [
+        [
+          {
+            "node": "Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

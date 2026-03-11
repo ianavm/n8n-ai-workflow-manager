@@ -1,10 +1,14 @@
 """
-Add required fields to WhatsApp Multi-Agent Airtable tables for v2.
+Add required fields to WhatsApp Multi-Agent Airtable tables for v2/v3.
 
 Adds:
-- Agents table: bot_type, custom_system_prompt, openrouter_model, conversation_window
-- Message Log table: direction, conversation_id, whatsapp_message_id
-- Blocked Messages table: opt_out fields for POPIA compliance
+- Agents table: bot_type, custom_system_prompt, openrouter_model, conversation_window,
+  working_hours, working_days, after_hours_message, welcome_message,
+  notification_email, notification_phone, handoff_confidence_threshold,
+  max_messages_per_hour
+- Message Log table: direction, conversation_id, whatsapp_message_id,
+  is_welcome, handoff_triggered, response_type
+- Blocked Messages table: opt_out fields for POPIA compliance + new block reasons
 
 Usage:
     python tools/setup_whatsapp_v2_airtable.py
@@ -55,6 +59,69 @@ AGENT_FIELDS = [
         "options": {"precision": 0},
         "description": "Number of messages to include in AI context (default 10)",
     },
+    # --- v3 fields for 10-agent support ---
+    {
+        "name": "working_hours",
+        "type": "singleLineText",
+        "description": "Business hours e.g. '08:00-17:00' (null = always on)",
+    },
+    {
+        "name": "working_days",
+        "type": "singleLineText",
+        "description": "Active days CSV e.g. '1,2,3,4,5' for Mon-Fri (null = all days)",
+    },
+    {
+        "name": "after_hours_message",
+        "type": "multilineText",
+        "description": "Custom after-hours auto-reply message",
+    },
+    {
+        "name": "welcome_message",
+        "type": "multilineText",
+        "description": "First-contact welcome message for new customers",
+    },
+    {
+        "name": "notification_email",
+        "type": "email",
+        "description": "Email for human handoff alerts (defaults to agent email)",
+    },
+    {
+        "name": "notification_phone",
+        "type": "singleLineText",
+        "description": "Personal WhatsApp number for handoff alerts (optional)",
+    },
+    {
+        "name": "handoff_confidence_threshold",
+        "type": "number",
+        "options": {"precision": 2},
+        "description": "AI confidence below which triggers human handoff (default 0.4)",
+    },
+    {
+        "name": "max_messages_per_hour",
+        "type": "number",
+        "options": {"precision": 0},
+        "description": "Per-contact rate limit per hour (default 30)",
+    },
+    # --- Language support ---
+    {
+        "name": "default_language",
+        "type": "singleSelect",
+        "options": {
+            "choices": [
+                {"name": "English", "color": "blueBright"},
+                {"name": "Afrikaans", "color": "greenBright"},
+                {"name": "isiZulu", "color": "yellowBright"},
+                {"name": "Sesotho", "color": "orangeBright"},
+                {"name": "isiXhosa", "color": "purpleBright"},
+            ]
+        },
+        "description": "Agent's default response language (fallback when auto-detect uncertain)",
+    },
+    {
+        "name": "supported_languages",
+        "type": "singleLineText",
+        "description": "Comma-separated languages agent supports, e.g. 'English,Afrikaans,isiZulu'. Empty = all SA languages.",
+    },
 ]
 
 # Fields to add to Message Log table
@@ -80,6 +147,31 @@ MESSAGE_LOG_FIELDS = [
         "type": "singleLineText",
         "description": "Meta's wamid.XXX message ID",
     },
+    # --- v3 fields ---
+    {
+        "name": "is_welcome",
+        "type": "checkbox",
+        "description": "Whether this was a first-contact welcome message",
+    },
+    {
+        "name": "handoff_triggered",
+        "type": "checkbox",
+        "description": "Whether this message triggered a human handoff",
+    },
+    {
+        "name": "response_type",
+        "type": "singleSelect",
+        "options": {
+            "choices": [
+                {"name": "ai_response", "color": "blueBright"},
+                {"name": "after_hours", "color": "yellowBright"},
+                {"name": "welcome", "color": "greenBright"},
+                {"name": "opt_out", "color": "purpleBright"},
+                {"name": "handoff", "color": "orangeBright"},
+            ]
+        },
+        "description": "Type of response sent (ai_response, after_hours, welcome, opt_out, handoff)",
+    },
 ]
 
 # Fields to add to Blocked Messages table (opt-out compliance)
@@ -94,6 +186,8 @@ BLOCKED_FIELDS = [
                 {"name": "agent_online", "color": "yellowBright"},
                 {"name": "rate_limited", "color": "redBright"},
                 {"name": "user_opted_out", "color": "purpleBright"},
+                {"name": "after_hours", "color": "tealBright"},
+                {"name": "previously_opted_out", "color": "pinkBright"},
                 {"name": "unknown", "color": "grayBright"},
             ]
         },

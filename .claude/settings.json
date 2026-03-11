@@ -1,0 +1,138 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Write(.env)",
+      "Write(.env.*)",
+      "Edit(.git/config)",
+      "Edit(.git/hooks/**)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(rm -rf *)",
+      "Bash(rm -r *)",
+      "Bash(* > .env)",
+      "Bash(* >> .env)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.azure/**)",
+      "mcp__airtable__delete_base",
+      "mcp__airtable__batch_delete_records",
+      "mcp__supabase__delete_branch",
+      "mcp__supabase__pause_project"
+    ],
+    "allow": [
+      "Read(.env.template)",
+      "Read(CLAUDE.md)",
+      "Read(CLAUDE.md file.md)",
+      "Read(.claude/**)",
+      "Edit(tools/**)",
+      "Edit(workflows/**)",
+      "Edit(templates/**)",
+      "Edit(landing-pages/**)",
+      "Edit(client-portal/**)",
+      "Edit(config.json)",
+      "Write(tools/**)",
+      "Write(workflows/**)",
+      "Write(templates/**)",
+      "Write(landing-pages/**)",
+      "Write(client-portal/**)",
+      "Bash(python tools/*.py *)",
+      "Bash(python -m *)",
+      "Bash(git log *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git stash *)",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npx *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(pip install *)",
+      "Bash(pip list *)",
+      "mcp__airtable__list_bases",
+      "mcp__airtable__list_tables",
+      "mcp__airtable__list_records",
+      "mcp__airtable__list_fields",
+      "mcp__airtable__list_views",
+      "mcp__airtable__get_record",
+      "mcp__airtable__get_base_schema",
+      "mcp__airtable__search_records",
+      "mcp__n8n__n8n_list_workflows",
+      "mcp__n8n__n8n_get_workflow",
+      "mcp__n8n__n8n_health_check",
+      "mcp__n8n__n8n_executions",
+      "mcp__n8n__search_nodes",
+      "mcp__n8n__search_templates",
+      "mcp__n8n__tools_documentation",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__get_project",
+      "mcp__supabase__execute_sql"
+    ],
+    "ask": [
+      "Bash(*)",
+      "Edit(*)",
+      "Write(*)",
+      "mcp__airtable__create_record",
+      "mcp__airtable__batch_create_records",
+      "mcp__airtable__batch_update_records",
+      "mcp__airtable__update_record",
+      "mcp__airtable__delete_record",
+      "mcp__airtable__create_table",
+      "mcp__airtable__create_field",
+      "mcp__n8n__n8n_create_workflow",
+      "mcp__n8n__n8n_update_full_workflow",
+      "mcp__n8n__n8n_update_partial_workflow",
+      "mcp__n8n__n8n_delete_workflow",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__create_project",
+      "mcp__supabase__deploy_edge_function",
+      "mcp__google-workspace__send_email",
+      "mcp__google-workspace__delete_email",
+      "mcp__google-workspace__delete_item",
+      "mcp__google-workspace__share_file",
+      "mcp__xero__create-invoice",
+      "mcp__xero__create-payment",
+      "mcp__xero__create-credit-note"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/protect-sensitive-files.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/git-push-reminder.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/audit-commands.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

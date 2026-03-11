@@ -1,0 +1,308 @@
+{
+  "name": "WA-02 CRM Sync",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "950507a6-63ed-4a3e-81de-9e5c16654cb5",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER(LAST_MODIFIED_TIME(), DATEADD(NOW(), -30, 'minutes'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "26385a34-0dcc-439c-b10a-4d91e74634d7",
+      "name": "Read WhatsApp Contacts",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://example.supabase.co/rest/v1/clients?select=id,phone,email,name,status&limit=1000",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE_AFTER_SETUP"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_AFTER_SETUP"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "17f33391-db57-4ca9-bc50-2cad1bbf2e10",
+      "name": "Fetch Supabase Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        520
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match WhatsApp contacts against Supabase clients via HTTP response\nconst contacts = $('Read WhatsApp Contacts').all();\nconst supabaseData = $('Fetch Supabase Clients').first().json;\n\nconst clients = Array.isArray(supabaseData) ? supabaseData : (supabaseData.data || []);\nconst clientMap = {};\nfor (const c of clients) {\n  if (c.phone) clientMap[c.phone.replace(/\\D/g, '')] = c;\n  if (c.email) clientMap[c.email.toLowerCase()] = c;\n}\n\nconst results = [];\nfor (const item of contacts) {\n  const d = item.json;\n  const phone = (d.Phone || d.phone || '').replace(/\\D/g, '');\n  const email = (d.Email || d.email || '').toLowerCase();\n  const match = clientMap[phone] || clientMap[email] || null;\n\n  results.push({\n    json: {\n      contactId: d.id || d['Record ID'] || d.airtable_id,\n      phone: d.Phone || d.phone,\n      name: d.Name || d.name,\n      email: d.Email || d.email,\n      supabaseMatch: !!match,\n      supabaseClientId: match ? match.id : null,\n      supabaseStatus: match ? (match.status || 'active') : null,\n    }\n  });\n}\n\nif (results.length === 0) {\n  results.push({ json: { message: 'No contacts to sync', matchCount: 0 } });\n}\n\nreturn results;"
+      },
+      "id": "c6c005cd-80f6-4533-b24f-e318b403913a",
+      "name": "Match Supabase Clients",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=NOT({Phone} = '')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "e769e5d0-9d73-4ebf-86f6-95baf7fe3424",
+      "name": "Search SEO Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        520
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match contacts against SEO Leads Airtable search results\nconst contacts = $('Match Supabase Clients').all();\nconst seoLeads = $('Search SEO Leads').all();\n\nconst leadMap = {};\nfor (const item of seoLeads) {\n  const d = item.json;\n  const phone = (d.Phone || d.phone || '').replace(/\\D/g, '');\n  const email = (d.Email || d.email || '').toLowerCase();\n  if (phone) leadMap[phone] = d;\n  if (email) leadMap[email] = d;\n}\n\nlet matchCount = 0;\nlet supabaseMatchCount = 0;\nlet seoMatchCount = 0;\n\nconst results = [];\nfor (const item of contacts) {\n  const d = item.json;\n  const phone = (d.phone || '').replace(/\\D/g, '');\n  const email = (d.email || '').toLowerCase();\n  const seoMatch = leadMap[phone] || leadMap[email] || null;\n\n  if (d.supabaseMatch) supabaseMatchCount++;\n  if (seoMatch) seoMatchCount++;\n  if (d.supabaseMatch || seoMatch) matchCount++;\n\n  results.push({\n    json: {\n      ...d,\n      seoLeadMatch: !!seoMatch,\n      seoLeadStatus: seoMatch ? (seoMatch.Status || seoMatch.status) : null,\n      syncStatus: d.supabaseMatch || seoMatch ? 'matched' : 'orphan',\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "7bf73791-4eee-4cd9-a61f-2be31dc6fdf0",
+      "name": "Match SEO Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Sync Status": "={{ $json.syncStatus }}",
+            "Supabase Client ID": "={{ $json.supabaseClientId }}",
+            "SEO Lead Status": "={{ $json.seoLeadStatus }}",
+            "Last Synced": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {},
+        "matchingColumns": [
+          "Phone"
+        ]
+      },
+      "id": "bcd9e336-6524-494a-8d11-efe28b7fba85",
+      "name": "Update Contact Status",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Log sync statistics\nconst items = $('Update Contact Status').all();\nlet matched = 0;\nlet orphan = 0;\nlet errors = 0;\n\nfor (const item of items) {\n  const status = item.json.syncStatus || 'unknown';\n  if (status === 'matched') matched++;\n  else if (status === 'orphan') orphan++;\n  else errors++;\n}\n\nreturn {\n  json: {\n    syncedAt: new Date().toISOString(),\n    totalContacts: items.length,\n    matched,\n    orphan,\n    errors,\n    summary: `Synced ${items.length} contacts: ${matched} matched, ${orphan} orphan, ${errors} errors`,\n  }\n};"
+      },
+      "id": "7cb7622b-f3e6-4f61-939f-d6ebf3d7ae49",
+      "name": "Log Sync Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read WhatsApp Contacts",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Supabase Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read WhatsApp Contacts": {
+      "main": [
+        [
+          {
+            "node": "Match Supabase Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Supabase Clients": {
+      "main": [
+        [
+          {
+            "node": "Match Supabase Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Supabase Clients": {
+      "main": [
+        [
+          {
+            "node": "Match SEO Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Search SEO Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search SEO Leads": {
+      "main": [
+        [
+          {
+            "node": "Match SEO Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match SEO Leads": {
+      "main": [
+        [
+          {
+            "node": "Update Contact Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Contact Status": {
+      "main": [
+        [
+          {
+            "node": "Log Sync Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "whatsapp",
+    "crm",
+    "sync",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_whatsapp_agent.py",
+    "built_at": "2026-03-09T14:13:31.658601"
+  }
+}

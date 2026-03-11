@@ -1,0 +1,457 @@
+{
+  "name": "SEO Social - Scoring Engine",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "45822c6a-640d-417d-b6fa-ef00f94a05bc",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4ab3bb51-848d-4e85-af46-b7d99ffac9d2",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "70fd319e-a258-44b6-b93d-1369e21d99d5",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "b9548231-cd90-4e46-a185-ff9ac05cbf3f",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.entity_type }}",
+                    "rightValue": "Content",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Content"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.entity_type }}",
+                    "rightValue": "Lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Lead"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.entity_type }}",
+                    "rightValue": "Keyword",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Keyword"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.entity_type }}",
+                    "rightValue": "Page",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Page"
+            }
+          ]
+        }
+      },
+      "id": "d27bfe88-380a-4af8-8446-b107fad4f626",
+      "name": "Route by Type",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const metrics = $json.metrics || {};\n// Content scoring: engagement (40%), reach (25%), quality (20%), SEO (15%)\nconst engagementScore = Math.min(100, (metrics.likes || 0) * 2 + (metrics.comments || 0) * 5 + (metrics.shares || 0) * 10);\nconst reachScore = Math.min(100, (metrics.impressions || 0) / 100);\nconst qualityScore = Math.min(100, (metrics.quality_rating || 5) * 10);\nconst seoScore = Math.min(100, (metrics.keyword_density || 0) * 20 + (metrics.has_meta || 0) * 30 + (metrics.word_count || 0) / 10);\n\nconst composite = Math.round(\n  engagementScore * 0.40 +\n  reachScore * 0.25 +\n  qualityScore * 0.20 +\n  seoScore * 0.15\n);\n\nreturn {\n  json: {\n    entity_type: 'Content',\n    entity_id: $json.entity_id,\n    scores: { engagement: engagementScore, reach: reachScore, quality: qualityScore, seo: seoScore },\n    composite_score: composite,\n    grade: composite >= 80 ? 'A' : composite >= 60 ? 'B' : composite >= 40 ? 'C' : 'D',\n    scored_at: $now.format('yyyy-MM-dd HH:mm:ss')\n  }\n};"
+      },
+      "id": "65ca533a-b469-417b-a246-b2da734c20d6",
+      "name": "Score Content",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        960,
+        200
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const metrics = $json.metrics || {};\n// Lead scoring: engagement (30%), fit (30%), recency (20%), source (20%)\nconst engagementScore = Math.min(100, (metrics.page_views || 0) * 5 + (metrics.email_opens || 0) * 10 + (metrics.clicks || 0) * 15);\nconst fitScore = Math.min(100, (metrics.company_size_match || 0) * 25 + (metrics.industry_match || 0) * 25 + (metrics.location_match || 0) * 25 + (metrics.budget_match || 0) * 25);\nconst daysSince = metrics.days_since_last_activity || 30;\nconst recencyScore = Math.max(0, 100 - daysSince * 3);\nconst sourceScores = { organic: 80, referral: 70, social: 60, paid: 50, direct: 40 };\nconst sourceScore = sourceScores[metrics.source] || 30;\n\nconst composite = Math.round(\n  engagementScore * 0.30 +\n  fitScore * 0.30 +\n  recencyScore * 0.20 +\n  sourceScore * 0.20\n);\n\nreturn {\n  json: {\n    entity_type: 'Lead',\n    entity_id: $json.entity_id,\n    scores: { engagement: engagementScore, fit: fitScore, recency: recencyScore, source: sourceScore },\n    composite_score: composite,\n    grade: composite >= 80 ? 'Hot' : composite >= 50 ? 'Warm' : 'Cold',\n    scored_at: $now.format('yyyy-MM-dd HH:mm:ss')\n  }\n};"
+      },
+      "id": "1bc4001e-6c3e-4d9d-9157-3059f9b6d971",
+      "name": "Score Lead",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        960,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const metrics = $json.metrics || {};\n// Keyword scoring: opportunity (35%), relevance (30%), difficulty_inv (20%), trend (15%)\nconst relevanceScore = Math.min(100, (metrics.relevance || 5) * 10);\nconst difficultyInv = Math.max(0, 100 - (metrics.difficulty || 50));\nconst trendScore = metrics.trend === 'rising' ? 90 : metrics.trend === 'stable' ? 50 : 20;\nconst opportunityScore = Math.min(100, (metrics.search_volume || 0) / 50 + difficultyInv * 0.5);\n\nconst composite = Math.round(\n  opportunityScore * 0.35 +\n  relevanceScore * 0.30 +\n  difficultyInv * 0.20 +\n  trendScore * 0.15\n);\n\nreturn {\n  json: {\n    entity_type: 'Keyword',\n    entity_id: $json.entity_id,\n    scores: { opportunity: opportunityScore, relevance: relevanceScore, difficulty_inv: difficultyInv, trend: trendScore },\n    composite_score: composite,\n    grade: composite >= 70 ? 'Target' : composite >= 40 ? 'Monitor' : 'Ignore',\n    scored_at: $now.format('yyyy-MM-dd HH:mm:ss')\n  }\n};"
+      },
+      "id": "1a876c59-a96d-4a2c-8eb0-5442b6c4333e",
+      "name": "Score Keyword",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        960,
+        600
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const metrics = $json.metrics || {};\n// Page scoring: speed (30%), seo (30%), content (20%), links (20%)\nconst speedScore = Math.min(100, (metrics.pagespeed_score || 50));\nconst seoScore = Math.min(100, (metrics.has_title || 0) * 20 + (metrics.has_meta || 0) * 20 + (metrics.has_h1 || 0) * 20 + (metrics.has_schema || 0) * 20 + (metrics.is_mobile_friendly || 0) * 20);\nconst contentScore = Math.min(100, (metrics.word_count || 0) / 20 + (metrics.has_images || 0) * 20 + (metrics.readability || 50));\nconst linkScore = Math.min(100, 100 - (metrics.broken_links || 0) * 20 + (metrics.internal_links || 0) * 5);\n\nconst composite = Math.round(\n  speedScore * 0.30 +\n  seoScore * 0.30 +\n  contentScore * 0.20 +\n  linkScore * 0.20\n);\n\nreturn {\n  json: {\n    entity_type: 'Page',\n    entity_id: $json.entity_id,\n    scores: { speed: speedScore, seo: seoScore, content: contentScore, links: linkScore },\n    composite_score: composite,\n    grade: composite >= 80 ? 'Healthy' : composite >= 60 ? 'Needs Work' : composite >= 40 ? 'Poor' : 'Critical',\n    scored_at: $now.format('yyyy-MM-dd HH:mm:ss')\n  }\n};"
+      },
+      "id": "be241c55-d93e-4822-a9f6-a1d2996e4137",
+      "name": "Score Page",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        960,
+        800
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "8d3cb507-faa3-4ec9-a734-9074ea46b04d",
+      "name": "Merge Scores",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        1240,
+        400
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblkbhbifd3PI6plT"
+        },
+        "columns": {
+          "value": {
+            "Entity Type": "={{ $json.entity_type }}",
+            "Entity ID": "={{ $json.entity_id }}",
+            "Composite Score": "={{ $json.composite_score }}",
+            "Grade": "={{ $json.grade }}",
+            "Score Details": "={{ JSON.stringify($json.scores) }}",
+            "Scored At": "={{ $json.scored_at }}"
+          },
+          "schema": [
+            {
+              "id": "Entity Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity Type"
+            },
+            {
+              "id": "Entity ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity ID"
+            },
+            {
+              "id": "Composite Score",
+              "type": "number",
+              "display": true,
+              "displayName": "Composite Score"
+            },
+            {
+              "id": "Grade",
+              "type": "string",
+              "display": true,
+              "displayName": "Grade"
+            },
+            {
+              "id": "Score Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Score Details"
+            },
+            {
+              "id": "Scored At",
+              "type": "string",
+              "display": true,
+              "displayName": "Scored At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "e298bf85-b1fc-4a59-910c-dbfdc3984964",
+      "name": "Log Score",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1480,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "bb6a60ec-f439-4ca4-a16c-50b6659fc167",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SEO/SOCIAL ERROR - Scoring Engine",
+        "emailType": "html",
+        "message": "=<h2>Scoring Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "8fa93577-5d97-416f-9c78-297a818b7c59",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-SCORE: Scoring & Decision Engine\n\n**Type:** Sub-workflow (called by other workflows)\n**Purpose:** Computes weighted scores (0-100) for Content, Lead, Keyword, and Page entities.\n**Output:** Composite score + grade logged to Scoring Log table.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "wf-score-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Route by Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Type": {
+      "main": [
+        [
+          {
+            "node": "Score Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Score Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Score Keyword",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Score Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Content": {
+      "main": [
+        [
+          {
+            "node": "Merge Scores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Lead": {
+      "main": [
+        [
+          {
+            "node": "Merge Scores",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Score Keyword": {
+      "main": [
+        [
+          {
+            "node": "Merge Scores",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Score Page": {
+      "main": [
+        [
+          {
+            "node": "Merge Scores",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge Scores": {
+      "main": [
+        [
+          {
+            "node": "Log Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

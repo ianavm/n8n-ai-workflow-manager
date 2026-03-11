@@ -1,21 +1,31 @@
 """
-WhatsApp Multi-Agent v2 - Builder & Deployer
+WhatsApp Multi-Agent v3 - Builder & Deployer (10-Agent Support)
 
 Builds the revised WhatsApp Multi-Agent workflow with:
 - WhatsApp Cloud API (native trigger + HTTP Request send)
+- 10 independent agents, each with own phone number
 - Conversation memory via Airtable Message Log
 - Flexible bot_type system (real_estate / business / custom)
 - OpenRouter AI via Claude Sonnet
 - Coexistence mode compatible (app + API on same number)
 
-Phase 1 improvements (v2.1):
+v2.1 improvements:
 - Loop prevention (self-message detection)
 - Message deduplication (staticData-based 60s window)
-- STOP/opt-out keyword detection (POPIA compliance)
 - Prompt injection sanitization (system prompt guards + message delimiters)
 - Markdown stripping before WhatsApp delivery
 - AI failure fallback with canned response
 - Rate limiting per phone number (10 msg / 5 min)
+
+v3 improvements (10-agent):
+- Opt-out flow moved AFTER agent resolution (POPIA compliance fix)
+- START/re-subscribe keyword handling
+- Opt-out history check (blocks previously opted-out users)
+- Per-agent working hours + after-hours auto-reply
+- First-contact welcome message
+- Human handoff detection (low confidence / keywords) with agent notification
+- Conversation window enforcement
+- Per-agent configurable: working hours, welcome msg, handoff threshold
 
 Usage:
     python tools/deploy_whatsapp_v2.py build      # Save JSON locally
@@ -40,7 +50,7 @@ from credentials import CREDENTIALS
 
 # -- Credential Constants --
 CRED_OPENROUTER = CREDENTIALS["openrouter"]
-CRED_AIRTABLE = CREDENTIALS["whatsapp_airtable"]
+CRED_AIRTABLE = CREDENTIALS["airtable_whatsapp"]
 CRED_WHATSAPP_SEND = CREDENTIALS["whatsapp_send"]
 CRED_WHATSAPP_TRIGGER = CREDENTIALS["whatsapp_trigger"]
 
@@ -57,6 +67,7 @@ GRAPH_API_VERSION = "v21.0"
 DEFAULT_AI_MODEL = "anthropic/claude-sonnet-4-20250514"
 WHATSAPP_TEMPLATE_NAME = os.getenv("WHATSAPP_TEMPLATE_NAME", "hello_world")
 OPT_OUT_KEYWORDS = ["STOP", "UNSUBSCRIBE", "OPT OUT", "CANCEL", "QUIT", "END"]
+RESUBSCRIBE_KEYWORDS = ["START", "SUBSCRIBE", "OPT IN", "RESUME"]
 
 
 def uid():
@@ -434,6 +445,14 @@ def build_nodes():
                 "  maxResponseLength: parseInt(fields.max_response_length || '500'),\n"
                 "  airtableBaseId: fields.airtable_base_id || '" + AIRTABLE_BASE_ID + "',\n"
                 "  whatsappPhoneNumberId: message.phoneNumberId,\n"
+                "  workingHours: fields.working_hours || null,\n"
+                "  workingDays: fields.working_days || null,\n"
+                "  afterHoursMessage: fields.after_hours_message || 'Thank you for your message. We are currently outside business hours and will respond on the next business day.',\n"
+                "  welcomeMessage: fields.welcome_message || `Hi {{ profileName || 'there' }}! Welcome to ${fields.company_name || 'our service'}. I am ${fields.agent_name || 'your AI assistant'}. How can I help you today?`,\n"
+                "  notificationEmail: fields.notification_email || fields.email || '',\n"
+                "  notificationPhone: fields.notification_phone || null,\n"
+                "  handoffConfidenceThreshold: parseFloat(fields.handoff_confidence_threshold || '0.4'),\n"
+                "  maxMessagesPerHour: parseInt(fields.max_messages_per_hour || '30'),\n"
                 "};\n"
                 "\n"
                 "// Build conversation ID for history lookup\n"
@@ -598,13 +617,17 @@ def build_nodes():
                 "// In practice, since we're replying to a user message, session is active\n"
                 "sessionExpired = false; // Reply to user = always within 24h window\n"
                 "\n"
+                "// Enforce conversation window limit\n"
+                "const windowSize = message.agent.conversationWindow || 10;\n"
+                "const limitedHistory = conversationMessages.slice(-windowSize);\n"
+                "\n"
                 "return {\n"
                 "  ...message,\n"
                 "  shouldBlock: shouldBlock,\n"
                 "  blockReason: blockReason,\n"
                 "  sessionExpired: sessionExpired,\n"
-                "  conversationHistory: conversationMessages,\n"
-                "  historyCount: conversationMessages.length,\n"
+                "  conversationHistory: limitedHistory,\n"
+                "  historyCount: limitedHistory.length,\n"
                 "};\n"
             ),
         },
@@ -794,6 +817,18 @@ def build_nodes():
                 "const maxLen = message.agent.maxResponseLength || 500;\n"
                 "if (response.length > maxLen) response = response.substring(0, maxLen - 3) + '...';\n"
                 "\n"
+                "// Handoff detection\n"
+                "const handoffKeywords = ['speak to human', 'real person', 'manager', 'complain', 'complaint', 'talk to someone', 'speak to someone', 'actual person'];\n"
+                "const threshold = message.agent.handoffConfidenceThreshold || 0.4;\n"
+                "const needsHandoff = parsed.confidence < threshold ||\n"
+                "  parsed.intent === 'escalate' ||\n"
+                "  handoffKeywords.some(kw => (message.body || '').toLowerCase().includes(kw));\n"
+                "\n"
+                "if (needsHandoff) {\n"
+                "  response = response + '\\n\\nI have notified ' + message.agentName + ' who will be in touch with you shortly.';\n"
+                "  if (response.length > maxLen) response = response.substring(0, maxLen - 3) + '...';\n"
+                "}\n"
+                "\n"
                 "return {\n"
                 "  ...message,\n"
                 "  intent: parsed.intent,\n"
@@ -801,6 +836,8 @@ def build_nodes():
                 "  aiResponse: response,\n"
                 "  airtableOperation: op,\n"
                 "  confidence: parsed.confidence,\n"
+                "  needsHandoff: needsHandoff,\n"
+                "  handoffReason: needsHandoff ? (parsed.confidence < threshold ? 'low_confidence' : 'user_requested') : null,\n"
                 "};\n"
             ),
         },
@@ -830,7 +867,7 @@ def build_nodes():
         "name": "Need Airtable?",
         "type": "n8n-nodes-base.if",
         "typeVersion": 2,
-        "position": [-320, 400],
+        "position": [-100, 500],
     })
 
     # 18. Route Operation (Switch)
@@ -872,7 +909,7 @@ def build_nodes():
         "name": "CRUD Switch",
         "type": "n8n-nodes-base.switch",
         "typeVersion": 3.2,
-        "position": [-100, 300],
+        "position": [120, 400],
     })
 
     # 19. CREATE Record
@@ -891,7 +928,7 @@ def build_nodes():
         "name": "CREATE Record",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2,
-        "position": [120, 200],
+        "position": [340, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "continueOnFail": True,
     })
@@ -909,7 +946,7 @@ def build_nodes():
         "name": "READ Records",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2,
-        "position": [120, 400],
+        "position": [340, 500],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "continueOnFail": True,
     })
@@ -967,7 +1004,7 @@ def build_nodes():
         "name": "Prepare Response",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
-        "position": [340, 400],
+        "position": [560, 500],
         "alwaysOutputData": True,
     })
 
@@ -996,7 +1033,7 @@ def build_nodes():
         "name": "Send WhatsApp",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
-        "position": [560, 400],
+        "position": [780, 500],
         "retryOnFail": True,
         "maxTries": 3,
         "credentials": {"whatsAppApi": CRED_WHATSAPP_SEND},
@@ -1032,7 +1069,7 @@ def build_nodes():
         "name": "Log Success",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2,
-        "position": [780, 400],
+        "position": [1000, 500],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "continueOnFail": True,
     })
@@ -1260,21 +1297,65 @@ def build_nodes():
         "position": [-2300, 1300],
     })
 
-    # ── SECTION G: OPT-OUT HANDLING (Phase 1 - Compliance) ──
+    # ── SECTION G: OPT-OUT HANDLING (v3 - POPIA Compliant) ──
+    # Now runs AFTER agent resolution for proper agent_id tracking
 
-    # 34. Check Opt-Out (keyword detection)
+    # 34. Check Opt-Out History (Airtable search for prior opt-outs)
+    nodes.append({
+        "parameters": {
+            "operation": "search",
+            "base": {"__rl": True, "value": AIRTABLE_BASE_ID, "mode": "list"},
+            "table": {"__rl": True, "value": TABLE_BLOCKED, "mode": "list"},
+            "filterByFormula": (
+                "=AND("
+                "{from_number} = '{{ $('Parse Message').first().json.from }}', "
+                "{agent_id} = '{{ $json.agent_id || $json.id }}', "
+                "{block_reason} = 'user_opted_out'"
+                ")"
+            ),
+            "options": {},
+        },
+        "id": uid(),
+        "name": "Check Opt-Out History",
+        "type": "n8n-nodes-base.airtable",
+        "typeVersion": 2,
+        "position": [-1860, 600],
+        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "alwaysOutputData": True,
+        "continueOnFail": True,
+    })
+
+    # 35. Check Opt-Out (keyword detection + history merge)
     nodes.append({
         "parameters": {
             "jsCode": (
-                "// Check if message is an opt-out keyword\n"
+                "// Check opt-out/resubscribe keywords and opt-out history\n"
                 "const message = $('Parse Message').first().json;\n"
+                "const agentRecord = $('Find Agent').first().json;\n"
+                "const agentFields = agentRecord.fields || agentRecord;\n"
+                "const historyItems = $input.all();\n"
+                "\n"
                 "const body = (message.body || '').trim().toUpperCase();\n"
                 "const optOutKeywords = " + json.dumps(OPT_OUT_KEYWORDS) + ";\n"
+                "const resubKeywords = " + json.dumps(RESUBSCRIBE_KEYWORDS) + ";\n"
+                "\n"
                 "const isOptOut = optOutKeywords.some(kw => body === kw || body.startsWith(kw + ' '));\n"
+                "const isResubscribe = resubKeywords.some(kw => body === kw || body.startsWith(kw + ' '));\n"
+                "\n"
+                "// Check if user was previously opted out for this agent\n"
+                "const wasPreviouslyOptedOut = historyItems.some(item => {\n"
+                "  const r = item.json;\n"
+                "  return r && (r.id || r.fields);\n"
+                "});\n"
                 "\n"
                 "return {\n"
                 "  ...message,\n"
+                "  agentId: agentFields.agent_id || agentRecord.id,\n"
+                "  agentName: agentFields.agent_name || 'Assistant',\n"
+                "  agentRecordId: agentRecord.id,\n"
                 "  isOptOut: isOptOut,\n"
+                "  isResubscribe: isResubscribe,\n"
+                "  wasPreviouslyOptedOut: wasPreviouslyOptedOut && !isResubscribe,\n"
                 "};\n"
             ),
         },
@@ -1282,32 +1363,66 @@ def build_nodes():
         "name": "Check Opt-Out",
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
-        "position": [-2300, 700],
+        "position": [-1640, 600],
         "alwaysOutputData": True,
     })
 
-    # 35. Not Opted Out? (If node - TRUE = continue, FALSE = opt-out)
+    # 36. Opt-Out Router (Switch - replaces Not Opted Out?)
     nodes.append({
         "parameters": {
-            "conditions": {
-                "options": {"caseSensitive": False},
-                "conditions": [
+            "rules": {
+                "values": [
                     {
-                        "leftValue": "={{ $json.isOptOut }}",
-                        "rightValue": False,
-                        "operator": {"type": "boolean", "operation": "equals"},
-                    }
+                        "conditions": {
+                            "conditions": [
+                                {
+                                    "leftValue": "={{ $json.isResubscribe }}",
+                                    "rightValue": True,
+                                    "operator": {"type": "boolean", "operation": "equals"},
+                                }
+                            ],
+                        },
+                        "renameOutput": True,
+                        "outputLabel": "Resubscribe",
+                    },
+                    {
+                        "conditions": {
+                            "conditions": [
+                                {
+                                    "leftValue": "={{ $json.isOptOut }}",
+                                    "rightValue": True,
+                                    "operator": {"type": "boolean", "operation": "equals"},
+                                }
+                            ],
+                        },
+                        "renameOutput": True,
+                        "outputLabel": "Opt-Out",
+                    },
+                    {
+                        "conditions": {
+                            "conditions": [
+                                {
+                                    "leftValue": "={{ $json.wasPreviouslyOptedOut }}",
+                                    "rightValue": True,
+                                    "operator": {"type": "boolean", "operation": "equals"},
+                                }
+                            ],
+                        },
+                        "renameOutput": True,
+                        "outputLabel": "Previously Opted Out",
+                    },
                 ],
             },
+            "options": {"fallbackOutput": "extra"},
         },
         "id": uid(),
-        "name": "Not Opted Out?",
-        "type": "n8n-nodes-base.if",
-        "typeVersion": 2,
-        "position": [-2080, 700],
+        "name": "Opt-Out Router",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [-1420, 600],
     })
 
-    # 36. Send Opt-Out Confirmation (WhatsApp reply)
+    # 37. Send Resubscribe Confirmation
     nodes.append({
         "parameters": {
             "method": "POST",
@@ -1322,7 +1437,37 @@ def build_nodes():
                 '  "to": "{{ $json.from }}",\n'
                 '  "type": "text",\n'
                 '  "text": {\n'
-                '    "body": "You have been unsubscribed and will no longer receive automated messages from us. Reply START to re-subscribe at any time."\n'
+                '    "body": "Welcome back! You have been re-subscribed and will receive messages from us again. Reply STOP at any time to unsubscribe."\n'
+                '  }\n'
+                '}'
+            ),
+            "options": {"timeout": 10000},
+        },
+        "id": uid(),
+        "name": "Send Resubscribe Confirmation",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [-1200, 400],
+        "credentials": {"whatsAppApi": CRED_WHATSAPP_SEND},
+        "continueOnFail": True,
+    })
+
+    # 38. Send Opt-Out Confirmation (WhatsApp reply - POPIA compliant)
+    nodes.append({
+        "parameters": {
+            "method": "POST",
+            "url": f"=https://graph.facebook.com/{GRAPH_API_VERSION}/{{{{ $json.phoneNumberId }}}}/messages",
+            "authentication": "predefinedCredentialType",
+            "nodeCredentialType": "whatsAppApi",
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": (
+                '={\n'
+                '  "messaging_product": "whatsapp",\n'
+                '  "to": "{{ $json.from }}",\n'
+                '  "type": "text",\n'
+                '  "text": {\n'
+                '    "body": "As required by the Protection of Personal Information Act (POPIA), you have been unsubscribed and will no longer receive automated messages from us. Reply START to re-subscribe at any time."\n'
                 '  }\n'
                 '}'
             ),
@@ -1332,12 +1477,12 @@ def build_nodes():
         "name": "Send Opt-Out Confirmation",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
-        "position": [-1860, 800],
+        "position": [-1200, 600],
         "credentials": {"whatsAppApi": CRED_WHATSAPP_SEND},
         "continueOnFail": True,
     })
 
-    # 37. Log Opt-Out (to Blocked table)
+    # 39. Log Opt-Out (to Blocked table - now with real agent_id)
     nodes.append({
         "parameters": {
             "operation": "create",
@@ -1351,9 +1496,10 @@ def build_nodes():
                     "to_number": "={{ $json.phoneNumberId }}",
                     "message_preview": "={{ ($json.body || '').substring(0, 100) }}",
                     "block_reason": "user_opted_out",
-                    "agent_id": "not_resolved",
+                    "agent_id": "={{ $json.agentId }}",
                     "is_group": False,
                     "agent_online": False,
+                    "opt_out_confirmed": True,
                 },
             },
             "options": {},
@@ -1362,7 +1508,37 @@ def build_nodes():
         "name": "Log Opt-Out",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2,
-        "position": [-1640, 800],
+        "position": [-980, 600],
+        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "continueOnFail": True,
+    })
+
+    # 40. Log Previously Opted Out (block with reason)
+    nodes.append({
+        "parameters": {
+            "operation": "create",
+            "base": {"__rl": True, "value": AIRTABLE_BASE_ID, "mode": "list"},
+            "table": {"__rl": True, "value": TABLE_BLOCKED, "mode": "list"},
+            "columns": {
+                "mappingMode": "defineBelow",
+                "value": {
+                    "timestamp": "={{ $now.toISO() }}",
+                    "from_number": "={{ $json.from }}",
+                    "to_number": "={{ $json.phoneNumberId }}",
+                    "message_preview": "={{ ($json.body || '').substring(0, 100) }}",
+                    "block_reason": "previously_opted_out",
+                    "agent_id": "={{ $json.agentId }}",
+                    "is_group": False,
+                    "agent_online": False,
+                },
+            },
+            "options": {},
+        },
+        "id": uid(),
+        "name": "Log Previously Opted Out",
+        "type": "n8n-nodes-base.airtable",
+        "typeVersion": 2,
+        "position": [-1200, 800],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "continueOnFail": True,
     })
@@ -1405,26 +1581,281 @@ def build_nodes():
         "alwaysOutputData": True,
     })
 
+    # ── SECTION I: WORKING HOURS CHECK (v3) ──
+
+    # 41. Check Working Hours
+    nodes.append({
+        "parameters": {
+            "jsCode": (
+                "// Check if current time is within agent's working hours\n"
+                "const message = $input.first().json;\n"
+                "const agent = message.agent;\n"
+                "\n"
+                "// If no working hours configured, always on\n"
+                "if (!agent.workingHours || !agent.workingDays) {\n"
+                "  return { ...message, withinWorkingHours: true };\n"
+                "}\n"
+                "\n"
+                "const tz = agent.timezone || 'Africa/Johannesburg';\n"
+                "const now = new Date();\n"
+                "\n"
+                "// Get current time in agent's timezone\n"
+                "const timeStr = now.toLocaleTimeString('en-GB', { timeZone: tz, hour12: false });\n"
+                "const dayOfWeek = now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' });\n"
+                "const dayMap = { 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6, 'Sun': 0 };\n"
+                "const currentDay = dayMap[dayOfWeek] || 0;\n"
+                "\n"
+                "// Check working days (CSV like '1,2,3,4,5')\n"
+                "const workingDays = agent.workingDays.split(',').map(d => parseInt(d.trim()));\n"
+                "if (!workingDays.includes(currentDay)) {\n"
+                "  return { ...message, withinWorkingHours: false };\n"
+                "}\n"
+                "\n"
+                "// Check working hours (format: '08:00-17:00')\n"
+                "const [startStr, endStr] = agent.workingHours.split('-').map(s => s.trim());\n"
+                "const currentMinutes = parseInt(timeStr.split(':')[0]) * 60 + parseInt(timeStr.split(':')[1]);\n"
+                "const startMinutes = parseInt(startStr.split(':')[0]) * 60 + parseInt(startStr.split(':')[1]);\n"
+                "const endMinutes = parseInt(endStr.split(':')[0]) * 60 + parseInt(endStr.split(':')[1]);\n"
+                "\n"
+                "const withinHours = currentMinutes >= startMinutes && currentMinutes < endMinutes;\n"
+                "\n"
+                "return { ...message, withinWorkingHours: withinHours };\n"
+            ),
+        },
+        "id": uid(),
+        "name": "Check Working Hours",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [-1640, 100],
+        "alwaysOutputData": True,
+    })
+
+    # 42. Within Hours?
+    nodes.append({
+        "parameters": {
+            "conditions": {
+                "options": {"caseSensitive": False},
+                "conditions": [
+                    {
+                        "leftValue": "={{ $json.withinWorkingHours }}",
+                        "rightValue": True,
+                        "operator": {"type": "boolean", "operation": "equals"},
+                    }
+                ],
+            },
+        },
+        "id": uid(),
+        "name": "Within Hours?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [-1420, 100],
+    })
+
+    # 43. Send After Hours Reply
+    nodes.append({
+        "parameters": {
+            "method": "POST",
+            "url": f"=https://graph.facebook.com/{GRAPH_API_VERSION}/{{{{ $json.agent.whatsappPhoneNumberId }}}}/messages",
+            "authentication": "predefinedCredentialType",
+            "nodeCredentialType": "whatsAppApi",
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": (
+                '={\n'
+                '  "messaging_product": "whatsapp",\n'
+                '  "to": "{{ $json.from }}",\n'
+                '  "type": "text",\n'
+                '  "text": {\n'
+                '    "body": {{ JSON.stringify($json.agent.afterHoursMessage) }}\n'
+                '  }\n'
+                '}'
+            ),
+            "options": {"timeout": 10000},
+        },
+        "id": uid(),
+        "name": "Send After Hours Reply",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [-1200, 0],
+        "credentials": {"whatsAppApi": CRED_WHATSAPP_SEND},
+        "continueOnFail": True,
+    })
+
+    # 44. Log After Hours (to Blocked table)
+    nodes.append({
+        "parameters": {
+            "operation": "create",
+            "base": {"__rl": True, "value": AIRTABLE_BASE_ID, "mode": "list"},
+            "table": {"__rl": True, "value": TABLE_BLOCKED, "mode": "list"},
+            "columns": {
+                "mappingMode": "defineBelow",
+                "value": {
+                    "timestamp": "={{ $now.toISO() }}",
+                    "from_number": "={{ $json.from }}",
+                    "to_number": "={{ $json.agent.whatsappPhoneNumberId }}",
+                    "message_preview": "={{ ($json.body || '').substring(0, 100) }}",
+                    "block_reason": "after_hours",
+                    "agent_id": "={{ $json.agentId }}",
+                    "is_group": False,
+                    "agent_online": False,
+                },
+            },
+            "options": {},
+        },
+        "id": uid(),
+        "name": "Log After Hours",
+        "type": "n8n-nodes-base.airtable",
+        "typeVersion": 2,
+        "position": [-980, 0],
+        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "continueOnFail": True,
+    })
+
+    # ── SECTION J: WELCOME MESSAGE (v3) ──
+
+    # 45. First Contact? (check if history count is 0)
+    nodes.append({
+        "parameters": {
+            "conditions": {
+                "options": {"caseSensitive": False},
+                "conditions": [
+                    {
+                        "leftValue": "={{ $json.historyCount }}",
+                        "rightValue": 0,
+                        "operator": {"type": "number", "operation": "equals"},
+                    }
+                ],
+            },
+        },
+        "id": uid(),
+        "name": "First Contact?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [-1200, 200],
+    })
+
+    # 46. Send Welcome Message
+    nodes.append({
+        "parameters": {
+            "method": "POST",
+            "url": f"=https://graph.facebook.com/{GRAPH_API_VERSION}/{{{{ $json.agent.whatsappPhoneNumberId }}}}/messages",
+            "authentication": "predefinedCredentialType",
+            "nodeCredentialType": "whatsAppApi",
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": (
+                '={\n'
+                '  "messaging_product": "whatsapp",\n'
+                '  "to": "{{ $json.from }}",\n'
+                '  "type": "text",\n'
+                '  "text": {\n'
+                '    "body": {{ JSON.stringify($json.agent.welcomeMessage) }}\n'
+                '  }\n'
+                '}'
+            ),
+            "options": {"timeout": 10000},
+        },
+        "id": uid(),
+        "name": "Send Welcome Message",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [-980, 100],
+        "credentials": {"whatsAppApi": CRED_WHATSAPP_SEND},
+        "continueOnFail": True,
+    })
+
+    # ── SECTION K: HUMAN HANDOFF (v3) ──
+
+    # 47. Handoff Check (after Parse AI Decision)
+    nodes.append({
+        "parameters": {
+            "conditions": {
+                "options": {"caseSensitive": False},
+                "conditions": [
+                    {
+                        "leftValue": "={{ $json.needsHandoff }}",
+                        "rightValue": True,
+                        "operator": {"type": "boolean", "operation": "equals"},
+                    }
+                ],
+            },
+        },
+        "id": uid(),
+        "name": "Handoff Check",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [-320, 400],
+    })
+
+    # 48. Notify Agent (email via HTTP to Gmail or direct SMTP)
+    nodes.append({
+        "parameters": {
+            "method": "POST",
+            "url": f"=https://graph.facebook.com/{GRAPH_API_VERSION}/{{{{ $json.agent.whatsappPhoneNumberId }}}}/messages",
+            "authentication": "predefinedCredentialType",
+            "nodeCredentialType": "whatsAppApi",
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": (
+                '={\n'
+                '  "messaging_product": "whatsapp",\n'
+                '  "to": "{{ $json.agent.notificationPhone || $json.agent.whatsappPhoneNumberId }}",\n'
+                '  "type": "text",\n'
+                '  "text": {\n'
+                '    "body": "HANDOFF ALERT: {{ $json.profileName || $json.from }} needs human assistance.\\n'
+                'Message: {{ $json.body.substring(0, 200) }}\\n'
+                'Confidence: {{ $json.confidence }}\\n'
+                'Conversation: {{ $json.conversationId }}"\n'
+                '  }\n'
+                '}'
+            ),
+            "options": {"timeout": 10000},
+        },
+        "id": uid(),
+        "name": "Notify Agent",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [-100, 300],
+        "credentials": {"whatsAppApi": CRED_WHATSAPP_SEND},
+        "continueOnFail": True,
+    })
+
     return nodes
 
 
 def build_connections():
-    """Build connections for the WhatsApp Multi-Agent v2 workflow."""
+    """Build connections for the WhatsApp Multi-Agent v3 workflow.
+
+    Revised flow (v3):
+    Triggers -> Parse -> Valid?
+      -> (true) Read Receipt + Block Groups?
+        -> (not group) Find Agent -> Agent Found?
+          -> (true) Check Opt-Out History -> Check Opt-Out -> Opt-Out Router
+            -> (fallback/continue) Merge Agent Data -> Check Working Hours -> Within Hours?
+              -> (true) Log Incoming + Fetch History -> First Contact?
+                -> (first) Send Welcome -> Build AI Context
+                -> (returning) Build AI Context -> Process Message? -> Agent Active?
+                  -> (true) AI Analysis -> AI Fallback Check -> Parse AI Decision -> Handoff Check
+                    -> (handoff) Notify Agent + Prepare Response
+                    -> (no handoff) Need Airtable? -> CRUD -> Prepare Response
+              -> (false/after hours) Send After Hours Reply -> Log After Hours
+          -> (false) Log Blocked
+        -> (group) Log Blocked
+      -> (false) Log Parse Error
+    """
     return {
-        # Triggers -> Parse
+        # ── TRIGGERS ──
         "WhatsApp Trigger": {
             "main": [[{"node": "Parse Message", "type": "main", "index": 0}]],
         },
         "Manual Trigger": {
             "main": [[{"node": "Parse Message", "type": "main", "index": 0}]],
         },
-
-        # Parse -> Valid
         "Parse Message": {
             "main": [[{"node": "Valid?", "type": "main", "index": 0}]],
         },
 
-        # Valid: true -> Read Receipt + Block Groups, false -> Log Parse Error
+        # ── VALIDATION ──
         "Valid?": {
             "main": [
                 [
@@ -1437,106 +1868,125 @@ def build_connections():
             ],
         },
 
-        # Block Groups: not group -> Check Opt-Out, group -> Log Blocked
+        # ── AGENT RESOLUTION (moved before opt-out) ──
         "Block Groups?": {
             "main": [
-                [{"node": "Check Opt-Out", "type": "main", "index": 0}],
+                [{"node": "Find Agent", "type": "main", "index": 0}],
+                [{"node": "Log Blocked", "type": "main", "index": 0}],
+            ],
+        },
+        "Find Agent": {
+            "main": [[{"node": "Agent Found?", "type": "main", "index": 0}]],
+        },
+        "Agent Found?": {
+            "main": [
+                [{"node": "Check Opt-Out History", "type": "main", "index": 0}],
                 [{"node": "Log Blocked", "type": "main", "index": 0}],
             ],
         },
 
-        # Check Opt-Out -> Not Opted Out?
-        "Check Opt-Out": {
-            "main": [[{"node": "Not Opted Out?", "type": "main", "index": 0}]],
+        # ── OPT-OUT FLOW (now after agent resolution) ──
+        "Check Opt-Out History": {
+            "main": [[{"node": "Check Opt-Out", "type": "main", "index": 0}]],
         },
-
-        # Not Opted Out: true (not opt-out) -> Find Agent, false (is opt-out) -> Send Confirmation
-        "Not Opted Out?": {
+        "Check Opt-Out": {
+            "main": [[{"node": "Opt-Out Router", "type": "main", "index": 0}]],
+        },
+        # Opt-Out Router outputs: 0=Resubscribe, 1=Opt-Out, 2=Previously Opted Out, fallback=Continue
+        "Opt-Out Router": {
             "main": [
-                [{"node": "Find Agent", "type": "main", "index": 0}],
+                [{"node": "Send Resubscribe Confirmation", "type": "main", "index": 0}],
                 [{"node": "Send Opt-Out Confirmation", "type": "main", "index": 0}],
+                [{"node": "Log Previously Opted Out", "type": "main", "index": 0}],
+                [{"node": "Merge Agent Data", "type": "main", "index": 0}],
             ],
         },
-
-        # Opt-out: Send Confirmation -> Log Opt-Out
         "Send Opt-Out Confirmation": {
             "main": [[{"node": "Log Opt-Out", "type": "main", "index": 0}]],
         },
 
-        # Find Agent -> Agent Found?
-        "Find Agent": {
-            "main": [[{"node": "Agent Found?", "type": "main", "index": 0}]],
-        },
-
-        # Agent Found: true -> Merge, false -> Log Blocked
-        "Agent Found?": {
+        # ── WORKING HOURS ──
+        "Merge Agent Data": {
             "main": [
-                [{"node": "Merge Agent Data", "type": "main", "index": 0}],
-                [{"node": "Log Blocked", "type": "main", "index": 0}],
+                [{"node": "Check Working Hours", "type": "main", "index": 0}],
             ],
         },
-
-        # Merge -> Log Incoming (parallel) + Fetch History
-        "Merge Agent Data": {
+        "Check Working Hours": {
+            "main": [[{"node": "Within Hours?", "type": "main", "index": 0}]],
+        },
+        "Within Hours?": {
             "main": [
                 [
                     {"node": "Log Incoming", "type": "main", "index": 0},
                     {"node": "Fetch History", "type": "main", "index": 0},
                 ],
+                [{"node": "Send After Hours Reply", "type": "main", "index": 0}],
             ],
         },
+        "Send After Hours Reply": {
+            "main": [[{"node": "Log After Hours", "type": "main", "index": 0}]],
+        },
 
-        # Fetch History -> Build AI Context
+        # ── WELCOME + HISTORY ──
         "Fetch History": {
             "main": [[{"node": "Build AI Context", "type": "main", "index": 0}]],
         },
-
-        # Build AI Context -> Process Message?
         "Build AI Context": {
+            "main": [[{"node": "First Contact?", "type": "main", "index": 0}]],
+        },
+        # First Contact: true (no history) -> Send Welcome then Process, false -> Process
+        "First Contact?": {
+            "main": [
+                [{"node": "Send Welcome Message", "type": "main", "index": 0}],
+                [{"node": "Process Message?", "type": "main", "index": 0}],
+            ],
+        },
+        "Send Welcome Message": {
             "main": [[{"node": "Process Message?", "type": "main", "index": 0}]],
         },
 
-        # Process: unblocked -> Agent Active, blocked -> Log Blocked
+        # ── AI PROCESSING ──
         "Process Message?": {
             "main": [
                 [{"node": "Agent Active?", "type": "main", "index": 0}],
                 [{"node": "Log Blocked", "type": "main", "index": 0}],
             ],
         },
-
-        # Agent Active: yes -> AI, no -> Log Blocked
         "Agent Active?": {
             "main": [
                 [{"node": "AI Analysis", "type": "main", "index": 0}],
                 [{"node": "Log Blocked", "type": "main", "index": 0}],
             ],
         },
-
-        # AI -> Fallback Check -> Parse Decision (or direct to Prepare if AI failed)
         "AI Analysis": {
             "main": [[{"node": "AI Fallback Check", "type": "main", "index": 0}]],
         },
-
-        # AI Fallback Check routes based on aiFailed flag
-        # If AI failed, the fallback already populated aiResponse/intent etc.
-        # In both cases, continue to Parse AI Decision (which handles both formats)
         "AI Fallback Check": {
             "main": [[{"node": "Parse AI Decision", "type": "main", "index": 0}]],
         },
 
+        # ── HANDOFF CHECK (v3) ──
         "Parse AI Decision": {
-            "main": [[{"node": "Need Airtable?", "type": "main", "index": 0}]],
+            "main": [[{"node": "Handoff Check", "type": "main", "index": 0}]],
+        },
+        # Handoff: true -> Notify Agent + Prepare Response, false -> Need Airtable?
+        "Handoff Check": {
+            "main": [
+                [
+                    {"node": "Notify Agent", "type": "main", "index": 0},
+                    {"node": "Prepare Response", "type": "main", "index": 0},
+                ],
+                [{"node": "Need Airtable?", "type": "main", "index": 0}],
+            ],
         },
 
-        # Need Airtable: yes -> CRUD Switch, no -> Prepare Response
+        # ── AIRTABLE OPERATIONS ──
         "Need Airtable?": {
             "main": [
                 [{"node": "CRUD Switch", "type": "main", "index": 0}],
                 [{"node": "Prepare Response", "type": "main", "index": 0}],
             ],
         },
-
-        # CRUD Switch -> CREATE or READ, fallback -> Prepare Response
         "CRUD Switch": {
             "main": [
                 [{"node": "CREATE Record", "type": "main", "index": 0}],
@@ -1544,8 +1994,6 @@ def build_connections():
                 [{"node": "Prepare Response", "type": "main", "index": 0}],
             ],
         },
-
-        # CRUD results -> Prepare Response
         "CREATE Record": {
             "main": [[{"node": "Prepare Response", "type": "main", "index": 0}]],
         },
@@ -1553,7 +2001,7 @@ def build_connections():
             "main": [[{"node": "Prepare Response", "type": "main", "index": 0}]],
         },
 
-        # Prepare -> Send -> Log
+        # ── RESPONSE DELIVERY ──
         "Prepare Response": {
             "main": [[{"node": "Send WhatsApp", "type": "main", "index": 0}]],
         },
@@ -1561,7 +2009,7 @@ def build_connections():
             "main": [[{"node": "Log Success", "type": "main", "index": 0}]],
         },
 
-        # Error handling
+        # ── ERROR HANDLING ──
         "Error Trigger": {
             "main": [[{"node": "Handle Error", "type": "main", "index": 0}]],
         },
@@ -1569,7 +2017,7 @@ def build_connections():
             "main": [[{"node": "Log Error", "type": "main", "index": 0}]],
         },
 
-        # Agent Status sub-flow
+        # ── AGENT STATUS SUB-FLOW ──
         "Agent Status Webhook": {
             "main": [[{"node": "Parse Status", "type": "main", "index": 0}]],
         },
@@ -1595,7 +2043,7 @@ def build_workflow():
     connections = build_connections()
 
     return {
-        "name": "WhatsApp Multi-Agent v2 (Cloud API)",
+        "name": "WhatsApp Multi-Agent v3 (10 Agents)",
         "nodes": nodes,
         "connections": connections,
         "settings": {

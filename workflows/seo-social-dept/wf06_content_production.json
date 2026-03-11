@@ -1,0 +1,959 @@
+{
+  "name": "SEO Social - Content Production (WF-06)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "178b8afe-1651-4da1-8d57-8b1c84cc0409",
+      "name": "Daily 9:30AM SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "0c71c0b2-c17a-4b81-9079-f96e14a5de1c",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1190b2e8-389f-44b8-9098-3714b834f3a7",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "21c7f6b5-466a-463c-b12a-279766791754",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "0ac8a17b-cb48-43ce-8858-c896e61db43c",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            },
+            {
+              "id": "b2f7dae6-bc78-4d80-b637-28578dde48a1",
+              "name": "ownerName",
+              "value": "Ian Immelman",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "1bbd02d8-9c4f-450c-bf2d-89894e1ba9b2",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblq3SGdZtvbFcfkw"
+        },
+        "filterByFormula": "=AND({Status} = 'Planned', IS_SAME({Date}, '{{ $json.todayDate }}', 'day'))",
+        "returnAll": false,
+        "limit": 5,
+        "sort": {
+          "property": [
+            {
+              "field": "Date",
+              "direction": "asc"
+            }
+          ]
+        }
+      },
+      "id": "d3f49793-8598-4d4a-912d-98717ae67c5c",
+      "name": "Read Content Calendar",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblUiQHxgrNqV2FyS"
+        },
+        "filterByFormula": "=({Status} = 'Active')"
+      },
+      "id": "bbebabcc-e211-49b3-a7d6-edd86118e699",
+      "name": "Read Keywords",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        560
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbljaHug3yScfhrcf"
+        },
+        "filterByFormula": "=({Status} = 'Active')"
+      },
+      "id": "86aa6f89-7c7d-4d15-8d00-c146cdbcc195",
+      "name": "Read Content Topics",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        720
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.id }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "01c95848-ec4f-49e3-855a-785434f2ad89",
+      "name": "Has Calendar Items?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        960,
+        500
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "options": {
+          "batchSize": 1
+        }
+      },
+      "id": "081ccbb6-d00c-4f22-8d3a-193ef98410cc",
+      "name": "Loop Over Content",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1200,
+        400
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "const calendarItem = $json;\nlet keywords = [];\ntry { keywords = $('Read Keywords').all().map(k => k.json.Keyword || k.json.Label).filter(Boolean).slice(0, 10); } catch(e) {}\nlet topics = [];\ntry { topics = $('Read Content Topics').all().map(t => t.json.Topic || t.json.Name).filter(Boolean).slice(0, 5); } catch(e) {}\n\nconst brief = [\n  `CONTENT BRIEF`,\n  `Topic: ${calendarItem.Topic || calendarItem.Title || 'General content'}`,\n  `Platform: ${Array.isArray(calendarItem.Platform) ? calendarItem.Platform.join(', ') : calendarItem.Platform || 'all'}`,\n  `Brief: ${calendarItem.Brief || 'Create engaging, SEO-optimized content'}`,\n  `Target Keywords: ${keywords.join(', ')}`,\n  `Related Topics: ${topics.join(', ')}`,\n  `Content Type: ${calendarItem['Content Type'] || 'social_post'}`,\n  `Date: ${calendarItem.Date || $('System Config').first().json.todayDate}`,\n].join('\\n');\n\nreturn {\n  json: {\n    seoBrief: brief,\n    calendarId: calendarItem.id,\n    topic: calendarItem.Topic || calendarItem.Title,\n    platform: calendarItem.Platform,\n    keywords: keywords\n  }\n};"
+      },
+      "id": "e35576f7-160f-4bf3-b70f-4f3fbddb6801",
+      "name": "Build SEO Brief",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1440,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 2000,\n  \"temperature\": 0.7,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an SEO content strategist for AnyVision Media, a digital media and AI automation agency in South Africa.\\n\\n## Your Task\\nGenerate SEO-optimized content based on the provided brief, target keywords, and content topic data. The content should be ready for multi-platform distribution.\\n\\n## Company Context\\n- Brand: AnyVision Media\\n- Owner: Ian Immelman\\n- Services: AI workflow automation, web development, social media management\\n- Target: South African SMBs\\n- Brand color: #FF6D5A\\n- Tone: Professional but approachable, tech-savvy, innovation-focused\\n\\n## Content Requirements\\n1. Hook: Attention-grabbing opening line (under 100 chars)\\n2. Body: Main content optimized for the target platform(s)\\n3. SEO elements: Include target keywords naturally (2-3% density)\\n4. CTA: Clear call-to-action relevant to the topic\\n5. Meta: Suggested title tag (under 60 chars) and meta description (under 160 chars)\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"hook\\\": \\\"attention-grabbing first line\\\",\\n  \\\"body\\\": \\\"main content body with SEO keywords integrated naturally\\\",\\n  \\\"cta\\\": \\\"call to action\\\",\\n  \\\"hashtags\\\": \\\"#relevant #hashtags\\\",\\n  \\\"meta_title\\\": \\\"SEO title tag under 60 chars\\\",\\n  \\\"meta_description\\\": \\\"Meta description under 160 chars\\\",\\n  \\\"target_keywords\\\": [\\\"primary\\\", \\\"secondary\\\"],\\n  \\\"quality_score\\\": 8,\\n  \\\"word_count\\\": 250\\n}\\n\\n## Rules\\n- Never keyword-stuff; integrate naturally\\n- Reference South African business context where relevant\\n- Include at least one data point or statistic\\n- Make the hook specific and curiosity-driven\\n- Every piece must provide actionable value\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.seoBrief) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "4b9a584e-c8f5-4457-9d1c-3ab316dc5695",
+      "name": "AI Content Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1680,
+        500
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst briefData = $('Build SEO Brief').first().json;\n\nlet parsed;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch(e) {\n  parsed = {\n    hook: `Discover how ${briefData.topic || 'automation'} can transform your business`,\n    body: `At AnyVision Media, we help businesses automate and scale.`,\n    cta: 'Want to learn more? Drop us a message.',\n    hashtags: '#automation #AI #business #SouthAfrica',\n    meta_title: (briefData.topic || 'AnyVision Media').substring(0, 60),\n    meta_description: 'Learn how AnyVision Media helps South African businesses automate.',\n    target_keywords: briefData.keywords || [],\n    quality_score: 5,\n    word_count: 100\n  };\n}\n\nlet score = parsed.quality_score || 5;\nconst fullText = `${parsed.hook || ''} ${parsed.body || ''} ${parsed.cta || ''}`;\nif (!parsed.quality_score) {\n  if (parsed.hook && parsed.hook.length > 10) score += 1;\n  if (parsed.body && parsed.body.length > 100) score += 1;\n  if (parsed.meta_title) score += 1;\n  if (parsed.meta_description) score += 1;\n  if (fullText.length > 200) score += 1;\n}\n\nreturn {\n  json: {\n    parsedContent: parsed,\n    qualityScore: Math.min(10, score),\n    passesQualityGate: score >= 6,\n    calendarId: briefData.calendarId,\n    topic: briefData.topic,\n    platform: briefData.platform,\n    tokensUsed: input.usage ? input.usage.total_tokens : 0\n  }\n};"
+      },
+      "id": "bdd3a4e6-c43c-4f83-a737-4bdf9e81891c",
+      "name": "Parse & Quality Gate",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1920,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "leftValue": "={{ $json.qualityScore }}",
+              "rightValue": 6
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "56b4206b-f61a-4f6b-8fba-21fb11018af7",
+      "name": "Quality Pass?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2160,
+        500
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 300,\n  \"temperature\": 0.8,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a social media hook optimization expert. Given a hook and topic, generate 3 alternative hooks. Output JSON: {variations: [str], scores: [int], best_index: int}\"},\n    {\"role\": \"user\", \"content\": \"Hook: {{ $json.parsedContent.hook }}\\nTopic: {{ $json.topic }}\"}\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "bc53ccbd-beb6-4a91-85fa-07d740108409",
+      "name": "Hook Optimizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2400,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const hookInput = $input.first().json;\nconst postData = $('Parse & Quality Gate').first().json;\nconst parsed = postData.parsedContent;\n\nlet bestHook = parsed.hook;\ntry {\n  const content = hookInput.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  const hookData = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n  bestHook = hookData.variations[hookData.best_index || 0] || parsed.hook;\n} catch(e) {}\n\nconst fullPost = [bestHook, parsed.body, parsed.cta].filter(Boolean).join('\\n\\n');\nconst fullPostWithHashtags = parsed.hashtags ? fullPost + '\\n\\n' + parsed.hashtags : fullPost;\n\nreturn {\n  json: {\n    title: bestHook,\n    body: fullPostWithHashtags,\n    hashtags: parsed.hashtags || '',\n    metaTitle: parsed.meta_title || '',\n    metaDescription: parsed.meta_description || '',\n    qualityScore: postData.qualityScore,\n    calendarId: postData.calendarId,\n    topic: postData.topic,\n    platform: Array.isArray(postData.platform) ? postData.platform.join(', ') : postData.platform || 'all',\n    status: 'Approved',\n    tokensUsed: postData.tokensUsed\n  }\n};"
+      },
+      "id": "cdab1303-cf9a-475e-b628-52b21988a131",
+      "name": "Build Final Content",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2640,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblf3QGxX9K1y2h2H"
+        },
+        "columns": {
+          "value": {
+            "Title": "={{ $json.title }}",
+            "Calendar Entry ID": "={{ $json.calendarId }}",
+            "Content Type": "social_post",
+            "Body": "={{ $json.body }}",
+            "Hashtags": "={{ $json.hashtags }}",
+            "Meta Title": "={{ $json.metaTitle }}",
+            "Meta Description": "={{ $json.metaDescription }}",
+            "Status": "={{ $json.status }}",
+            "Quality Score": "={{ $json.qualityScore }}",
+            "Platform": "={{ $json.platform }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": [
+            {
+              "id": "Title",
+              "type": "string",
+              "display": true,
+              "displayName": "Title"
+            },
+            {
+              "id": "Calendar Entry ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Calendar Entry ID"
+            },
+            {
+              "id": "Content Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Content Type"
+            },
+            {
+              "id": "Body",
+              "type": "string",
+              "display": true,
+              "displayName": "Body"
+            },
+            {
+              "id": "Hashtags",
+              "type": "string",
+              "display": true,
+              "displayName": "Hashtags"
+            },
+            {
+              "id": "Meta Title",
+              "type": "string",
+              "display": true,
+              "displayName": "Meta Title"
+            },
+            {
+              "id": "Meta Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Meta Description"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Quality Score",
+              "type": "number",
+              "display": true,
+              "displayName": "Quality Score"
+            },
+            {
+              "id": "Platform",
+              "type": "string",
+              "display": true,
+              "displayName": "Platform"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "83c4f9bf-2a63-4ccd-b767-7829dbf02c16",
+      "name": "Store Content",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2880,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblq3SGdZtvbFcfkw"
+        },
+        "columns": {
+          "value": {
+            "Status": "Content Ready"
+          },
+          "schema": [
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "bc84f8e3-43ab-442c-a421-692c0addc41a",
+      "name": "Update Calendar Ready",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3120,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblkS0va5Dw4yPSuq"
+        },
+        "columns": {
+          "value": {
+            "Content ID": "={{ $('Build Final Content').first().json.title }}",
+            "Status": "Queued",
+            "Scheduled Date": "={{ $('System Config').first().json.todayDate }}",
+            "Platform": "={{ $('Build Final Content').first().json.platform }}"
+          },
+          "schema": [
+            {
+              "id": "Content ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Content ID"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Scheduled Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Scheduled Date"
+            },
+            {
+              "id": "Platform",
+              "type": "string",
+              "display": true,
+              "displayName": "Platform"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "b6f2c8a9-03d2-41fd-b90e-949782ace1ed",
+      "name": "Add to Queue",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        3360,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblf3QGxX9K1y2h2H"
+        },
+        "columns": {
+          "value": {
+            "Title": "={{ $json.parsedContent.hook || $json.topic }}",
+            "Calendar Entry ID": "={{ $json.calendarId }}",
+            "Content Type": "social_post",
+            "Body": "={{ $json.parsedContent.body || '' }}",
+            "Status": "Draft",
+            "Quality Score": "={{ $json.qualityScore }}",
+            "Platform": "={{ Array.isArray($json.platform) ? $json.platform.join(', ') : $json.platform || 'all' }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "schema": [
+            {
+              "id": "Title",
+              "type": "string",
+              "display": true,
+              "displayName": "Title"
+            },
+            {
+              "id": "Calendar Entry ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Calendar Entry ID"
+            },
+            {
+              "id": "Content Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Content Type"
+            },
+            {
+              "id": "Body",
+              "type": "string",
+              "display": true,
+              "displayName": "Body"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Quality Score",
+              "type": "number",
+              "display": true,
+              "displayName": "Quality Score"
+            },
+            {
+              "id": "Platform",
+              "type": "string",
+              "display": true,
+              "displayName": "Platform"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "f43bb76f-3106-4ccd-b8c3-e83783930791",
+      "name": "Store as Draft",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2400,
+        700
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "4ab7fef4-dc84-4152-9c14-5ee84a4e9857",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        960
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "0017f6c3-46ee-43d7-a409-c31b69195a07",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        960
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-06: SEO Content Production\n\n**Schedule:** Daily 9:30AM SAST\n**Purpose:** Read calendar + keywords, AI content generation with quality gate.\n**Quality Gate:** Score >= 6 -> Approved + Queue | < 6 -> Draft for review.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "wf06-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Daily 9:30AM SAST": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Content Calendar",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Keywords",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Content Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Content Calendar": {
+      "main": [
+        [
+          {
+            "node": "Has Calendar Items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Calendar Items?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Loop Over Content": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build SEO Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build SEO Brief": {
+      "main": [
+        [
+          {
+            "node": "AI Content Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Content Generation": {
+      "main": [
+        [
+          {
+            "node": "Parse & Quality Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Quality Gate": {
+      "main": [
+        [
+          {
+            "node": "Quality Pass?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quality Pass?": {
+      "main": [
+        [
+          {
+            "node": "Hook Optimizer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Store as Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hook Optimizer": {
+      "main": [
+        [
+          {
+            "node": "Build Final Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Final Content": {
+      "main": [
+        [
+          {
+            "node": "Store Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Content": {
+      "main": [
+        [
+          {
+            "node": "Update Calendar Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Calendar Ready": {
+      "main": [
+        [
+          {
+            "node": "Add to Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Queue": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store as Draft": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

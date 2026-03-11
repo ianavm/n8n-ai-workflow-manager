@@ -1,0 +1,578 @@
+{
+  "name": "SEO Social - Engagement & Community (WF-08)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 5-19 * * *"
+            }
+          ]
+        }
+      },
+      "id": "54dcb769-eb25-44bb-b5ac-3cf3ac87d6ff",
+      "name": "Every 30min Daytime",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "c287f939-5d98-436e-bd2c-e66cabd50b3d",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4592ccfd-8d53-4df0-af66-2da484cc656a",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "607cfdd5-9650-41af-9d3d-cf09ee1eaf6b",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "5904f4e7-4f72-40f0-856c-7e032e0935cd",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "8d2b3c41-5994-4a1b-b0c8-63942623c010",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblLI70ZD0DkJKXvI"
+        },
+        "filterByFormula": "=IS_AFTER({Published At}, DATEADD(TODAY(), -2, 'days'))"
+      },
+      "id": "e22a64b5-64a3-448b-8686-06be12191622",
+      "name": "Read Recent Posts",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        500
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const posts = $input.all();\nconst now = new Date().toISOString();\n\n// Simulate fetching engagement metrics for each post\nconst metricsResults = posts.map(post => {\n  const platform = post.json.Platform || 'Unknown';\n  // In production, replace with actual Blotato/platform API calls\n  const simulated = {\n    likes: Math.floor(Math.random() * 50),\n    comments: Math.floor(Math.random() * 10),\n    shares: Math.floor(Math.random() * 5),\n    impressions: Math.floor(Math.random() * 1000),\n    clicks: Math.floor(Math.random() * 20),\n  };\n  const engagementScore = simulated.likes * 1 + simulated.comments * 3 + simulated.shares * 5;\n  return {\n    json: {\n      contentId: post.json['Content ID'] || '',\n      platform: platform,\n      publishedAt: post.json['Published At'] || '',\n      metrics: simulated,\n      engagementScore: engagementScore,\n      isSpike: engagementScore > 80,\n      checkedAt: now\n    }\n  };\n});\nreturn metricsResults.length > 0 ? metricsResults : [{ json: { contentId: 'none', platform: 'none', metrics: {}, engagementScore: 0, isSpike: false, checkedAt: now } }];"
+      },
+      "id": "eadcc252-63c7-4b57-84ea-a9158b4522c1",
+      "name": "Fetch Engagement Metrics",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        920,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "b7759974-4eae-4114-bd44-2681a5e5f453",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "leftValue": "={{ $json.engagementScore }}",
+              "rightValue": 80
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0189fe5c-dfd5-43b1-aa22-bd1fdbc4785e",
+      "name": "Has Spikes?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1160,
+        500
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblVToraszRHs4zIJ"
+        },
+        "columns": {
+          "value": {
+            "Content ID": "={{ $json.contentId }}",
+            "Platform": "={{ $json.platform }}",
+            "Engagement Score": "={{ $json.engagementScore }}",
+            "Likes": "={{ $json.metrics.likes }}",
+            "Comments": "={{ $json.metrics.comments }}",
+            "Shares": "={{ $json.metrics.shares }}",
+            "Impressions": "={{ $json.metrics.impressions }}",
+            "Is Spike": "={{ $json.isSpike }}",
+            "Checked At": "={{ $json.checkedAt }}"
+          },
+          "schema": [
+            {
+              "id": "Content ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Content ID"
+            },
+            {
+              "id": "Platform",
+              "type": "string",
+              "display": true,
+              "displayName": "Platform"
+            },
+            {
+              "id": "Engagement Score",
+              "type": "number",
+              "display": true,
+              "displayName": "Engagement Score"
+            },
+            {
+              "id": "Likes",
+              "type": "number",
+              "display": true,
+              "displayName": "Likes"
+            },
+            {
+              "id": "Comments",
+              "type": "number",
+              "display": true,
+              "displayName": "Comments"
+            },
+            {
+              "id": "Shares",
+              "type": "number",
+              "display": true,
+              "displayName": "Shares"
+            },
+            {
+              "id": "Impressions",
+              "type": "number",
+              "display": true,
+              "displayName": "Impressions"
+            },
+            {
+              "id": "Is Spike",
+              "type": "boolean",
+              "display": true,
+              "displayName": "Is Spike"
+            },
+            {
+              "id": "Checked At",
+              "type": "string",
+              "display": true,
+              "displayName": "Checked At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "ce0638f2-5292-42c1-91ef-326a2e0a292a",
+      "name": "Log Engagement",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblVToraszRHs4zIJ"
+        },
+        "columns": {
+          "value": {
+            "Content ID": "={{ $json.contentId }}",
+            "Platform": "={{ $json.platform }}",
+            "Engagement Score": "={{ $json.engagementScore }}",
+            "Likes": "={{ $json.metrics.likes }}",
+            "Comments": "={{ $json.metrics.comments }}",
+            "Shares": "={{ $json.metrics.shares }}",
+            "Impressions": "={{ $json.metrics.impressions }}",
+            "Is Spike": "={{ $json.isSpike }}",
+            "Checked At": "={{ $json.checkedAt }}"
+          },
+          "schema": [
+            {
+              "id": "Content ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Content ID"
+            },
+            {
+              "id": "Platform",
+              "type": "string",
+              "display": true,
+              "displayName": "Platform"
+            },
+            {
+              "id": "Engagement Score",
+              "type": "number",
+              "display": true,
+              "displayName": "Engagement Score"
+            },
+            {
+              "id": "Likes",
+              "type": "number",
+              "display": true,
+              "displayName": "Likes"
+            },
+            {
+              "id": "Comments",
+              "type": "number",
+              "display": true,
+              "displayName": "Comments"
+            },
+            {
+              "id": "Shares",
+              "type": "number",
+              "display": true,
+              "displayName": "Shares"
+            },
+            {
+              "id": "Impressions",
+              "type": "number",
+              "display": true,
+              "displayName": "Impressions"
+            },
+            {
+              "id": "Is Spike",
+              "type": "boolean",
+              "display": true,
+              "displayName": "Is Spike"
+            },
+            {
+              "id": "Checked At",
+              "type": "string",
+              "display": true,
+              "displayName": "Checked At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "d9f5dd4f-c43a-46a1-b10e-357522e6eaa1",
+      "name": "Log Normal Engagement",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        700
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 500,\n  \"temperature\": 0.7,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a community manager for AnyVision Media, a digital media and AI automation agency in South Africa.\\n\\n## Your Task\\nGenerate suggested replies to social media engagement (comments, mentions, messages) that maintain brand voice and encourage further interaction.\\n\\n## Brand Voice\\n- Professional but approachable\\n- Tech-savvy, innovation-focused\\n- Helpful and generous with knowledge\\n- Never dismissive or robotic\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"replies\\\": [\\n    {\\n      \\\"platform\\\": \\\"platform name\\\",\\n      \\\"original_comment\\\": \\\"what they said\\\",\\n      \\\"suggested_reply\\\": \\\"what we should say\\\",\\n      \\\"tone\\\": \\\"thankful|helpful|engaging|promotional\\\",\\n      \\\"priority\\\": \\\"high|medium|low\\\"\\n    }\\n  ],\\n  \\\"engagement_summary\\\": \\\"brief summary of engagement patterns\\\"\\n}\\n\\n## Rules\\n- Keep replies concise (under 200 chars for Twitter, under 500 for others)\\n- Always acknowledge the person by context, not generic thanks\\n- Include a follow-up question or CTA when appropriate\\n- Flag any negative sentiment for human review\\n- Never promise specific outcomes or guarantees\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify('High engagement detected on ' + $json.platform + ' for content ' + $json.contentId + '. Engagement score: ' + $json.engagementScore + '. Metrics: ' + JSON.stringify($json.metrics) + '. Generate suggested replies.') }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "06024b8f-f76c-4af2-99d2-d82bde631004",
+      "name": "AI Comment Suggestions",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1640,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=ENGAGEMENT SPIKE - {{ $('Has Spikes?').first().json.platform }} (Score: {{ $('Has Spikes?').first().json.engagementScore }})",
+        "emailType": "html",
+        "message": "=<h2 style=\"color:#FF6D5A\">Engagement Spike Detected!</h2>\n<p><strong>Platform:</strong> {{ $('Has Spikes?').first().json.platform }}</p>\n<p><strong>Content:</strong> {{ $('Has Spikes?').first().json.contentId }}</p>\n<p><strong>Score:</strong> {{ $('Has Spikes?').first().json.engagementScore }}</p>\n<hr>\n<p><strong>AI Suggestions:</strong></p>\n<pre>{{ $json.choices ? $json.choices[0].message.content : 'No suggestions generated' }}</pre>",
+        "options": {}
+      },
+      "id": "fd9c35f6-e706-4962-89a8-4c7fc94f3b4b",
+      "name": "Send Spike Alert",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1880,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "e9df36b5-69ca-4904-badb-6e30802c78c3",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "a59a0445-1e12-4187-9bc8-9558e9d60aa8",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-08: Engagement & Community\n\n**Schedule:** Every 30min 5AM-7PM UTC\n**Purpose:** Monitor engagement metrics, detect spikes, AI comment suggestions.\n**Spike Threshold:** Engagement score > 80 -> Gmail alert + AI suggestions.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "wf08-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Every 30min Daytime": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Recent Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Recent Posts": {
+      "main": [
+        [
+          {
+            "node": "Fetch Engagement Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Engagement Metrics": {
+      "main": [
+        [
+          {
+            "node": "Has Spikes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Spikes?": {
+      "main": [
+        [
+          {
+            "node": "Log Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Normal Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Engagement": {
+      "main": [
+        [
+          {
+            "node": "AI Comment Suggestions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Comment Suggestions": {
+      "main": [
+        [
+          {
+            "node": "Send Spike Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

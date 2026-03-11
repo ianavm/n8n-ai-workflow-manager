@@ -1,0 +1,409 @@
+{
+  "name": "MKT-05 Campaign ROI Tracker",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 17 * * *"
+            }
+          ]
+        }
+      },
+      "id": "f69768c2-3bf1-4622-97cf-d489816b5f36",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblLI70ZD0DkJKXvI",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Published Date}, DATEADD(TODAY(), -1, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "689cf8e4-1233-4029-9ddb-d64f8ef9eeca",
+      "name": "Read Distribution Log",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Status} = 'Converted', IS_AFTER({Converted Date}, DATEADD(TODAY(), -1, 'days')))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "969dfb7f-a5a7-4da8-87ff-30f51e827aae",
+      "name": "Read Lead Conversions",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute cost-per-lead per channel and engagement-to-conversion ratio\nconst distributionItems = $('Read Distribution Log').all();\nconst conversionItems = $('Read Lead Conversions').all();\n\n// Aggregate distribution metrics by channel\nconst channelStats = {};\nfor (const item of distributionItems) {\n  const d = item.json;\n  const channel = d.Channel || d.Platform || 'Unknown';\n  if (!channelStats[channel]) {\n    channelStats[channel] = {\n      channel,\n      totalPosts: 0,\n      totalEngagement: 0,\n      totalImpressions: 0,\n      contentIds: [],\n    };\n  }\n  channelStats[channel].totalPosts++;\n  channelStats[channel].totalEngagement += (d.Engagement || d.Likes || 0) + (d.Shares || 0) + (d.Comments || 0);\n  channelStats[channel].totalImpressions += d.Impressions || d.Views || 0;\n  if (d['Content ID']) channelStats[channel].contentIds.push(d['Content ID']);\n}\n\n// Count conversions\nconst totalConversions = conversionItems.length;\nconst conversionsBySource = {};\nfor (const item of conversionItems) {\n  const src = item.json.Source || item.json.Channel || 'Direct';\n  conversionsBySource[src] = (conversionsBySource[src] || 0) + 1;\n}\n\n// Compute per-channel ROI metrics\nconst results = [];\nfor (const [channel, stats] of Object.entries(channelStats)) {\n  const channelConversions = conversionsBySource[channel] || 0;\n  const engagementRate = stats.totalImpressions > 0\n    ? (stats.totalEngagement / stats.totalImpressions * 100).toFixed(2)\n    : 0;\n  const conversionRate = stats.totalEngagement > 0\n    ? (channelConversions / stats.totalEngagement * 100).toFixed(2)\n    : 0;\n  const costPerLead = channelConversions > 0\n    ? (stats.totalPosts / channelConversions).toFixed(2)\n    : 'N/A';\n\n  // ROI score: 0-1 composite (engagement weight 0.4, conversion weight 0.6)\n  const engScore = Math.min(parseFloat(engagementRate) / 10, 1);\n  const convScore = Math.min(parseFloat(conversionRate) / 5, 1);\n  const roiScore = (engScore * 0.4 + convScore * 0.6).toFixed(3);\n\n  results.push({\n    json: {\n      channel,\n      totalPosts: stats.totalPosts,\n      totalEngagement: stats.totalEngagement,\n      totalImpressions: stats.totalImpressions,\n      engagementRate: parseFloat(engagementRate),\n      channelConversions,\n      conversionRate: parseFloat(conversionRate),\n      costPerLead,\n      roiScore: parseFloat(roiScore),\n      contentIds: stats.contentIds,\n      belowThreshold: parseFloat(roiScore) < 0.5,\n    }\n  });\n}\n\n// If no distribution data, return a placeholder\nif (results.length === 0) {\n  results.push({\n    json: {\n      channel: 'None',\n      totalPosts: 0,\n      roiScore: 0,\n      belowThreshold: false,\n      message: 'No distribution data in last 24 hours',\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "5ab3534c-7480-41a2-8b25-c6071ef1a0df",
+      "name": "Compute ROI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblf3QGxX9K1y2h2H",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "ROI_Score": "={{ $json.roiScore }}",
+            "Engagement Rate": "={{ $json.engagementRate }}",
+            "Conversion Rate": "={{ $json.conversionRate }}"
+          }
+        },
+        "options": {},
+        "matchingColumns": [
+          "Content ID"
+        ]
+      },
+      "id": "a901f92e-cc2d-42b0-bb10-52fc83e16e61",
+      "name": "Update Content ROI",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        960,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.belowThreshold }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "25f68b12-2542-4721-97cd-d8a64158a564",
+      "name": "If Low ROI",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1200,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AVM Marketing Intelligence Agent. Analyze content ROI data and suggest specific, actionable content strategy adjustments. Focus on: 1) Which channels to double-down on, 2) Which content types to reduce, 3) Optimal posting times based on engagement patterns. Keep response under 300 words. Currency is ZAR (R).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Content ROI Analysis (last 24h):\\n\\nChannel performance: {{ JSON.stringify($('Compute ROI').all().map(i => i.json)) }}\\n\\nChannels below ROI threshold ({{ 0.5 }}): {{ $('Compute ROI').all().filter(i => i.json.belowThreshold).map(i => i.json.channel).join(', ') || 'None' }}\\n\\nProvide strategy adjustment recommendations.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "acc9b114-3a2f-45f3-a110-d959f1205506",
+      "name": "AI Strategy Advisor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract AI recommendation text\nconst response = $input.first().json;\nconst recommendation = (response.choices && response.choices[0])\n  ? response.choices[0].message.content\n  : 'AI recommendation unavailable.';\n\nconst roiData = $('Compute ROI').all().map(i => i.json);\nconst lowROI = roiData.filter(c => c.belowThreshold).map(c => c.channel);\n\nreturn {\n  json: {\n    recommendation,\n    lowROIChannels: lowROI,\n    channelCount: roiData.length,\n    timestamp: new Date().toISOString(),\n  }\n};"
+      },
+      "id": "07701b6a-7452-4062-9f1c-d4da22ecd1c7",
+      "name": "Extract Recommendation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event ID": "=evt_mkt05_{{ $now.format('yyyyMMddHHmmss') }}",
+            "Event Type": "roi_analysis",
+            "Source Agent": "agent_marketing",
+            "Target Agent": "agent_orchestrator",
+            "Priority": "Medium",
+            "Status": "Completed",
+            "Payload": "={{ JSON.stringify({ lowROIChannels: $json.lowROIChannels, channelCount: $json.channelCount, recommendation: $json.recommendation.substring(0, 500) }) }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "5f7f190b-f33b-4189-a694-0a23950796a8",
+      "name": "Log to Orchestrator",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1920,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event ID": "=evt_mkt05_ok_{{ $now.format('yyyyMMddHHmmss') }}",
+            "Event Type": "roi_analysis",
+            "Source Agent": "agent_marketing",
+            "Target Agent": "agent_orchestrator",
+            "Priority": "Low",
+            "Status": "Completed",
+            "Payload": "=All channels above ROI threshold. No action needed."
+          }
+        },
+        "options": {}
+      },
+      "id": "464ce7ec-9cfe-41f9-a6d7-ca4983ec9b19",
+      "name": "Log OK Status",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1440,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Distribution Log",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Lead Conversions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Distribution Log": {
+      "main": [
+        [
+          {
+            "node": "Compute ROI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Lead Conversions": {
+      "main": [
+        [
+          {
+            "node": "Compute ROI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute ROI": {
+      "main": [
+        [
+          {
+            "node": "Update Content ROI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Content ROI": {
+      "main": [
+        [
+          {
+            "node": "If Low ROI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Low ROI": {
+      "main": [
+        [
+          {
+            "node": "AI Strategy Advisor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log OK Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Strategy Advisor": {
+      "main": [
+        [
+          {
+            "node": "Extract Recommendation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Recommendation": {
+      "main": [
+        [
+          {
+            "node": "Log to Orchestrator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "marketing",
+    "roi",
+    "analytics",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_marketing_agent.py",
+    "built_at": "2026-03-09T14:11:31.393385"
+  }
+}

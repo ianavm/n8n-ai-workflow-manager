@@ -1,0 +1,307 @@
+{
+  "name": "Optimization - Churn Predictor (OPT-03)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "1a8ed2d4-a939-46a2-b2f5-2099c13dcb62",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://portal.anyvisionmedia.com/api/admin/clients",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-admin-key",
+              "value": "={{ $env.PORTAL_ADMIN_KEY || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2787cb82-f2e0-4700-adba-dc816a97aca3",
+      "name": "Fetch Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Analyze client health score trajectory for churn prediction\nconst clients = $json.data || $json.clients || $json || [];\nconst clientList = Array.isArray(clients) ? clients : [clients];\n\nconst churnRisks = [];\nconst healthy = [];\n\nfor (const client of clientList) {\n  if (!client || !client.id) continue;\n\n  // Extract health score history (last 12 weeks)\n  const history = client.health_scores || client.healthScores || [];\n  const scores = history.map(h => parseFloat(h.score || h.health_score || 0));\n\n  if (scores.length < 4) {\n    // Not enough history, skip\n    continue;\n  }\n\n  // Compute slope using simple linear regression\n  const n = scores.length;\n  const x = Array.from({length: n}, (_, i) => i);\n  const meanX = x.reduce((a, b) => a + b, 0) / n;\n  const meanY = scores.reduce((a, b) => a + b, 0) / n;\n\n  let num = 0, den = 0;\n  for (let i = 0; i < n; i++) {\n    num += (x[i] - meanX) * (scores[i] - meanY);\n    den += (x[i] - meanX) ** 2;\n  }\n  const slope = den > 0 ? num / den : 0;\n  const currentScore = scores[scores.length - 1];\n\n  // Churn risk: slope < -2 per week AND current score < 50\n  if (slope < -2 && currentScore < 50) {\n    const weeksToZero = currentScore > 0 && slope < 0 ? Math.round(currentScore / Math.abs(slope)) : 99;\n    churnRisks.push({\n      clientId: client.id,\n      clientName: client.full_name || client.company_name || client.email || 'Unknown',\n      email: client.email || '',\n      currentScore: Math.round(currentScore),\n      slopePerWeek: Math.round(slope * 100) / 100,\n      estimatedWeeksToChurn: weeksToZero,\n      recentScores: scores.slice(-4),\n      riskLevel: currentScore < 25 ? 'critical' : currentScore < 40 ? 'high' : 'moderate',\n    });\n  } else {\n    healthy.push({\n      clientId: client.id,\n      clientName: client.full_name || client.company_name || 'Unknown',\n      currentScore: Math.round(currentScore),\n    });\n  }\n}\n\n// Sort by risk level\nconst riskOrder = { critical: 0, high: 1, moderate: 2 };\nchurnRisks.sort((a, b) => (riskOrder[a.riskLevel] || 3) - (riskOrder[b.riskLevel] || 3));\n\nreturn [{\n  json: {\n    totalClients: clientList.length,\n    churnRiskCount: churnRisks.length,\n    healthyCount: healthy.length,\n    churnRisks,\n    hasRisks: churnRisks.length > 0,\n    analysisDate: $now.format('yyyy-MM-dd'),\n  }\n}];"
+      },
+      "id": "f578c0e4-365c-4fab-be32-ef43ce820b32",
+      "name": "Analyze Churn Risk",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.churnRiskCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "6ce8ed53-2989-4b94-abcd-ac8201cde263",
+      "name": "Has Churn Risks?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Title": "=Client Churn Risk Alert - {{ $json.churnRiskCount }} client(s) at risk",
+            "Category": "client_churn_risk",
+            "Severity": "P2",
+            "Description": "={{ $json.churnRiskCount }} client(s) identified with declining health scores. Immediate attention required to prevent churn.",
+            "Recommended Action": "Review at-risk client accounts. Schedule check-in calls. Prepare retention offers if needed.",
+            "Status": "open",
+            "Agent ID": "agent_client_relations"
+          },
+          "matchingColumns": []
+        },
+        "options": {}
+      },
+      "id": "1d83329e-005b-4b99-88af-90334fd492fd",
+      "name": "Create Escalation",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split churn risks into individual items for event creation\nconst risks = $('Analyze Churn Risk').first().json.churnRisks || [];\nreturn risks.map(r => ({ json: r }));"
+      },
+      "id": "f567e3fd-c605-4c6a-add0-26883d8ca979",
+      "name": "Split Churn Risks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Event Type": "client_churn_risk",
+            "Agent ID": "agent_client_relations",
+            "Details": "=Client {{ $json.clientName }} (score: {{ $json.currentScore }}, slope: {{ $json.slopePerWeek }}/week, risk: {{ $json.riskLevel }})",
+            "Created At": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": []
+        },
+        "options": {}
+      },
+      "id": "7c141b9e-0c02-4b4b-8122-4e366720a190",
+      "name": "Create Churn Event",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Churn Risk Alert - {{ $('Analyze Churn Risk').first().json.churnRiskCount }} client(s) at risk",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px;\">\n<div style=\"background: #FF6D5A; color: white; padding: 16px; border-radius: 8px 8px 0 0;\">\n<h3 style=\"margin: 0;\">Client Churn Risk Report</h3>\n<p style=\"margin: 4px 0 0; opacity: 0.9; font-size: 13px;\">{{ $('Analyze Churn Risk').first().json.analysisDate }}</p>\n</div>\n<div style=\"padding: 16px; background: #f9f9f9;\">\n<p><strong>Total clients analyzed:</strong> {{ $('Analyze Churn Risk').first().json.totalClients }}</p>\n<p><strong>At-risk clients:</strong> <span style=\"color: #e74c3c; font-weight: bold;\">{{ $('Analyze Churn Risk').first().json.churnRiskCount }}</span></p>\n<p><strong>Healthy clients:</strong> {{ $('Analyze Churn Risk').first().json.healthyCount }}</p>\n<hr>\n<h4>At-Risk Clients</h4>\n<p>{{ JSON.stringify($('Analyze Churn Risk').first().json.churnRisks.map(r => r.clientName + ' (score: ' + r.currentScore + ', ' + r.riskLevel + ')').join(', ')) }}</p>\n<hr>\n<p style=\"color: #888; font-size: 12px;\">Generated by AVM Optimization Engine | OPT-03</p>\n</div>\n</div>",
+        "options": {}
+      },
+      "id": "2356f791-e5fb-44d6-bed7-10a468264ca1",
+      "name": "Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## OPT-03: Churn Predictor\nRuns Fri 08:00 SAST. Fetches client data from portal,\nanalyzes 12-week health score trajectory.\nFlags clients with slope < -2/week AND score < 50.\nCreates escalation + per-client events.",
+        "width": 420,
+        "height": 120
+      },
+      "id": "fad99ec1-0078-430d-b819-40bad9d21528",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Clients": {
+      "main": [
+        [
+          {
+            "node": "Analyze Churn Risk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Churn Risk": {
+      "main": [
+        [
+          {
+            "node": "Has Churn Risks?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Churn Risks?": {
+      "main": [
+        [
+          {
+            "node": "Create Escalation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Churn Risks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Create Escalation": {
+      "main": [
+        [
+          {
+            "node": "Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Churn Risks": {
+      "main": [
+        [
+          {
+            "node": "Create Churn Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

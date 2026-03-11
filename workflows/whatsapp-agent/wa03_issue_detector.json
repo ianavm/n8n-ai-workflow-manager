@@ -1,0 +1,233 @@
+{
+  "name": "WA-03 Issue Detector",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-issue-detector",
+        "options": {}
+      },
+      "id": "0da76b9c-ea4d-4054-ba91-384daca3e5d4",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "a7670127-b74c-4445-aaae-7ad5a69d3471"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Scan incoming message for complaint/urgency keywords and compute urgency score\nconst input = $input.first().json;\nconst text = ((input.body || input.message || input.text || '') + '').toLowerCase();\n\nconst urgencyKeywords = [\n  { word: 'urgent', weight: 0.9 },\n  { word: 'broken', weight: 0.7 },\n  { word: 'refund', weight: 0.8 },\n  { word: 'cancel', weight: 0.8 },\n  { word: 'frustrated', weight: 0.7 },\n  { word: 'help', weight: 0.4 },\n  { word: 'angry', weight: 0.8 },\n  { word: 'deadline', weight: 0.7 },\n  { word: 'asap', weight: 0.9 },\n  { word: 'escalate', weight: 1.0 },\n];\n\nlet totalWeight = 0;\nlet matchedKeywords = [];\nfor (const kw of urgencyKeywords) {\n  if (text.includes(kw.word)) {\n    totalWeight += kw.weight;\n    matchedKeywords.push(kw.word);\n  }\n}\n\n// Normalize to 0-1 range (cap at 1.0)\nconst urgencyScore = Math.min(totalWeight / 2.0, 1.0);\n\nreturn {\n  json: {\n    ...input,\n    urgencyScore: Math.round(urgencyScore * 100) / 100,\n    matchedKeywords,\n    keywordCount: matchedKeywords.length,\n    isUrgent: urgencyScore > 0.7,\n    scannedAt: new Date().toISOString(),\n  }\n};"
+      },
+      "id": "39dc4e9e-c216-4183-9643-db7cc9426f40",
+      "name": "Scan Urgency",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.urgencyScore }}",
+              "rightValue": 0.7,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9275a258-38d1-4848-85da-a0667b15c8cb",
+      "name": "If Urgent",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Period": "=ticket_{{ $now.format('yyyyMMddHHmmss') }}",
+            "Total Messages": "=1",
+            "Sentiment Score": "={{ $json.urgencyScore * -1 }}",
+            "AI Analysis": "=URGENT TICKET: Keywords={{ $json.matchedKeywords.join(', ') }} | Score={{ $json.urgencyScore }} | From={{ $json.from || $json.phone || 'unknown' }}",
+            "Has Critical Issues": "=true",
+            "Analyzed At": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "724f352d-0c62-4b28-a19f-6798a65446f5",
+      "name": "Create Support Ticket",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        960,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=[URGENT] WhatsApp Support Ticket - Score {{ $('Scan Urgency').first().json.urgencyScore }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n<div style=\"background: #dc3545; padding: 20px; text-align: center;\">\n<h1 style=\"color: white; margin: 0;\">Urgent Support Ticket</h1>\n<p style=\"color: white; margin: 5px 0;\">WhatsApp Issue Detected</p>\n</div>\n<div style=\"padding: 20px;\">\n<h2 style=\"color: #333;\">Issue Details</h2>\n<ul>\n<li><strong>Urgency score:</strong> {{ $('Scan Urgency').first().json.urgencyScore }}</li>\n<li><strong>Keywords matched:</strong> {{ $('Scan Urgency').first().json.matchedKeywords.join(', ') }}</li>\n<li><strong>From:</strong> {{ $('Scan Urgency').first().json.from || $('Scan Urgency').first().json.phone || 'Unknown' }}</li>\n</ul>\n<h2 style=\"color: #333;\">Message</h2>\n<div style=\"background: #f9f9f9; padding: 15px; border-radius: 8px;\">{{ $('Scan Urgency').first().json.body || $('Scan Urgency').first().json.message || $('Scan Urgency').first().json.text || 'No message body' }}</div>\n</div>\n<div style=\"background: #f0f0f0; padding: 15px; text-align: center; font-size: 12px; color: #666;\">\nGenerated by AVM WhatsApp Agent | {{ $now.format('yyyy-MM-dd HH:mm') }}\n</div>\n</div>",
+        "options": {}
+      },
+      "id": "1b30179b-a076-4b66-81de-a2f8c63a84fe",
+      "name": "Notify Support Team",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  status: \"ticket_created\",\n  urgencyScore: $('Scan Urgency').first().json.urgencyScore,\n  keywords: $('Scan Urgency').first().json.matchedKeywords,\n  ticketId: $('Create Support Ticket').first().json.id || 'pending',\n}) }}",
+        "options": {}
+      },
+      "id": "3e1be026-46a6-487d-8487-b8a8fa2abdbb",
+      "name": "Respond Urgent",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1440,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  status: \"no_action\",\n  urgencyScore: $json.urgencyScore,\n  keywords: $json.matchedKeywords,\n  message: \"Below urgency threshold, no ticket created\",\n}) }}",
+        "options": {}
+      },
+      "id": "4d81f362-0f53-4126-ab39-8d7d85943fe8",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Scan Urgency",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan Urgency": {
+      "main": [
+        [
+          {
+            "node": "If Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Urgent": {
+      "main": [
+        [
+          {
+            "node": "Create Support Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Support Ticket": {
+      "main": [
+        [
+          {
+            "node": "Notify Support Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Support Team": {
+      "main": [
+        [
+          {
+            "node": "Respond Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "whatsapp",
+    "support",
+    "webhook",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_whatsapp_agent.py",
+    "built_at": "2026-03-09T14:13:31.659337"
+  }
+}

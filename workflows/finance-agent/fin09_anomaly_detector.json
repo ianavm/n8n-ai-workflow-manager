@@ -1,0 +1,369 @@
+{
+  "name": "FIN-09 Anomaly Detector",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * *"
+            }
+          ]
+        }
+      },
+      "id": "ab4ef1d3-0b3c-4a30-ba8c-9542f95063a0",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl0vZnALIvH72r2t",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Date}, DATEADD(TODAY(), -7, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "963ee610-4807-4b46-bc25-4a0ff473bd65",
+      "name": "Read Recent Invoices",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblAjS2Ws2NjOtTRX",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Date}, DATEADD(TODAY(), -7, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "fe735ac8-8747-4f89-b3b4-081b7d7d8b50",
+      "name": "Read Recent Payments",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detect anomalies: duplicate invoice numbers, amounts > 3x vendor average,\n// payments without matching invoices, unusual patterns\nconst invoiceItems = $('Read Recent Invoices').all();\nconst paymentItems = $('Read Recent Payments').all();\n\nconst anomalies = [];\n\n// 1. Detect duplicate invoice numbers\nconst invoiceNumbers = {};\nfor (const item of invoiceItems) {\n  const num = item.json['Invoice Number'] || item.json.Number || '';\n  if (!num) continue;\n  if (invoiceNumbers[num]) {\n    anomalies.push({\n      type: 'duplicate_invoice',\n      severity: 'High',\n      description: `Duplicate invoice number: ${num}`,\n      details: {\n        invoiceNumber: num,\n        occurrences: (invoiceNumbers[num].count || 1) + 1,\n        amounts: [...(invoiceNumbers[num].amounts || [invoiceNumbers[num].amount]), parseFloat(item.json.Amount || 0)],\n      },\n    });\n  }\n  invoiceNumbers[num] = {\n    amount: parseFloat(item.json.Amount || 0),\n    count: (invoiceNumbers[num]?.count || 0) + 1,\n    amounts: [...(invoiceNumbers[num]?.amounts || []), parseFloat(item.json.Amount || 0)],\n  };\n}\n\n// 2. Detect amounts > 3x vendor average\nconst vendorAmounts = {};\nfor (const item of invoiceItems) {\n  const vendor = item.json.Supplier || item.json.Vendor || item.json.Contact || 'Unknown';\n  const amount = parseFloat(item.json.Amount || item.json.Total || 0);\n  if (!vendorAmounts[vendor]) vendorAmounts[vendor] = [];\n  vendorAmounts[vendor].push(amount);\n}\n\nfor (const [vendor, amounts] of Object.entries(vendorAmounts)) {\n  if (amounts.length < 2) continue;\n  const avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;\n  for (const amount of amounts) {\n    if (amount > avg * 3 && amount > 1000) {\n      anomalies.push({\n        type: 'unusual_amount',\n        severity: 'Medium',\n        description: `Invoice from ${vendor} is R${amount.toFixed(2)} (${(amount/avg).toFixed(1)}x average of R${avg.toFixed(2)})`,\n        details: { vendor, amount, average: avg, ratio: amount / avg },\n      });\n    }\n  }\n}\n\n// 3. Detect payments without matching invoices\nconst invoiceIds = new Set(\n  invoiceItems.map(i => i.json['Invoice Number'] || i.json.Number || '').filter(Boolean)\n);\n\nfor (const item of paymentItems) {\n  const ref = item.json['Invoice Reference'] || item.json.Reference || item.json['Invoice Number'] || '';\n  if (ref && !invoiceIds.has(ref)) {\n    anomalies.push({\n      type: 'orphan_payment',\n      severity: 'Medium',\n      description: `Payment references invoice ${ref} which was not found in recent invoices`,\n      details: {\n        paymentAmount: parseFloat(item.json.Amount || 0),\n        reference: ref,\n        paymentDate: item.json.Date || item.json['Payment Date'] || 'Unknown',\n      },\n    });\n  }\n}\n\n// 4. Detect unusual patterns (weekend invoices, round numbers)\nfor (const item of invoiceItems) {\n  const date = new Date(item.json.Date || item.json['Invoice Date'] || '');\n  const amount = parseFloat(item.json.Amount || 0);\n  const dayOfWeek = date.getDay();\n\n  if (dayOfWeek === 0 || dayOfWeek === 6) {\n    anomalies.push({\n      type: 'weekend_invoice',\n      severity: 'Low',\n      description: `Invoice created on ${dayOfWeek === 0 ? 'Sunday' : 'Saturday'}: ${item.json['Invoice Number'] || 'N/A'}`,\n      details: {\n        invoiceNumber: item.json['Invoice Number'] || 'N/A',\n        date: date.toISOString().split('T')[0],\n        amount,\n      },\n    });\n  }\n}\n\n// Summary\nconst hasAnomalies = anomalies.length > 0;\nconst highSeverity = anomalies.filter(a => a.severity === 'High').length;\nconst mediumSeverity = anomalies.filter(a => a.severity === 'Medium').length;\nconst lowSeverity = anomalies.filter(a => a.severity === 'Low').length;\n\nreturn {\n  json: {\n    scanDate: new Date().toISOString().split('T')[0],\n    hasAnomalies,\n    anomalyCount: anomalies.length,\n    highSeverity,\n    mediumSeverity,\n    lowSeverity,\n    anomalies,\n    invoicesScanned: invoiceItems.length,\n    paymentsScanned: paymentItems.length,\n  }\n};"
+      },
+      "id": "684bb4e6-51a4-4b7f-ad1f-53a98545a69e",
+      "name": "Detect Anomalies",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.anomalyCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e9519127-b98f-4e89-99f3-b1a0f25f204c",
+      "name": "If Anomalies Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1200,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AVM Finance Anomaly Analyst. Review detected financial anomalies and: 1) Confirm or reclassify severity (Critical/High/Medium/Low), 2) Provide specific recommended actions for each anomaly, 3) Flag any that need immediate human review. Be concise and action-oriented. Currency is ZAR (R).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Financial Anomaly Scan Results (last 7 days):\\n\\nAnomalies detected: {{ $json.anomalyCount }}\\nHigh severity: {{ $json.highSeverity }}\\nMedium severity: {{ $json.mediumSeverity }}\\nLow severity: {{ $json.lowSeverity }}\\n\\nDetails:\\n{{ JSON.stringify($json.anomalies, null, 2) }}\\n\\nInvoices scanned: {{ $json.invoicesScanned }}\\nPayments scanned: {{ $json.paymentsScanned }}\\n\\nClassify each anomaly and recommend specific actions.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "96f374a7-68ab-4306-a44f-ef169cfb883c",
+      "name": "AI Anomaly Classifier",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Title": "=Finance Anomaly Alert: {{ $('Detect Anomalies').first().json.anomalyCount }} anomalies detected",
+            "Agent ID": "agent_finance",
+            "Severity": "={{ $('Detect Anomalies').first().json.highSeverity > 0 ? 'P1' : 'P3' }}",
+            "Category": "Financial Anomaly",
+            "Description": "={{ $json.choices[0].message.content.substring(0, 1000) }}",
+            "Recommended Action": "Review anomaly details and AI classification in alert email",
+            "Status": "Open",
+            "Owner": "ian@anyvisionmedia.com"
+          }
+        },
+        "options": {}
+      },
+      "id": "3802d46c-bf79-45ea-9fba-59e526ee2620",
+      "name": "Create Escalation",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1440,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=AVM Finance Alert: {{ $('Detect Anomalies').first().json.anomalyCount }} Anomalies Detected",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n<div style=\"background: #FF6D5A; padding: 20px; text-align: center;\">\n<h1 style=\"color: white; margin: 0;\">Financial Anomaly Alert</h1>\n<p style=\"color: white; margin: 5px 0;\">{{ $('Detect Anomalies').first().json.scanDate }}</p>\n</div>\n<div style=\"padding: 20px;\">\n<div style=\"display: flex; gap: 15px; margin-bottom: 20px;\">\n<div style=\"flex: 1; background: {{ $('Detect Anomalies').first().json.highSeverity > 0 ? '#fff3f0' : '#f0fff0' }}; padding: 15px; border-radius: 8px; text-align: center;\">\n<div style=\"font-size: 24px; font-weight: bold; color: #ef4444;\">{{ $('Detect Anomalies').first().json.highSeverity }}</div>\n<div>High Severity</div>\n</div>\n<div style=\"flex: 1; background: #fffbf0; padding: 15px; border-radius: 8px; text-align: center;\">\n<div style=\"font-size: 24px; font-weight: bold; color: #f59e0b;\">{{ $('Detect Anomalies').first().json.mediumSeverity }}</div>\n<div>Medium Severity</div>\n</div>\n<div style=\"flex: 1; background: #f0f0ff; padding: 15px; border-radius: 8px; text-align: center;\">\n<div style=\"font-size: 24px; font-weight: bold; color: #6366f1;\">{{ $('Detect Anomalies').first().json.lowSeverity }}</div>\n<div>Low Severity</div>\n</div>\n</div>\n<h2 style=\"color: #333;\">AI Analysis & Recommendations</h2>\n<div style=\"background: #f9f9f9; padding: 15px; border-radius: 8px; white-space: pre-wrap;\">{{ $('AI Anomaly Classifier').first().json.choices[0].message.content }}</div>\n<p style=\"margin-top: 15px; font-size: 12px; color: #666;\">Invoices scanned: {{ $('Detect Anomalies').first().json.invoicesScanned }} | Payments scanned: {{ $('Detect Anomalies').first().json.paymentsScanned }}</p>\n</div>\n<div style=\"background: #f0f0f0; padding: 15px; text-align: center; font-size: 12px; color: #666;\">\nGenerated by AVM Finance Agent | {{ $now.format('yyyy-MM-dd HH:mm') }}\n</div>\n</div>",
+        "options": {}
+      },
+      "id": "464d7842-176a-4a59-94a5-11043435e1fc",
+      "name": "Send Anomaly Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event ID": "=evt_fin09_clean_{{ $now.format('yyyyMMddHHmmss') }}",
+            "Event Type": "anomaly_scan",
+            "Source Agent": "agent_finance",
+            "Target Agent": "agent_orchestrator",
+            "Priority": "Low",
+            "Status": "Completed",
+            "Payload": "=Clean scan: {{ $json.invoicesScanned }} invoices and {{ $json.paymentsScanned }} payments checked. No anomalies detected."
+          }
+        },
+        "options": {}
+      },
+      "id": "e33daf4b-94f9-4545-bd7e-238ff29b72f5",
+      "name": "Log Clean Scan",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Recent Invoices",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Recent Payments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Recent Invoices": {
+      "main": [
+        [
+          {
+            "node": "Detect Anomalies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Recent Payments": {
+      "main": [
+        [
+          {
+            "node": "Detect Anomalies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Anomalies": {
+      "main": [
+        [
+          {
+            "node": "If Anomalies Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Anomalies Found": {
+      "main": [
+        [
+          {
+            "node": "AI Anomaly Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Clean Scan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Anomaly Classifier": {
+      "main": [
+        [
+          {
+            "node": "Create Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Escalation": {
+      "main": [
+        [
+          {
+            "node": "Send Anomaly Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "finance",
+    "anomaly",
+    "fraud-detection",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_finance_agent.py",
+    "built_at": "2026-03-09T14:12:10.278904"
+  }
+}

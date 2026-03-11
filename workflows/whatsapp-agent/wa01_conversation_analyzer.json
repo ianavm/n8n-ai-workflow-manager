@@ -1,0 +1,273 @@
+{
+  "name": "WA-01 Conversation Analyzer",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "1edc7c60-c28f-46b0-a8fb-f594004314d0",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Created}, DATEADD(NOW(), -60, 'minutes'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "5d83eb18-ebf4-485b-a356-a0bf86c2475a",
+      "name": "Read Message Log",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate message stats from last 60 min of message log\nconst messages = $('Read Message Log').all();\n\nlet totalMessages = 0;\nlet totalResponseTime = 0;\nlet responseCount = 0;\nconst sentimentKeywords = {\n  positive: ['thank', 'great', 'awesome', 'happy', 'perfect', 'excellent', 'love', 'appreciate'],\n  negative: ['angry', 'frustrated', 'terrible', 'worst', 'hate', 'disappointed', 'awful', 'useless'],\n  neutral: [],\n};\nlet posCount = 0;\nlet negCount = 0;\nconst agentStats = {};\n\nfor (const item of messages) {\n  const d = item.json;\n  totalMessages++;\n\n  // Response time (if available)\n  if (d['Response Time'] || d.response_time_seconds) {\n    const rt = parseFloat(d['Response Time'] || d.response_time_seconds);\n    if (!isNaN(rt)) {\n      totalResponseTime += rt;\n      responseCount++;\n    }\n  }\n\n  // Sentiment keyword scan\n  const text = ((d.Message || d.Body || d.message || '') + '').toLowerCase();\n  for (const kw of sentimentKeywords.positive) {\n    if (text.includes(kw)) { posCount++; break; }\n  }\n  for (const kw of sentimentKeywords.negative) {\n    if (text.includes(kw)) { negCount++; break; }\n  }\n\n  // Per-agent stats\n  const agent = d.Agent || d.agent_name || 'Unassigned';\n  if (!agentStats[agent]) {\n    agentStats[agent] = { messages: 0, resolved: 0 };\n  }\n  agentStats[agent].messages++;\n  if ((d.Status || '').toLowerCase() === 'resolved') {\n    agentStats[agent].resolved++;\n  }\n}\n\nconst avgResponseTime = responseCount > 0\n  ? (totalResponseTime / responseCount).toFixed(1)\n  : 'N/A';\nconst sentimentScore = totalMessages > 0\n  ? ((posCount - negCount) / totalMessages).toFixed(3)\n  : '0';\nconst resolutionRate = totalMessages > 0\n  ? (Object.values(agentStats).reduce((s, a) => s + a.resolved, 0) / totalMessages * 100).toFixed(1)\n  : '0';\n\nconst hasCriticalIssues = parseFloat(sentimentScore) < -0.3\n  || parseFloat(avgResponseTime !== 'N/A' ? avgResponseTime : '0') > 300\n  || parseFloat(resolutionRate) < 30;\n\nreturn {\n  json: {\n    totalMessages,\n    avgResponseTime: avgResponseTime === 'N/A' ? avgResponseTime : parseFloat(avgResponseTime),\n    sentimentScore: parseFloat(sentimentScore),\n    positiveCount: posCount,\n    negativeCount: negCount,\n    resolutionRate: parseFloat(resolutionRate),\n    agentStats,\n    hasCriticalIssues,\n    analyzedAt: new Date().toISOString(),\n  }\n};"
+      },
+      "id": "1938621c-85c5-4aa2-9314-f180ebdf9c66",
+      "name": "Aggregate Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1200,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AVM WhatsApp Quality Analyst. Analyze conversation metrics and provide insights on: 1) Overall conversation quality, 2) Sentiment trends, 3) Agent performance, 4) Resolution efficiency. Flag any critical issues. Keep under 300 words. Currency is ZAR (R).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"WhatsApp Conversation Analysis (last 60 min):\\n\\nTotal messages: {{ $json.totalMessages }}\\nAvg response time: {{ $json.avgResponseTime }}s\\nSentiment score: {{ $json.sentimentScore }} (positive: {{ $json.positiveCount }}, negative: {{ $json.negativeCount }})\\nResolution rate: {{ $json.resolutionRate }}%\\nAgent stats: {{ JSON.stringify($json.agentStats) }}\\nCritical issues detected: {{ $json.hasCriticalIssues }}\\n\\nProvide quality analysis and recommendations.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "5eed1876-96da-40ae-875b-29b3f963e20c",
+      "name": "AI Quality Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Period": "=hourly_{{ $now.format('yyyyMMdd_HHmm') }}",
+            "Total Messages": "={{ $('Aggregate Stats').first().json.totalMessages }}",
+            "Avg Response Time": "={{ $('Aggregate Stats').first().json.avgResponseTime }}",
+            "Sentiment Score": "={{ $('Aggregate Stats').first().json.sentimentScore }}",
+            "Resolution Rate": "={{ $('Aggregate Stats').first().json.resolutionRate }}",
+            "AI Analysis": "={{ $json.choices[0].message.content }}",
+            "Has Critical Issues": "={{ $('Aggregate Stats').first().json.hasCriticalIssues }}",
+            "Analyzed At": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "fda43a2c-eb4c-48a7-87ea-c10e4e28ff85",
+      "name": "Save Analytics",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $('Aggregate Stats').first().json.hasCriticalIssues }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5ee4fe98-e1ac-405c-b4ae-ff3cb8ad3cf6",
+      "name": "If Critical Issues",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=[CRITICAL] WhatsApp Quality Alert - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n<div style=\"background: #dc3545; padding: 20px; text-align: center;\">\n<h1 style=\"color: white; margin: 0;\">WhatsApp Quality Alert</h1>\n<p style=\"color: white; margin: 5px 0;\">Critical Issues Detected</p>\n</div>\n<div style=\"padding: 20px;\">\n<h2 style=\"color: #333;\">Metrics Summary</h2>\n<ul>\n<li><strong>Total messages:</strong> {{ $('Aggregate Stats').first().json.totalMessages }}</li>\n<li><strong>Avg response time:</strong> {{ $('Aggregate Stats').first().json.avgResponseTime }}s</li>\n<li><strong>Sentiment score:</strong> {{ $('Aggregate Stats').first().json.sentimentScore }}</li>\n<li><strong>Resolution rate:</strong> {{ $('Aggregate Stats').first().json.resolutionRate }}%</li>\n</ul>\n<h2 style=\"color: #333;\">AI Analysis</h2>\n<div style=\"background: #f9f9f9; padding: 15px; border-radius: 8px; white-space: pre-wrap;\">{{ $('AI Quality Analysis').first().json.choices[0].message.content }}</div>\n</div>\n<div style=\"background: #f0f0f0; padding: 15px; text-align: center; font-size: 12px; color: #666;\">\nGenerated by AVM WhatsApp Agent | {{ $now.format('yyyy-MM-dd HH:mm') }}\n</div>\n</div>",
+        "options": {}
+      },
+      "id": "bb269f4f-1bf0-4de2-8c21-bf72972256d1",
+      "name": "Send Critical Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Message Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Message Log": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Stats": {
+      "main": [
+        [
+          {
+            "node": "AI Quality Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Quality Analysis": {
+      "main": [
+        [
+          {
+            "node": "Save Analytics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Analytics": {
+      "main": [
+        [
+          {
+            "node": "If Critical Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Critical Issues": {
+      "main": [
+        [
+          {
+            "node": "Send Critical Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "whatsapp",
+    "analytics",
+    "quality",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_whatsapp_agent.py",
+    "built_at": "2026-03-09T14:13:31.657611"
+  }
+}

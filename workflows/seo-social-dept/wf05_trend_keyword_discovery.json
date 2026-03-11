@@ -1,0 +1,724 @@
+{
+  "name": "SEO Social - Trend & Keyword Discovery (WF-05)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * 1,4"
+            }
+          ]
+        }
+      },
+      "id": "358feb82-8f78-49aa-b557-e905d11f8cd6",
+      "name": "Mon/Thu 6AM SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "18f9cdc3-bfa6-49cf-b64e-4719307bb26d",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7980386a-ec91-452f-b6bf-95052970e9e8",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "268a81eb-faf4-449b-8762-e020e3a651b8",
+              "name": "weekNumber",
+              "value": "={{ $now.format('yyyy') + '-W' + $now.format('WW') }}",
+              "type": "string"
+            },
+            {
+              "id": "ff68b753-6dc0-4e2f-8340-a795df5caf29",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "8dbac1b1-add6-446d-8ee0-27feb3644cc3",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "bfe333dd-b28f-4d9d-9b90-bfe7f2f88343",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblUiQHxgrNqV2FyS"
+        },
+        "filterByFormula": "=({Status} = 'Active')"
+      },
+      "id": "6c96ad1c-8a2e-4a68-ade0-2a48d2990714",
+      "name": "Read Keywords",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblZymxNBj7KPfuqz"
+        },
+        "filterByFormula": "=({Active} = TRUE())"
+      },
+      "id": "9ccba601-82eb-4810-bca4-e8b688dbc210",
+      "name": "Read Research Config",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        600
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const keywordItems = $('Read Keywords').all();\nconst configItems = $('Read Research Config').all();\nconst crypto = require('crypto');\n\n// Extract competitor URLs from research config\nconst competitors = configItems.filter(i => i.json.Type === 'competitor').map(c => ({ key: c.json.Key, url: c.json.URL, label: c.json.Label }));\nconst rssFeeds = configItems.filter(i => i.json.Type === 'rss_feed').map(r => ({ key: r.json.Key, url: r.json.URL, label: r.json.Label }));\n\n// Scrape competitor pages\nconst competitorResults = [];\nfor (const comp of competitors.slice(0, 5)) {\n  try {\n    const response = await this.helpers.httpRequest({\n      method: 'GET', url: comp.url, timeout: 10000,\n      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AnyVisionBot/1.0)' },\n      returnFullResponse: true\n    });\n    const html = typeof response === 'string' ? response : (response.body || '');\n    const text = html.replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')\n      .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')\n      .replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim().substring(0, 2000);\n    competitorResults.push({ source: comp.label, content: text, success: true });\n  } catch(e) {\n    competitorResults.push({ source: comp.label, content: `Failed: ${e.message}`, success: false });\n  }\n  await new Promise(r => setTimeout(r, 2000));\n}\n\n// Parse RSS feeds\nconst rssResults = [];\nfor (const feed of rssFeeds.slice(0, 5)) {\n  try {\n    const xml = await this.helpers.httpRequest({ method: 'GET', url: feed.url, timeout: 10000 });\n    const itemRegex = /<item[^>]*>([\\s\\S]*?)<\\/item>/gi;\n    const titleRegex = /<title[^>]*>(?:<!\\[CDATA\\[)?(.*?)(?:\\]\\]>)?<\\/title>/i;\n    let match, count = 0;\n    while ((match = itemRegex.exec(xml)) !== null && count < 5) {\n      const title = (titleRegex.exec(match[1]) || [])[1] || '';\n      rssResults.push({ source: feed.label, title: title.trim(), success: true });\n      count++;\n    }\n  } catch(e) {\n    rssResults.push({ source: feed.label, title: `Failed: ${e.message}`, success: false });\n  }\n  await new Promise(r => setTimeout(r, 1000));\n}\n\n// Build keywords list for SERP query\nconst keywords = keywordItems.map(k => k.json.Keyword || k.json.Label || '').filter(Boolean);\n\nreturn {\n  json: {\n    competitorData: competitorResults,\n    rssData: rssResults,\n    keywords: keywords.slice(0, 20),\n    serpQuery: keywords.slice(0, 5).join(' OR '),\n    totalSources: competitorResults.length + rssResults.length\n  }\n};"
+      },
+      "id": "92d151b3-3b56-4d32-b996-2dbc027dd131",
+      "name": "Scrape Trends",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        960,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/customsearch/v1",
+        "authentication": "none",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.serpQuery }}"
+            },
+            {
+              "name": "key",
+              "value": "REDACTED_GOOGLE_PLACES_KEY"
+            },
+            {
+              "name": "cx",
+              "value": "e446d531572bf4fa3"
+            },
+            {
+              "name": "gl",
+              "value": "za"
+            },
+            {
+              "name": "hl",
+              "value": "en"
+            },
+            {
+              "name": "num",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d0aa251f-c798-4391-9b10-b1f32344a30d",
+      "name": "Google Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1200,
+        500
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 1500,\n  \"temperature\": 0.5,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an SEO & keyword research analyst for AnyVision Media, a digital media and AI automation agency based in South Africa.\\n\\n## Your Task\\nAnalyze the provided SERP data and trend signals. Cluster keywords by intent and topic, score difficulty, and identify quick-win opportunities.\\n\\n## Company Context\\n- Services: AI workflow automation, web development, social media management, real estate tech\\n- Target audience: South African SMBs looking to automate and scale\\n- Primary market: Johannesburg, Gauteng, South Africa\\n- Competitors: Zapier, Make.com, local digital agencies\\n\\n## Analysis Framework\\n1. **Keyword Clusters**: Group related keywords by topic and search intent (informational, navigational, transactional)\\n2. **Difficulty Scoring**: Rate each cluster 1-100 (100 = hardest to rank for)\\n3. **Opportunity Score**: Rate each cluster 1-100 based on relevance x volume / difficulty\\n4. **Quick Wins**: Keywords with difficulty < 40 and relevance > 60\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"clusters\\\": [\\n    {\\n      \\\"name\\\": \\\"cluster name\\\",\\n      \\\"keywords\\\": [\\\"kw1\\\", \\\"kw2\\\"],\\n      \\\"intent\\\": \\\"informational|navigational|transactional\\\",\\n      \\\"difficulty\\\": 45,\\n      \\\"opportunity\\\": 72,\\n      \\\"volume_estimate\\\": \\\"medium\\\",\\n      \\\"recommended_content_type\\\": \\\"blog|landing_page|social\\\"\\n    }\\n  ],\\n  \\\"quick_wins\\\": [\\n    {\\\"keyword\\\": \\\"keyword\\\", \\\"difficulty\\\": 30, \\\"opportunity\\\": 80, \\\"suggested_action\\\": \\\"action\\\"}\\n  ],\\n  \\\"trends\\\": [\\n    {\\\"trend\\\": \\\"description\\\", \\\"relevance\\\": 8, \\\"timeframe\\\": \\\"rising|stable|declining\\\"}\\n  ],\\n  \\\"summary\\\": \\\"2-3 sentence executive summary\\\"\\n}\\n\\n## Rules\\n- Focus on South African market context (use .co.za domains, ZAR currency references)\\n- Prioritize keywords relevant to AI automation and digital transformation\\n- Include at least 3 clusters and 2 quick wins\\n- Score difficulty honestly based on SERP competition data\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify('SERP DATA: ' + JSON.stringify($json.items || []).substring(0, 3000) + '\\n\\nTREND DATA: ' + JSON.stringify($('Scrape Trends').first().json.competitorData || []).substring(0, 2000) + '\\n\\nRSS: ' + JSON.stringify($('Scrape Trends').first().json.rssData || []).substring(0, 1000) + '\\n\\nTARGET KEYWORDS: ' + ($('Scrape Trends').first().json.keywords || []).join(', ')) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "a10c8582-4784-4d5e-a99e-cfe672be0ac0",
+      "name": "AI Keyword Clustering",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1440,
+        500
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst trendData = $('Scrape Trends').first().json;\nconst config = $('System Config').first().json;\n\nlet analysis;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  analysis = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch(e) {\n  analysis = {\n    clusters: [{ name: 'AI automation', keywords: ['ai automation', 'workflow automation'], intent: 'informational', difficulty: 50, opportunity: 60, volume_estimate: 'medium', recommended_content_type: 'blog' }],\n    quick_wins: [{ keyword: 'n8n automation south africa', difficulty: 25, opportunity: 75, suggested_action: 'Create targeted landing page' }],\n    trends: [{ trend: 'AI adoption growing in SA SMBs', relevance: 8, timeframe: 'rising' }],\n    summary: 'Fallback analysis: AI automation remains a growing opportunity in South Africa.'\n  };\n}\n\n// Build keyword records for upsert\nconst keywordRecords = [];\nfor (const cluster of (analysis.clusters || [])) {\n  for (const kw of (cluster.keywords || [])) {\n    keywordRecords.push({\n      keyword: kw,\n      cluster: cluster.name,\n      intent: cluster.intent,\n      difficulty: cluster.difficulty,\n      opportunity: cluster.opportunity,\n      volume: cluster.volume_estimate,\n      contentType: cluster.recommended_content_type\n    });\n  }\n}\n\nreturn {\n  json: {\n    analysis: analysis,\n    keywordRecords: keywordRecords,\n    serpRawCount: (input.items || []).length,\n    tokensUsed: input.usage ? input.usage.total_tokens : 0,\n    week: config.weekNumber,\n    date: config.todayDate\n  }\n};"
+      },
+      "id": "3bae1f02-3359-4f13-a0d3-84ab4d5ceccd",
+      "name": "Parse Clustering",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1680,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst records = data.keywordRecords || [];\nif (records.length === 0) {\n  return { json: { Keyword: 'no-keywords-found', Cluster: 'none', Intent: 'none', Difficulty: 0, Opportunity: 0, Volume: 'none', 'Content Type': 'none', Status: 'Active', 'Last Updated': data.date } };\n}\nreturn records.map(r => ({\n  json: {\n    Keyword: r.keyword,\n    Cluster: r.cluster,\n    Intent: r.intent,\n    Difficulty: r.difficulty,\n    Opportunity: r.opportunity,\n    Volume: r.volume,\n    'Content Type': r.contentType,\n    Status: 'Active',\n    'Last Updated': data.date\n  }\n}));"
+      },
+      "id": "87411f26-0e34-4d29-a3b0-afe9eacc7d44",
+      "name": "Format Keywords",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1920,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblUiQHxgrNqV2FyS"
+        },
+        "columns": {
+          "value": {
+            "Keyword": "={{ $json.Keyword }}",
+            "Cluster": "={{ $json.Cluster }}",
+            "Intent": "={{ $json.Intent }}",
+            "Difficulty": "={{ $json.Difficulty }}",
+            "Opportunity": "={{ $json.Opportunity }}",
+            "Volume": "={{ $json.Volume }}",
+            "Content Type": "={{ $json['Content Type'] }}",
+            "Status": "={{ $json.Status }}",
+            "Last Updated": "={{ $json['Last Updated'] }}"
+          },
+          "schema": [
+            {
+              "id": "Keyword",
+              "type": "string",
+              "display": true,
+              "displayName": "Keyword"
+            },
+            {
+              "id": "Cluster",
+              "type": "string",
+              "display": true,
+              "displayName": "Cluster"
+            },
+            {
+              "id": "Intent",
+              "type": "string",
+              "display": true,
+              "displayName": "Intent"
+            },
+            {
+              "id": "Difficulty",
+              "type": "number",
+              "display": true,
+              "displayName": "Difficulty"
+            },
+            {
+              "id": "Opportunity",
+              "type": "number",
+              "display": true,
+              "displayName": "Opportunity"
+            },
+            {
+              "id": "Volume",
+              "type": "string",
+              "display": true,
+              "displayName": "Volume"
+            },
+            {
+              "id": "Content Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Content Type"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Last Updated",
+              "type": "string",
+              "display": true,
+              "displayName": "Last Updated"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Keyword"
+          ]
+        },
+        "options": {}
+      },
+      "id": "1a35dce9-98ac-44f8-8689-c94664d4b740",
+      "name": "Upsert Keywords",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2160,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblUEQ12rf4ln1lPr"
+        },
+        "columns": {
+          "value": {
+            "Query": "={{ $('Scrape Trends').first().json.serpQuery }}",
+            "Date": "={{ $('System Config').first().json.todayDate }}",
+            "Week": "={{ $('System Config').first().json.weekNumber }}",
+            "Results Count": "={{ $('Parse Clustering').first().json.serpRawCount }}",
+            "Clusters": "={{ JSON.stringify($('Parse Clustering').first().json.analysis.clusters || []) }}",
+            "Quick Wins": "={{ JSON.stringify($('Parse Clustering').first().json.analysis.quick_wins || []) }}",
+            "Summary": "={{ $('Parse Clustering').first().json.analysis.summary || '' }}"
+          },
+          "schema": [
+            {
+              "id": "Query",
+              "type": "string",
+              "display": true,
+              "displayName": "Query"
+            },
+            {
+              "id": "Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Date"
+            },
+            {
+              "id": "Week",
+              "type": "string",
+              "display": true,
+              "displayName": "Week"
+            },
+            {
+              "id": "Results Count",
+              "type": "number",
+              "display": true,
+              "displayName": "Results Count"
+            },
+            {
+              "id": "Clusters",
+              "type": "string",
+              "display": true,
+              "displayName": "Clusters"
+            },
+            {
+              "id": "Quick Wins",
+              "type": "string",
+              "display": true,
+              "displayName": "Quick Wins"
+            },
+            {
+              "id": "Summary",
+              "type": "string",
+              "display": true,
+              "displayName": "Summary"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "e0be6a95-71e3-49e1-9d0c-9657d8ce33cf",
+      "name": "Store SERP Snapshot",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2160,
+        600
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Parse Clustering').first().json;\nconst analysis = data.analysis || {};\nconst now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\n\nconst clustersHtml = (analysis.clusters || []).map(c =>\n  `<li><strong>${c.name}</strong> (${c.intent}) - Difficulty: ${c.difficulty}, Opportunity: ${c.opportunity}<br>Keywords: ${(c.keywords || []).join(', ')}</li>`\n).join('\\n');\n\nconst winsHtml = (analysis.quick_wins || []).map(w =>\n  `<li><strong>${w.keyword}</strong> - Difficulty: ${w.difficulty}, Opportunity: ${w.opportunity}<br>${w.suggested_action}</li>`\n).join('\\n');\n\nconst trendsHtml = (analysis.trends || []).map(t =>\n  `<li>${t.trend} (relevance: ${t.relevance}/10, ${t.timeframe})</li>`\n).join('\\n');\n\nreturn {\n  json: {\n    subject: `SEO Keyword Discovery: ${(analysis.clusters || []).length} clusters, ${(analysis.quick_wins || []).length} quick wins`,\n    body: [\n      '<h2 style=\"color:#FF6D5A\">Trend & Keyword Discovery Report</h2>',\n      `<p><strong>Date:</strong> ${now}</p>`,\n      `<p><strong>Sources analyzed:</strong> ${data.serpRawCount || 0} SERP results</p>`,\n      '<hr>',\n      `<p><em>${analysis.summary || 'No summary available'}</em></p>`,\n      '<h3>Keyword Clusters</h3>',\n      `<ul>${clustersHtml || '<li>None identified</li>'}</ul>`,\n      '<h3>Quick Wins</h3>',\n      `<ul>${winsHtml || '<li>None identified</li>'}</ul>`,\n      '<h3>Trends</h3>',\n      `<ul>${trendsHtml || '<li>None identified</li>'}</ul>`,\n      '<hr>',\n      `<p><strong>Tokens Used:</strong> ${(data.tokensUsed || 0).toLocaleString()}</p>`,\n    ].join('\\n')\n  }\n};"
+      },
+      "id": "b97a8eff-88ae-4067-be4f-06eead23071b",
+      "name": "Build Report",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "233e434c-6f04-435a-9349-b3a778fd40be",
+      "name": "Send Discovery Report",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2640,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "79526fd8-77d2-4841-8fa6-73ab1b71aa77",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "191e3e93-1273-433d-9661-273838ca6c09",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-05: Trend & Keyword Discovery\n\n**Schedule:** Mon/Thu 6AM SAST\n**Purpose:** Scrape competitors, fetch SERP data via Google Custom Search API, AI keyword clustering.\n**Output:** Keywords table updated + SERP snapshots + discovery email.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "wf05-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Mon/Thu 6AM SAST": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Keywords",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Research Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Keywords": {
+      "main": [
+        [
+          {
+            "node": "Scrape Trends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Research Config": {
+      "main": [
+        [
+          {
+            "node": "Scrape Trends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Trends": {
+      "main": [
+        [
+          {
+            "node": "Google Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Search": {
+      "main": [
+        [
+          {
+            "node": "AI Keyword Clustering",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Keyword Clustering": {
+      "main": [
+        [
+          {
+            "node": "Parse Clustering",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Clustering": {
+      "main": [
+        [
+          {
+            "node": "Format Keywords",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Store SERP Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Keywords": {
+      "main": [
+        [
+          {
+            "node": "Upsert Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Keywords": {
+      "main": [
+        [
+          {
+            "node": "Build Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store SERP Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Build Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Report": {
+      "main": [
+        [
+          {
+            "node": "Send Discovery Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

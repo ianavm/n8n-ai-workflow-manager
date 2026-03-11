@@ -1,0 +1,416 @@
+{
+  "name": "Support Agent - Auto-Resolver (SUP-03)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "1849e947-8f5c-4fcb-98e3-a59a55da0525",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=OR({Category} = 'FAQ', {Category} = 'Troubleshooting', {Category} = 'How-To')"
+      },
+      "id": "b675cf28-0234-40e9-8b3a-335e033b4e92",
+      "name": "Read Knowledge Base",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1200,\n  \"temperature\": 0.4,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an AI support agent for AnyVision Media, a digital media and AI automation agency in South Africa.\\n\\n## Your Task\\nUsing the provided Knowledge Base articles, draft a helpful response to the support ticket. Your response should resolve the issue or provide clear next steps.\\n\\n## Response Guidelines\\n1. Be specific and actionable\\n2. Reference relevant KB articles where appropriate\\n3. Include step-by-step instructions when applicable\\n4. Maintain a professional but friendly tone\\n5. If the KB doesn't cover the issue, say so honestly\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"response_html\\\": \\\"<p>Full HTML response to send to the client</p>\\\",\\n  \\\"confidence\\\": 0.9,\\n  \\\"kb_articles_used\\\": [\\\"Article ID 1\\\", \\\"Article ID 2\\\"],\\n  \\\"needs_human_review\\\": false,\\n  \\\"resolution_type\\\": \\\"full_resolution|partial_resolution|escalation_needed\\\"\\n}\\n\\n## Rules\\n- Keep responses under 300 words\\n- Always sign off as \\\"AnyVision Media Support Team\\\"\\n- Include a \\\"Was this helpful?\\\" prompt at the end\\n- If confidence < 0.85, set needs_human_review to true\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify('TICKET SUBJECT: ' + $('Execute Workflow Trigger').first().json.subject + '\\n\\nTICKET BODY: ' + $('Execute Workflow Trigger').first().json.body + '\\n\\nCATEGORY: ' + $('Execute Workflow Trigger').first().json.category + '\\n\\nKNOWLEDGE BASE ARTICLES:\\n' + JSON.stringify($input.all().map(r => ({title: (r.json.fields || r.json).Title || '', body: ((r.json.fields || r.json).Body || '').substring(0, 500), category: (r.json.fields || r.json).Category || ''})).slice(0, 10)).substring(0, 3000)) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "id": "cb66980a-5d50-499b-8ca0-30e6c25dfc82",
+      "name": "AI Auto-Resolve",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI auto-resolution response\nconst input = $input.first().json;\nconst ticketData = $('Execute Workflow Trigger').first().json;\n\nlet resolution;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  resolution = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch(e) {\n  resolution = {\n    response_html: '<p>We received your support request and are looking into it. A team member will respond shortly.</p>',\n    confidence: 0.0,\n    kb_articles_used: [],\n    needs_human_review: true,\n    resolution_type: 'escalation_needed',\n  };\n}\n\nreturn {\n  json: {\n    ticket_id: ticketData.ticket_id,\n    record_id: ticketData.record_id,\n    email: ticketData.email,\n    subject: ticketData.subject,\n    resolution: resolution,\n    auto_resolved: resolution.confidence > 0.85 && !resolution.needs_human_review,\n  }\n};"
+      },
+      "id": "488a4511-abbe-4656-934a-b0fc1daac6d4",
+      "name": "Parse Resolution",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.auto_resolved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        }
+      },
+      "id": "1334344f-2a35-47bc-99f9-ce355640036d",
+      "name": "Auto-Resolved?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "=Re: {{ $json.subject }} [{{ $json.ticket_id }}]",
+        "emailType": "html",
+        "message": "={{ $json.resolution.response_html }}",
+        "options": {}
+      },
+      "id": "c1c71188-2231-4a21-8f44-512f853c199a",
+      "name": "Send Auto-Response",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1400,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Status": "Resolved",
+            "Resolved At": "={{ $now.toISO() }}",
+            "Resolution Notes": "=Auto-resolved by AI. KB articles used: {{ $('Parse Resolution').first().json.resolution.kb_articles_used.join(', ') }}"
+          },
+          "schema": [
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Resolved At",
+              "type": "string",
+              "display": true,
+              "displayName": "Resolved At"
+            },
+            {
+              "id": "Resolution Notes",
+              "type": "string",
+              "display": true,
+              "displayName": "Resolution Notes"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "matchingColumns": [
+          "Ticket ID"
+        ],
+        "options": {}
+      },
+      "id": "a2ad048f-5086-4763-a8b7-aa0e4b602757",
+      "name": "Update Ticket Resolved",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1640,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "AI Suggested Resolution": "={{ $json.resolution.response_html }}",
+            "Status": "In_Progress",
+            "Resolution Notes": "=AI draft ready for human review (confidence: {{ $json.resolution.confidence }})"
+          },
+          "schema": [
+            {
+              "id": "AI Suggested Resolution",
+              "type": "string",
+              "display": true,
+              "displayName": "AI Suggested Resolution"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Resolution Notes",
+              "type": "string",
+              "display": true,
+              "displayName": "Resolution Notes"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "matchingColumns": [
+          "Ticket ID"
+        ],
+        "options": {}
+      },
+      "id": "da98f000-118a-494d-a235-91cf718da8f5",
+      "name": "Update Ticket Draft",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "6f571ddf-a1b7-4d5e-9574-47aebccbe53a",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        800
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SUP-03 ERROR - Auto-Resolver",
+        "emailType": "html",
+        "message": "=<h2>Auto-Resolver Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "10f6d908-476d-48e7-a0fe-dba9c36a2630",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        800
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## SUP-03: Auto-Resolver\n\n**Type:** Sub-workflow (called by SUP-01)\n**Purpose:** Search KB, AI-draft response, auto-send if confident or save draft for human review.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "sup03-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "AI Auto-Resolve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Auto-Resolve": {
+      "main": [
+        [
+          {
+            "node": "Parse Resolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Resolution": {
+      "main": [
+        [
+          {
+            "node": "Auto-Resolved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-Resolved?": {
+      "main": [
+        [
+          {
+            "node": "Send Auto-Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Ticket Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Auto-Response": {
+      "main": [
+        [
+          {
+            "node": "Update Ticket Resolved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

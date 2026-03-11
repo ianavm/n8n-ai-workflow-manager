@@ -1,0 +1,830 @@
+{
+  "name": "SEO Social - Lead Capture & Attribution (WF-09)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "seo-social/lead-capture",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "52a6b83d-0b6c-48a0-a940-7b749d7b0f1e",
+      "name": "Lead Capture Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 2,
+      "webhookId": "e3f7e79d-ad5b-43c6-88a9-79a2fce3e780"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "ae06345c-f849-4ea0-b71c-90ed16eb7cb0",
+      "name": "Daily Batch 8AM SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        700
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "78209cfd-14aa-48ae-9578-f39a9e35fe9b",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        900
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6ebc5eb0-d5d1-4441-ba87-03a1005ed4cc",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "70242bbe-028f-4e32-bf29-693f5315ef24",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "839057db-4a9d-44b6-b7cc-3d90b4946506",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "492636f3-016d-40fb-97f6-3d2eef2b89d3",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body || $json;\nconst headers = $json.headers || {};\n\n// Extract UTM parameters\nconst utm = {\n  source: body.utm_source || body.source || 'direct',\n  medium: body.utm_medium || body.medium || 'unknown',\n  campaign: body.utm_campaign || body.campaign || '',\n  term: body.utm_term || body.term || '',\n  content: body.utm_content || body.content || '',\n};\n\n// Extract lead data\nconst lead = {\n  email: (body.email || '').toLowerCase().trim(),\n  name: body.name || body.full_name || '',\n  company: body.company || body.organization || '',\n  phone: body.phone || '',\n  message: body.message || body.inquiry || '',\n  page_url: body.page_url || headers.referer || '',\n  ip: headers['x-forwarded-for'] || headers['x-real-ip'] || '',\n};\n\n// Basic lead score\nlet score = 20; // base\nif (lead.email) score += 20;\nif (lead.name) score += 10;\nif (lead.company) score += 15;\nif (lead.phone) score += 15;\nif (lead.message && lead.message.length > 20) score += 10;\nif (utm.source === 'organic') score += 10;\n\nreturn {\n  json: {\n    lead: lead,\n    utm: utm,\n    lead_score: Math.min(100, score),\n    source_type: 'webhook',\n    received_at: new Date().toISOString()\n  }\n};"
+      },
+      "id": "77412841-773d-4a40-b98d-b88b2212aa89",
+      "name": "Parse UTM & Lead Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblwOPTPY85Tcj7NJ"
+        },
+        "filterByFormula": "=({Email} = \"{{ $json.lead.email }}\")"
+      },
+      "id": "9d9d00ba-b7a5-4f73-858c-19768287362c",
+      "name": "Check Duplicate",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ba257694-0a18-4806-af31-9bbfb1ac29ba",
+              "operator": {
+                "type": "object",
+                "operation": "empty",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.id }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2da662d3-661b-4abd-af29-7a39493c79f4",
+      "name": "Is New?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblwOPTPY85Tcj7NJ"
+        },
+        "columns": {
+          "value": {
+            "Email": "={{ $('Parse UTM & Lead Data').first().json.lead.email }}",
+            "Name": "={{ $('Parse UTM & Lead Data').first().json.lead.name }}",
+            "Company": "={{ $('Parse UTM & Lead Data').first().json.lead.company }}",
+            "Phone": "={{ $('Parse UTM & Lead Data').first().json.lead.phone }}",
+            "Message": "={{ $('Parse UTM & Lead Data').first().json.lead.message }}",
+            "Source": "={{ $('Parse UTM & Lead Data').first().json.utm.source }}",
+            "Medium": "={{ $('Parse UTM & Lead Data').first().json.utm.medium }}",
+            "Campaign": "={{ $('Parse UTM & Lead Data').first().json.utm.campaign }}",
+            "Lead Score": "={{ $('Parse UTM & Lead Data').first().json.lead_score }}",
+            "Status": "New",
+            "Page URL": "={{ $('Parse UTM & Lead Data').first().json.lead.page_url }}",
+            "Created At": "={{ $('Parse UTM & Lead Data').first().json.received_at }}"
+          },
+          "schema": [
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email"
+            },
+            {
+              "id": "Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Name"
+            },
+            {
+              "id": "Company",
+              "type": "string",
+              "display": true,
+              "displayName": "Company"
+            },
+            {
+              "id": "Phone",
+              "type": "string",
+              "display": true,
+              "displayName": "Phone"
+            },
+            {
+              "id": "Message",
+              "type": "string",
+              "display": true,
+              "displayName": "Message"
+            },
+            {
+              "id": "Source",
+              "type": "string",
+              "display": true,
+              "displayName": "Source"
+            },
+            {
+              "id": "Medium",
+              "type": "string",
+              "display": true,
+              "displayName": "Medium"
+            },
+            {
+              "id": "Campaign",
+              "type": "string",
+              "display": true,
+              "displayName": "Campaign"
+            },
+            {
+              "id": "Lead Score",
+              "type": "number",
+              "display": true,
+              "displayName": "Lead Score"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Page URL",
+              "type": "string",
+              "display": true,
+              "displayName": "Page URL"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "91dc8bca-ecb6-4301-8b04-96d5d84e7a2f",
+      "name": "Create Lead",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblwOPTPY85Tcj7NJ"
+        },
+        "columns": {
+          "value": {
+            "Lead Score": "={{ $('Parse UTM & Lead Data').first().json.lead_score }}",
+            "Last Activity": "={{ $('Parse UTM & Lead Data').first().json.received_at }}",
+            "Touch Count": "={{ ($json['Touch Count'] || 0) + 1 }}"
+          },
+          "schema": [
+            {
+              "id": "Lead Score",
+              "type": "number",
+              "display": true,
+              "displayName": "Lead Score"
+            },
+            {
+              "id": "Last Activity",
+              "type": "string",
+              "display": true,
+              "displayName": "Last Activity"
+            },
+            {
+              "id": "Touch Count",
+              "type": "number",
+              "display": true,
+              "displayName": "Touch Count"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "9240dfe1-d0b2-4d3b-abb1-5770c37f7fa7",
+      "name": "Update Lead",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        550
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Parse UTM & Lead Data').first().json.lead_score }}",
+                    "rightValue": 80,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Hot"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Parse UTM & Lead Data').first().json.lead_score }}",
+                    "rightValue": 50,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Warm"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Parse UTM & Lead Data').first().json.lead_score }}",
+                    "rightValue": 0,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Cold"
+            }
+          ]
+        }
+      },
+      "id": "bae7cb21-b06e-4468-a1c8-69be7cf1a8d7",
+      "name": "Route by Score",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1640,
+        400
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=HOT LEAD (Score: {{ $('Parse UTM & Lead Data').first().json.lead_score }}) - {{ $('Parse UTM & Lead Data').first().json.lead.name || $('Parse UTM & Lead Data').first().json.lead.email }}",
+        "emailType": "html",
+        "message": "=<h2 style=\"color:#FF6D5A\">Hot Lead Alert!</h2>\n<p><strong>Name:</strong> {{ $('Parse UTM & Lead Data').first().json.lead.name }}</p>\n<p><strong>Email:</strong> {{ $('Parse UTM & Lead Data').first().json.lead.email }}</p>\n<p><strong>Company:</strong> {{ $('Parse UTM & Lead Data').first().json.lead.company }}</p>\n<p><strong>Score:</strong> {{ $('Parse UTM & Lead Data').first().json.lead_score }}/100</p>\n<p><strong>Source:</strong> {{ $('Parse UTM & Lead Data').first().json.utm.source }} / {{ $('Parse UTM & Lead Data').first().json.utm.medium }}</p>\n<p><strong>Message:</strong> {{ $('Parse UTM & Lead Data').first().json.lead.message }}</p>\n<hr>\n<p>Respond within 1 hour for best conversion rates.</p>",
+        "options": {}
+      },
+      "id": "c531ef81-0c4d-41d8-b521-5dc46f84fbe1",
+      "name": "Hot Lead Alert",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1880,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true, lead_id: $('Parse UTM & Lead Data').first().json.lead.email, score: $('Parse UTM & Lead Data').first().json.lead_score, status: 'received'}) }}",
+        "options": {}
+      },
+      "id": "a583b7c2-947a-4def-bc30-7311d7b2cba5",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        2120,
+        400
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblwOPTPY85Tcj7NJ"
+        },
+        "filterByFormula": "=AND({Status} = 'New', IS_BEFORE({Created At}, DATEADD(TODAY(), -1, 'days')))"
+      },
+      "id": "6be86a70-2911-4807-b8ef-2be11ffe5028",
+      "name": "Read Stale Leads",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        800
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const leads = $input.all();\nconst validLeads = leads.filter(l => l.json.id);\nconst count = validLeads.length;\nif (count === 0) return [{ json: { message: 'No stale leads to reconcile', count: 0 } }];\n// Return each stale lead for downstream processing\nreturn validLeads.map(l => ({ json: { ...l.json, staleCount: count } }));"
+      },
+      "id": "3aab970d-e61b-41fe-b50a-b93e9128e7d8",
+      "name": "Batch Summary",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        920,
+        800
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "id": "8ec23030-7801-42c1-acac-d2f99dfd5399",
+      "name": "Has Stale?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1140,
+        800
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblwOPTPY85Tcj7NJ"
+        },
+        "id": "={{ $json.id }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Grade": "",
+            "Last Activity": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Grade",
+              "displayName": "Grade",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c8b6cd91-ad93-4c30-beec-c49ae58c6324",
+      "name": "Clear Grade for Scoring",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1360,
+        700
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "ea59e716-4dbe-4e18-8ba1-299a98b4279d",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        1100
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "949138c2-5f0f-4eb2-89e9-def4db30fae9",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        1100
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-09: Lead Capture & Attribution\n\n**Triggers:** Webhook (POST /seo-social/lead-capture) + Daily batch\n**Purpose:** Parse UTM params, deduplicate, score leads, route by quality.\n**Hot leads (>=80):** Immediate Gmail alert to Ian.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "wf09-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Lead Capture Webhook": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Batch 8AM SAST": {
+      "main": [
+        [
+          {
+            "node": "Read Stale Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Stale Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Parse UTM & Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse UTM & Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Is New?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New?": {
+      "main": [
+        [
+          {
+            "node": "Create Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead": {
+      "main": [
+        [
+          {
+            "node": "Route by Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead": {
+      "main": [
+        [
+          {
+            "node": "Route by Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Score": {
+      "main": [
+        [
+          {
+            "node": "Hot Lead Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hot Lead Alert": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Stale Leads": {
+      "main": [
+        [
+          {
+            "node": "Batch Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batch Summary": {
+      "main": [
+        [
+          {
+            "node": "Has Stale?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Stale?": {
+      "main": [
+        [
+          {
+            "node": "Clear Grade for Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

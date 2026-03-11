@@ -1,0 +1,500 @@
+{
+  "name": "Support Agent - Ticket Creator (SUP-01)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "support-ticket",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "0749f21a-4316-4d2b-99f1-0c4357eefd21",
+      "name": "Ticket Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 2,
+      "webhookId": "e7df453d-1231-4604-b0f5-e4e9dde145d8"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract ticket data from webhook body\nconst body = $json.body || $json;\nconst ticket = {\n  email: (body.email || body.client_email || '').toLowerCase().trim(),\n  subject: body.subject || body.title || 'No subject',\n  body: body.body || body.message || body.description || '',\n  client_id: body.client_id || body.clientId || '',\n  source: body.source || 'webhook',\n};\n\nif (!ticket.email) {\n  throw new Error('Client email is required for ticket creation');\n}\n\nreturn { json: { ticket } };"
+      },
+      "id": "1eb51584-88df-4b47-9bde-e37aff853806",
+      "name": "Extract Ticket Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 800,\n  \"temperature\": 0.3,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a support ticket classifier for AnyVision Media, a digital media and AI automation agency in South Africa.\\n\\n## Your Task\\nClassify the incoming support ticket: determine priority, department, and suggest a resolution.\\n\\n## Priority Levels\\n- P1: Service down, security breach, data loss - immediate response needed\\n- P2: Major feature broken, billing error, client unable to work - response within 4h\\n- P3: Minor bug, feature request, general question - response within 8h\\n- P4: Nice-to-have, cosmetic issue, documentation - response within 24h\\n\\n## Departments\\n- Accounting: Invoicing, billing, payments, Xero, subscriptions\\n- Marketing: Content, social media, campaigns, analytics\\n- Technical: Workflows, n8n, API errors, integrations, portal issues\\n- General: Other inquiries, feedback, partnerships\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"priority\\\": \\\"P1|P2|P3|P4\\\",\\n  \\\"department\\\": \\\"Accounting|Marketing|Technical|General\\\",\\n  \\\"category\\\": \\\"short category label\\\",\\n  \\\"ai_summary\\\": \\\"1-2 sentence summary of the issue\\\",\\n  \\\"suggested_resolution\\\": \\\"Suggested steps to resolve this issue\\\",\\n  \\\"confidence\\\": 0.85,\\n  \\\"reasoning\\\": \\\"Brief explanation of classification reasoning\\\"\\n}\\n\\n## Rules\\n- Be conservative with P1 - only true emergencies\\n- If unsure between two priorities, choose the higher one\\n- Include confidence score (0.0 to 1.0) reflecting how certain you are\\n- South African business context (ZAR, SAST timezone)\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify('SUBJECT: ' + $json.ticket.subject + '\\n\\nBODY: ' + $json.ticket.body + '\\n\\nCLIENT: ' + $json.ticket.email) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5af4e7eb-c390-4613-88e3-b3b6d53e2299",
+      "name": "AI Classify Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI classification response\nconst input = $input.first().json;\nconst ticketData = $('Extract Ticket Data').first().json.ticket;\n\nlet classification;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  classification = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch(e) {\n  classification = {\n    priority: 'P3',\n    department: 'General',\n    category: 'unclassified',\n    ai_summary: ticketData.subject,\n    suggested_resolution: 'Manual review required',\n    confidence: 0.0,\n    reasoning: 'Failed to parse AI response'\n  };\n}\n\n// Calculate SLA due time based on priority\nconst slaHours = { P1: 4, P2: 24, P3: 72, P4: 168 };\nconst slaDue = new Date(Date.now() + (slaHours[classification.priority] || 72) * 60 * 60 * 1000);\n\nreturn {\n  json: {\n    ticket: ticketData,\n    classification: classification,\n    sla_due_at: slaDue.toISOString(),\n    can_auto_resolve: classification.confidence > 0.85 && (classification.priority === 'P3' || classification.priority === 'P4'),\n  }\n};"
+      },
+      "id": "5cd58cc0-276b-4ae5-82cb-92d8624cea27",
+      "name": "Parse Classification",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Ticket ID": "={{ 'TKT-' + $now.format('yyyyMMdd') + '-' + Math.random().toString(36).substring(2, 8).toUpperCase() }}",
+            "Client Email": "={{ $json.ticket.email }}",
+            "Client ID": "={{ $json.ticket.client_id }}",
+            "Subject": "={{ $json.ticket.subject }}",
+            "Body": "={{ $json.ticket.body }}",
+            "Department": "={{ $json.classification.department }}",
+            "Priority": "={{ $json.classification.priority }}",
+            "Status": "Open",
+            "Category": "={{ $json.classification.category }}",
+            "AI Summary": "={{ $json.classification.ai_summary }}",
+            "AI Suggested Resolution": "={{ $json.classification.suggested_resolution }}",
+            "SLA Due At": "={{ $json.sla_due_at }}",
+            "Created At": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            {
+              "id": "Ticket ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Ticket ID"
+            },
+            {
+              "id": "Client Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Client Email"
+            },
+            {
+              "id": "Client ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Client ID"
+            },
+            {
+              "id": "Subject",
+              "type": "string",
+              "display": true,
+              "displayName": "Subject"
+            },
+            {
+              "id": "Body",
+              "type": "string",
+              "display": true,
+              "displayName": "Body"
+            },
+            {
+              "id": "Department",
+              "type": "string",
+              "display": true,
+              "displayName": "Department"
+            },
+            {
+              "id": "Priority",
+              "type": "string",
+              "display": true,
+              "displayName": "Priority"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Category",
+              "type": "string",
+              "display": true,
+              "displayName": "Category"
+            },
+            {
+              "id": "AI Summary",
+              "type": "string",
+              "display": true,
+              "displayName": "AI Summary"
+            },
+            {
+              "id": "AI Suggested Resolution",
+              "type": "string",
+              "display": true,
+              "displayName": "AI Suggested Resolution"
+            },
+            {
+              "id": "SLA Due At",
+              "type": "string",
+              "display": true,
+              "displayName": "SLA Due At"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "7745cb50-3639-4e76-a8f5-a4692c939e83",
+      "name": "Create Ticket",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Parse Classification').first().json.can_auto_resolve }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        }
+      },
+      "id": "3032d43f-12c0-43de-9d7d-c74aa454d463",
+      "name": "Can Auto-Resolve?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1400,
+        400
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare data for SUP-03 Auto-Resolver sub-workflow\nconst ticketData = $('Parse Classification').first().json;\nconst airtableRecord = $('Create Ticket').first().json;\nreturn {\n  json: {\n    ticket_id: airtableRecord.fields ? airtableRecord.fields['Ticket ID'] : 'unknown',\n    record_id: airtableRecord.id || '',\n    email: ticketData.ticket.email,\n    subject: ticketData.ticket.subject,\n    body: ticketData.ticket.body,\n    category: ticketData.classification.category,\n    department: ticketData.classification.department,\n    suggested_resolution: ticketData.classification.suggested_resolution,\n  }\n};"
+      },
+      "id": "6e345ba5-f882-45ef-9dbc-878f48421743",
+      "name": "Prepare Auto-Resolve",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1640,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event Type": "ticket_created",
+            "Source": "SUP-01",
+            "Details": "={{ JSON.stringify({priority: $('Parse Classification').first().json.classification.priority, department: $('Parse Classification').first().json.classification.department, email: $('Parse Classification').first().json.ticket.email}) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          },
+          "schema": [
+            {
+              "id": "Event Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Event Type"
+            },
+            {
+              "id": "Source",
+              "type": "string",
+              "display": true,
+              "displayName": "Source"
+            },
+            {
+              "id": "Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Details"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "7ccf8190-9622-429d-a77e-7452bec864ac",
+      "name": "Log Ticket Event",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1640,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true, ticket_id: $('Create Ticket').first().json.fields ? $('Create Ticket').first().json.fields['Ticket ID'] : 'created', priority: $('Parse Classification').first().json.classification.priority, department: $('Parse Classification').first().json.classification.department, auto_resolve: $('Parse Classification').first().json.can_auto_resolve}) }}",
+        "options": {}
+      },
+      "id": "40a82db8-1b36-4e84-a0dd-7584d5660c99",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1880,
+        400
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {},
+      "id": "3d5cc282-f41f-4a7f-b79a-a06f4b01a4b2",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SUP-01 ERROR - Ticket Creator",
+        "emailType": "html",
+        "message": "=<h2>Ticket Creator Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "675e6715-ea1e-489b-b279-f8702d4d567e",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## SUP-01: Ticket Creator\n\n**Trigger:** Webhook POST /support-ticket\n**Purpose:** AI-classify incoming tickets, create in Airtable, auto-resolve low-priority if confident.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "sup01-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Ticket Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Ticket Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Ticket Data": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify Ticket": {
+      "main": [
+        [
+          {
+            "node": "Parse Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classification": {
+      "main": [
+        [
+          {
+            "node": "Create Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Ticket": {
+      "main": [
+        [
+          {
+            "node": "Can Auto-Resolve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can Auto-Resolve?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Auto-Resolve",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Ticket Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Auto-Resolve": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Ticket Event": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

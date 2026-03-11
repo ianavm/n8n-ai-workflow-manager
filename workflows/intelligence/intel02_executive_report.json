@@ -1,0 +1,362 @@
+{
+  "name": "Intelligence - Executive Report (INTEL-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "0751347d-9e58-41e9-a85e-821fc33033ae",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "244a176e-1386-457b-a95b-116f79c8428c",
+              "name": "periodStart",
+              "value": "={{ $now.minus({days: 30}).format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "9b9a4930-5dfb-421c-a90b-3cb739ab7eac",
+              "name": "periodEnd",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "c3195e4d-5c76-4737-a66e-73f416063a4d",
+              "name": "monthLabel",
+              "value": "={{ $now.minus({days: 1}).format('MMMM yyyy') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9b118b00-d7c7-494e-96ea-1adadd62a668",
+      "name": "Set Report Period",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Snapshot Date}, '{{ $json.periodStart }}')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "c628a1bb-5532-4a4a-80e0-1a6c27f9d129",
+      "name": "Read KPI Snapshots",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        640,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Created At}, '{{ $('Set Report Period').first().json.periodStart }}')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "3b929b8d-37e2-44ec-adba-8e0783522b54",
+      "name": "Read Escalation Queue",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        640,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Decided At}, '{{ $('Set Report Period').first().json.periodStart }}')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "6e7dc90c-6740-4ee9-b112-77f062d1597b",
+      "name": "Read Decision Log",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        640,
+        640
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate monthly data for executive report\nconst kpiSnaps = $('Read KPI Snapshots').all().map(i => i.json);\nconst escalations = $('Read Escalation Queue').all().map(i => i.json);\nconst decisions = $('Read Decision Log').all().map(i => i.json);\n\n// Aggregate KPI totals by agent\nconst agentTotals = {};\nfor (const snap of kpiSnaps) {\n  const agent = snap['Agent ID'] || 'unknown';\n  if (!agentTotals[agent]) {\n    agentTotals[agent] = {\n      contentPublished: 0, leadsGenerated: 0, emailsSent: 0,\n      revenueZar: 0, messagesHandled: 0, ticketsResolved: 0,\n      successRateSum: 0, tokenUsage: 0, count: 0,\n    };\n  }\n  const t = agentTotals[agent];\n  t.contentPublished += parseFloat(snap['Content Published'] || 0);\n  t.leadsGenerated += parseFloat(snap['Leads Generated'] || 0);\n  t.emailsSent += parseFloat(snap['Emails Sent'] || 0);\n  t.revenueZar += parseFloat(snap['Revenue ZAR'] || 0);\n  t.messagesHandled += parseFloat(snap['Messages Handled'] || 0);\n  t.ticketsResolved += parseFloat(snap['Tickets Resolved'] || 0);\n  t.successRateSum += parseFloat(snap['Success Rate'] || 0);\n  t.tokenUsage += parseInt(snap['Token Usage'] || 0);\n  t.count++;\n}\n\n// Compute averages\nfor (const agent of Object.keys(agentTotals)) {\n  const t = agentTotals[agent];\n  t.avgSuccessRate = t.count > 0 ? Math.round(t.successRateSum / t.count * 10) / 10 : 0;\n}\n\n// Escalation summary\nconst escalationsByStatus = {};\nconst escalationsBySeverity = {};\nfor (const e of escalations) {\n  const status = e.Status || 'unknown';\n  const severity = e.Severity || 'P3';\n  escalationsByStatus[status] = (escalationsByStatus[status] || 0) + 1;\n  escalationsBySeverity[severity] = (escalationsBySeverity[severity] || 0) + 1;\n}\n\n// Grand totals\nlet totalRevenue = 0, totalLeads = 0, totalContent = 0, totalEmails = 0, totalTokens = 0;\nfor (const t of Object.values(agentTotals)) {\n  totalRevenue += t.revenueZar;\n  totalLeads += t.leadsGenerated;\n  totalContent += t.contentPublished;\n  totalEmails += t.emailsSent;\n  totalTokens += t.tokenUsage;\n}\n\nreturn [{\n  json: {\n    monthLabel: $('Set Report Period').first().json.monthLabel,\n    agentTotals,\n    totalRevenue: Math.round(totalRevenue * 100) / 100,\n    totalLeads: Math.round(totalLeads),\n    totalContent: Math.round(totalContent),\n    totalEmails: Math.round(totalEmails),\n    totalTokens,\n    escalationCount: escalations.length,\n    escalationsByStatus,\n    escalationsBySeverity,\n    decisionCount: decisions.length,\n    kpiDataPoints: kpiSnaps.length,\n  }\n}];"
+      },
+      "id": "0ab46004-2fe1-49e0-9722-a0382f88ef6a",
+      "name": "Aggregate Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a C-suite executive report writer for AnyVision Media, a South African digital media and AI automation agency. Write a comprehensive but concise (max 800 words) monthly executive summary. Use ZAR for all currency. Include: department performance overview, financial highlights, client health, top wins, areas of concern, and 3 strategic recommendations. Format with clear headers. Be data-driven and specific.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate the executive report for \" + $json.monthLabel + \":\\n\\nAgent Performance:\\n\" + JSON.stringify($json.agentTotals, null, 2) + \"\\n\\nGrand Totals: Revenue R\" + $json.totalRevenue + \", Leads: \" + $json.totalLeads + \", Content: \" + $json.totalContent + \", Emails: \" + $json.totalEmails + \", Tokens: \" + $json.totalTokens + \"\\n\\nEscalations: \" + $json.escalationCount + \" total\\nBy severity: \" + JSON.stringify($json.escalationsBySeverity) + \"\\nBy status: \" + JSON.stringify($json.escalationsByStatus) + \"\\n\\nDecisions logged: \" + $json.decisionCount\n    }\n  ]\n}}",
+        "options": {}
+      },
+      "id": "c7a58696-d4e5-4653-acf1-9cd41e13deb6",
+      "name": "AI Executive Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format executive report as branded HTML email\nconst summary = $json.choices[0].message.content;\nconst data = $('Aggregate Data').first().json;\n\n// Build agent performance table rows\nconst agentRows = Object.entries(data.agentTotals).map(([agent, t]) => {\n  const name = agent.replace('agent_', '').replace(/_/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase());\n  return `<tr>\n    <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">${name}</td>\n    <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">R${Math.round(t.revenueZar).toLocaleString()}</td>\n    <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">${Math.round(t.leadsGenerated)}</td>\n    <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">${Math.round(t.contentPublished)}</td>\n    <td style=\"padding: 8px; border-bottom: 1px solid #eee; text-align: right;\">${t.avgSuccessRate}%</td>\n  </tr>`;\n}).join('');\n\nconst html = `<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n  <div style=\"background: #FF6D5A; color: white; padding: 24px; border-radius: 8px 8px 0 0;\">\n    <h1 style=\"margin: 0; font-size: 22px;\">AVM Monthly Executive Report</h1>\n    <p style=\"margin: 5px 0 0; opacity: 0.9; font-size: 14px;\">${data.monthLabel}</p>\n  </div>\n\n  <div style=\"background: white; padding: 24px; border: 1px solid #e0e0e0;\">\n    <div style=\"display: flex; gap: 16px; margin-bottom: 24px;\">\n      <div style=\"flex: 1; background: #f7f7f7; padding: 16px; border-radius: 6px; text-align: center;\">\n        <div style=\"font-size: 24px; font-weight: bold; color: #FF6D5A;\">R${Math.round(data.totalRevenue).toLocaleString()}</div>\n        <div style=\"font-size: 12px; color: #888;\">Revenue</div>\n      </div>\n      <div style=\"flex: 1; background: #f7f7f7; padding: 16px; border-radius: 6px; text-align: center;\">\n        <div style=\"font-size: 24px; font-weight: bold; color: #FF6D5A;\">${data.totalLeads}</div>\n        <div style=\"font-size: 12px; color: #888;\">Leads</div>\n      </div>\n      <div style=\"flex: 1; background: #f7f7f7; padding: 16px; border-radius: 6px; text-align: center;\">\n        <div style=\"font-size: 24px; font-weight: bold; color: #FF6D5A;\">${data.totalContent}</div>\n        <div style=\"font-size: 12px; color: #888;\">Content</div>\n      </div>\n      <div style=\"flex: 1; background: #f7f7f7; padding: 16px; border-radius: 6px; text-align: center;\">\n        <div style=\"font-size: 24px; font-weight: bold; color: #FF6D5A;\">${data.escalationCount}</div>\n        <div style=\"font-size: 12px; color: #888;\">Escalations</div>\n      </div>\n    </div>\n\n    <h3 style=\"color: #333; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px;\">Agent Performance</h3>\n    <table style=\"width: 100%; border-collapse: collapse; font-size: 13px;\">\n      <tr style=\"background: #f7f7f7;\">\n        <th style=\"padding: 8px; text-align: left;\">Agent</th>\n        <th style=\"padding: 8px; text-align: right;\">Revenue</th>\n        <th style=\"padding: 8px; text-align: right;\">Leads</th>\n        <th style=\"padding: 8px; text-align: right;\">Content</th>\n        <th style=\"padding: 8px; text-align: right;\">Success %</th>\n      </tr>\n      ${agentRows}\n    </table>\n\n    <h3 style=\"color: #333; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px; margin-top: 24px;\">Executive Summary</h3>\n    <div style=\"line-height: 1.6; color: #444;\">${summary.replace(/\\n/g, '<br>')}</div>\n\n    <hr style=\"border: 1px solid #eee; margin: 24px 0;\">\n    <p style=\"color: #888; font-size: 11px;\">Generated by AVM Intelligence Engine | INTEL-02 | ${data.kpiDataPoints} data points analyzed</p>\n  </div>\n</div>`;\n\nreturn [{ json: { html, subject: 'AVM Monthly Executive Report - ' + data.monthLabel } }];"
+      },
+      "id": "85c93908-7721-4dcb-a322-c146b10e9122",
+      "name": "Format HTML Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "3cdb9392-aeda-4d31-ae83-a121b95b5d3d",
+      "name": "Send Executive Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        420
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## INTEL-02: Executive Report\nRuns 1st of month 08:00 SAST.\nReads 30 days of KPIs + escalations + decisions.\nAI generates executive summary.\nBranded HTML email with performance table.",
+        "width": 420,
+        "height": 120
+      },
+      "id": "3aedaacd-a83a-4615-9f6d-cae8d24764d8",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Report Period",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Report Period": {
+      "main": [
+        [
+          {
+            "node": "Read KPI Snapshots",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Escalation Queue",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Decision Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read KPI Snapshots": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Escalation Queue": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Decision Log": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Data": {
+      "main": [
+        [
+          {
+            "node": "AI Executive Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Executive Summary": {
+      "main": [
+        [
+          {
+            "node": "Format HTML Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format HTML Email": {
+      "main": [
+        [
+          {
+            "node": "Send Executive Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

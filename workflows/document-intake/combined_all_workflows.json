@@ -1,0 +1,3265 @@
+{
+  "name": "Document Intake - Complete System (All Workflows)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## PHASE 1: EMAIL INTAKE & RAW STORAGE\nOutlook email trigger, attachment download, Drive upload, dupe detection",
+        "width": 1800,
+        "height": 200,
+        "color": 4
+      },
+      "id": "8a9f6446-aded-4ed9-83a9-5a4da950c38b",
+      "name": "Section - DI01",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        100,
+        -120
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## WF-DI-01: Email Intake + Raw Storage\nMonitors Outlook for emails with attachments.\nDownloads, deduplicates, uploads to Google Drive,\nand triggers WF-DI-02 for processing.",
+        "width": 500,
+        "height": 140,
+        "color": 4
+      },
+      "id": "0b98a85b-2143-4b6b-9006-dca23351c029",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        180,
+        80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "hasAttachments": true
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "0948defb-d87a-406d-97f8-fd0a57d1c358",
+      "name": "Outlook Trigger",
+      "type": "n8n-nodes-base.microsoftOutlookTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "69fca8ac-934c-4fda-b899-d97e5e55aac9",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract email metadata and split into one item per attachment\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const email = item.json;\n  const senderEmail = email.sender?.emailAddress?.address\n    || email.from?.emailAddress?.address || 'unknown';\n  const senderName = email.sender?.emailAddress?.name\n    || email.from?.emailAddress?.name || '';\n  const subject = email.subject || '(no subject)';\n  const receivedAt = email.receivedDateTime || email.createdDateTime || new Date().toISOString();\n  const messageId = email.id || '';\n\n  // Get all binary keys (attachments downloaded by trigger)\n  const binaryKeys = item.binary ? Object.keys(item.binary) : [];\n\n  if (binaryKeys.length === 0) {\n    // No binary attachments - skip\n    continue;\n  }\n\n  for (const binaryKey of binaryKeys) {\n    const binaryData = item.binary[binaryKey];\n    const fileName = binaryData.fileName || `attachment_${Date.now()}`;\n    const mimeType = binaryData.mimeType || 'application/octet-stream';\n    const fileSize = binaryData.fileSize || 0;\n\n    results.push({\n      json: {\n        senderEmail,\n        senderName,\n        subject,\n        receivedAt,\n        messageId,\n        fileName,\n        mimeType,\n        fileSize,\n        binaryKey,\n        intakeTimestamp: new Date().toISOString(),\n      },\n      binary: {\n        data: binaryData,\n      },\n    });\n  }\n}\n\nif (results.length === 0) {\n  results.push({ json: { _noAttachments: true } });\n}\n\nreturn results;\n"
+      },
+      "id": "fdadaf47-cbc4-40fb-9f99-ec7df6dee97f",
+      "name": "Split Attachments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._noAttachments }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "49b3dea2-d84e-4bb8-9d57-c5e86302417c",
+      "name": "Has Attachments?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const binaryData = item.binary?.data;\n  let fileHash = 'no_binary';\n\n  if (binaryData && binaryData.data) {\n    // binaryData.data is base64 encoded\n    const buffer = Buffer.from(binaryData.data, 'base64');\n    fileHash = crypto.createHash('sha256').update(buffer).digest('hex');\n  }\n\n  const random4 = Math.random().toString(36).slice(2, 6);\n  const docId = `DOC-${Date.now()}-${random4}`;\n\n  results.push({\n    json: {\n      ...item.json,\n      docId,\n      fileHash,\n    },\n    binary: item.binary,\n  });\n}\n\nreturn results;\n"
+      },
+      "id": "384b60fd-78c6-4d1e-9433-b6fffba90037",
+      "name": "Generate Hash + ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "80a9718c-50b3-404d-92dc-8a3ee7613453",
+      "name": "Read Document Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1140,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if the file hash already exists in Document_Log\nconst currentItem = $('Generate Hash + ID').first().json;\nconst fileHash = currentItem.fileHash;\nconst existingDocs = $input.all().map(i => i.json);\n\nconst duplicate = existingDocs.find(doc =>\n  doc.file_hash_sha256 === fileHash && doc.file_hash_sha256 !== 'no_binary'\n);\n\nreturn [{\n  json: {\n    ...currentItem,\n    isDuplicate: !!duplicate,\n    duplicateOfDocId: duplicate ? duplicate.doc_id : null,\n  },\n  binary: $('Generate Hash + ID').first().binary,\n}];\n"
+      },
+      "id": "13cf5c77-7f6c-4a1e-9e2f-7c86e94b673a",
+      "name": "Check Duplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.isDuplicate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "7e335f4f-0ea8-4ae4-9211-6c9360584036",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1580,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Duplicate_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "dupe_id": "=DUP-{{ $now.toMillis() }}",
+            "detected_at": "={{ $now.toISO() }}",
+            "original_doc_id": "={{ $json.duplicateOfDocId }}",
+            "duplicate_doc_id": "={{ $json.docId }}",
+            "file_hash": "={{ $json.fileHash }}",
+            "sender_email": "={{ $json.senderEmail }}",
+            "original_filename": "={{ $json.fileName }}",
+            "action_taken": "flagged"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "dupe_id",
+              "type": "string",
+              "display": true,
+              "displayName": "dupe_id"
+            },
+            {
+              "id": "detected_at",
+              "type": "string",
+              "display": true,
+              "displayName": "detected_at"
+            },
+            {
+              "id": "original_doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "original_doc_id"
+            },
+            {
+              "id": "duplicate_doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "duplicate_doc_id"
+            },
+            {
+              "id": "file_hash",
+              "type": "string",
+              "display": true,
+              "displayName": "file_hash"
+            },
+            {
+              "id": "sender_email",
+              "type": "string",
+              "display": true,
+              "displayName": "sender_email"
+            },
+            {
+              "id": "original_filename",
+              "type": "string",
+              "display": true,
+              "displayName": "original_filename"
+            },
+            {
+              "id": "action_taken",
+              "type": "string",
+              "display": true,
+              "displayName": "action_taken"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "446ce1f9-b30b-456e-ad40-e2cc6c45917b",
+      "name": "Log Duplicate",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1800,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audit_id": "=AUD-{{ $now.toMillis() }}-dup",
+            "timestamp": "={{ $now.toISO() }}",
+            "actor": "system",
+            "action": "duplicate_detected",
+            "doc_id": "={{ $json.docId }}",
+            "before_value": "",
+            "after_value": "={{ JSON.stringify({duplicate_of: $json.duplicateOfDocId, hash: $json.fileHash}) }}",
+            "notes": "Duplicate file detected during intake"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "audit_id",
+              "type": "string",
+              "display": true,
+              "displayName": "audit_id"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            },
+            {
+              "id": "actor",
+              "type": "string",
+              "display": true,
+              "displayName": "actor"
+            },
+            {
+              "id": "action",
+              "type": "string",
+              "display": true,
+              "displayName": "action"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "before_value",
+              "type": "string",
+              "display": true,
+              "displayName": "before_value"
+            },
+            {
+              "id": "after_value",
+              "type": "string",
+              "display": true,
+              "displayName": "after_value"
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "displayName": "notes"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "677aa07e-5315-4a39-a664-fa2d0dea0c89",
+      "name": "Audit Log - Duplicate",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2020,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $now.format('yyyyMMdd_HHmmss') + '_' + $json.fileName }}",
+        "folderId": {
+          "__rl": true,
+          "value": "REPLACE_INCOMING",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "e084a6a6-8568-4f8d-b739-aa642f14b8a2",
+      "name": "Upload to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1800,
+        400
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge upload result with original metadata\nconst uploadResult = $input.first().json;\nconst original = $('Check Duplicate').first().json;\n\nreturn [{\n  json: {\n    doc_id: original.docId,\n    intake_timestamp: original.intakeTimestamp,\n    sender_email: original.senderEmail,\n    sender_name: original.senderName,\n    email_subject: original.subject,\n    original_filename: original.fileName,\n    file_hash_sha256: original.fileHash,\n    file_size_bytes: original.fileSize || 0,\n    raw_drive_file_id: uploadResult.id || '',\n    raw_drive_url: uploadResult.webViewLink || uploadResult.webContentLink || '',\n    doc_type: '',\n    doc_type_confidence: '',\n    property_address: '',\n    erf_number: '',\n    unit_number: '',\n    scheme_name: '',\n    buyer_name: '',\n    seller_name: '',\n    agent_name: '',\n    transaction_date: '',\n    reference_number: '',\n    property_id: '',\n    final_drive_file_id: '',\n    final_drive_url: '',\n    status: 'pending',\n    review_reason: '',\n    reviewed_by: '',\n    reviewed_at: '',\n    error_message: '',\n    mimeType: original.mimeType,\n  }\n}];\n"
+      },
+      "id": "1246b13d-d441-49bf-a86a-92f629130c01",
+      "name": "Build Log Entry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "f380ceff-f9c1-498d-b11a-d2c276a022f3",
+      "name": "Log to Document_Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2240,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audit_id": "=AUD-{{ $now.toMillis() }}-int",
+            "timestamp": "={{ $now.toISO() }}",
+            "actor": "system",
+            "action": "intake",
+            "doc_id": "={{ $('Build Log Entry').first().json.doc_id }}",
+            "before_value": "",
+            "after_value": "={{ JSON.stringify({status: 'pending', file: $('Build Log Entry').first().json.original_filename}) }}",
+            "notes": "Document ingested from Outlook email"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "audit_id",
+              "type": "string",
+              "display": true,
+              "displayName": "audit_id"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            },
+            {
+              "id": "actor",
+              "type": "string",
+              "display": true,
+              "displayName": "actor"
+            },
+            {
+              "id": "action",
+              "type": "string",
+              "display": true,
+              "displayName": "action"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "before_value",
+              "type": "string",
+              "display": true,
+              "displayName": "before_value"
+            },
+            {
+              "id": "after_value",
+              "type": "string",
+              "display": true,
+              "displayName": "after_value"
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "displayName": "notes"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "af6bb292-b4a8-49b0-80ad-4d8509526a46",
+      "name": "Audit Log - Intake",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2460,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_DEPLOY",
+          "mode": "id"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "6b4d7feb-2742-4b76-ad69-fb93eb96382b",
+      "name": "Trigger Processing",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        2680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## PHASE 2: DOCUMENT PROCESSING & AI CLASSIFICATION\nPDF text extraction, OCR fallback, AI classification, folder filing",
+        "width": 1800,
+        "height": 200,
+        "color": 2
+      },
+      "id": "5190cb3f-399e-444f-a19a-ec4d5d042435",
+      "name": "Section - DI02",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        100,
+        1280
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## WF-DI-02: Document Processing\nSub-workflow: PDF text extraction, OCR fallback,\nAI classification, property matching, folder filing.",
+        "width": 500,
+        "height": 120,
+        "color": 2
+      },
+      "id": "a6eccebb-0e5b-4f67-8d9a-309c039985dd",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        180,
+        1480
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "5eef2f62-49bc-4044-a3d6-00c0086a9b1d",
+      "name": "Sub-workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        1700
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "8f8a7953-bf1c-44d7-8c84-982a6d015190",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        1900
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract input parameters from the trigger\nconst input = $input.first().json;\n\nreturn [{\n  json: {\n    docId: input.doc_id || input.docId || 'TEST-DOC',\n    rawDriveFileId: input.raw_drive_file_id || input.rawDriveFileId || '',\n    fileName: input.original_filename || input.fileName || 'test.pdf',\n    mimeType: input.mimeType || 'application/pdf',\n    senderEmail: input.sender_email || input.senderEmail || '',\n    subject: input.email_subject || input.subject || '',\n    intakeTimestamp: input.intake_timestamp || input.intakeTimestamp || new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "937a1798-2ff8-4521-b0bd-638678487c02",
+      "name": "Extract Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        1700
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.rawDriveFileId }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "eddc9e79-01fa-4dba-8b2a-0f4b990ae262",
+      "name": "Download from Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        660,
+        1700
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Extract Input').first().json.mimeType }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "9b84450a-9d58-432f-88a4-b26eb1b98bfd",
+      "name": "Is PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        1700
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {
+          "joinPages": true,
+          "maxPages": 50
+        }
+      },
+      "id": "9a35dd62-5c69-4724-b3d5-33d1fd04243f",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        1600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Non-PDF file - send to review queue\nconst input = $('Extract Input').first().json;\nreturn [{\n  json: {\n    ...input,\n    reviewReason: 'non_pdf_format',\n    aiDocType: 'Other',\n    aiConfidence: 0,\n  }\n}];\n"
+      },
+      "id": "851ffeef-a273-4f22-bc33-04cbc258e4ba",
+      "name": "Flag Non-PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        1900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ ($json.text || '').trim().length }}",
+              "rightValue": 100,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "5e491d15-b987-40b2-be49-b8fb5c2d7a08",
+      "name": "Has Text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Document AI OCR request\nconst input = $('Extract Input').first().json;\nconst binaryData = $('Download from Drive').first().binary?.data;\n\nif (!binaryData || !binaryData.data) {\n  return [{ json: { ...input, ocrText: '', ocrFailed: true } }];\n}\n\n// Build Document AI endpoint\nconst projectId = 'REPLACE_DOCAI_PROJECT';\nconst location = 'us';\nconst processorId = 'REPLACE_DOCAI_PROCESSOR';\n\nreturn [{\n  json: {\n    ...input,\n    docaiEndpoint: `https://${location}-documentai.googleapis.com/v1/projects/${projectId}/locations/${location}/processors/${processorId}:process`,\n    rawDocument: {\n      content: binaryData.data,\n      mimeType: 'application/pdf',\n    },\n  }\n}];\n"
+      },
+      "id": "fe34f34a-fca0-436d-8fc5-5eb2f191060a",
+      "name": "Prepare OCR Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1740
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.docaiEndpoint }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ rawDocument: $json.rawDocument }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "efe10118-72a6-4870-a4ef-90bbf1231847",
+      "name": "OCR Document AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        1740
+      ],
+      "credentials": {
+        "googleOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract text from Document AI response\nconst input = $('Extract Input').first().json;\nconst response = $input.first().json;\n\nlet ocrText = '';\ntry {\n  ocrText = response.document?.text || '';\n} catch (e) {\n  ocrText = '';\n}\n\nconst hasText = ocrText.trim().length > 100;\n\nreturn [{\n  json: {\n    ...input,\n    extractedText: ocrText,\n    textSource: 'ocr',\n    hasText,\n    reviewReason: hasText ? '' : 'no_text',\n    aiDocType: hasText ? '' : 'Other',\n    aiConfidence: hasText ? null : 0,\n  }\n}];\n"
+      },
+      "id": "2284a227-5f01-49a0-945f-8236e2445cfb",
+      "name": "Parse OCR Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1740
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasText }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "ec48aa39-00ee-4612-802b-7cca4aab4315",
+      "name": "OCR Has Text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        1740
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build classification prompt with extracted text\nconst input = $('Extract Input').first().json;\nconst extractedText = $json.text || $json.extractedText || '';\nconst textSource = $json.textSource || 'pdf';\nconst truncated = extractedText.substring(0, 4000);\n\nreturn [{\n  json: {\n    ...input,\n    extractedText: truncated,\n    textSource,\n    classificationPrompt: `You are a real estate document classifier for a South African property agency.\n\nTASK: Classify this document and extract metadata.\n\nDOCUMENT TYPES (choose exactly one):\n- FICA (identity documents, proof of address, tax clearance)\n- Offer_to_Purchase (OTP, sale agreement, deed of sale)\n- Mandate (sole/open mandate, listing agreement)\n- Title_Deed (title deed, transfer deed)\n- Municipal_Document (rates clearance, zoning, building plans)\n- Bond_Finance (bond approval, pre-qualification, bank documents)\n- Compliance_Certificate (electrical, plumbing, gas, beetle, electric fence)\n- Sectional_Scheme (body corporate rules, levy statements, management rules)\n- Entity_Document (company registration, trust deed, shareholder agreement)\n- Other (anything that doesn't fit above)\n\nReturn ONLY valid JSON, no markdown fencing:\n{\n  \"doc_type\": \"one of the types above\",\n  \"confidence\": 0.0,\n  \"property_address\": \"full street address or null\",\n  \"erf_number\": \"erf/stand number or null\",\n  \"unit_number\": \"unit/section number or null\",\n  \"scheme_name\": \"sectional title scheme name or null\",\n  \"city\": \"city or null\",\n  \"suburb\": \"suburb or null\",\n  \"province\": \"province or null\",\n  \"buyer_name\": \"full name or null\",\n  \"seller_name\": \"full name or null\",\n  \"agent_name\": \"agent name or null\",\n  \"transaction_date\": \"YYYY-MM-DD or null\",\n  \"reference_number\": \"any reference number or null\",\n  \"notes\": \"anything unusual about this document\"\n}\n\nRULES:\n- Set confidence between 0.0 and 1.0 based on how certain you are\n- Extract ALL available fields, use null for fields not found\n- For South African addresses, include suburb and city separately\n- Look for erf numbers, scheme names, and unit numbers specifically\n- Do NOT invent information - only extract what is clearly present\n\nDOCUMENT TEXT:\n${truncated}`,\n  }\n}];\n"
+      },
+      "id": "112a136b-7d47-4f90-8705-33d0de32287d",
+      "name": "Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"anthropic/claude-sonnet-4-20250514\", messages: [{ role: \"user\", content: $json.classificationPrompt }], temperature: 0.1, max_tokens: 2000 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d70dffd4-cb40-42a9-818c-956ff2a9909c",
+      "name": "AI Classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        1500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI classification response\nconst input = $('Extract Input').first().json;\nconst response = $input.first().json;\n\nlet classification = {};\ntry {\n  let content = response.choices[0].message.content || '';\n  // Strip markdown fencing if present\n  content = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  classification = JSON.parse(content);\n} catch (e) {\n  classification = {\n    doc_type: 'Other',\n    confidence: 0,\n    property_address: null,\n    notes: 'Failed to parse AI response: ' + e.message,\n  };\n}\n\n// Validate doc_type\nconst validTypes = [\n  'FICA', 'Offer_to_Purchase', 'Mandate', 'Title_Deed',\n  'Municipal_Document', 'Bond_Finance', 'Compliance_Certificate',\n  'Sectional_Scheme', 'Entity_Document', 'Other'\n];\nif (!validTypes.includes(classification.doc_type)) {\n  classification.doc_type = 'Other';\n  classification.confidence = Math.min(classification.confidence || 0, 0.5);\n}\n\nreturn [{\n  json: {\n    docId: input.docId,\n    rawDriveFileId: input.rawDriveFileId,\n    fileName: input.fileName,\n    mimeType: input.mimeType,\n    senderEmail: input.senderEmail,\n    subject: input.subject,\n    intakeTimestamp: input.intakeTimestamp,\n    docType: classification.doc_type || 'Other',\n    confidence: classification.confidence || 0,\n    propertyAddress: classification.property_address || '',\n    erfNumber: classification.erf_number || '',\n    unitNumber: classification.unit_number || '',\n    schemeName: classification.scheme_name || '',\n    city: classification.city || '',\n    suburb: classification.suburb || '',\n    province: classification.province || '',\n    buyerName: classification.buyer_name || '',\n    sellerName: classification.seller_name || '',\n    agentName: classification.agent_name || '',\n    transactionDate: classification.transaction_date || '',\n    referenceNumber: classification.reference_number || '',\n    aiNotes: classification.notes || '',\n  }\n}];\n"
+      },
+      "id": "3ca17baa-25a1-41de-89a5-4a16211876fd",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": 0.75,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ]
+        }
+      },
+      "id": "942f6ef0-847c-4edc-995f-95f8fbcc07cc",
+      "name": "Confidence OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flag for review - low confidence\nreturn [{\n  json: {\n    ...$json,\n    reviewReason: 'low_confidence',\n    aiDocType: $json.docType,\n    aiConfidence: $json.confidence,\n  }\n}];\n"
+      },
+      "id": "813ed94d-3e7c-48c5-9318-021c1f221274",
+      "name": "Flag Low Confidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Review_Queue",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "review_id": "=REV-{{ $now.toMillis() }}",
+            "doc_id": "={{ $json.docId }}",
+            "reason": "={{ $json.reviewReason }}",
+            "ai_doc_type": "={{ $json.aiDocType || $json.docType || 'Unknown' }}",
+            "ai_confidence": "={{ $json.aiConfidence || $json.confidence || 0 }}",
+            "raw_drive_url": "={{ $json.rawDriveUrl || '' }}",
+            "original_filename": "={{ $json.fileName }}",
+            "sender_email": "={{ $json.senderEmail }}",
+            "assigned_to": "",
+            "assigned_at": "",
+            "status": "open",
+            "admin_action": "",
+            "correct_doc_type": "",
+            "correct_property_id": "",
+            "admin_notes": "",
+            "admin_email": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "review_id",
+              "type": "string",
+              "display": true,
+              "displayName": "review_id"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "reason",
+              "type": "string",
+              "display": true,
+              "displayName": "reason"
+            },
+            {
+              "id": "ai_doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "ai_doc_type"
+            },
+            {
+              "id": "ai_confidence",
+              "type": "string",
+              "display": true,
+              "displayName": "ai_confidence"
+            },
+            {
+              "id": "raw_drive_url",
+              "type": "string",
+              "display": true,
+              "displayName": "raw_drive_url"
+            },
+            {
+              "id": "original_filename",
+              "type": "string",
+              "display": true,
+              "displayName": "original_filename"
+            },
+            {
+              "id": "sender_email",
+              "type": "string",
+              "display": true,
+              "displayName": "sender_email"
+            },
+            {
+              "id": "assigned_to",
+              "type": "string",
+              "display": true,
+              "displayName": "assigned_to"
+            },
+            {
+              "id": "assigned_at",
+              "type": "string",
+              "display": true,
+              "displayName": "assigned_at"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            },
+            {
+              "id": "admin_action",
+              "type": "string",
+              "display": true,
+              "displayName": "admin_action"
+            },
+            {
+              "id": "correct_doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "correct_doc_type"
+            },
+            {
+              "id": "correct_property_id",
+              "type": "string",
+              "display": true,
+              "displayName": "correct_property_id"
+            },
+            {
+              "id": "admin_notes",
+              "type": "string",
+              "display": true,
+              "displayName": "admin_notes"
+            },
+            {
+              "id": "admin_email",
+              "type": "string",
+              "display": true,
+              "displayName": "admin_email"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ceb0b761-8bc3-4d30-a9a1-1087447d17c0",
+      "name": "Add to Review Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        1800
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "doc_id": "={{ $json.docId || $json.doc_id }}",
+            "status": "review_required",
+            "review_reason": "={{ $json.reviewReason || $json.reason }}",
+            "doc_type": "={{ $json.aiDocType || $json.docType || '' }}",
+            "doc_type_confidence": "={{ $json.aiConfidence || $json.confidence || 0 }}"
+          },
+          "matchingColumns": [
+            "doc_id"
+          ],
+          "schema": [
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            },
+            {
+              "id": "review_reason",
+              "type": "string",
+              "display": true,
+              "displayName": "review_reason"
+            },
+            {
+              "id": "doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type"
+            },
+            {
+              "id": "doc_type_confidence",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type_confidence"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2b0a9dd7-1884-4cd5-955e-4a12605ae237",
+      "name": "Update Doc - Review",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        1800
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Property_Registry",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "0cc120f9-b8ed-409e-a231-480ca3780f17",
+      "name": "Read Properties",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2420,
+        1380
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match document to existing property\nconst doc = $('Parse AI Response').first().json;\nconst properties = $input.all().map(i => i.json);\n\nlet bestMatch = null;\nlet bestScore = 0;\n\nfor (const prop of properties) {\n  if (!prop.property_id) continue;\n  let score = 0;\n\n  // Exact erf match (highest priority)\n  if (doc.erfNumber && prop.erf_number && doc.erfNumber === prop.erf_number) {\n    score += 100;\n  }\n\n  // Unit + scheme match\n  if (doc.unitNumber && prop.unit_number && doc.unitNumber === prop.unit_number\n      && doc.schemeName && prop.scheme_name && doc.schemeName.toLowerCase() === prop.scheme_name.toLowerCase()) {\n    score += 90;\n  }\n\n  // Address fuzzy match\n  if (doc.propertyAddress && prop.display_address) {\n    const docAddr = doc.propertyAddress.toLowerCase().replace(/[^a-z0-9]/g, '');\n    const propAddr = prop.display_address.toLowerCase().replace(/[^a-z0-9]/g, '');\n    if (docAddr === propAddr) {\n      score += 80;\n    } else if (propAddr.includes(docAddr) || docAddr.includes(propAddr)) {\n      score += 60;\n    } else {\n      // Token overlap\n      const docTokens = doc.propertyAddress.toLowerCase().split(/\\s+/);\n      const propTokens = prop.display_address.toLowerCase().split(/\\s+/);\n      const overlap = docTokens.filter(t => propTokens.includes(t) && t.length > 2).length;\n      if (overlap >= 3) score += 40;\n    }\n  }\n\n  if (score > bestScore) {\n    bestScore = score;\n    bestMatch = prop;\n  }\n}\n\nconst matched = bestScore >= 40;\nconst docTypeFolderMap = {\"FICA\": \"01_FICA\", \"Offer_to_Purchase\": \"02_OTP\", \"Mandate\": \"03_Mandate\", \"Title_Deed\": \"04_Title_Deed\", \"Municipal_Document\": \"05_Municipal\", \"Bond_Finance\": \"06_Bond_Finance\", \"Compliance_Certificate\": \"07_Compliance\", \"Sectional_Scheme\": \"08_Sectional_Scheme\", \"Entity_Document\": \"09_Entity_Docs\", \"Other\": \"10_Other\"};\n\nreturn [{\n  json: {\n    ...doc,\n    propertyMatched: matched,\n    matchScore: bestScore,\n    matchedPropertyId: matched ? bestMatch.property_id : null,\n    matchedAddress: matched ? bestMatch.display_address : null,\n    matchedDriveFolderId: matched ? bestMatch.drive_folder_id : null,\n    categoryFolder: docTypeFolderMap[doc.docType] || '10_Other',\n  }\n}];\n"
+      },
+      "id": "785f38a9-81c8-4db2-b501-409f6a87e9cf",
+      "name": "Match Property",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.propertyMatched }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "903f98cc-62a4-4748-953a-f9a182ee1213",
+      "name": "Property Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Property_Registry",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "property_id": "=PROP-{{ $now.toMillis() }}",
+            "display_address": "={{ $json.propertyAddress }}",
+            "street_number": "",
+            "street_name": "",
+            "suburb": "={{ $json.suburb }}",
+            "city": "={{ $json.city }}",
+            "province": "={{ $json.province }}",
+            "erf_number": "={{ $json.erfNumber }}",
+            "unit_number": "={{ $json.unitNumber }}",
+            "scheme_name": "={{ $json.schemeName }}",
+            "drive_folder_id": "",
+            "drive_folder_url": "",
+            "created_at": "={{ $now.toISO() }}",
+            "doc_count": "1",
+            "last_doc_date": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "property_id",
+              "type": "string",
+              "display": true,
+              "displayName": "property_id"
+            },
+            {
+              "id": "display_address",
+              "type": "string",
+              "display": true,
+              "displayName": "display_address"
+            },
+            {
+              "id": "street_number",
+              "type": "string",
+              "display": true,
+              "displayName": "street_number"
+            },
+            {
+              "id": "street_name",
+              "type": "string",
+              "display": true,
+              "displayName": "street_name"
+            },
+            {
+              "id": "suburb",
+              "type": "string",
+              "display": true,
+              "displayName": "suburb"
+            },
+            {
+              "id": "city",
+              "type": "string",
+              "display": true,
+              "displayName": "city"
+            },
+            {
+              "id": "province",
+              "type": "string",
+              "display": true,
+              "displayName": "province"
+            },
+            {
+              "id": "erf_number",
+              "type": "string",
+              "display": true,
+              "displayName": "erf_number"
+            },
+            {
+              "id": "unit_number",
+              "type": "string",
+              "display": true,
+              "displayName": "unit_number"
+            },
+            {
+              "id": "scheme_name",
+              "type": "string",
+              "display": true,
+              "displayName": "scheme_name"
+            },
+            {
+              "id": "drive_folder_id",
+              "type": "string",
+              "display": true,
+              "displayName": "drive_folder_id"
+            },
+            {
+              "id": "drive_folder_url",
+              "type": "string",
+              "display": true,
+              "displayName": "drive_folder_url"
+            },
+            {
+              "id": "created_at",
+              "type": "string",
+              "display": true,
+              "displayName": "created_at"
+            },
+            {
+              "id": "doc_count",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_count"
+            },
+            {
+              "id": "last_doc_date",
+              "type": "string",
+              "display": true,
+              "displayName": "last_doc_date"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a10ceffd-1e9e-47b7-adf9-e59fb1273803",
+      "name": "Create Property",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3080,
+        1460
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Google Drive folder path for this document\nconst doc = $('Match Property').first().json;\nconst createResult = $input.first().json;\n\n// Determine property ID - either matched or newly created\nconst propertyId = doc.matchedPropertyId || createResult.property_id || doc.docId;\nconst city = doc.city || 'Unknown_City';\nconst suburb = doc.suburb || 'Unknown_Suburb';\nconst displayAddress = doc.propertyAddress || doc.matchedAddress || 'Unknown_Address';\n\n// Clean folder names (remove invalid chars)\nconst clean = (s) => s.replace(/[<>:\"/\\\\|?*]/g, '_').trim() || 'Unknown';\n\nreturn [{\n  json: {\n    ...doc,\n    propertyId: propertyId,\n    cityFolder: clean(city),\n    suburbFolder: clean(suburb),\n    addressFolder: clean(displayAddress),\n    categoryFolder: doc.categoryFolder,\n    propertiesRootId: 'REPLACE_PROPERTIES',\n    // File rename\n    newFileName: `${$now.format('yyyy-MM-dd')}_${doc.docType}_${doc.referenceNumber || 'NOREF'}_${doc.fileName}`,\n  }\n}];\n"
+      },
+      "id": "7636b904-a8af-4136-928e-b0c512ce203c",
+      "name": "Build Folder Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// This node orchestrates folder creation and file move via\n// Google Drive API. Each folder is searched first, created if missing.\n// The final step moves the raw file into the category subfolder.\n//\n// NOTE: This uses $getWorkflowStaticData to cache folder IDs\n// across executions for performance.\n\nconst doc = $json;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.folderCache) staticData.folderCache = {};\n\n// Return instructions for downstream Google Drive nodes\nreturn [{\n  json: {\n    ...doc,\n    folderPath: `${doc.cityFolder}/${doc.suburbFolder}/${doc.addressFolder}/${doc.categoryFolder}`,\n    // These will be populated by the folder creation chain\n    step: 'ready_for_folders',\n  }\n}];\n"
+      },
+      "id": "90c09e81-54e1-47e7-a1d5-9ad65a33ba28",
+      "name": "Prepare Folder Chain",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "queryString": "={{ \"name='\" + $json.cityFolder + \"' and '\" + $json.propertiesRootId + \"' in parents and mimeType='application/vnd.google-apps.folder'\" }}",
+        "options": {}
+      },
+      "id": "e75e18f9-5517-41df-b5f8-01c2fd6955c3",
+      "name": "Find City Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3740,
+        1380
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build folder creation plan\n// This node prepares the data for sequential folder creation\nconst doc = $('Prepare Folder Chain').first().json;\nconst searchResults = $input.all().map(i => i.json);\n\nlet cityFolderId = '';\nif (searchResults.length > 0 && searchResults[0].id) {\n  cityFolderId = searchResults[0].id;\n}\n\nreturn [{\n  json: {\n    ...doc,\n    cityFolderId,\n    needsCreateCity: !cityFolderId,\n  }\n}];\n"
+      },
+      "id": "e67bf0aa-5e9c-439b-8ef7-2ce01c84cdd7",
+      "name": "Check City Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "operation": "create",
+        "name": "={{ $json.cityFolder }}",
+        "options": {
+          "folderRLC": {
+            "__rl": true,
+            "value": "={{ $json.propertiesRootId }}",
+            "mode": "id"
+          }
+        }
+      },
+      "id": "c9b988ee-ef4c-445c-863d-913ffc2316c4",
+      "name": "Create City Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4180,
+        1380
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// After creating city folder, we need to create suburb, address,\n// and category subfolders. For simplicity, we'll use a single Code\n// node that outputs the folder IDs for the remaining chain.\n//\n// In production, each folder level would be its own search+create pair.\n// For MVP, we'll move the file to the city folder and create the\n// subfolders in subsequent iterations.\n\nconst doc = $('Check City Result').first().json;\nconst createResult = $input.first().json;\n\nconst cityFolderId = doc.cityFolderId || createResult.id || '';\n\nreturn [{\n  json: {\n    ...doc,\n    cityFolderId,\n    targetFolderId: cityFolderId, // MVP: file at city level\n    rawDriveFileId: doc.rawDriveFileId,\n    newFileName: doc.newFileName,\n  }\n}];\n"
+      },
+      "id": "62e28462-6244-41b2-8be0-021f55b5bfbd",
+      "name": "Resolve Folder IDs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        1380
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.rawDriveFileId }}",
+          "mode": "id"
+        },
+        "driveId": {
+          "__rl": true,
+          "value": "={{ $json.targetFolderId }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "8c77ded2-8588-4d60-8c98-98fc0d1a37e0",
+      "name": "Move File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4620,
+        1380
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "doc_id": "={{ $('Resolve Folder IDs').first().json.docId }}",
+            "doc_type": "={{ $('Resolve Folder IDs').first().json.docType }}",
+            "doc_type_confidence": "={{ $('Resolve Folder IDs').first().json.confidence }}",
+            "property_address": "={{ $('Resolve Folder IDs').first().json.propertyAddress }}",
+            "erf_number": "={{ $('Resolve Folder IDs').first().json.erfNumber }}",
+            "unit_number": "={{ $('Resolve Folder IDs').first().json.unitNumber }}",
+            "scheme_name": "={{ $('Resolve Folder IDs').first().json.schemeName }}",
+            "buyer_name": "={{ $('Resolve Folder IDs').first().json.buyerName }}",
+            "seller_name": "={{ $('Resolve Folder IDs').first().json.sellerName }}",
+            "agent_name": "={{ $('Resolve Folder IDs').first().json.agentName }}",
+            "transaction_date": "={{ $('Resolve Folder IDs').first().json.transactionDate }}",
+            "reference_number": "={{ $('Resolve Folder IDs').first().json.referenceNumber }}",
+            "property_id": "={{ $('Resolve Folder IDs').first().json.propertyId }}",
+            "final_drive_file_id": "={{ $json.id || '' }}",
+            "final_drive_url": "={{ $json.webViewLink || '' }}",
+            "status": "processed"
+          },
+          "matchingColumns": [
+            "doc_id"
+          ],
+          "schema": [
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type"
+            },
+            {
+              "id": "doc_type_confidence",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type_confidence"
+            },
+            {
+              "id": "property_address",
+              "type": "string",
+              "display": true,
+              "displayName": "property_address"
+            },
+            {
+              "id": "erf_number",
+              "type": "string",
+              "display": true,
+              "displayName": "erf_number"
+            },
+            {
+              "id": "unit_number",
+              "type": "string",
+              "display": true,
+              "displayName": "unit_number"
+            },
+            {
+              "id": "scheme_name",
+              "type": "string",
+              "display": true,
+              "displayName": "scheme_name"
+            },
+            {
+              "id": "buyer_name",
+              "type": "string",
+              "display": true,
+              "displayName": "buyer_name"
+            },
+            {
+              "id": "seller_name",
+              "type": "string",
+              "display": true,
+              "displayName": "seller_name"
+            },
+            {
+              "id": "agent_name",
+              "type": "string",
+              "display": true,
+              "displayName": "agent_name"
+            },
+            {
+              "id": "transaction_date",
+              "type": "string",
+              "display": true,
+              "displayName": "transaction_date"
+            },
+            {
+              "id": "reference_number",
+              "type": "string",
+              "display": true,
+              "displayName": "reference_number"
+            },
+            {
+              "id": "property_id",
+              "type": "string",
+              "display": true,
+              "displayName": "property_id"
+            },
+            {
+              "id": "final_drive_file_id",
+              "type": "string",
+              "display": true,
+              "displayName": "final_drive_file_id"
+            },
+            {
+              "id": "final_drive_url",
+              "type": "string",
+              "display": true,
+              "displayName": "final_drive_url"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c6f753aa-95d5-4243-8a66-1c81f03c197a",
+      "name": "Update Doc - Processed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4840,
+        1380
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audit_id": "=AUD-{{ $now.toMillis() }}-proc",
+            "timestamp": "={{ $now.toISO() }}",
+            "actor": "system",
+            "action": "ai_classified_and_filed",
+            "doc_id": "={{ $('Resolve Folder IDs').first().json.docId }}",
+            "before_value": "={{ JSON.stringify({status: 'pending'}) }}",
+            "after_value": "={{ JSON.stringify({status: 'processed', doc_type: $('Resolve Folder IDs').first().json.docType, confidence: $('Resolve Folder IDs').first().json.confidence}) }}",
+            "notes": "={{ 'Classified as ' + $('Resolve Folder IDs').first().json.docType + ' (confidence: ' + $('Resolve Folder IDs').first().json.confidence + ')' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "audit_id",
+              "type": "string",
+              "display": true,
+              "displayName": "audit_id"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            },
+            {
+              "id": "actor",
+              "type": "string",
+              "display": true,
+              "displayName": "actor"
+            },
+            {
+              "id": "action",
+              "type": "string",
+              "display": true,
+              "displayName": "action"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "before_value",
+              "type": "string",
+              "display": true,
+              "displayName": "before_value"
+            },
+            {
+              "id": "after_value",
+              "type": "string",
+              "display": true,
+              "displayName": "after_value"
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "displayName": "notes"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8c8bc29b-13c8-469c-ab60-1d686b21edc0",
+      "name": "Audit Log - Processed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        5060,
+        1380
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## PHASE 3: ADMIN REVIEW QUEUE\nPolls Review_Queue sheet for admin decisions, processes approvals",
+        "width": 1800,
+        "height": 200,
+        "color": 3
+      },
+      "id": "425ac791-af00-49ee-acf9-b243804819ae",
+      "name": "Section - DI03",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        100,
+        3080
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## WF-DI-03: Admin Review\nPolls Review_Queue sheet for admin decisions.\nProcesses approvals, reclassifications, and errors.",
+        "width": 450,
+        "height": 100,
+        "color": 3
+      },
+      "id": "3b87b2df-9ccd-4427-b004-825f4ae41310",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        180,
+        3280
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "049007e4-9932-42a1-84f6-936d31da586f",
+      "name": "Poll Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        3500
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "1f0e8555-f2b1-40f7-9097-ad009b2c1c43",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        3700
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Review_Queue",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "e595b235-5317-4944-975f-feb0e438ec2e",
+      "name": "Read Review Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        460,
+        3500
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter for items where admin has filled in an action but status is still open\nconst items = $input.all();\nconst actionable = items.filter(item => {\n  const row = item.json;\n  return row.admin_action\n    && row.admin_action.trim() !== ''\n    && row.status === 'open'\n    && row.admin_email\n    && row.admin_email.trim() !== '';\n});\n\nif (actionable.length === 0) {\n  return [{ json: { _noItems: true, count: 0 } }];\n}\n\nreturn actionable;\n"
+      },
+      "id": "c40f6e56-9e7b-44f8-a80a-a1dfa5379914",
+      "name": "Filter Actionable",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        3500
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._noItems }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "f63dc183-50ad-429c-8dae-7ec63634b94b",
+      "name": "Has Items?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        3500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "778febf4-b0e9-490f-8c19-96a353444788",
+      "name": "Read Document Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        3500
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match review item to its document record and prepare updates\nconst reviewItem = $('Filter Actionable').first().json;\nconst allDocs = $input.all().map(i => i.json);\n\nconst docRecord = allDocs.find(d => d.doc_id === reviewItem.doc_id);\n\nif (!docRecord) {\n  return [{ json: { error: 'Document not found: ' + reviewItem.doc_id, reviewItem } }];\n}\n\nconst action = reviewItem.admin_action.trim().toLowerCase();\nconst docTypeFolderMap = {\"FICA\": \"01_FICA\", \"Offer_to_Purchase\": \"02_OTP\", \"Mandate\": \"03_Mandate\", \"Title_Deed\": \"04_Title_Deed\", \"Municipal_Document\": \"05_Municipal\", \"Bond_Finance\": \"06_Bond_Finance\", \"Compliance_Certificate\": \"07_Compliance\", \"Sectional_Scheme\": \"08_Sectional_Scheme\", \"Entity_Document\": \"09_Entity_Docs\", \"Other\": \"10_Other\"};\n\nlet finalDocType = docRecord.doc_type;\nlet finalPropertyId = docRecord.property_id;\nlet status = 'processed';\n\nif (action === 'reclassify' && reviewItem.correct_doc_type) {\n  finalDocType = reviewItem.correct_doc_type;\n}\nif (reviewItem.correct_property_id) {\n  finalPropertyId = reviewItem.correct_property_id;\n}\nif (action === 'flag_error') {\n  status = 'error';\n}\n\nreturn [{\n  json: {\n    reviewId: reviewItem.review_id,\n    docId: reviewItem.doc_id,\n    action,\n    adminEmail: reviewItem.admin_email,\n    adminNotes: reviewItem.admin_notes || '',\n    finalDocType,\n    finalPropertyId,\n    status,\n    rawDriveFileId: docRecord.raw_drive_file_id,\n    categoryFolder: docTypeFolderMap[finalDocType] || '10_Other',\n    originalStatus: docRecord.status,\n    originalDocType: docRecord.doc_type,\n  }\n}];\n"
+      },
+      "id": "c0543782-f44b-45e0-b51f-b4b7f6f34157",
+      "name": "Process Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        3500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "doc_id": "={{ $json.docId }}",
+            "doc_type": "={{ $json.finalDocType }}",
+            "property_id": "={{ $json.finalPropertyId }}",
+            "status": "={{ $json.status }}",
+            "reviewed_by": "={{ $json.adminEmail }}",
+            "reviewed_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "doc_id"
+          ],
+          "schema": [
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type"
+            },
+            {
+              "id": "property_id",
+              "type": "string",
+              "display": true,
+              "displayName": "property_id"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            },
+            {
+              "id": "reviewed_by",
+              "type": "string",
+              "display": true,
+              "displayName": "reviewed_by"
+            },
+            {
+              "id": "reviewed_at",
+              "type": "string",
+              "display": true,
+              "displayName": "reviewed_at"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "287d85e3-2896-4c20-a4db-07ab98d44e78",
+      "name": "Update Document Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1560,
+        3500
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Review_Queue",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "review_id": "={{ $('Process Action').first().json.reviewId }}",
+            "status": "resolved"
+          },
+          "matchingColumns": [
+            "review_id"
+          ],
+          "schema": [
+            {
+              "id": "review_id",
+              "type": "string",
+              "display": true,
+              "displayName": "review_id"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c242ea9a-0a9f-4ccc-a1be-aa016801fa70",
+      "name": "Resolve Review",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1780,
+        3500
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audit_id": "=AUD-{{ $now.toMillis() }}-rev",
+            "timestamp": "={{ $now.toISO() }}",
+            "actor": "={{ $('Process Action').first().json.adminEmail }}",
+            "action": "review_resolved",
+            "doc_id": "={{ $('Process Action').first().json.docId }}",
+            "before_value": "={{ JSON.stringify({status: $('Process Action').first().json.originalStatus, doc_type: $('Process Action').first().json.originalDocType}) }}",
+            "after_value": "={{ JSON.stringify({status: $('Process Action').first().json.status, doc_type: $('Process Action').first().json.finalDocType, action: $('Process Action').first().json.action}) }}",
+            "notes": "={{ $('Process Action').first().json.adminNotes }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "audit_id",
+              "type": "string",
+              "display": true,
+              "displayName": "audit_id"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            },
+            {
+              "id": "actor",
+              "type": "string",
+              "display": true,
+              "displayName": "actor"
+            },
+            {
+              "id": "action",
+              "type": "string",
+              "display": true,
+              "displayName": "action"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "before_value",
+              "type": "string",
+              "display": true,
+              "displayName": "before_value"
+            },
+            {
+              "id": "after_value",
+              "type": "string",
+              "display": true,
+              "displayName": "after_value"
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "displayName": "notes"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1357a502-6d33-438d-bcc3-b52b859b7c83",
+      "name": "Audit Log - Review",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2000,
+        3500
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Process Action').first().json.adminEmail }}",
+        "subject": "=Document Review Processed - {{ $('Process Action').first().json.docId }}",
+        "emailType": "html",
+        "message": "=<h3>Review Processed</h3><p>Document <strong>{{ $('Process Action').first().json.docId }}</strong> has been {{ $('Process Action').first().json.action }}d.</p><p>Type: {{ $('Process Action').first().json.finalDocType }}</p><p>Notes: {{ $('Process Action').first().json.adminNotes || 'None' }}</p><p style=\"color:#888; font-size:12px;\">Processed at {{ $now.toISO() }}</p>",
+        "options": {}
+      },
+      "id": "e5e0787b-fa45-4ab3-a63a-4acd6e69c566",
+      "name": "Confirm Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2220,
+        3500
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## MONITORING & NOTIFICATIONS\nDaily summary, review alerts, error handling, audit logging",
+        "width": 1800,
+        "height": 200,
+        "color": 5
+      },
+      "id": "0f685834-7d28-4a09-bdd4-4858815a0f4e",
+      "name": "Section - DI04",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        100,
+        4280
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## WF-DI-04: Notifications & Monitoring\nDaily summary, review alerts, error handling.",
+        "width": 400,
+        "height": 80,
+        "color": 5
+      },
+      "id": "56a1351e-f839-4cee-8b8a-ebac9e2f92fc",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        180,
+        4480
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "751c53c7-9ad0-4b29-9fdb-5b0274e19088",
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        4700
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "69283ce6-1fc6-4b06-95cf-86b59862816d",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        4900
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0ae86987-0f78-4b62-8259-79dd9b34000f",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        5100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Review_Queue",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "343f11ac-6629-41be-b9dc-659558ad85d9",
+      "name": "Read Reviews",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        500,
+        4700
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "e3c37c9a-a186-4188-8268-f51ab7bd2bf9",
+      "name": "Read Documents",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        500,
+        4900
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build daily summary statistics\nconst reviews = $('Read Reviews').all().map(i => i.json);\nconst docs = $('Read Documents').all().map(i => i.json);\n\nconst today = new Date().toISOString().split('T')[0];\n\n// Filter today's documents\nconst todayDocs = docs.filter(d => (d.intake_timestamp || '').startsWith(today));\n\n// Count by status\nconst processed = todayDocs.filter(d => d.status === 'processed').length;\nconst pending = todayDocs.filter(d => d.status === 'pending').length;\nconst reviewRequired = todayDocs.filter(d => d.status === 'review_required').length;\nconst errors = todayDocs.filter(d => d.status === 'error').length;\nconst duplicates = todayDocs.filter(d => d.status === 'duplicate').length;\n\n// Open reviews (any date)\nconst openReviews = reviews.filter(r => r.status === 'open');\n\n// Count by doc type (all time today)\nconst typeCounts = {};\nfor (const doc of todayDocs) {\n  const t = doc.doc_type || 'Unknown';\n  typeCounts[t] = (typeCounts[t] || 0) + 1;\n}\n\n// Average confidence\nconst confidences = todayDocs\n  .filter(d => d.doc_type_confidence)\n  .map(d => parseFloat(d.doc_type_confidence));\nconst avgConfidence = confidences.length > 0\n  ? (confidences.reduce((a, b) => a + b, 0) / confidences.length).toFixed(2)\n  : 'N/A';\n\n// Build type breakdown HTML\nlet typeBreakdown = '';\nfor (const [type, count] of Object.entries(typeCounts).sort((a, b) => b[1] - a[1])) {\n  typeBreakdown += `<tr><td>${type}</td><td>${count}</td></tr>`;\n}\n\n// Build open review list HTML\nlet reviewList = '';\nfor (const r of openReviews.slice(0, 20)) {\n  reviewList += `<tr>\n    <td>${r.review_id || ''}</td>\n    <td>${r.original_filename || ''}</td>\n    <td>${r.reason || ''}</td>\n    <td>${r.ai_doc_type || ''}</td>\n    <td>${r.ai_confidence || ''}</td>\n    <td><a href=\"${r.raw_drive_url || '#'}\">View</a></td>\n  </tr>`;\n}\n\nreturn [{\n  json: {\n    date: today,\n    totalToday: todayDocs.length,\n    processed,\n    pending,\n    reviewRequired,\n    errors,\n    duplicates,\n    openReviewCount: openReviews.length,\n    avgConfidence,\n    typeBreakdown,\n    reviewList,\n    hasOpenReviews: openReviews.length > 0,\n  }\n}];\n"
+      },
+      "id": "c0e2a58a-ea3b-40fb-b774-7d038a60e10f",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        4800
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.openReviewCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "4a9f1509-42d1-4bf8-a636-c6211a0fd6bd",
+      "name": "Has Open Reviews?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        4700
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=[ACTION REQUIRED] {{ $json.openReviewCount }} Documents Pending Review - {{ $json.date }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px;\">\n<h2 style=\"color: #FF6D5A;\">Document Review Required</h2>\n<p><strong>{{ $json.openReviewCount }}</strong> document(s) need your review.</p>\n\n<table style=\"border-collapse: collapse; width: 100%; margin: 16px 0;\">\n<thead>\n<tr style=\"background: #f5f5f5;\">\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">Review ID</th>\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">File</th>\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">Reason</th>\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">AI Type</th>\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">Confidence</th>\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">File</th>\n</tr>\n</thead>\n<tbody>\n{{ $json.reviewList }}\n</tbody>\n</table>\n\n<p>Open the <strong>Review_Queue</strong> tab in the tracking spreadsheet to review these documents.</p>\n<p style=\"color: #888; font-size: 12px;\">Document Intake System - AnyVision Media</p>\n</div>",
+        "options": {}
+      },
+      "id": "b1dc627a-0629-49dd-8692-b71439b0f47b",
+      "name": "Review Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        4600
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Document Intake Daily Summary - {{ $json.date }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px;\">\n<h2 style=\"color: #FF6D5A;\">Daily Document Intake Summary</h2>\n<p>Date: <strong>{{ $json.date }}</strong></p>\n\n<table style=\"border-collapse: collapse; width: 100%; margin: 16px 0;\">\n<tr style=\"background: #f5f5f5;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>Total Documents Today</strong></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json.totalToday }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Processed</td><td style=\"padding: 8px; border: 1px solid #ddd; color: green;\">{{ $json.processed }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Pending</td><td style=\"padding: 8px; border: 1px solid #ddd; color: orange;\">{{ $json.pending }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Review Required</td><td style=\"padding: 8px; border: 1px solid #ddd; color: #FF6D5A;\">{{ $json.reviewRequired }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Errors</td><td style=\"padding: 8px; border: 1px solid #ddd; color: red;\">{{ $json.errors }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Duplicates Detected</td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json.duplicates }}</td></tr>\n<tr style=\"background: #f5f5f5;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>Open Reviews (all time)</strong></td><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>{{ $json.openReviewCount }}</strong></td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Avg AI Confidence</td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json.avgConfidence }}</td></tr>\n</table>\n\n<h3>Document Type Breakdown</h3>\n<table style=\"border-collapse: collapse; width: 50%; margin: 16px 0;\">\n<thead><tr style=\"background: #f5f5f5;\"><th style=\"padding: 6px; border: 1px solid #ddd; text-align: left;\">Type</th><th style=\"padding: 6px; border: 1px solid #ddd; text-align: left;\">Count</th></tr></thead>\n<tbody>{{ $json.typeBreakdown }}</tbody>\n</table>\n\n<p style=\"color: #888; font-size: 12px;\">Document Intake System - AnyVision Media</p>\n</div>",
+        "options": {}
+      },
+      "id": "93a96b88-aadf-461a-a01e-fced913bbc98",
+      "name": "Daily Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        4900
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format error details from the error trigger\nconst error = $input.first().json;\n\nconst workflowName = error.workflow?.name || 'Unknown Workflow';\nconst nodeName = error.execution?.error?.node?.name || 'Unknown Node';\nconst errorMessage = error.execution?.error?.message || 'No error message';\nconst executionId = error.execution?.id || '';\nconst timestamp = new Date().toISOString();\n\nreturn [{\n  json: {\n    workflowName,\n    nodeName,\n    errorMessage,\n    executionId,\n    timestamp,\n    subject: `[ERROR] Document Intake - ${workflowName} failed at ${nodeName}`,\n    body: `<h3 style=\"color: red;\">Document Intake Error</h3>\n<p><strong>Workflow:</strong> ${workflowName}</p>\n<p><strong>Node:</strong> ${nodeName}</p>\n<p><strong>Error:</strong> ${errorMessage}</p>\n<p><strong>Execution ID:</strong> ${executionId}</p>\n<p><strong>Time:</strong> ${timestamp}</p>\n<p>Check the n8n execution log for details.</p>`,\n  }\n}];\n"
+      },
+      "id": "0d14c22d-7db4-471f-885c-8b84c1d5ba63",
+      "name": "Format Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        5100
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "75c1a969-0a89-4f94-ba76-522a44f702c4",
+      "name": "Error Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        740,
+        5100
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audit_id": "=AUD-{{ $now.toMillis() }}-err",
+            "timestamp": "={{ $now.toISO() }}",
+            "actor": "system",
+            "action": "error_alert_sent",
+            "doc_id": "",
+            "before_value": "",
+            "after_value": "={{ JSON.stringify({workflow: $json.workflowName, node: $json.nodeName, error: $json.errorMessage}) }}",
+            "notes": "Error alert email sent"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "audit_id",
+              "type": "string",
+              "display": true,
+              "displayName": "audit_id"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            },
+            {
+              "id": "actor",
+              "type": "string",
+              "display": true,
+              "displayName": "actor"
+            },
+            {
+              "id": "action",
+              "type": "string",
+              "display": true,
+              "displayName": "action"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "before_value",
+              "type": "string",
+              "display": true,
+              "displayName": "before_value"
+            },
+            {
+              "id": "after_value",
+              "type": "string",
+              "display": true,
+              "displayName": "after_value"
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "displayName": "notes"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "57897192-6044-4385-a926-d950908d2041",
+      "name": "Audit Log - Error",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        960,
+        5100
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Outlook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Split Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Reviews",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Attachments": {
+      "main": [
+        [
+          {
+            "node": "Has Attachments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Attachments?": {
+      "main": [
+        [
+          {
+            "node": "Generate Hash + ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Generate Hash + ID": {
+      "main": [
+        [
+          {
+            "node": "Read Document Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Document Log": {
+      "main": [
+        [
+          {
+            "node": "Process Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Log Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upload to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Drive": {
+      "main": [
+        [
+          {
+            "node": "Build Log Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Log Entry": {
+      "main": [
+        [
+          {
+            "node": "Log to Document_Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Document_Log": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log - Intake": {
+      "main": [
+        [
+          {
+            "node": "Trigger Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sub-workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Input": {
+      "main": [
+        [
+          {
+            "node": "Download from Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download from Drive": {
+      "main": [
+        [
+          {
+            "node": "Is PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is PDF?": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flag Non-PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Has Text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag Non-PDF": {
+      "main": [
+        [
+          {
+            "node": "Add to Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Text?": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare OCR Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare OCR Request": {
+      "main": [
+        [
+          {
+            "node": "OCR Document AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR Document AI": {
+      "main": [
+        [
+          {
+            "node": "Parse OCR Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse OCR Result": {
+      "main": [
+        [
+          {
+            "node": "OCR Has Text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR Has Text?": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add to Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Confidence OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confidence OK?": {
+      "main": [
+        [
+          {
+            "node": "Read Properties",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flag Low Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag Low Confidence": {
+      "main": [
+        [
+          {
+            "node": "Add to Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Review Queue": {
+      "main": [
+        [
+          {
+            "node": "Update Doc - Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Properties": {
+      "main": [
+        [
+          {
+            "node": "Match Property",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Property": {
+      "main": [
+        [
+          {
+            "node": "Property Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Property Found?": {
+      "main": [
+        [
+          {
+            "node": "Build Folder Path",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Property",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Property": {
+      "main": [
+        [
+          {
+            "node": "Build Folder Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Folder Path": {
+      "main": [
+        [
+          {
+            "node": "Prepare Folder Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Folder Chain": {
+      "main": [
+        [
+          {
+            "node": "Find City Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find City Folder": {
+      "main": [
+        [
+          {
+            "node": "Check City Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check City Result": {
+      "main": [
+        [
+          {
+            "node": "Create City Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create City Folder": {
+      "main": [
+        [
+          {
+            "node": "Resolve Folder IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Folder IDs": {
+      "main": [
+        [
+          {
+            "node": "Move File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move File": {
+      "main": [
+        [
+          {
+            "node": "Update Doc - Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Doc - Processed": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Review Queue": {
+      "main": [
+        [
+          {
+            "node": "Filter Actionable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Actionable": {
+      "main": [
+        [
+          {
+            "node": "Has Items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Items?": {
+      "main": [
+        [
+          {
+            "node": "Read Document Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Process Action": {
+      "main": [
+        [
+          {
+            "node": "Update Document Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Document Log": {
+      "main": [
+        [
+          {
+            "node": "Resolve Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Review": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log - Review": {
+      "main": [
+        [
+          {
+            "node": "Confirm Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Reviews",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Reviews": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Documents": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Build Summary": {
+      "main": [
+        [
+          {
+            "node": "Has Open Reviews?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Daily Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Open Reviews?": {
+      "main": [
+        [
+          {
+            "node": "Review Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "node": "Error Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

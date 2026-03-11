@@ -1,0 +1,1550 @@
+{
+  "name": "Document Intake - Document Processing (WF-DI-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## WF-DI-02: Document Processing\nSub-workflow: PDF text extraction, OCR fallback,\nAI classification, property matching, folder filing.",
+        "width": 500,
+        "height": 120,
+        "color": 2
+      },
+      "id": "ab20ec32-1804-4289-ae43-d629623a7910",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        180,
+        80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "abb257e9-005c-4bc0-b0d1-15c32a4aaee2",
+      "name": "Sub-workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "4dfe4b67-50e0-4dea-b143-239dadb9e78c",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract input parameters from the trigger\nconst input = $input.first().json;\n\nreturn [{\n  json: {\n    docId: input.doc_id || input.docId || 'TEST-DOC',\n    rawDriveFileId: input.raw_drive_file_id || input.rawDriveFileId || '',\n    fileName: input.original_filename || input.fileName || 'test.pdf',\n    mimeType: input.mimeType || 'application/pdf',\n    senderEmail: input.sender_email || input.senderEmail || '',\n    subject: input.email_subject || input.subject || '',\n    intakeTimestamp: input.intake_timestamp || input.intakeTimestamp || new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "57d03f27-af75-4d95-9f59-a995d368e3e5",
+      "name": "Extract Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.rawDriveFileId }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "89d6b7b1-024d-4326-97af-e85195b381e4",
+      "name": "Download from Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Extract Input').first().json.mimeType }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "6a043af8-5dca-42d4-825f-0fd5150cfc36",
+      "name": "Is PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {
+          "joinPages": true,
+          "maxPages": 50
+        }
+      },
+      "id": "592a6c9e-7aaa-4bd8-b4ef-22e948f9eeea",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Non-PDF file - send to review queue\nconst input = $('Extract Input').first().json;\nreturn [{\n  json: {\n    ...input,\n    reviewReason: 'non_pdf_format',\n    aiDocType: 'Other',\n    aiConfidence: 0,\n  }\n}];\n"
+      },
+      "id": "6c34a88d-2566-4f2c-ae11-9267e770b8b9",
+      "name": "Flag Non-PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ ($json.text || '').trim().length }}",
+              "rightValue": 100,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "575686dc-fa90-4e1f-a7b5-a9d687f35f43",
+      "name": "Has Text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Document AI OCR request\nconst input = $('Extract Input').first().json;\nconst binaryData = $('Download from Drive').first().binary?.data;\n\nif (!binaryData || !binaryData.data) {\n  return [{ json: { ...input, ocrText: '', ocrFailed: true } }];\n}\n\n// Build Document AI endpoint\nconst projectId = 'REPLACE_DOCAI_PROJECT';\nconst location = 'us';\nconst processorId = 'REPLACE_DOCAI_PROCESSOR';\n\nreturn [{\n  json: {\n    ...input,\n    docaiEndpoint: `https://${location}-documentai.googleapis.com/v1/projects/${projectId}/locations/${location}/processors/${processorId}:process`,\n    rawDocument: {\n      content: binaryData.data,\n      mimeType: 'application/pdf',\n    },\n  }\n}];\n"
+      },
+      "id": "dba9f752-743e-4e45-9a59-3a374f73d245",
+      "name": "Prepare OCR Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.docaiEndpoint }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ rawDocument: $json.rawDocument }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "377569e7-c937-4e3f-8fc4-5ab7657e0de3",
+      "name": "OCR Document AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        340
+      ],
+      "credentials": {
+        "googleOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract text from Document AI response\nconst input = $('Extract Input').first().json;\nconst response = $input.first().json;\n\nlet ocrText = '';\ntry {\n  ocrText = response.document?.text || '';\n} catch (e) {\n  ocrText = '';\n}\n\nconst hasText = ocrText.trim().length > 100;\n\nreturn [{\n  json: {\n    ...input,\n    extractedText: ocrText,\n    textSource: 'ocr',\n    hasText,\n    reviewReason: hasText ? '' : 'no_text',\n    aiDocType: hasText ? '' : 'Other',\n    aiConfidence: hasText ? null : 0,\n  }\n}];\n"
+      },
+      "id": "3ae06d1e-8899-4d7f-8ccd-d2f895298e85",
+      "name": "Parse OCR Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasText }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "2abad609-e15c-463c-b87e-ecb4832bbd80",
+      "name": "OCR Has Text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build classification prompt with extracted text\nconst input = $('Extract Input').first().json;\nconst extractedText = $json.text || $json.extractedText || '';\nconst textSource = $json.textSource || 'pdf';\nconst truncated = extractedText.substring(0, 4000);\n\nreturn [{\n  json: {\n    ...input,\n    extractedText: truncated,\n    textSource,\n    classificationPrompt: `You are a real estate document classifier for a South African property agency.\n\nTASK: Classify this document and extract metadata.\n\nDOCUMENT TYPES (choose exactly one):\n- FICA (identity documents, proof of address, tax clearance)\n- Offer_to_Purchase (OTP, sale agreement, deed of sale)\n- Mandate (sole/open mandate, listing agreement)\n- Title_Deed (title deed, transfer deed)\n- Municipal_Document (rates clearance, zoning, building plans)\n- Bond_Finance (bond approval, pre-qualification, bank documents)\n- Compliance_Certificate (electrical, plumbing, gas, beetle, electric fence)\n- Sectional_Scheme (body corporate rules, levy statements, management rules)\n- Entity_Document (company registration, trust deed, shareholder agreement)\n- Other (anything that doesn't fit above)\n\nReturn ONLY valid JSON, no markdown fencing:\n{\n  \"doc_type\": \"one of the types above\",\n  \"confidence\": 0.0,\n  \"property_address\": \"full street address or null\",\n  \"erf_number\": \"erf/stand number or null\",\n  \"unit_number\": \"unit/section number or null\",\n  \"scheme_name\": \"sectional title scheme name or null\",\n  \"city\": \"city or null\",\n  \"suburb\": \"suburb or null\",\n  \"province\": \"province or null\",\n  \"buyer_name\": \"full name or null\",\n  \"seller_name\": \"full name or null\",\n  \"agent_name\": \"agent name or null\",\n  \"transaction_date\": \"YYYY-MM-DD or null\",\n  \"reference_number\": \"any reference number or null\",\n  \"notes\": \"anything unusual about this document\"\n}\n\nRULES:\n- Set confidence between 0.0 and 1.0 based on how certain you are\n- Extract ALL available fields, use null for fields not found\n- For South African addresses, include suburb and city separately\n- Look for erf numbers, scheme names, and unit numbers specifically\n- Do NOT invent information - only extract what is clearly present\n\nDOCUMENT TEXT:\n${truncated}`,\n  }\n}];\n"
+      },
+      "id": "bbbea2a1-35d3-4b0c-9a36-c60dc7998337",
+      "name": "Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"anthropic/claude-sonnet-4-20250514\", messages: [{ role: \"user\", content: $json.classificationPrompt }], temperature: 0.1, max_tokens: 2000 }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "fcd3da63-f676-4616-8b85-23a47192d8c4",
+      "name": "AI Classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI classification response\nconst input = $('Extract Input').first().json;\nconst response = $input.first().json;\n\nlet classification = {};\ntry {\n  let content = response.choices[0].message.content || '';\n  // Strip markdown fencing if present\n  content = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  classification = JSON.parse(content);\n} catch (e) {\n  classification = {\n    doc_type: 'Other',\n    confidence: 0,\n    property_address: null,\n    notes: 'Failed to parse AI response: ' + e.message,\n  };\n}\n\n// Validate doc_type\nconst validTypes = [\n  'FICA', 'Offer_to_Purchase', 'Mandate', 'Title_Deed',\n  'Municipal_Document', 'Bond_Finance', 'Compliance_Certificate',\n  'Sectional_Scheme', 'Entity_Document', 'Other'\n];\nif (!validTypes.includes(classification.doc_type)) {\n  classification.doc_type = 'Other';\n  classification.confidence = Math.min(classification.confidence || 0, 0.5);\n}\n\nreturn [{\n  json: {\n    docId: input.docId,\n    rawDriveFileId: input.rawDriveFileId,\n    fileName: input.fileName,\n    mimeType: input.mimeType,\n    senderEmail: input.senderEmail,\n    subject: input.subject,\n    intakeTimestamp: input.intakeTimestamp,\n    docType: classification.doc_type || 'Other',\n    confidence: classification.confidence || 0,\n    propertyAddress: classification.property_address || '',\n    erfNumber: classification.erf_number || '',\n    unitNumber: classification.unit_number || '',\n    schemeName: classification.scheme_name || '',\n    city: classification.city || '',\n    suburb: classification.suburb || '',\n    province: classification.province || '',\n    buyerName: classification.buyer_name || '',\n    sellerName: classification.seller_name || '',\n    agentName: classification.agent_name || '',\n    transactionDate: classification.transaction_date || '',\n    referenceNumber: classification.reference_number || '',\n    aiNotes: classification.notes || '',\n  }\n}];\n"
+      },
+      "id": "bcc3fc1b-6b33-4b00-917c-0fd29226401f",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": 0.75,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ]
+        }
+      },
+      "id": "831d5ac0-1fd1-4a6d-8e21-57667145675f",
+      "name": "Confidence OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Flag for review - low confidence\nreturn [{\n  json: {\n    ...$json,\n    reviewReason: 'low_confidence',\n    aiDocType: $json.docType,\n    aiConfidence: $json.confidence,\n  }\n}];\n"
+      },
+      "id": "4b28de15-8c50-4fca-b459-a2d2bcee1aa5",
+      "name": "Flag Low Confidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Review_Queue",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "review_id": "=REV-{{ $now.toMillis() }}",
+            "doc_id": "={{ $json.docId }}",
+            "reason": "={{ $json.reviewReason }}",
+            "ai_doc_type": "={{ $json.aiDocType || $json.docType || 'Unknown' }}",
+            "ai_confidence": "={{ $json.aiConfidence || $json.confidence || 0 }}",
+            "raw_drive_url": "={{ $json.rawDriveUrl || '' }}",
+            "original_filename": "={{ $json.fileName }}",
+            "sender_email": "={{ $json.senderEmail }}",
+            "assigned_to": "",
+            "assigned_at": "",
+            "status": "open",
+            "admin_action": "",
+            "correct_doc_type": "",
+            "correct_property_id": "",
+            "admin_notes": "",
+            "admin_email": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "review_id",
+              "type": "string",
+              "display": true,
+              "displayName": "review_id"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "reason",
+              "type": "string",
+              "display": true,
+              "displayName": "reason"
+            },
+            {
+              "id": "ai_doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "ai_doc_type"
+            },
+            {
+              "id": "ai_confidence",
+              "type": "string",
+              "display": true,
+              "displayName": "ai_confidence"
+            },
+            {
+              "id": "raw_drive_url",
+              "type": "string",
+              "display": true,
+              "displayName": "raw_drive_url"
+            },
+            {
+              "id": "original_filename",
+              "type": "string",
+              "display": true,
+              "displayName": "original_filename"
+            },
+            {
+              "id": "sender_email",
+              "type": "string",
+              "display": true,
+              "displayName": "sender_email"
+            },
+            {
+              "id": "assigned_to",
+              "type": "string",
+              "display": true,
+              "displayName": "assigned_to"
+            },
+            {
+              "id": "assigned_at",
+              "type": "string",
+              "display": true,
+              "displayName": "assigned_at"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            },
+            {
+              "id": "admin_action",
+              "type": "string",
+              "display": true,
+              "displayName": "admin_action"
+            },
+            {
+              "id": "correct_doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "correct_doc_type"
+            },
+            {
+              "id": "correct_property_id",
+              "type": "string",
+              "display": true,
+              "displayName": "correct_property_id"
+            },
+            {
+              "id": "admin_notes",
+              "type": "string",
+              "display": true,
+              "displayName": "admin_notes"
+            },
+            {
+              "id": "admin_email",
+              "type": "string",
+              "display": true,
+              "displayName": "admin_email"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "89034405-4b15-4957-8693-c822990d5585",
+      "name": "Add to Review Queue",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "doc_id": "={{ $json.docId || $json.doc_id }}",
+            "status": "review_required",
+            "review_reason": "={{ $json.reviewReason || $json.reason }}",
+            "doc_type": "={{ $json.aiDocType || $json.docType || '' }}",
+            "doc_type_confidence": "={{ $json.aiConfidence || $json.confidence || 0 }}"
+          },
+          "matchingColumns": [
+            "doc_id"
+          ],
+          "schema": [
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            },
+            {
+              "id": "review_reason",
+              "type": "string",
+              "display": true,
+              "displayName": "review_reason"
+            },
+            {
+              "id": "doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type"
+            },
+            {
+              "id": "doc_type_confidence",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type_confidence"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fb6f8068-ea69-421a-a240-bcf3a12b73a1",
+      "name": "Update Doc - Review",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Property_Registry",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "7d83a4fe-7ff1-45ed-8217-eeaa83229577",
+      "name": "Read Properties",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2420,
+        -20
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match document to existing property\nconst doc = $('Parse AI Response').first().json;\nconst properties = $input.all().map(i => i.json);\n\nlet bestMatch = null;\nlet bestScore = 0;\n\nfor (const prop of properties) {\n  if (!prop.property_id) continue;\n  let score = 0;\n\n  // Exact erf match (highest priority)\n  if (doc.erfNumber && prop.erf_number && doc.erfNumber === prop.erf_number) {\n    score += 100;\n  }\n\n  // Unit + scheme match\n  if (doc.unitNumber && prop.unit_number && doc.unitNumber === prop.unit_number\n      && doc.schemeName && prop.scheme_name && doc.schemeName.toLowerCase() === prop.scheme_name.toLowerCase()) {\n    score += 90;\n  }\n\n  // Address fuzzy match\n  if (doc.propertyAddress && prop.display_address) {\n    const docAddr = doc.propertyAddress.toLowerCase().replace(/[^a-z0-9]/g, '');\n    const propAddr = prop.display_address.toLowerCase().replace(/[^a-z0-9]/g, '');\n    if (docAddr === propAddr) {\n      score += 80;\n    } else if (propAddr.includes(docAddr) || docAddr.includes(propAddr)) {\n      score += 60;\n    } else {\n      // Token overlap\n      const docTokens = doc.propertyAddress.toLowerCase().split(/\\s+/);\n      const propTokens = prop.display_address.toLowerCase().split(/\\s+/);\n      const overlap = docTokens.filter(t => propTokens.includes(t) && t.length > 2).length;\n      if (overlap >= 3) score += 40;\n    }\n  }\n\n  if (score > bestScore) {\n    bestScore = score;\n    bestMatch = prop;\n  }\n}\n\nconst matched = bestScore >= 40;\nconst docTypeFolderMap = {\"FICA\": \"01_FICA\", \"Offer_to_Purchase\": \"02_OTP\", \"Mandate\": \"03_Mandate\", \"Title_Deed\": \"04_Title_Deed\", \"Municipal_Document\": \"05_Municipal\", \"Bond_Finance\": \"06_Bond_Finance\", \"Compliance_Certificate\": \"07_Compliance\", \"Sectional_Scheme\": \"08_Sectional_Scheme\", \"Entity_Document\": \"09_Entity_Docs\", \"Other\": \"10_Other\"};\n\nreturn [{\n  json: {\n    ...doc,\n    propertyMatched: matched,\n    matchScore: bestScore,\n    matchedPropertyId: matched ? bestMatch.property_id : null,\n    matchedAddress: matched ? bestMatch.display_address : null,\n    matchedDriveFolderId: matched ? bestMatch.drive_folder_id : null,\n    categoryFolder: docTypeFolderMap[doc.docType] || '10_Other',\n  }\n}];\n"
+      },
+      "id": "10f67c3c-8aed-46d3-bda6-fe9dc4256302",
+      "name": "Match Property",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.propertyMatched }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "2fff924d-c3cf-40b0-88dd-88cd7d75e69a",
+      "name": "Property Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2860,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Property_Registry",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "property_id": "=PROP-{{ $now.toMillis() }}",
+            "display_address": "={{ $json.propertyAddress }}",
+            "street_number": "",
+            "street_name": "",
+            "suburb": "={{ $json.suburb }}",
+            "city": "={{ $json.city }}",
+            "province": "={{ $json.province }}",
+            "erf_number": "={{ $json.erfNumber }}",
+            "unit_number": "={{ $json.unitNumber }}",
+            "scheme_name": "={{ $json.schemeName }}",
+            "drive_folder_id": "",
+            "drive_folder_url": "",
+            "created_at": "={{ $now.toISO() }}",
+            "doc_count": "1",
+            "last_doc_date": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "property_id",
+              "type": "string",
+              "display": true,
+              "displayName": "property_id"
+            },
+            {
+              "id": "display_address",
+              "type": "string",
+              "display": true,
+              "displayName": "display_address"
+            },
+            {
+              "id": "street_number",
+              "type": "string",
+              "display": true,
+              "displayName": "street_number"
+            },
+            {
+              "id": "street_name",
+              "type": "string",
+              "display": true,
+              "displayName": "street_name"
+            },
+            {
+              "id": "suburb",
+              "type": "string",
+              "display": true,
+              "displayName": "suburb"
+            },
+            {
+              "id": "city",
+              "type": "string",
+              "display": true,
+              "displayName": "city"
+            },
+            {
+              "id": "province",
+              "type": "string",
+              "display": true,
+              "displayName": "province"
+            },
+            {
+              "id": "erf_number",
+              "type": "string",
+              "display": true,
+              "displayName": "erf_number"
+            },
+            {
+              "id": "unit_number",
+              "type": "string",
+              "display": true,
+              "displayName": "unit_number"
+            },
+            {
+              "id": "scheme_name",
+              "type": "string",
+              "display": true,
+              "displayName": "scheme_name"
+            },
+            {
+              "id": "drive_folder_id",
+              "type": "string",
+              "display": true,
+              "displayName": "drive_folder_id"
+            },
+            {
+              "id": "drive_folder_url",
+              "type": "string",
+              "display": true,
+              "displayName": "drive_folder_url"
+            },
+            {
+              "id": "created_at",
+              "type": "string",
+              "display": true,
+              "displayName": "created_at"
+            },
+            {
+              "id": "doc_count",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_count"
+            },
+            {
+              "id": "last_doc_date",
+              "type": "string",
+              "display": true,
+              "displayName": "last_doc_date"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3cc6071d-950b-4239-ab9e-e417c83b5ff6",
+      "name": "Create Property",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3080,
+        60
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Google Drive folder path for this document\nconst doc = $('Match Property').first().json;\nconst createResult = $input.first().json;\n\n// Determine property ID - either matched or newly created\nconst propertyId = doc.matchedPropertyId || createResult.property_id || doc.docId;\nconst city = doc.city || 'Unknown_City';\nconst suburb = doc.suburb || 'Unknown_Suburb';\nconst displayAddress = doc.propertyAddress || doc.matchedAddress || 'Unknown_Address';\n\n// Clean folder names (remove invalid chars)\nconst clean = (s) => s.replace(/[<>:\"/\\\\|?*]/g, '_').trim() || 'Unknown';\n\nreturn [{\n  json: {\n    ...doc,\n    propertyId: propertyId,\n    cityFolder: clean(city),\n    suburbFolder: clean(suburb),\n    addressFolder: clean(displayAddress),\n    categoryFolder: doc.categoryFolder,\n    propertiesRootId: 'REPLACE_PROPERTIES',\n    // File rename\n    newFileName: `${$now.format('yyyy-MM-dd')}_${doc.docType}_${doc.referenceNumber || 'NOREF'}_${doc.fileName}`,\n  }\n}];\n"
+      },
+      "id": "ecdec711-a06b-4284-8880-3f6e8ca9a417",
+      "name": "Build Folder Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// This node orchestrates folder creation and file move via\n// Google Drive API. Each folder is searched first, created if missing.\n// The final step moves the raw file into the category subfolder.\n//\n// NOTE: This uses $getWorkflowStaticData to cache folder IDs\n// across executions for performance.\n\nconst doc = $json;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.folderCache) staticData.folderCache = {};\n\n// Return instructions for downstream Google Drive nodes\nreturn [{\n  json: {\n    ...doc,\n    folderPath: `${doc.cityFolder}/${doc.suburbFolder}/${doc.addressFolder}/${doc.categoryFolder}`,\n    // These will be populated by the folder creation chain\n    step: 'ready_for_folders',\n  }\n}];\n"
+      },
+      "id": "f3848e28-8c4b-4b31-9271-7564f649c1b0",
+      "name": "Prepare Folder Chain",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "queryString": "={{ \"name='\" + $json.cityFolder + \"' and '\" + $json.propertiesRootId + \"' in parents and mimeType='application/vnd.google-apps.folder'\" }}",
+        "options": {}
+      },
+      "id": "0f2a3a5e-ad65-4c44-a82e-456fc661a1ff",
+      "name": "Find City Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3740,
+        -20
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build folder creation plan\n// This node prepares the data for sequential folder creation\nconst doc = $('Prepare Folder Chain').first().json;\nconst searchResults = $input.all().map(i => i.json);\n\nlet cityFolderId = '';\nif (searchResults.length > 0 && searchResults[0].id) {\n  cityFolderId = searchResults[0].id;\n}\n\nreturn [{\n  json: {\n    ...doc,\n    cityFolderId,\n    needsCreateCity: !cityFolderId,\n  }\n}];\n"
+      },
+      "id": "262a55eb-6335-46f2-8d4b-138118092b86",
+      "name": "Check City Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "operation": "create",
+        "name": "={{ $json.cityFolder }}",
+        "options": {
+          "folderRLC": {
+            "__rl": true,
+            "value": "={{ $json.propertiesRootId }}",
+            "mode": "id"
+          }
+        }
+      },
+      "id": "a22551bb-3e9c-49e2-b82e-46342b3898e1",
+      "name": "Create City Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4180,
+        -20
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// After creating city folder, we need to create suburb, address,\n// and category subfolders. For simplicity, we'll use a single Code\n// node that outputs the folder IDs for the remaining chain.\n//\n// In production, each folder level would be its own search+create pair.\n// For MVP, we'll move the file to the city folder and create the\n// subfolders in subsequent iterations.\n\nconst doc = $('Check City Result').first().json;\nconst createResult = $input.first().json;\n\nconst cityFolderId = doc.cityFolderId || createResult.id || '';\n\nreturn [{\n  json: {\n    ...doc,\n    cityFolderId,\n    targetFolderId: cityFolderId, // MVP: file at city level\n    rawDriveFileId: doc.rawDriveFileId,\n    newFileName: doc.newFileName,\n  }\n}];\n"
+      },
+      "id": "5181bc2f-e11d-4cc6-aa9b-eac2e4335b17",
+      "name": "Resolve Folder IDs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.rawDriveFileId }}",
+          "mode": "id"
+        },
+        "driveId": {
+          "__rl": true,
+          "value": "={{ $json.targetFolderId }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "6705404d-48d9-4cfe-b35e-7236a58250cd",
+      "name": "Move File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        4620,
+        -20
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "doc_id": "={{ $('Resolve Folder IDs').first().json.docId }}",
+            "doc_type": "={{ $('Resolve Folder IDs').first().json.docType }}",
+            "doc_type_confidence": "={{ $('Resolve Folder IDs').first().json.confidence }}",
+            "property_address": "={{ $('Resolve Folder IDs').first().json.propertyAddress }}",
+            "erf_number": "={{ $('Resolve Folder IDs').first().json.erfNumber }}",
+            "unit_number": "={{ $('Resolve Folder IDs').first().json.unitNumber }}",
+            "scheme_name": "={{ $('Resolve Folder IDs').first().json.schemeName }}",
+            "buyer_name": "={{ $('Resolve Folder IDs').first().json.buyerName }}",
+            "seller_name": "={{ $('Resolve Folder IDs').first().json.sellerName }}",
+            "agent_name": "={{ $('Resolve Folder IDs').first().json.agentName }}",
+            "transaction_date": "={{ $('Resolve Folder IDs').first().json.transactionDate }}",
+            "reference_number": "={{ $('Resolve Folder IDs').first().json.referenceNumber }}",
+            "property_id": "={{ $('Resolve Folder IDs').first().json.propertyId }}",
+            "final_drive_file_id": "={{ $json.id || '' }}",
+            "final_drive_url": "={{ $json.webViewLink || '' }}",
+            "status": "processed"
+          },
+          "matchingColumns": [
+            "doc_id"
+          ],
+          "schema": [
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type"
+            },
+            {
+              "id": "doc_type_confidence",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type_confidence"
+            },
+            {
+              "id": "property_address",
+              "type": "string",
+              "display": true,
+              "displayName": "property_address"
+            },
+            {
+              "id": "erf_number",
+              "type": "string",
+              "display": true,
+              "displayName": "erf_number"
+            },
+            {
+              "id": "unit_number",
+              "type": "string",
+              "display": true,
+              "displayName": "unit_number"
+            },
+            {
+              "id": "scheme_name",
+              "type": "string",
+              "display": true,
+              "displayName": "scheme_name"
+            },
+            {
+              "id": "buyer_name",
+              "type": "string",
+              "display": true,
+              "displayName": "buyer_name"
+            },
+            {
+              "id": "seller_name",
+              "type": "string",
+              "display": true,
+              "displayName": "seller_name"
+            },
+            {
+              "id": "agent_name",
+              "type": "string",
+              "display": true,
+              "displayName": "agent_name"
+            },
+            {
+              "id": "transaction_date",
+              "type": "string",
+              "display": true,
+              "displayName": "transaction_date"
+            },
+            {
+              "id": "reference_number",
+              "type": "string",
+              "display": true,
+              "displayName": "reference_number"
+            },
+            {
+              "id": "property_id",
+              "type": "string",
+              "display": true,
+              "displayName": "property_id"
+            },
+            {
+              "id": "final_drive_file_id",
+              "type": "string",
+              "display": true,
+              "displayName": "final_drive_file_id"
+            },
+            {
+              "id": "final_drive_url",
+              "type": "string",
+              "display": true,
+              "displayName": "final_drive_url"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fff0e0a4-34c5-44af-8622-20e5f851217e",
+      "name": "Update Doc - Processed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4840,
+        -20
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audit_id": "=AUD-{{ $now.toMillis() }}-proc",
+            "timestamp": "={{ $now.toISO() }}",
+            "actor": "system",
+            "action": "ai_classified_and_filed",
+            "doc_id": "={{ $('Resolve Folder IDs').first().json.docId }}",
+            "before_value": "={{ JSON.stringify({status: 'pending'}) }}",
+            "after_value": "={{ JSON.stringify({status: 'processed', doc_type: $('Resolve Folder IDs').first().json.docType, confidence: $('Resolve Folder IDs').first().json.confidence}) }}",
+            "notes": "={{ 'Classified as ' + $('Resolve Folder IDs').first().json.docType + ' (confidence: ' + $('Resolve Folder IDs').first().json.confidence + ')' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "audit_id",
+              "type": "string",
+              "display": true,
+              "displayName": "audit_id"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            },
+            {
+              "id": "actor",
+              "type": "string",
+              "display": true,
+              "displayName": "actor"
+            },
+            {
+              "id": "action",
+              "type": "string",
+              "display": true,
+              "displayName": "action"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "before_value",
+              "type": "string",
+              "display": true,
+              "displayName": "before_value"
+            },
+            {
+              "id": "after_value",
+              "type": "string",
+              "display": true,
+              "displayName": "after_value"
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "displayName": "notes"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7db3dbe0-9af0-4b2b-8c9e-dbdc576d9f49",
+      "name": "Audit Log - Processed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        5060,
+        -20
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Sub-workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Input": {
+      "main": [
+        [
+          {
+            "node": "Download from Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download from Drive": {
+      "main": [
+        [
+          {
+            "node": "Is PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is PDF?": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flag Non-PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Has Text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag Non-PDF": {
+      "main": [
+        [
+          {
+            "node": "Add to Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Text?": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare OCR Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare OCR Request": {
+      "main": [
+        [
+          {
+            "node": "OCR Document AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR Document AI": {
+      "main": [
+        [
+          {
+            "node": "Parse OCR Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse OCR Result": {
+      "main": [
+        [
+          {
+            "node": "OCR Has Text?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR Has Text?": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add to Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Confidence OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confidence OK?": {
+      "main": [
+        [
+          {
+            "node": "Read Properties",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flag Low Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag Low Confidence": {
+      "main": [
+        [
+          {
+            "node": "Add to Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Review Queue": {
+      "main": [
+        [
+          {
+            "node": "Update Doc - Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Properties": {
+      "main": [
+        [
+          {
+            "node": "Match Property",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Property": {
+      "main": [
+        [
+          {
+            "node": "Property Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Property Found?": {
+      "main": [
+        [
+          {
+            "node": "Build Folder Path",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Property",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Property": {
+      "main": [
+        [
+          {
+            "node": "Build Folder Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Folder Path": {
+      "main": [
+        [
+          {
+            "node": "Prepare Folder Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Folder Chain": {
+      "main": [
+        [
+          {
+            "node": "Find City Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find City Folder": {
+      "main": [
+        [
+          {
+            "node": "Check City Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check City Result": {
+      "main": [
+        [
+          {
+            "node": "Create City Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create City Folder": {
+      "main": [
+        [
+          {
+            "node": "Resolve Folder IDs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Folder IDs": {
+      "main": [
+        [
+          {
+            "node": "Move File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move File": {
+      "main": [
+        [
+          {
+            "node": "Update Doc - Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Doc - Processed": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

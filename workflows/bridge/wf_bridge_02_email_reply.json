@@ -1,0 +1,560 @@
+{
+  "name": "Bridge - Email Reply Matcher (BRIDGE-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "89a14905-c483-43bd-9cc5-c65393aaeeb6",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst lastRow = staticData.lastProcessedRow || 1;\nreturn [{ json: { lastRow } }];"
+      },
+      "id": "2c280a28-4506-4b6b-b056-9f4a816f317b",
+      "name": "Get Watermark",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1Adp3x0ler5H69Cih5tbMLqWEgZMziebhnOEWbMPTvaA",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Email Log",
+          "mode": "name"
+        },
+        "options": {
+          "range": "=A{{ $json.lastRow + 1 }}:Z",
+          "headerRow": 0
+        }
+      },
+      "id": "0cdaeb18-3e27-4423-9c89-dbff857f88cc",
+      "name": "Read Email Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        640,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $('Read Email Log').all();\nconst lastRow = $('Get Watermark').first().json.lastRow;\nconst totalRead = items.length;\nconst newWatermark = lastRow + totalRead;\n\nif (!items || totalRead === 0) {\n  return [{ json: { hasSenders: false, senders: [], emailData: [], newWatermark: lastRow } }];\n}\n\n// Extract unique senders with their email classification data\nconst senderMap = {};\nfor (const item of items) {\n  const sender = (item.json.sender || '').toLowerCase().trim();\n  if (!sender || sender.includes('noreply') || sender.includes('no-reply')) continue;\n  if (sender === 'unknown' || sender.includes('mailer-daemon')) continue;\n  if (sender.includes('<') || sender.includes('>') || !sender.includes('@')) continue;\n\n  // Keep the latest email data per sender\n  senderMap[sender] = {\n    sender,\n    department: item.json.department || '',\n    tags_string: (item.json.tags_string || item.json.tags || '').toLowerCase(),\n    is_spam: String(item.json.is_spam) === 'true',\n    subject: item.json.subject || '',\n    summary: item.json.summary || '',\n    urgency: item.json.urgency || 'low',\n    is_interested_reply: String(item.json.is_interested_reply) === 'true',\n  };\n}\n\nconst senders = Object.keys(senderMap);\nconst emailData = Object.values(senderMap);\n\n// Build Airtable filter formula: OR(LOWER({Email})='a@b.com', LOWER({Email})='c@d.com')\nlet filterFormula = '';\nif (senders.length > 0 && senders.length <= 50) {\n  const conditions = senders.map(s => \"LOWER({Email})='\" + s + \"'\");\n  filterFormula = 'OR(' + conditions.join(',') + ')';\n} else if (senders.length > 50) {\n  // Too many senders, take first 50\n  const conditions = senders.slice(0, 50).map(s => \"LOWER({Email})='\" + s + \"'\");\n  filterFormula = 'OR(' + conditions.join(',') + ')';\n}\n\nreturn [{ json: {\n  hasSenders: senders.length > 0,\n  senderCount: senders.length,\n  filterFormula: filterFormula,\n  emailData: emailData,\n  newWatermark: newWatermark,\n  totalRead: totalRead,\n} }];"
+      },
+      "id": "f38cfba3-34eb-4b3a-ad71-c33f682a4887",
+      "name": "Extract Senders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasSenders }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        }
+      },
+      "id": "a715605b-0c75-44a3-a622-fd17dcaf32a9",
+      "name": "Has Senders?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app2ALQUP7CKEkHOz",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOsuh298hB9WWrA",
+          "mode": "id"
+        },
+        "filterByFormula": "={{ $('Extract Senders').first().json.filterFormula }}",
+        "returnAll": true,
+        "options": {
+          "fields": [
+            "Email",
+            "Status",
+            "Follow Up Stage"
+          ]
+        }
+      },
+      "id": "ecf1df8b-73da-4ded-97aa-c55a91d2fb84",
+      "name": "Search Scraper Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1300,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "filterByFormula": "={{ $('Extract Senders').first().json.filterFormula }}",
+        "returnAll": true,
+        "options": {
+          "fields": [
+            "Email",
+            "Status",
+            "Lead Score"
+          ]
+        }
+      },
+      "id": "89229218-c43d-40ee-af30-c717fae4fa75",
+      "name": "Search SEO Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1500,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Whatsapp Multi Agent"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const extractData = $('Extract Senders').first().json;\nconst scraperLeads = $('Search Scraper Leads').all();\nconst seoLeads = $('Search SEO Leads').all();\n\n// Build lookup maps from targeted query results\nconst scraperMap = {};\nfor (const lead of scraperLeads) {\n  const email = (lead.json.Email || '').toLowerCase();\n  if (email) scraperMap[email] = lead.json;\n}\n\nconst seoMap = {};\nfor (const lead of seoLeads) {\n  const email = (lead.json.Email || '').toLowerCase();\n  if (email) seoMap[email] = lead.json;\n}\n\n// Match email senders to leads\nconst matches = [];\nfor (const emailInfo of extractData.emailData) {\n  const scraperMatch = scraperMap[emailInfo.sender] || null;\n  const seoMatch = seoMap[emailInfo.sender] || null;\n\n  if (!scraperMatch && !seoMatch) continue;\n\n  let newStatus = 'Responded';\n  let followUpStage = null;\n\n  if (emailInfo.is_spam || emailInfo.tags_string.includes('unsubscribe')) {\n    newStatus = 'Unsubscribed';\n    followUpStage = 0;\n  } else if (emailInfo.is_interested_reply || emailInfo.tags_string.includes('new_lead') || emailInfo.department === 'Sales') {\n    newStatus = 'Responded';\n  } else if (emailInfo.tags_string.includes('complaint') || emailInfo.tags_string.includes('escalation')) {\n    newStatus = 'Ticket Reply - Do Not Follow Up';\n    followUpStage = 0;\n  }\n\n  matches.push({\n    sender: emailInfo.sender,\n    newStatus,\n    followUpStage,\n    scraperRecordId: scraperMatch ? scraperMatch.id : null,\n    seoRecordId: seoMatch ? seoMatch.id : null,\n    seoLeadScore: seoMatch ? (seoMatch['Lead Score'] || 0) : 0,\n    urgency: emailInfo.urgency,\n    subject: emailInfo.subject,\n    summary: emailInfo.summary,\n  });\n}\n\nreturn [{ json: {\n  hasMatches: matches.length > 0,\n  matchCount: matches.length,\n  totalProcessed: extractData.totalRead,\n  newWatermark: extractData.newWatermark,\n  matches,\n} }];"
+      },
+      "id": "129caf2c-25c8-4134-936f-ee0a87667b79",
+      "name": "Match All",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.matchCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "a63ed2b8-bda4-410d-b87e-6a19e7305911",
+      "name": "Has Matches?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1140,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const matches = $json.matches || [];\nreturn matches.map(m => ({ json: m }));"
+      },
+      "id": "581d16db-c5c3-4381-bfc3-9b1b54fb7170",
+      "name": "Split Matches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "app2ALQUP7CKEkHOz",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOsuh298hB9WWrA",
+          "mode": "id"
+        },
+        "id": "={{ $json.scraperRecordId }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "={{ $json.newStatus }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2f156313-f665-46a4-91c6-ef214362974a",
+      "name": "Update Scraper Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1580,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "id": "={{ $json.seoRecordId }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "={{ $json.newStatus }}",
+            "Last Activity": "={{ $now.format('yyyy-MM-dd') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3ae24c63-0b42-44d8-9b62-a37b55aaa306",
+      "name": "Update SEO Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1580,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Whatsapp Multi Agent"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Bridge Email Matcher - {{ $('Match All').first().json.matchCount }} matches",
+        "message": "=<h3>Email Reply Matcher Complete</h3>\n<p><strong>Emails processed:</strong> {{ $('Match All').first().json.totalProcessed }}</p>\n<p><strong>Leads matched:</strong> {{ $('Match All').first().json.matchCount }}</p>\n<p><em>Run at {{ $now.format('yyyy-MM-dd HH:mm') }} SAST</em></p>",
+        "options": {}
+      },
+      "id": "fe12715b-828b-4f83-abb1-302133fc1eca",
+      "name": "Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1800,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\n// Get watermark from Match All (if senders found) or Extract Senders (if no senders)\nlet newWatermark;\ntry {\n  newWatermark = $('Match All').first().json.newWatermark;\n} catch (e) {\n  newWatermark = $('Extract Senders').first().json.newWatermark;\n}\nstaticData.lastProcessedRow = newWatermark;\nreturn [{ json: { watermarkUpdated: true, newWatermark } }];"
+      },
+      "id": "9e1e89e5-c7cc-49b6-b0e3-559ebfe60ca2",
+      "name": "Update Watermark",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## BRIDGE-02: Email Reply Matcher\nBatch approach: reads ALL leads once, matches senders in code.\nAvoids per-email Airtable lookups (rate limit safe).\nRuns every 5 minutes.",
+        "width": 440,
+        "height": 110
+      },
+      "id": "9ba61b50-b9bb-461d-9c13-503c6a41eab6",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Watermark",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Watermark": {
+      "main": [
+        [
+          {
+            "node": "Read Email Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Email Log": {
+      "main": [
+        [
+          {
+            "node": "Extract Senders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Senders": {
+      "main": [
+        [
+          {
+            "node": "Has Senders?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Senders?": {
+      "main": [
+        [
+          {
+            "node": "Search Scraper Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Watermark",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Scraper Leads": {
+      "main": [
+        [
+          {
+            "node": "Search SEO Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search SEO Leads": {
+      "main": [
+        [
+          {
+            "node": "Match All",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match All": {
+      "main": [
+        [
+          {
+            "node": "Update Watermark",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Watermark": {
+      "main": [
+        [
+          {
+            "node": "Has Matches?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Matches?": {
+      "main": [
+        [
+          {
+            "node": "Split Matches",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Split Matches": {
+      "main": [
+        [
+          {
+            "node": "Update Scraper Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update SEO Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Scraper Lead": {
+      "main": [
+        [
+          {
+            "node": "Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update SEO Lead": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

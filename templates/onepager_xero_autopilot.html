@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xero Autopilot - AnyVision Media</title>
+<style>
+  :root {
+    --brand: #FF6D5A;
+    --brand-light: #FFF0EE;
+    --brand-dark: #E85A48;
+    --navy: #1a1a2e;
+    --gray: #6b7280;
+    --light-gray: #f3f4f6;
+    --white: #ffffff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: var(--navy);
+    line-height: 1.5;
+    font-size: 13px;
+    background: var(--white);
+  }
+
+  .page {
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 28px 36px;
+  }
+
+  /* ---- HEADER ---- */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 16px;
+    border-bottom: 3px solid var(--brand);
+    margin-bottom: 20px;
+  }
+  .logo-text {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--brand);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .header-title {
+    text-align: right;
+  }
+  .header-title h1 {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--navy);
+    line-height: 1.1;
+  }
+  .header-title h1 span { color: var(--brand); }
+  .tagline {
+    font-size: 13px;
+    color: var(--gray);
+    font-weight: 500;
+    margin-top: 2px;
+  }
+
+  /* ---- SECTIONS ---- */
+  .section { margin-bottom: 18px; }
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--brand);
+    margin-bottom: 6px;
+  }
+  .section h2 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--navy);
+  }
+
+  /* ---- PROBLEM ---- */
+  .problem-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .problem-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--light-gray);
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .problem-icon {
+    color: var(--brand);
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* ---- WORKFLOWS ---- */
+  .wf-list { list-style: none; }
+  .wf-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid #eee;
+  }
+  .wf-item:last-child { border-bottom: none; }
+  .wf-badge {
+    flex-shrink: 0;
+    width: 52px;
+    height: 24px;
+    background: var(--brand);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+  .wf-content strong {
+    font-size: 13px;
+    color: var(--navy);
+  }
+  .wf-content p {
+    font-size: 11.5px;
+    color: var(--gray);
+    margin-top: 1px;
+  }
+
+  /* ---- HOW IT WORKS ---- */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .step {
+    text-align: center;
+    padding: 12px 8px;
+    background: var(--brand-light);
+    border-radius: 8px;
+    position: relative;
+  }
+  .step-num {
+    width: 28px;
+    height: 28px;
+    background: var(--brand);
+    color: white;
+    font-weight: 800;
+    font-size: 14px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+  }
+  .step strong {
+    display: block;
+    font-size: 12px;
+    color: var(--navy);
+  }
+  .step p {
+    font-size: 10.5px;
+    color: var(--gray);
+    margin-top: 2px;
+  }
+
+  /* ---- RESULTS ---- */
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .result-card {
+    text-align: center;
+    padding: 12px 8px;
+    border: 2px solid var(--brand);
+    border-radius: 8px;
+  }
+  .result-card .number {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--brand);
+    line-height: 1;
+  }
+  .result-card .label {
+    font-size: 10.5px;
+    color: var(--gray);
+    margin-top: 4px;
+    line-height: 1.3;
+  }
+
+  /* ---- PRICING ---- */
+  .pricing-box {
+    background: var(--navy);
+    color: white;
+    border-radius: 10px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .pricing-main { flex: 1; }
+  .pricing-main .price {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--brand);
+    line-height: 1;
+  }
+  .pricing-main .price-sub {
+    font-size: 12px;
+    color: #aaa;
+    margin-top: 2px;
+  }
+  .pricing-details {
+    flex: 1.5;
+    font-size: 12px;
+  }
+  .pricing-details li {
+    list-style: none;
+    padding: 2px 0;
+  }
+  .pricing-details li::before {
+    content: "\2713  ";
+    color: var(--brand);
+    font-weight: 700;
+  }
+  .guarantee {
+    flex: 1.2;
+    text-align: center;
+    padding: 12px;
+    border: 2px solid var(--brand);
+    border-radius: 8px;
+  }
+  .guarantee .shield { font-size: 24px; margin-bottom: 4px; }
+  .guarantee strong {
+    display: block;
+    font-size: 12px;
+    color: var(--brand);
+    line-height: 1.3;
+  }
+  .guarantee p {
+    font-size: 10px;
+    color: #aaa;
+    margin-top: 3px;
+    line-height: 1.3;
+  }
+
+  /* ---- FOOTER / CTA ---- */
+  .footer {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 2px solid var(--brand);
+    text-align: center;
+  }
+  .cta-btn {
+    display: inline-block;
+    background: var(--brand);
+    color: white;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 12px 36px;
+    border-radius: 8px;
+    text-decoration: none;
+    margin-bottom: 10px;
+  }
+  .footer-links {
+    font-size: 11px;
+    color: var(--gray);
+  }
+  .footer-links a {
+    color: var(--brand);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .footer-links span { margin: 0 8px; color: #ccc; }
+
+  /* ---- PRINT ---- */
+  @media print {
+    body { font-size: 12px; }
+    .page { padding: 20px 24px; max-width: 100%; }
+    .pricing-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .step, .result-card, .wf-badge, .step-num, .cta-btn, .guarantee {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .cta-btn { background: var(--brand) !important; color: white !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div>
+      <div class="logo-text">AnyVision Media</div>
+      <div style="font-size:10px; color:var(--gray); margin-top:2px;">AI Workflow Automation</div>
+    </div>
+    <div class="header-title">
+      <h1>Xero <span>Autopilot</span></h1>
+      <div class="tagline">AI-Powered Accounting Automation</div>
+    </div>
+  </div>
+
+  <!-- THE PROBLEM -->
+  <div class="section">
+    <div class="section-label">The Problem</div>
+    <h2>Manual accounting is eating your business alive</h2>
+    <div class="problem-grid">
+      <div class="problem-item">
+        <span class="problem-icon">&times;</span>
+        <div><strong>40+ hours/month</strong> spent on repetitive bookkeeping tasks</div>
+      </div>
+      <div class="problem-item">
+        <span class="problem-icon">&times;</span>
+        <div><strong>Chasing invoices</strong> manually, missing follow-ups, delayed cash flow</div>
+      </div>
+      <div class="problem-item">
+        <span class="problem-icon">&times;</span>
+        <div><strong>Manual reconciliation</strong> prone to human error and duplicates</div>
+      </div>
+      <div class="problem-item">
+        <span class="problem-icon">&times;</span>
+        <div><strong>Slow month-end close</strong> taking 5+ days every single month</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- THE SOLUTION -->
+  <div class="section">
+    <div class="section-label">The Solution</div>
+    <h2>7 AI Workflows That Run Your Books 24/7</h2>
+    <ul class="wf-list">
+      <li class="wf-item">
+        <div class="wf-badge">WF-01</div>
+        <div class="wf-content">
+          <strong>Sales &amp; Invoicing</strong>
+          <p>Auto-generate invoices from deals, send via Xero + Gmail with branded templates</p>
+        </div>
+      </li>
+      <li class="wf-item">
+        <div class="wf-badge">WF-02</div>
+        <div class="wf-content">
+          <strong>Collections Engine</strong>
+          <p>Automated reminder sequences at 7, 14, and 30 days -- friendly to firm escalation</p>
+        </div>
+      </li>
+      <li class="wf-item">
+        <div class="wf-badge">WF-03</div>
+        <div class="wf-content">
+          <strong>Payments Reconciliation</strong>
+          <p>Auto-match bank transactions with 95%+ accuracy, flag exceptions for review</p>
+        </div>
+      </li>
+      <li class="wf-item">
+        <div class="wf-badge">WF-04</div>
+        <div class="wf-content">
+          <strong>Supplier Bills (AP)</strong>
+          <p>Email intake, AI classification, auto-approve under R10,000, escalate above R50,000</p>
+        </div>
+      </li>
+      <li class="wf-item">
+        <div class="wf-badge">WF-05</div>
+        <div class="wf-content">
+          <strong>Month-End Close</strong>
+          <p>5 days compressed to 1 -- automated P&amp;L, balance sheet, variance reporting</p>
+        </div>
+      </li>
+      <li class="wf-item">
+        <div class="wf-badge">WF-06</div>
+        <div class="wf-content">
+          <strong>Master Data Audit</strong>
+          <p>Weekly verification of contacts, chart of accounts, and tax rates for data integrity</p>
+        </div>
+      </li>
+      <li class="wf-item">
+        <div class="wf-badge">WF-07</div>
+        <div class="wf-content">
+          <strong>Exception Handler</strong>
+          <p>Auto-detect mismatches, duplicate payments, and errors with smart escalation</p>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div class="section">
+    <div class="section-label">How It Works</div>
+    <h2>Live in 5 Business Days</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <strong>Connect Xero</strong>
+        <p>Secure OAuth2 link to your Xero org</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <strong>Configure Rules</strong>
+        <p>Approval thresholds, contacts, schedules</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <strong>Go Live</strong>
+        <p>Workflows activate, start processing</p>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <strong>Monitor</strong>
+        <p>Real-time dashboard, alerts, reports</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="section">
+    <div class="section-label">Results</div>
+    <div class="results-grid">
+      <div class="result-card">
+        <div class="number">40+</div>
+        <div class="label">Hours saved<br>per month</div>
+      </div>
+      <div class="result-card">
+        <div class="number">95%</div>
+        <div class="label">Reconciliation<br>accuracy</div>
+      </div>
+      <div class="result-card">
+        <div class="number">3x</div>
+        <div class="label">Faster<br>month-end</div>
+      </div>
+      <div class="result-card">
+        <div class="number">24/7</div>
+        <div class="label">Always-on<br>operation</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRICING -->
+  <div class="section">
+    <div class="section-label">Investment</div>
+    <div class="pricing-box">
+      <div class="pricing-main">
+        <div class="price">R4,500</div>
+        <div class="price-sub">per month</div>
+        <div style="margin-top:8px; font-size:11px; color:#ccc;">+ R7,500 one-time setup</div>
+      </div>
+      <div class="pricing-details">
+        <ul>
+          <li>All 7 AI workflows included</li>
+          <li>Xero + Gmail + Airtable integration</li>
+          <li>Custom approval rules &amp; thresholds</li>
+          <li>Monthly performance reports</li>
+          <li>Dedicated support &amp; optimisation</li>
+        </ul>
+      </div>
+      <div class="guarantee">
+        <div class="shield">&#x1F6E1;</div>
+        <strong>ROI Guarantee</strong>
+        <p>Save 20+ hours in month 1 or your second month is completely free</p>
+      </div>
+    </div>
+    <div style="text-align:center; margin-top:8px; font-size:12px; color:var(--brand); font-weight:700;">
+      &#127881; Pilot Offer: 50% off your first month -- pay just R2,250 to start
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <a class="cta-btn" href="https://calendar.app.google/79JABt2piDQ5X4gW8" target="_blank">Book a Free Strategy Call</a>
+    <div class="footer-links">
+      <a href="mailto:ian@anyvisionmedia.com">ian@anyvisionmedia.com</a>
+      <span>|</span>
+      <a href="https://www.anyvisionmedia.com" target="_blank">www.anyvisionmedia.com</a>
+      <span>|</span>
+      <a href="https://calendar.app.google/79JABt2piDQ5X4gW8" target="_blank">calendar.app.google/79JABt2piDQ5X4gW8</a>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,363 @@
+{
+  "name": "ORCH-03 Daily KPI Aggregation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * *"
+            }
+          ]
+        }
+      },
+      "id": "9a63226a-7456-4f77-b019-feaa371c740b",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3d8a504e-616f-49bc-abf0-8921a91516ff",
+              "name": "today",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "a1e68eef-1fc2-4183-8fcf-4750a02a87a2",
+              "name": "yesterday",
+              "value": "={{ $now.minus({days: 1}).format('yyyy-MM-dd') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e9a70f73-806c-4e1d-b907-de7b80337600",
+      "name": "Set Dates",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblf3QGxX9K1y2h2H",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_SAME({Published Date}, '{{ $json.yesterday }}', 'day')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "73bbff47-12d7-4a15-a9fb-43ad6c68cc1f",
+      "name": "Read Marketing Metrics",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        140
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "13e071b3-0023-4892-ba59-45c9b0b9ff7f",
+              "name": "revenueZAR",
+              "value": "0",
+              "type": "number"
+            },
+            {
+              "id": "aba40aa4-36ea-4356-a3a1-1db06608a905",
+              "name": "invoicesCreated",
+              "value": "0",
+              "type": "number"
+            },
+            {
+              "id": "c35fcb05-0418-4d45-917f-695e77aa8709",
+              "name": "paymentsReceived",
+              "value": "0",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "360190fc-8bc5-46ef-a985-c820dd4fe160",
+      "name": "Read Finance Metrics",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://ianimmelman89.app.n8n.cloud/api/v1/executions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "status",
+              "value": "error,success"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5180e004-5b26-40cc-a390-a4b95496969f",
+      "name": "Read Execution Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        540
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xymp9Nho08mRW2Wz",
+          "name": "n8n API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge all data sources into per-agent KPI snapshots\nconst today = $now.format('yyyy-MM-dd');\n\n// Try to read from previous nodes (graceful if missing)\nlet marketingMetrics = {};\nlet financeMetrics = {};\nlet executionStats = {};\n\ntry { marketingMetrics = $('Read Marketing Metrics').first().json || {}; } catch(e) {}\ntry { financeMetrics = $('Read Finance Metrics').first().json || {}; } catch(e) {}\ntry { executionStats = $('Read Execution Stats').first().json || {}; } catch(e) {}\n\nconst snapshots = [\n  {\n    json: {\n      'Snapshot ID': `agent_marketing_${today}`,\n      'Snapshot Date': today,\n      'Agent ID': 'agent_marketing',\n      'Content Published': marketingMetrics.contentPublished || 0,\n      'Emails Sent': marketingMetrics.emailsSent || 0,\n      'Leads Generated': marketingMetrics.leadsGenerated || 0,\n      'Success Rate': executionStats.marketingSuccessRate || 0,\n    }\n  },\n  {\n    json: {\n      'Snapshot ID': `agent_finance_${today}`,\n      'Snapshot Date': today,\n      'Agent ID': 'agent_finance',\n      'Revenue ZAR': financeMetrics.revenueZAR || 0,\n      'Success Rate': executionStats.financeSuccessRate || 0,\n    }\n  },\n  {\n    json: {\n      'Snapshot ID': `agent_content_${today}`,\n      'Snapshot Date': today,\n      'Agent ID': 'agent_content',\n      'Content Published': marketingMetrics.contentPublished || 0,\n      'Success Rate': executionStats.contentSuccessRate || 0,\n    }\n  },\n  {\n    json: {\n      'Snapshot ID': `agent_support_${today}`,\n      'Snapshot Date': today,\n      'Agent ID': 'agent_support',\n      'Tickets Resolved': 0,\n      'Success Rate': 0,\n    }\n  },\n  {\n    json: {\n      'Snapshot ID': `agent_client_relations_${today}`,\n      'Snapshot Date': today,\n      'Agent ID': 'agent_client_relations',\n      'Success Rate': 0,\n    }\n  },\n  {\n    json: {\n      'Snapshot ID': `agent_whatsapp_${today}`,\n      'Snapshot Date': today,\n      'Agent ID': 'agent_whatsapp',\n      'Messages Handled': 0,\n      'Success Rate': 0,\n    }\n  },\n];\n\nreturn snapshots;"
+      },
+      "id": "846a287d-ad94-46e3-b5aa-bf53ff5d078c",
+      "name": "Compute KPIs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Snapshot ID": "={{ $json['Snapshot ID'] }}",
+            "Snapshot Date": "={{ $json['Snapshot Date'] }}",
+            "Agent ID": "={{ $json['Agent ID'] }}",
+            "Revenue ZAR": "={{ $json['Revenue ZAR'] || 0 }}",
+            "Leads Generated": "={{ $json['Leads Generated'] || 0 }}",
+            "Content Published": "={{ $json['Content Published'] || 0 }}",
+            "Emails Sent": "={{ $json['Emails Sent'] || 0 }}",
+            "Messages Handled": "={{ $json['Messages Handled'] || 0 }}",
+            "Tickets Resolved": "={{ $json['Tickets Resolved'] || 0 }}",
+            "Success Rate": "={{ $json['Success Rate'] || 0 }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "e75a83fb-4a96-42a4-9bde-caaefadfece1",
+      "name": "Write KPI Snapshots",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1160,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "KPIs": "={{ JSON.stringify($json) }}"
+          }
+        },
+        "options": {},
+        "matchingColumns": [
+          "Agent ID"
+        ]
+      },
+      "id": "5b927e32-40ab-4a8b-b155-a7a127d3821e",
+      "name": "Update Agent KPIs",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1380,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Dates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Dates": {
+      "main": [
+        [
+          {
+            "node": "Read Marketing Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Finance Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Execution Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Marketing Metrics": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Finance Metrics": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Execution Stats": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute KPIs": {
+      "main": [
+        [
+          {
+            "node": "Write KPI Snapshots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write KPI Snapshots": {
+      "main": [
+        [
+          {
+            "node": "Update Agent KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "orchestrator",
+    "kpi",
+    "analytics",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_orchestrator.py",
+    "built_at": "2026-03-09T14:06:26.287726"
+  }
+}

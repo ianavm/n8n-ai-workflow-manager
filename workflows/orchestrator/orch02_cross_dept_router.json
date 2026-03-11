@@ -1,0 +1,142 @@
+{
+  "name": "ORCH-02 Cross-Dept Router",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "orchestrator-event",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "43a86ec2-afbd-4af8-a112-0f13b5101ec3",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "a9c9713d-7328-4b95-bc09-866e9d016b7d"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse incoming webhook event and determine routing\nconst input = $input.first().json;\n\nconst eventType = input.event_type || input.eventType || 'unknown';\nconst sourceAgent = input.source_agent || input.sourceAgent || 'unknown';\nconst payload = input.payload || input;\nconst priority = input.priority || 'Medium';\n\n// Route based on event type\nlet targetAgent = 'agent_orchestrator';\nlet action = 'log';\n\nswitch (eventType) {\n  case 'lead_qualified':\n    targetAgent = 'agent_client_relations';\n    action = 'create_interaction';\n    break;\n  case 'invoice_created':\n    targetAgent = 'agent_finance';\n    action = 'track_revenue';\n    break;\n  case 'content_published':\n    targetAgent = 'agent_marketing';\n    action = 'track_content';\n    break;\n  case 'support_ticket':\n    targetAgent = 'agent_support';\n    action = 'create_ticket';\n    break;\n  case 'whatsapp_urgent':\n    targetAgent = 'agent_whatsapp';\n    action = 'escalate';\n    break;\n  case 'client_churn_risk':\n    targetAgent = 'agent_client_relations';\n    action = 'churn_intervention';\n    break;\n  default:\n    action = 'log_only';\n}\n\nreturn {\n  json: {\n    eventType,\n    sourceAgent,\n    targetAgent,\n    action,\n    priority,\n    payload: JSON.stringify(payload),\n    timestamp: new Date().toISOString(),\n    eventId: `evt_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,\n  }\n};"
+      },
+      "id": "ab218de4-5724-445b-b8b8-47215335c442",
+      "name": "Route Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event ID": "={{ $json.eventId }}",
+            "Event Type": "={{ $json.eventType }}",
+            "Source Agent": "={{ $json.sourceAgent }}",
+            "Target Agent": "={{ $json.targetAgent }}",
+            "Priority": "={{ $json.priority }}",
+            "Status": "Pending",
+            "Payload": "={{ $json.payload }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "2668c253-e4fc-49be-b817-a0a7218d36d1",
+      "name": "Log Event",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\": \"received\", \"event_id\": \"{{ $json.fields['Event ID'] || $json.eventId }}\", \"routed_to\": \"{{ $('Route Event').first().json.targetAgent }}\"}",
+        "options": {}
+      },
+      "id": "2d55e1e5-7d20-4d0e-8162-8121d6ed5504",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Route Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Event": {
+      "main": [
+        [
+          {
+            "node": "Log Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Event": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "orchestrator",
+    "event-router",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_orchestrator.py",
+    "built_at": "2026-03-09T14:06:26.287074"
+  }
+}

@@ -1,0 +1,246 @@
+{
+  "name": "Support Agent - SLA Monitor (SUP-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "80c78c47-dd00-4210-b65a-c23ddcbb5102",
+      "name": "Daily 9am SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [200, 400],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "8813503b-8d2d-4a6f-9520-8b994372b4f4",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [200, 600],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": { "__rl": true, "value": "appTCh0EeXQp0XqzW", "mode": "id" },
+        "table": { "__rl": true, "value": "tbldPadf19Ky0JIez", "mode": "id" },
+        "options": {}
+      },
+      "id": "e7a9f45d-2d57-48e0-824a-9b7ebe611f8a",
+      "name": "Read Open Tickets",
+      "type": "n8n-nodes-base.airtable",
+      "position": [440, 400],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": { "id": "K8t2NtJ89DLLh64j", "name": "Airtable Personal Access Token account" }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mock SLA config (replace with Airtable read when Support base is set up)\nreturn [\n  { json: { Priority: 'P1', 'Response Time Hours': 1, 'Resolution Time Hours': 4 } },\n  { json: { Priority: 'P2', 'Response Time Hours': 4, 'Resolution Time Hours': 24 } },\n  { json: { Priority: 'P3', 'Response Time Hours': 8, 'Resolution Time Hours': 72 } },\n  { json: { Priority: 'P4', 'Response Time Hours': 24, 'Resolution Time Hours': 168 } },\n];"
+      },
+      "id": "2e2562cc-bf7b-42af-803f-ef11a63521dd",
+      "name": "Read SLA Config",
+      "type": "n8n-nodes-base.code",
+      "position": [440, 600],
+      "typeVersion": 2,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate SLA status for open tickets\nconst ticketItems = (() => { try { return $(\"Read Open Tickets\").all(); } catch(e) { return []; } })();\nconst slaItems = (() => { try { return $(\"Read SLA Config\").all(); } catch(e) { return []; } })();\n\nconst slaLookup = {};\nfor (const item of slaItems) {\n  const fields = item.json.fields || item.json;\n  const priority = fields['Priority'] || fields.priority || 'P3';\n  slaLookup[priority] = {\n    response_hours: fields['Response Time Hours'] || 4,\n    resolution_hours: fields['Resolution Time Hours'] || 72,\n  };\n}\n\nconst now = new Date();\nconst breached = [];\nconst warning = [];\n\nfor (const item of ticketItems) {\n  const fields = item.json.fields || item.json;\n  const priority = fields['Priority'] || fields.priority || 'P3';\n  const createdAt = new Date(fields['Created At'] || fields.createdTime || now);\n  const hoursElapsed = (now - createdAt) / (1000 * 60 * 60);\n  const sla = slaLookup[priority] || { response_hours: 8, resolution_hours: 72 };\n\n  if (hoursElapsed > sla.resolution_hours) {\n    breached.push({\n      ...fields,\n      sla_status: 'BREACHED',\n      hours_elapsed: Math.round(hoursElapsed * 10) / 10,\n      sla_limit: sla.resolution_hours,\n      overage_hours: Math.round((hoursElapsed - sla.resolution_hours) * 10) / 10,\n    });\n  } else if (hoursElapsed > sla.resolution_hours * 0.8) {\n    warning.push({\n      ...fields,\n      sla_status: 'WARNING',\n      hours_elapsed: Math.round(hoursElapsed * 10) / 10,\n      sla_limit: sla.resolution_hours,\n      hours_remaining: Math.round((sla.resolution_hours - hoursElapsed) * 10) / 10,\n    });\n  }\n}\n\nreturn {\n  json: {\n    total_open: ticketItems.length,\n    breached_count: breached.length,\n    warning_count: warning.length,\n    breached,\n    warning,\n    checked_at: now.toISOString(),\n  }\n};"
+      },
+      "id": "3036f0cc-2ed9-490a-88c3-1962b8238dc2",
+      "name": "Check SLA Status",
+      "type": "n8n-nodes-base.code",
+      "position": [680, 400],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.breached_count }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        }
+      },
+      "id": "eb74d41a-fdec-45a0-9b40-953d75bb6b20",
+      "name": "Any SLA Breached?",
+      "type": "n8n-nodes-base.if",
+      "position": [920, 300],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": { "__rl": true, "value": "appTCh0EeXQp0XqzW", "mode": "id" },
+        "table": { "__rl": true, "value": "tbl2kDx0EqczOU3ib", "mode": "id" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {} },
+        "options": {}
+      },
+      "id": "eb5ef21e-7979-4178-bfc4-724ed9df7c64",
+      "name": "Escalate SLA Breach",
+      "type": "n8n-nodes-base.airtable",
+      "position": [1160, 200],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": { "id": "K8t2NtJ89DLLh64j", "name": "Airtable Personal Access Token account" }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=SLA BREACH: {{ $('Check SLA Status').first().json.breached_count }} tickets overdue",
+        "emailType": "html",
+        "message": "=<h2 style=\"color:#FF6D5A;\">SLA Breach Alert</h2>\n<p>{{ $('Check SLA Status').first().json.breached_count }} support tickets have breached their SLA:</p>\n<table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n<tr style=\"background:#FF6D5A;color:white;\"><th>Ticket</th><th>Subject</th><th>Priority</th><th>Hours Over</th></tr>\n{{ $('Check SLA Status').first().json.breached.map(t => '<tr><td>' + t.ticket_id + '</td><td>' + t.subject + '</td><td>' + t.priority + '</td><td>' + Math.abs(t.hours_remaining) + 'h</td></tr>').join('') }}\n</table>",
+        "options": {}
+      },
+      "id": "624025b6-1f37-48a5-b1ab-cc44c56b6d6f",
+      "name": "Alert SLA Breach",
+      "type": "n8n-nodes-base.gmail",
+      "position": [1400, 200],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": { "id": "2IuycrTIgWJZEjBE", "name": "Gmail account AVM Tutorial" }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.warning_count }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        }
+      },
+      "id": "c34cdbe7-a0fa-446a-9787-b6cc616999e0",
+      "name": "Any SLA Warning?",
+      "type": "n8n-nodes-base.if",
+      "position": [920, 500],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=SLA Warning: {{ $('Check SLA Status').first().json.warning_count }} tickets at 75%+",
+        "emailType": "html",
+        "message": "=<h2>SLA Warning</h2>\n<p>{{ $('Check SLA Status').first().json.warning_count }} tickets are at 75%+ of their SLA limit:</p>\n<ul>\n{{ $('Check SLA Status').first().json.warning.map(t => '<li><strong>' + t.ticket_id + '</strong>: ' + t.subject + ' (' + t.priority + ', ' + t.hours_remaining + 'h remaining)</li>').join('') }}\n</ul>",
+        "options": {}
+      },
+      "id": "8a2bbf43-5ff2-417a-94fc-834467d5c094",
+      "name": "Warn SLA Approaching",
+      "type": "n8n-nodes-base.gmail",
+      "position": [1160, 500],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": { "id": "2IuycrTIgWJZEjBE", "name": "Gmail account AVM Tutorial" }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "ab43e412-4667-43f0-921f-854ca1624a82",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [200, 880],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SUP-02 ERROR - SLA Monitor",
+        "emailType": "html",
+        "message": "=<h2>SLA Monitor Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "d55ba72a-7da3-4b69-b4cd-84b5b50b782c",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [440, 880],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": { "id": "2IuycrTIgWJZEjBE", "name": "Gmail account AVM Tutorial" }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## SUP-02: SLA Monitor\n\n**Schedule:** Once daily at 09:00 SAST, Mon-Fri\n**Purpose:** Check open tickets against SLA targets, escalate breaches, warn on approaching limits.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "sup02-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [140, 220],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Daily 9am SAST": {
+      "main": [[
+        { "node": "Read Open Tickets", "type": "main", "index": 0 },
+        { "node": "Read SLA Config", "type": "main", "index": 0 }
+      ]]
+    },
+    "Manual Trigger": {
+      "main": [[
+        { "node": "Read Open Tickets", "type": "main", "index": 0 },
+        { "node": "Read SLA Config", "type": "main", "index": 0 }
+      ]]
+    },
+    "Read Open Tickets": {
+      "main": [[{ "node": "Check SLA Status", "type": "main", "index": 0 }]]
+    },
+    "Read SLA Config": {
+      "main": [[{ "node": "Check SLA Status", "type": "main", "index": 0 }]]
+    },
+    "Check SLA Status": {
+      "main": [[
+        { "node": "Any SLA Breached?", "type": "main", "index": 0 },
+        { "node": "Any SLA Warning?", "type": "main", "index": 0 }
+      ]]
+    },
+    "Any SLA Breached?": {
+      "main": [[{ "node": "Escalate SLA Breach", "type": "main", "index": 0 }], []]
+    },
+    "Escalate SLA Breach": {
+      "main": [[{ "node": "Alert SLA Breach", "type": "main", "index": 0 }]]
+    },
+    "Any SLA Warning?": {
+      "main": [[{ "node": "Warn SLA Approaching", "type": "main", "index": 0 }], []]
+    },
+    "Error Trigger": {
+      "main": [[{ "node": "Error Notification", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": { "templateCredsSetupCompleted": true },
+  "pinData": {},
+  "tags": []
+}

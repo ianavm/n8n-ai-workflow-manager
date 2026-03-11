@@ -1,0 +1,342 @@
+{
+  "name": "FIN-08 Cash Flow Forecast",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 14 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "49ee3da5-278a-4d10-bc8b-4f3e430f483a",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl0vZnALIvH72r2t",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Status} != 'Paid', {Status} != 'Voided')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "ceadf01e-212e-4688-80ba-37c6ab870236",
+      "name": "Read Outstanding Invoices",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appMmUkZzdDSiY1RS",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Status} != 'Paid', {Status} != 'Voided')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "c6809e67-d546-41ee-a999-c350ec59fccd",
+      "name": "Read Unpaid Bills",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate AR/AP totals and group by due date bucket: 0-30, 31-60, 61-90\nconst invoiceItems = $('Read Outstanding Invoices').all();\nconst billItems = $('Read Unpaid Bills').all();\nconst today = new Date();\n\nfunction daysBetween(date1, date2) {\n  const d1 = new Date(date1);\n  const d2 = new Date(date2);\n  return Math.ceil((d1 - d2) / (1000 * 60 * 60 * 24));\n}\n\nfunction getBucket(dueDate) {\n  const daysUntilDue = daysBetween(dueDate, today);\n  if (daysUntilDue <= 30) return '0-30';\n  if (daysUntilDue <= 60) return '31-60';\n  if (daysUntilDue <= 90) return '61-90';\n  return '90+';\n}\n\n// Process Accounts Receivable (invoices = money coming in)\nconst arBuckets = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };\nlet arTotal = 0;\nconst arDetails = [];\n\nfor (const item of invoiceItems) {\n  const d = item.json;\n  const amount = parseFloat(d.Amount || d['Amount Due'] || d.Total || 0);\n  const dueDate = d['Due Date'] || d.DueDate || d.Date || today.toISOString();\n  const bucket = getBucket(dueDate);\n  arBuckets[bucket] += amount;\n  arTotal += amount;\n  arDetails.push({\n    invoiceNumber: d['Invoice Number'] || d.Number || 'N/A',\n    client: d.Client || d.Contact || d.Customer || 'Unknown',\n    amount,\n    dueDate,\n    bucket,\n    daysUntilDue: daysBetween(dueDate, today),\n  });\n}\n\n// Process Accounts Payable (bills = money going out)\nconst apBuckets = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 };\nlet apTotal = 0;\nconst apDetails = [];\n\nfor (const item of billItems) {\n  const d = item.json;\n  const amount = parseFloat(d.Amount || d['Amount Due'] || d.Total || 0);\n  const dueDate = d['Due Date'] || d.DueDate || d.Date || today.toISOString();\n  const bucket = getBucket(dueDate);\n  apBuckets[bucket] += amount;\n  apTotal += amount;\n  apDetails.push({\n    billNumber: d['Bill Number'] || d.Reference || 'N/A',\n    supplier: d.Supplier || d.Vendor || d.Contact || 'Unknown',\n    amount,\n    dueDate,\n    bucket,\n    daysUntilDue: daysBetween(dueDate, today),\n  });\n}\n\n// Net cash flow per bucket\nconst netCashFlow = {};\nfor (const bucket of ['0-30', '31-60', '61-90', '90+']) {\n  netCashFlow[bucket] = arBuckets[bucket] - apBuckets[bucket];\n}\n\nreturn {\n  json: {\n    reportDate: today.toISOString().split('T')[0],\n    accountsReceivable: {\n      total: arTotal,\n      buckets: arBuckets,\n      invoiceCount: invoiceItems.length,\n      topInvoices: arDetails.sort((a, b) => b.amount - a.amount).slice(0, 5),\n    },\n    accountsPayable: {\n      total: apTotal,\n      buckets: apBuckets,\n      billCount: billItems.length,\n      topBills: apDetails.sort((a, b) => b.amount - a.amount).slice(0, 5),\n    },\n    netCashFlow,\n    netPosition: arTotal - apTotal,\n    currency: 'ZAR',\n  }\n};"
+      },
+      "id": "7a0f0e26-0316-4d83-a6cd-29e4a4c48755",
+      "name": "Compute Cash Flow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the AVM Finance Intelligence Agent. Generate a 30/60/90 day cash flow forecast with executive commentary. Include: 1) Cash position summary, 2) Risk areas (overdue receivables, large upcoming payables), 3) Recommended actions (collections priority, payment scheduling). Use ZAR (R) currency. Include a simple forecast table. Be concise (max 400 words).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Cash Flow Analysis Data:\\n\\n{{ JSON.stringify($json) }}\\n\\nNet Position: R{{ $json.netPosition.toFixed(2) }}\\nAR Total: R{{ $json.accountsReceivable.total.toFixed(2) }} ({{ $json.accountsReceivable.invoiceCount }} invoices)\\nAP Total: R{{ $json.accountsPayable.total.toFixed(2) }} ({{ $json.accountsPayable.billCount }} bills)\\n\\nGenerate the 30/60/90 day cash flow forecast with commentary.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "b2b4d54e-bc2d-4b99-8847-7f514a0f19e3",
+      "name": "AI Forecast Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "021db337-7c76-4b93-aaa3-f15e8ebc2258",
+              "name": "forecastText",
+              "value": "={{ $json.choices[0].message.content }}",
+              "type": "string"
+            },
+            {
+              "id": "93b5e0da-1107-48e8-9f80-08f50089c142",
+              "name": "arTotal",
+              "value": "={{ $('Compute Cash Flow').first().json.accountsReceivable.total }}",
+              "type": "number"
+            },
+            {
+              "id": "4f431277-1a86-4722-93bc-b0d93451df77",
+              "name": "apTotal",
+              "value": "={{ $('Compute Cash Flow').first().json.accountsPayable.total }}",
+              "type": "number"
+            },
+            {
+              "id": "33566967-e665-4c9e-8f75-188b1df5d812",
+              "name": "netPosition",
+              "value": "={{ $('Compute Cash Flow').first().json.netPosition }}",
+              "type": "number"
+            },
+            {
+              "id": "f1944840-fcce-438b-be7e-9d02c04b9daf",
+              "name": "reportDate",
+              "value": "={{ $('Compute Cash Flow').first().json.reportDate }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1f27a63b-49de-44ce-a4d1-7249f6a03896",
+      "name": "Structure Forecast",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=AVM Cash Flow Forecast - {{ $json.reportDate }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n<div style=\"background: #FF6D5A; padding: 20px; text-align: center;\">\n<h1 style=\"color: white; margin: 0;\">Cash Flow Forecast</h1>\n<p style=\"color: white; margin: 5px 0;\">30/60/90 Day Outlook - {{ $json.reportDate }}</p>\n</div>\n<div style=\"padding: 20px;\">\n<div style=\"display: flex; gap: 15px; margin-bottom: 20px;\">\n<div style=\"flex: 1; background: #f0fff0; padding: 15px; border-radius: 8px; text-align: center;\">\n<div style=\"font-size: 20px; font-weight: bold; color: #22c55e;\">R{{ Math.round($json.arTotal).toLocaleString() }}</div>\n<div style=\"font-size: 12px; color: #666;\">Accounts Receivable</div>\n</div>\n<div style=\"flex: 1; background: #fff3f0; padding: 15px; border-radius: 8px; text-align: center;\">\n<div style=\"font-size: 20px; font-weight: bold; color: #FF6D5A;\">R{{ Math.round($json.apTotal).toLocaleString() }}</div>\n<div style=\"font-size: 12px; color: #666;\">Accounts Payable</div>\n</div>\n<div style=\"flex: 1; background: {{ $json.netPosition >= 0 ? '#f0fff0' : '#fff3f0' }}; padding: 15px; border-radius: 8px; text-align: center;\">\n<div style=\"font-size: 20px; font-weight: bold; color: {{ $json.netPosition >= 0 ? '#22c55e' : '#ef4444' }};\">R{{ Math.round($json.netPosition).toLocaleString() }}</div>\n<div style=\"font-size: 12px; color: #666;\">Net Position</div>\n</div>\n</div>\n<h2 style=\"color: #333;\">AI Forecast & Commentary</h2>\n<div style=\"background: #f9f9f9; padding: 15px; border-radius: 8px; white-space: pre-wrap;\">{{ $json.forecastText }}</div>\n</div>\n<div style=\"background: #f0f0f0; padding: 15px; text-align: center; font-size: 12px; color: #666;\">\nGenerated by AVM Finance Agent | {{ $now.format('yyyy-MM-dd HH:mm') }}\n</div>\n</div>",
+        "options": {}
+      },
+      "id": "e3d36690-51d6-428f-bcd8-47b964dbba55",
+      "name": "Send Forecast Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1440,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event ID": "=evt_fin08_{{ $now.format('yyyyMMddHHmmss') }}",
+            "Event Type": "cashflow_forecast",
+            "Source Agent": "agent_finance",
+            "Target Agent": "agent_orchestrator",
+            "Priority": "={{ $('Structure Forecast').first().json.netPosition < 0 ? 'High' : 'Medium' }}",
+            "Status": "Completed",
+            "Payload": "={{ JSON.stringify({ arTotal: $('Structure Forecast').first().json.arTotal, apTotal: $('Structure Forecast').first().json.apTotal, netPosition: $('Structure Forecast').first().json.netPosition, reportDate: $('Structure Forecast').first().json.reportDate }) }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a6ea73b0-694a-4cb3-9221-91475a87f1aa",
+      "name": "Log to Orchestrator",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1680,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Outstanding Invoices",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Unpaid Bills",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Outstanding Invoices": {
+      "main": [
+        [
+          {
+            "node": "Compute Cash Flow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Unpaid Bills": {
+      "main": [
+        [
+          {
+            "node": "Compute Cash Flow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Cash Flow": {
+      "main": [
+        [
+          {
+            "node": "AI Forecast Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Forecast Agent": {
+      "main": [
+        [
+          {
+            "node": "Structure Forecast",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structure Forecast": {
+      "main": [
+        [
+          {
+            "node": "Send Forecast Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Forecast Email": {
+      "main": [
+        [
+          {
+            "node": "Log to Orchestrator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "finance",
+    "cashflow",
+    "forecast",
+    "auto-ops"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_finance_agent.py",
+    "built_at": "2026-03-09T14:12:10.277928"
+  }
+}

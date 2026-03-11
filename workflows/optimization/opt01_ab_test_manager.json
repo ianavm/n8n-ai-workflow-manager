@@ -1,0 +1,291 @@
+{
+  "name": "Optimization - A/B Test Manager (OPT-01)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ab-test-create",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "4e8e0114-c247-453c-9a25-b3e29444fed7",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "7471ff06-c697-4dc4-b46b-bff867153059"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate A/B test configuration\nconst body = $json.body || $json;\n\nconst required = ['test_name', 'variable', 'variant_a', 'variant_b', 'metric', 'sample_size_target'];\nconst missing = required.filter(f => !body[f]);\n\nif (missing.length > 0) {\n  return [{\n    json: {\n      valid: false,\n      error: 'Missing required fields: ' + missing.join(', '),\n      required_fields: required,\n    }\n  }];\n}\n\nconst sampleSize = parseInt(body.sample_size_target);\nif (isNaN(sampleSize) || sampleSize < 10) {\n  return [{\n    json: {\n      valid: false,\n      error: 'sample_size_target must be a number >= 10',\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    valid: true,\n    test_name: body.test_name,\n    variable: body.variable,\n    variant_a: body.variant_a,\n    variant_b: body.variant_b,\n    metric: body.metric,\n    sample_size_target: sampleSize,\n    created_at: new Date().toISOString(),\n    status: 'Running',\n    variant_a_successes: 0,\n    variant_a_trials: 0,\n    variant_b_successes: 0,\n    variant_b_trials: 0,\n  }\n}];"
+      },
+      "id": "99823bbc-b888-4e61-b462-b0fa258ddd96",
+      "name": "Validate Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.valid }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": "Valid"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.valid }}",
+                    "rightValue": false,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": "Invalid"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6f7b5947-8ebf-41f3-a1d3-738049c01867",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Test Name": "={{ $json.test_name }}",
+            "Variable": "={{ $json.variable }}",
+            "Variant A": "={{ $json.variant_a }}",
+            "Variant B": "={{ $json.variant_b }}",
+            "Metric": "={{ $json.metric }}",
+            "Sample Size Target": "={{ $json.sample_size_target }}",
+            "Status": "Running",
+            "Created At": "={{ $json.created_at }}",
+            "Variant A Successes": 0,
+            "Variant A Trials": 0,
+            "Variant B Successes": 0,
+            "Variant B Trials": 0
+          },
+          "matchingColumns": []
+        },
+        "options": {}
+      },
+      "id": "c2b6730f-b2f1-45ce-8282-fc53c88e37e5",
+      "name": "Create AB Test",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Decision": "=Created A/B test: {{ $('Validate Config').first().json.test_name }}",
+            "Agent ID": "agent_orchestrator",
+            "Category": "optimization",
+            "Details": "=Variable: {{ $('Validate Config').first().json.variable }}, Metric: {{ $('Validate Config').first().json.metric }}, Target N: {{ $('Validate Config').first().json.sample_size_target }}",
+            "Decided At": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": []
+        },
+        "options": {}
+      },
+      "id": "7b3c5228-3bae-472e-9db1-43917a09ac34",
+      "name": "Log Decision",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, test_id: $('Create AB Test').first().json.id, test_name: $('Validate Config').first().json.test_name, status: 'Running' }) }}",
+        "options": {}
+      },
+      "id": "d8b46b92-febb-4d5e-ba26-5914992d0bd7",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: false, error: $json.error }) }}",
+        "options": {}
+      },
+      "id": "09f9ab6e-8120-4cc6-b4a7-3ebc5aefbabd",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## OPT-01: A/B Test Manager\nWebhook POST /ab-test-create.\nValidates config, creates test record in Airtable,\nlogs decision, responds with test_id.",
+        "width": 420,
+        "height": 110
+      },
+      "id": "2110c60a-8318-4179-8312-2ce9caaeca82",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Config": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Create AB Test",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create AB Test": {
+      "main": [
+        [
+          {
+            "node": "Log Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Decision": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

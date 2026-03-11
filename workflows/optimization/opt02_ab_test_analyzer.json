@@ -1,0 +1,340 @@
+{
+  "name": "Optimization - A/B Test Analyzer (OPT-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "7887f921-3916-4046-b1fd-bf4958cb16f7",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "filterByFormula": "{Status} = 'Running'",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "861f4136-464a-457a-b39d-c80d35bd5ff1",
+      "name": "Read Running Tests",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "c1d716ed-23cd-47b8-8366-f11c2ae28662",
+      "name": "Has Running Tests?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Perform z-test for proportions on each running A/B test\nconst tests = $input.all().map(i => i.json);\nconst results = [];\n\nfor (const test of tests) {\n  const nA = parseInt(test['Variant A Trials'] || 0);\n  const nB = parseInt(test['Variant B Trials'] || 0);\n  const sA = parseInt(test['Variant A Successes'] || 0);\n  const sB = parseInt(test['Variant B Successes'] || 0);\n  const targetN = parseInt(test['Sample Size Target'] || 100);\n\n  const totalTrials = nA + nB;\n  const sampleReached = totalTrials >= targetN;\n\n  let pValue = null;\n  let significant = false;\n  let winner = null;\n\n  if (nA >= 5 && nB >= 5) {\n    // Proportions\n    const pA = sA / nA;\n    const pB = sB / nB;\n\n    // Pooled proportion\n    const pPool = (sA + sB) / (nA + nB);\n    const se = Math.sqrt(pPool * (1 - pPool) * (1/nA + 1/nB));\n\n    if (se > 0) {\n      const z = (pA - pB) / se;\n      // Two-tailed p-value approximation (using normal CDF)\n      const absZ = Math.abs(z);\n      // Approximation of erfc for p-value\n      const t = 1 / (1 + 0.2316419 * absZ);\n      const d = 0.3989423 * Math.exp(-absZ * absZ / 2);\n      const p1 = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));\n      pValue = Math.round(2 * p1 * 10000) / 10000;\n      significant = pValue < 0.05;\n\n      if (significant) {\n        winner = pA > pB ? 'A' : 'B';\n      }\n    }\n  }\n\n  let newStatus = 'Running';\n  if (significant) {\n    newStatus = 'Completed';\n  } else if (sampleReached && !significant) {\n    newStatus = 'Inconclusive';\n  }\n\n  results.push({\n    json: {\n      recordId: test.id,\n      testName: test['Test Name'],\n      variantA: test['Variant A'],\n      variantB: test['Variant B'],\n      metric: test['Metric'],\n      nA, nB, sA, sB,\n      rateA: nA > 0 ? Math.round((sA/nA) * 1000) / 10 : 0,\n      rateB: nB > 0 ? Math.round((sB/nB) * 1000) / 10 : 0,\n      totalTrials,\n      targetN,\n      sampleReached,\n      pValue,\n      significant,\n      winner,\n      newStatus,\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "705b8a72-2f51-4543-9c5f-cf9d6e3cee5c",
+      "name": "Statistical Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.newStatus }}",
+              "rightValue": "Running",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "2ce2e60a-6179-4e86-af27-4f3687b93665",
+      "name": "Is Concluded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.recordId }}",
+            "Status": "={{ $json.newStatus }}",
+            "Winner": "={{ $json.winner || 'None' }}",
+            "P Value": "={{ $json.pValue }}",
+            "Completed At": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "40dfb02e-4494-43bb-8517-c16844d98b02",
+      "name": "Update Test Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Decision": "=A/B test '{{ $json.testName }}' concluded: {{ $json.newStatus }} (winner={{ $json.winner || 'None' }}, p={{ $json.pValue }})",
+            "Agent ID": "agent_orchestrator",
+            "Category": "optimization",
+            "Details": "=Variant A ({{ $json.variantA }}): {{ $json.rateA }}% (n={{ $json.nA }}), Variant B ({{ $json.variantB }}): {{ $json.rateB }}% (n={{ $json.nB }})",
+            "Decided At": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": []
+        },
+        "options": {}
+      },
+      "id": "432d2e4b-a7d9-40f6-9671-aa8021e5fd3d",
+      "name": "Log Decision",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=A/B Test Result: {{ $('Statistical Analysis').first().json.testName }} - {{ $('Statistical Analysis').first().json.newStatus }}",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px;\">\n<div style=\"background: #FF6D5A; color: white; padding: 16px; border-radius: 8px 8px 0 0;\">\n<h3 style=\"margin: 0;\">A/B Test Result</h3>\n</div>\n<div style=\"padding: 16px; background: #f9f9f9;\">\n<p><strong>Test:</strong> {{ $('Statistical Analysis').first().json.testName }}</p>\n<p><strong>Status:</strong> {{ $('Statistical Analysis').first().json.newStatus }}</p>\n<p><strong>Winner:</strong> {{ $('Statistical Analysis').first().json.winner || 'None' }}</p>\n<p><strong>p-value:</strong> {{ $('Statistical Analysis').first().json.pValue }}</p>\n<hr>\n<p><strong>Variant A</strong> ({{ $('Statistical Analysis').first().json.variantA }}): {{ $('Statistical Analysis').first().json.rateA }}% success (n={{ $('Statistical Analysis').first().json.nA }})</p>\n<p><strong>Variant B</strong> ({{ $('Statistical Analysis').first().json.variantB }}): {{ $('Statistical Analysis').first().json.rateB }}% success (n={{ $('Statistical Analysis').first().json.nB }})</p>\n<p style=\"color: #888; font-size: 12px;\">Generated by AVM Optimization Engine | OPT-02</p>\n</div>\n</div>",
+        "options": {}
+      },
+      "id": "9b765ba3-4951-4942-8d96-dd83f8a3ac28",
+      "name": "Notify Results",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## OPT-02: A/B Test Analyzer\nRuns daily 20:00 SAST. Reads running tests,\nperforms z-test for proportions, updates status\nwhen significant (p<0.05) or sample reached.",
+        "width": 420,
+        "height": 110
+      },
+      "id": "7bf898ca-da56-466f-9c46-5c81f14916b4",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Running Tests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Running Tests": {
+      "main": [
+        [
+          {
+            "node": "Has Running Tests?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Running Tests?": {
+      "main": [
+        [
+          {
+            "node": "Statistical Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Statistical Analysis": {
+      "main": [
+        [
+          {
+            "node": "Is Concluded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Concluded?": {
+      "main": [
+        [
+          {
+            "node": "Update Test Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Update Test Record": {
+      "main": [
+        [
+          {
+            "node": "Log Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Decision": {
+      "main": [
+        [
+          {
+            "node": "Notify Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

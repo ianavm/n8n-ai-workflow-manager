@@ -1,0 +1,730 @@
+{
+  "name": "Document Intake - Email Intake & Raw Storage (WF-DI-01)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## WF-DI-01: Email Intake + Raw Storage\nMonitors Outlook for emails with attachments.\nDownloads, deduplicates, uploads to Google Drive,\nand triggers WF-DI-02 for processing.",
+        "width": 500,
+        "height": 140,
+        "color": 4
+      },
+      "id": "3330235b-6734-4353-8013-8ba3c40db096",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        180,
+        80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "hasAttachments": true
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "32ac6fb8-ab0e-4ff3-9654-9334162bae09",
+      "name": "Outlook Trigger",
+      "type": "n8n-nodes-base.microsoftOutlookTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "3b44d5f8-7283-49b2-805e-544a74e2fe98",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract email metadata and split into one item per attachment\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const email = item.json;\n  const senderEmail = email.sender?.emailAddress?.address\n    || email.from?.emailAddress?.address || 'unknown';\n  const senderName = email.sender?.emailAddress?.name\n    || email.from?.emailAddress?.name || '';\n  const subject = email.subject || '(no subject)';\n  const receivedAt = email.receivedDateTime || email.createdDateTime || new Date().toISOString();\n  const messageId = email.id || '';\n\n  // Get all binary keys (attachments downloaded by trigger)\n  const binaryKeys = item.binary ? Object.keys(item.binary) : [];\n\n  if (binaryKeys.length === 0) {\n    // No binary attachments - skip\n    continue;\n  }\n\n  for (const binaryKey of binaryKeys) {\n    const binaryData = item.binary[binaryKey];\n    const fileName = binaryData.fileName || `attachment_${Date.now()}`;\n    const mimeType = binaryData.mimeType || 'application/octet-stream';\n    const fileSize = binaryData.fileSize || 0;\n\n    results.push({\n      json: {\n        senderEmail,\n        senderName,\n        subject,\n        receivedAt,\n        messageId,\n        fileName,\n        mimeType,\n        fileSize,\n        binaryKey,\n        intakeTimestamp: new Date().toISOString(),\n      },\n      binary: {\n        data: binaryData,\n      },\n    });\n  }\n}\n\nif (results.length === 0) {\n  results.push({ json: { _noAttachments: true } });\n}\n\nreturn results;\n"
+      },
+      "id": "6c481733-838e-4e92-bb09-75dea5b9f216",
+      "name": "Split Attachments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._noAttachments }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "985cf105-c7b8-4e77-a483-25e53ece2bf9",
+      "name": "Has Attachments?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const binaryData = item.binary?.data;\n  let fileHash = 'no_binary';\n\n  if (binaryData && binaryData.data) {\n    // binaryData.data is base64 encoded\n    const buffer = Buffer.from(binaryData.data, 'base64');\n    fileHash = crypto.createHash('sha256').update(buffer).digest('hex');\n  }\n\n  const random4 = Math.random().toString(36).slice(2, 6);\n  const docId = `DOC-${Date.now()}-${random4}`;\n\n  results.push({\n    json: {\n      ...item.json,\n      docId,\n      fileHash,\n    },\n    binary: item.binary,\n  });\n}\n\nreturn results;\n"
+      },
+      "id": "33aeacb6-b386-40eb-b7cd-d8a63efa5818",
+      "name": "Generate Hash + ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "ad3ac659-1cca-427e-bc8a-b763fd90bbe5",
+      "name": "Read Document Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1140,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if the file hash already exists in Document_Log\nconst currentItem = $('Generate Hash + ID').first().json;\nconst fileHash = currentItem.fileHash;\nconst existingDocs = $input.all().map(i => i.json);\n\nconst duplicate = existingDocs.find(doc =>\n  doc.file_hash_sha256 === fileHash && doc.file_hash_sha256 !== 'no_binary'\n);\n\nreturn [{\n  json: {\n    ...currentItem,\n    isDuplicate: !!duplicate,\n    duplicateOfDocId: duplicate ? duplicate.doc_id : null,\n  },\n  binary: $('Generate Hash + ID').first().binary,\n}];\n"
+      },
+      "id": "dc341af1-9f8f-46f9-8189-746190b308dd",
+      "name": "Check Duplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.isDuplicate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "756319a7-36cf-401d-9b79-8976283e3aab",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1580,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Duplicate_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "dupe_id": "=DUP-{{ $now.toMillis() }}",
+            "detected_at": "={{ $now.toISO() }}",
+            "original_doc_id": "={{ $json.duplicateOfDocId }}",
+            "duplicate_doc_id": "={{ $json.docId }}",
+            "file_hash": "={{ $json.fileHash }}",
+            "sender_email": "={{ $json.senderEmail }}",
+            "original_filename": "={{ $json.fileName }}",
+            "action_taken": "flagged"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "dupe_id",
+              "type": "string",
+              "display": true,
+              "displayName": "dupe_id"
+            },
+            {
+              "id": "detected_at",
+              "type": "string",
+              "display": true,
+              "displayName": "detected_at"
+            },
+            {
+              "id": "original_doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "original_doc_id"
+            },
+            {
+              "id": "duplicate_doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "duplicate_doc_id"
+            },
+            {
+              "id": "file_hash",
+              "type": "string",
+              "display": true,
+              "displayName": "file_hash"
+            },
+            {
+              "id": "sender_email",
+              "type": "string",
+              "display": true,
+              "displayName": "sender_email"
+            },
+            {
+              "id": "original_filename",
+              "type": "string",
+              "display": true,
+              "displayName": "original_filename"
+            },
+            {
+              "id": "action_taken",
+              "type": "string",
+              "display": true,
+              "displayName": "action_taken"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7c962412-d7d8-429a-a8a6-ffe967f2d3c3",
+      "name": "Log Duplicate",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1800,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audit_id": "=AUD-{{ $now.toMillis() }}-dup",
+            "timestamp": "={{ $now.toISO() }}",
+            "actor": "system",
+            "action": "duplicate_detected",
+            "doc_id": "={{ $json.docId }}",
+            "before_value": "",
+            "after_value": "={{ JSON.stringify({duplicate_of: $json.duplicateOfDocId, hash: $json.fileHash}) }}",
+            "notes": "Duplicate file detected during intake"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "audit_id",
+              "type": "string",
+              "display": true,
+              "displayName": "audit_id"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            },
+            {
+              "id": "actor",
+              "type": "string",
+              "display": true,
+              "displayName": "actor"
+            },
+            {
+              "id": "action",
+              "type": "string",
+              "display": true,
+              "displayName": "action"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "before_value",
+              "type": "string",
+              "display": true,
+              "displayName": "before_value"
+            },
+            {
+              "id": "after_value",
+              "type": "string",
+              "display": true,
+              "displayName": "after_value"
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "displayName": "notes"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a571836f-e990-4b7c-a947-936574c76599",
+      "name": "Audit Log - Duplicate",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2020,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $now.format('yyyyMMdd_HHmmss') + '_' + $json.fileName }}",
+        "folderId": {
+          "__rl": true,
+          "value": "REPLACE_INCOMING",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "97b93669-6c48-47ec-90c9-41bcee1db8b9",
+      "name": "Upload to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1800,
+        400
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge upload result with original metadata\nconst uploadResult = $input.first().json;\nconst original = $('Check Duplicate').first().json;\n\nreturn [{\n  json: {\n    doc_id: original.docId,\n    intake_timestamp: original.intakeTimestamp,\n    sender_email: original.senderEmail,\n    sender_name: original.senderName,\n    email_subject: original.subject,\n    original_filename: original.fileName,\n    file_hash_sha256: original.fileHash,\n    file_size_bytes: original.fileSize || 0,\n    raw_drive_file_id: uploadResult.id || '',\n    raw_drive_url: uploadResult.webViewLink || uploadResult.webContentLink || '',\n    doc_type: '',\n    doc_type_confidence: '',\n    property_address: '',\n    erf_number: '',\n    unit_number: '',\n    scheme_name: '',\n    buyer_name: '',\n    seller_name: '',\n    agent_name: '',\n    transaction_date: '',\n    reference_number: '',\n    property_id: '',\n    final_drive_file_id: '',\n    final_drive_url: '',\n    status: 'pending',\n    review_reason: '',\n    reviewed_by: '',\n    reviewed_at: '',\n    error_message: '',\n    mimeType: original.mimeType,\n  }\n}];\n"
+      },
+      "id": "6e4d7518-3091-4b0a-bb1a-b27031b6f8ee",
+      "name": "Build Log Entry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "1d8eda8c-0784-4f9b-a116-9e40d939a78c",
+      "name": "Log to Document_Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2240,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audit_id": "=AUD-{{ $now.toMillis() }}-int",
+            "timestamp": "={{ $now.toISO() }}",
+            "actor": "system",
+            "action": "intake",
+            "doc_id": "={{ $('Build Log Entry').first().json.doc_id }}",
+            "before_value": "",
+            "after_value": "={{ JSON.stringify({status: 'pending', file: $('Build Log Entry').first().json.original_filename}) }}",
+            "notes": "Document ingested from Outlook email"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "audit_id",
+              "type": "string",
+              "display": true,
+              "displayName": "audit_id"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            },
+            {
+              "id": "actor",
+              "type": "string",
+              "display": true,
+              "displayName": "actor"
+            },
+            {
+              "id": "action",
+              "type": "string",
+              "display": true,
+              "displayName": "action"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "before_value",
+              "type": "string",
+              "display": true,
+              "displayName": "before_value"
+            },
+            {
+              "id": "after_value",
+              "type": "string",
+              "display": true,
+              "displayName": "after_value"
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "displayName": "notes"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "03d0f7d5-4db4-4b85-b0a7-f2de0f672a92",
+      "name": "Audit Log - Intake",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2460,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_DEPLOY",
+          "mode": "id"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "80127675-1c70-4bcd-9d72-655d1930cc67",
+      "name": "Trigger Processing",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        2680,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Outlook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Split Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Split Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Attachments": {
+      "main": [
+        [
+          {
+            "node": "Has Attachments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Attachments?": {
+      "main": [
+        [
+          {
+            "node": "Generate Hash + ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Generate Hash + ID": {
+      "main": [
+        [
+          {
+            "node": "Read Document Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Document Log": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Log Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upload to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Drive": {
+      "main": [
+        [
+          {
+            "node": "Build Log Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Log Entry": {
+      "main": [
+        [
+          {
+            "node": "Log to Document_Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Document_Log": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log - Intake": {
+      "main": [
+        [
+          {
+            "node": "Trigger Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,783 @@
+{
+  "name": "SEO Social - Analytics & Reporting (WF-11)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "1f0577d9-a36b-43c0-acc2-ba3fe882e018",
+      "name": "Weekly Mon 6AM SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "c1dcc213-146d-4533-adaf-de29354a9bf7",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e2625d07-5b5a-4b71-8ec1-56fa9904d245",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "ed072353-808c-4ff9-a08b-ccac6ce2f831",
+              "name": "weekNumber",
+              "value": "={{ $now.format('yyyy') + '-W' + $now.format('WW') }}",
+              "type": "string"
+            },
+            {
+              "id": "fc7a4ff8-31d5-49d2-9338-941f0898258a",
+              "name": "monthNumber",
+              "value": "={{ $now.format('yyyy-MM') }}",
+              "type": "string"
+            },
+            {
+              "id": "87c5b7bf-6f70-457b-8d80-14a076165902",
+              "name": "dayOfMonth",
+              "value": "={{ $now.format('d') }}",
+              "type": "string"
+            },
+            {
+              "id": "0f844005-5330-4d37-8617-e2fc12ca7f79",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "1cfe08f4-0c3c-4467-9639-b9228ddcfa28",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "17b78bdf-c62d-4a88-80be-83caa2c6418d",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        500
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblVToraszRHs4zIJ"
+        },
+        "filterByFormula": "=IS_AFTER({Checked At}, DATEADD(TODAY(), -7, 'days'))"
+      },
+      "id": "671cc45d-adfc-454a-892f-0ef8bc3111de",
+      "name": "Read Engagement Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        300
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblLI70ZD0DkJKXvI"
+        },
+        "filterByFormula": "=IS_AFTER({Published At}, DATEADD(TODAY(), -7, 'days'))"
+      },
+      "id": "17deff31-5053-4eb3-9cad-020ac0450830",
+      "name": "Read Distribution Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        440
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblwOPTPY85Tcj7NJ"
+        },
+        "filterByFormula": "=IS_AFTER({Created At}, DATEADD(TODAY(), -7, 'days'))"
+      },
+      "id": "4eadae2e-ba75-407f-8979-3c7d66616ad2",
+      "name": "Read Leads",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        580
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblfUHKT8d0oJIEL1"
+        },
+        "filterByFormula": "=IS_AFTER({Audit Date}, DATEADD(TODAY(), -7, 'days'))"
+      },
+      "id": "a3e58eb1-00ec-4ce6-8efd-1c6a7a9fe09a",
+      "name": "Read SEO Audits",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        720
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblUiQHxgrNqV2FyS"
+        },
+        "filterByFormula": "=({Status} = 'Active')"
+      },
+      "id": "c6f3e7ff-1198-4b20-9b7f-57369563b236",
+      "name": "Read Keywords",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        680,
+        860
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('System Config').first().json;\n\n// Gather data\nlet engagement = [], distribution = [], leads = [], audits = [], keywords = [];\ntry { engagement = $('Read Engagement Log').all().map(i => i.json); } catch(e) {}\ntry { distribution = $('Read Distribution Log').all().map(i => i.json); } catch(e) {}\ntry { leads = $('Read Leads').all().map(i => i.json).filter(l => l.Email); } catch(e) {}\ntry { audits = $('Read SEO Audits').all().map(i => i.json).filter(a => a.URL); } catch(e) {}\ntry { keywords = $('Read Keywords').all().map(i => i.json).filter(k => k.Keyword); } catch(e) {}\n\n// Engagement KPIs\nconst totalLikes = engagement.reduce((s, e) => s + (e.Likes || 0), 0);\nconst totalComments = engagement.reduce((s, e) => s + (e.Comments || 0), 0);\nconst totalShares = engagement.reduce((s, e) => s + (e.Shares || 0), 0);\nconst totalImpressions = engagement.reduce((s, e) => s + (e.Impressions || 0), 0);\nconst avgEngagement = engagement.length > 0 ? Math.round(engagement.reduce((s, e) => s + (e['Engagement Score'] || 0), 0) / engagement.length) : 0;\n\n// Distribution KPIs\nconst totalPosts = distribution.filter(d => d['Log ID']).length;\nconst successPosts = distribution.filter(d => d.Status === 'Success').length;\nconst publishRate = totalPosts > 0 ? Math.round(successPosts / totalPosts * 100) : 0;\n\n// Lead KPIs\nconst newLeads = leads.length;\nconst hotLeads = leads.filter(l => (l['Lead Score'] || 0) >= 80).length;\nconst avgLeadScore = leads.length > 0 ? Math.round(leads.reduce((s, l) => s + (l['Lead Score'] || 0), 0) / leads.length) : 0;\n\n// SEO KPIs\nconst avgSeoScore = audits.length > 0 ? Math.round(audits.reduce((s, a) => s + (a['Composite Score'] || 0), 0) / audits.length) : 0;\nconst activeKeywords = keywords.length;\n\nconst isMonthly = parseInt(config.dayOfMonth) <= 7;\n\nconst kpis = {\n  engagement: { likes: totalLikes, comments: totalComments, shares: totalShares, impressions: totalImpressions, avgScore: avgEngagement },\n  distribution: { totalPosts, successPosts, publishRate },\n  leads: { newLeads, hotLeads, avgLeadScore },\n  seo: { avgSeoScore, activeKeywords, pagesAudited: audits.length },\n  isMonthly: isMonthly,\n  week: config.weekNumber,\n  month: config.monthNumber,\n  date: config.todayDate\n};\n\nreturn { json: kpis };"
+      },
+      "id": "00fd337d-fa5d-4ec3-9495-12272b4b9374",
+      "name": "Compute KPIs",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1000,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 1500,\n  \"temperature\": 0.6,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a digital analytics strategist for AnyVision Media, a digital media and AI automation agency in South Africa.\\n\\n## Your Task\\nAnalyze the provided KPIs and generate actionable insights and recommendations for the coming week.\\n\\n## KPI Categories\\n1. **Content Performance**: Engagement rate, reach, impressions\\n2. **SEO Health**: Keyword rankings, organic traffic, page speed scores\\n3. **Lead Generation**: New leads, lead quality scores, conversion rates\\n4. **Social Growth**: Follower growth, engagement trends, platform performance\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"highlights\\\": [\\n    {\\\"metric\\\": \\\"name\\\", \\\"value\\\": \\\"current\\\", \\\"change\\\": \\\"+15%\\\", \\\"assessment\\\": \\\"positive|negative|neutral\\\"}\\n  ],\\n  \\\"insights\\\": [\\n    {\\\"finding\\\": \\\"what we discovered\\\", \\\"implication\\\": \\\"what it means\\\", \\\"action\\\": \\\"what to do about it\\\"}\\n  ],\\n  \\\"recommendations\\\": [\\n    {\\\"priority\\\": 1, \\\"action\\\": \\\"specific action\\\", \\\"expected_impact\\\": \\\"description\\\", \\\"timeframe\\\": \\\"this_week|next_week|this_month\\\"}\\n  ],\\n  \\\"summary\\\": \\\"3-4 sentence executive summary\\\"\\n}\\n\\n## Rules\\n- Focus on actionable insights, not vanity metrics\\n- Compare week-over-week where data allows\\n- Identify both wins and areas for improvement\\n- Recommendations should be specific and measurable\\n- South African business context (ZAR, local market trends)\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify('Weekly KPI Report for AnyVision Media:\\n' + JSON.stringify($json, null, 2)) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "511a9331-faa1-44a4-afb4-1f8206357166",
+      "name": "AI Weekly Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1280,
+        500
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const kpis = $('Compute KPIs').first().json;\nconst aiResponse = $input.first().json;\nconst now = new Date().toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg' });\n\nlet aiInsights = '';\ntry { aiInsights = aiResponse.choices[0].message.content; } catch(e) { aiInsights = 'AI analysis unavailable.'; }\n\nconst report = [\n  '<div style=\"font-family:Arial,sans-serif;max-width:700px\">',\n  '<h2 style=\"color:#FF6D5A\">Weekly Analytics Report</h2>',\n  `<p><strong>Week:</strong> ${kpis.week} | <strong>Date:</strong> ${now}</p>`,\n  '<hr>',\n  '<h3>Engagement</h3>',\n  `<table border=\"1\" cellpadding=\"6\" style=\"border-collapse:collapse\">`,\n  `<tr><td>Likes</td><td><strong>${kpis.engagement.likes}</strong></td></tr>`,\n  `<tr><td>Comments</td><td><strong>${kpis.engagement.comments}</strong></td></tr>`,\n  `<tr><td>Shares</td><td><strong>${kpis.engagement.shares}</strong></td></tr>`,\n  `<tr><td>Impressions</td><td><strong>${kpis.engagement.impressions}</strong></td></tr>`,\n  `<tr><td>Avg Engagement Score</td><td><strong>${kpis.engagement.avgScore}</strong></td></tr>`,\n  '</table>',\n  '<h3>Distribution</h3>',\n  `<p>Posts: ${kpis.distribution.totalPosts} | Success Rate: ${kpis.distribution.publishRate}%</p>`,\n  '<h3>Leads</h3>',\n  `<p>New: ${kpis.leads.newLeads} | Hot: ${kpis.leads.hotLeads} | Avg Score: ${kpis.leads.avgLeadScore}</p>`,\n  '<h3>SEO Health</h3>',\n  `<p>Avg SEO Score: ${kpis.seo.avgSeoScore}/100 | Active Keywords: ${kpis.seo.activeKeywords} | Pages Audited: ${kpis.seo.pagesAudited}</p>`,\n  '<hr>',\n  '<h3>AI Insights</h3>',\n  `<pre style=\"white-space:pre-wrap;font-size:13px\">${aiInsights}</pre>`,\n  '</div>',\n].join('\\n');\n\nconst tokensUsed = aiResponse.usage ? aiResponse.usage.total_tokens : 0;\n\nreturn { json: {\n  subject: `Weekly Analytics: ${kpis.leads.newLeads} leads, ${kpis.distribution.totalPosts} posts, SEO ${kpis.seo.avgSeoScore}/100`,\n  body: report,\n  kpis: kpis,\n  tokensUsed: tokensUsed,\n  isMonthly: kpis.isMonthly\n}};"
+      },
+      "id": "411d17bd-709a-4e62-b9ba-5a46b91296e8",
+      "name": "Build HTML Report",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1560,
+        500
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblPBAnhRf6K1le6F"
+        },
+        "columns": {
+          "value": {
+            "Week": "={{ $json.kpis.week }}",
+            "Date": "={{ $json.kpis.date }}",
+            "Total Posts": "={{ $json.kpis.distribution.totalPosts }}",
+            "Success Rate": "={{ $json.kpis.distribution.publishRate }}",
+            "New Leads": "={{ $json.kpis.leads.newLeads }}",
+            "Hot Leads": "={{ $json.kpis.leads.hotLeads }}",
+            "Avg Engagement": "={{ $json.kpis.engagement.avgScore }}",
+            "Avg SEO Score": "={{ $json.kpis.seo.avgSeoScore }}",
+            "Tokens Used": "={{ $json.tokensUsed }}"
+          },
+          "schema": [
+            {
+              "id": "Week",
+              "type": "string",
+              "display": true,
+              "displayName": "Week"
+            },
+            {
+              "id": "Date",
+              "type": "string",
+              "display": true,
+              "displayName": "Date"
+            },
+            {
+              "id": "Total Posts",
+              "type": "number",
+              "display": true,
+              "displayName": "Total Posts"
+            },
+            {
+              "id": "Success Rate",
+              "type": "number",
+              "display": true,
+              "displayName": "Success Rate"
+            },
+            {
+              "id": "New Leads",
+              "type": "number",
+              "display": true,
+              "displayName": "New Leads"
+            },
+            {
+              "id": "Hot Leads",
+              "type": "number",
+              "display": true,
+              "displayName": "Hot Leads"
+            },
+            {
+              "id": "Avg Engagement",
+              "type": "number",
+              "display": true,
+              "displayName": "Avg Engagement"
+            },
+            {
+              "id": "Avg SEO Score",
+              "type": "number",
+              "display": true,
+              "displayName": "Avg SEO Score"
+            },
+            {
+              "id": "Tokens Used",
+              "type": "number",
+              "display": true,
+              "displayName": "Tokens Used"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "e0629c3f-769f-4b01-a145-9ae391c8f632",
+      "name": "Store Analytics Snapshot",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1800,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $('Build HTML Report').first().json.subject }}",
+        "emailType": "html",
+        "message": "={{ $('Build HTML Report').first().json.body }}",
+        "options": {}
+      },
+      "id": "9d704abc-0f14-4ffc-82ae-150341119d40",
+      "name": "Send Weekly Report",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2040,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cc250f22-07c8-421a-8a48-8aabcfc93359",
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              },
+              "leftValue": "={{ parseInt($('System Config').first().json.dayOfMonth) }}",
+              "rightValue": 7
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "55540aaf-4747-4091-9d16-1a34a8202703",
+      "name": "Is Monthly?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2280,
+        500
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 2500,\n  \"temperature\": 0.6,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are the Chief Digital Strategist for AnyVision Media, a digital media and AI automation agency in South Africa.\\n\\n## Your Task\\nConduct a deep monthly strategy review based on the provided 30-day performance data. Identify strategic shifts, emerging opportunities, and resource allocation recommendations.\\n\\n## Strategic Framework\\n1. **Performance Review**: What worked, what didn't, and why\\n2. **Market Position**: How we compare to competitors and market trends\\n3. **Content Strategy**: What content types and topics drive results\\n4. **Channel Strategy**: Which platforms deliver ROI vs. which need adjustment\\n5. **Growth Opportunities**: New channels, partnerships, or content formats to explore\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"executive_summary\\\": \\\"5-6 sentence strategic overview\\\",\\n  \\\"performance_review\\\": {\\n    \\\"wins\\\": [\\\"win 1\\\", \\\"win 2\\\"],\\n    \\\"challenges\\\": [\\\"challenge 1\\\", \\\"challenge 2\\\"],\\n    \\\"surprises\\\": [\\\"unexpected finding\\\"]\\n  },\\n  \\\"strategic_recommendations\\\": [\\n    {\\n      \\\"priority\\\": 1,\\n      \\\"recommendation\\\": \\\"detailed recommendation\\\",\\n      \\\"rationale\\\": \\\"why this matters\\\",\\n      \\\"resources_needed\\\": \\\"what it takes\\\",\\n      \\\"expected_outcome\\\": \\\"what we expect to achieve\\\",\\n      \\\"timeline\\\": \\\"1_week|2_weeks|1_month\\\"\\n    }\\n  ],\\n  \\\"content_adjustments\\\": [\\n    {\\\"current_approach\\\": \\\"what we do now\\\", \\\"suggested_change\\\": \\\"what to change\\\", \\\"reason\\\": \\\"why\\\"}\\n  ],\\n  \\\"channel_recommendations\\\": [\\n    {\\\"channel\\\": \\\"platform\\\", \\\"current_performance\\\": \\\"assessment\\\", \\\"recommendation\\\": \\\"action\\\"}\\n  ],\\n  \\\"kpi_targets_next_month\\\": {\\n    \\\"engagement_rate\\\": \\\"target\\\",\\n    \\\"new_leads\\\": \\\"target\\\",\\n    \\\"content_pieces\\\": \\\"target\\\",\\n    \\\"seo_score\\\": \\\"target\\\"\\n  }\\n}\\n\\n## Rules\\n- Be strategic, not tactical (save tactics for weekly reports)\\n- Reference South African market conditions and trends\\n- Include at least 3 strategic recommendations ranked by impact\\n- Be honest about underperforming areas\\n- Suggest at least one bold, innovative idea\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify('Monthly Strategy Review for AnyVision Media\\nMonth: ' + $('System Config').first().json.monthNumber + '\\nKPIs: ' + JSON.stringify($('Compute KPIs').first().json, null, 2)) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "0b4bd4f0-0391-43a4-9e53-382b525b2ae5",
+      "name": "AI Monthly Strategy",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2520,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Monthly Strategy Review - {{ $('System Config').first().json.monthNumber }}",
+        "emailType": "html",
+        "message": "=<h2 style=\"color:#FF6D5A\">Monthly Strategy Review</h2>\n<p><strong>Month:</strong> {{ $('System Config').first().json.monthNumber }}</p>\n<hr>\n<pre style=\"white-space:pre-wrap;font-size:13px\">{{ $json.choices ? $json.choices[0].message.content : 'Strategy review unavailable.' }}</pre>",
+        "options": {}
+      },
+      "id": "f72ac4c6-87f0-48bb-bbc0-cef9c75f9c4b",
+      "name": "Send Monthly Report",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2760,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "bd63057f-6439-4bec-9335-fe914b73f309",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        1000
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "0b406439-b8c0-40d8-922f-f7d843628efa",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        1000
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## WF-11: Analytics & Reporting\n\n**Schedule:** Weekly Mon 6AM SAST\n**Purpose:** Compute KPIs across all tables, AI insights, HTML report.\n**Monthly:** If day <= 7, triggers extended AI strategy review.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "wf11-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Weekly Mon 6AM SAST": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Read Engagement Log",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Distribution Log",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read SEO Audits",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Engagement Log": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Distribution Log": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read SEO Audits": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Keywords": {
+      "main": [
+        [
+          {
+            "node": "Compute KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute KPIs": {
+      "main": [
+        [
+          {
+            "node": "AI Weekly Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Weekly Insights": {
+      "main": [
+        [
+          {
+            "node": "Build HTML Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML Report": {
+      "main": [
+        [
+          {
+            "node": "Store Analytics Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Analytics Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Weekly Report": {
+      "main": [
+        [
+          {
+            "node": "Is Monthly?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Monthly?": {
+      "main": [
+        [
+          {
+            "node": "AI Monthly Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "AI Monthly Strategy": {
+      "main": [
+        [
+          {
+            "node": "Send Monthly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,909 @@
+{
+  "name": "Bridge - Warm Lead Nurture (BRIDGE-04)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "bb8a2805-2f65-4cfb-95e6-ab0f956b7d00",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Grade} = 'Warm', {Nurture Stage} < 4, IS_BEFORE({Next Nurture Date}, DATEADD(TODAY(), 1, 'day')))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "d6ee6dc8-3b88-4cd1-b7ab-b684efc3248c",
+      "name": "Read Warm Leads Due",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Whatsapp Multi Agent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "id": "1a5601e5-22e2-4f2f-82f5-de71fd76f7c3",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nconst stageConfig = {\n  1: {\n    subject: 'How AI automation can transform your business',\n    template: 'welcome',\n    daysUntilNext: 3,\n    prompt: `Write a warm, personalized welcome email for a potential client.\nThe email should:\n- Welcome them and reference how we found them (through their business online presence)\n- Briefly mention one key benefit of AI workflow automation\n- Include a soft CTA to check out our latest content on anyvisionmedia.com\n- Keep it under 150 words\n- Tone: friendly, professional, not salesy`,\n  },\n  2: {\n    subject: 'How businesses like yours are saving 10+ hours/week',\n    template: 'case_study',\n    daysUntilNext: 4,\n    prompt: `Write a case study style email showing real results from AI automation.\nThe email should:\n- Reference a specific result: \"a Johannesburg business saved 10+ hours per week\"\n- Mention specific automations: lead follow-up, email management, invoice processing\n- Include social proof and credibility markers\n- Include a CTA to reply with questions\n- Keep it under 200 words\n- Tone: authoritative, results-focused`,\n  },\n  3: {\n    subject: 'Let\\'s chat about automating your workflows',\n    template: 'cta',\n    daysUntilNext: null,\n    prompt: `Write a direct CTA email offering a free discovery call.\nThe email should:\n- Acknowledge this is the third touchpoint\n- Offer a specific value prop: \"15-minute discovery call to identify your top 3 automation opportunities\"\n- Create urgency without being pushy\n- Include a clear CTA to book a call\n- Keep it under 120 words\n- Tone: direct, helpful, confident`,\n  },\n};\n\nfor (const item of items) {\n  const lead = item.json;\n  const stage = lead['Nurture Stage'] || 1;\n  const config = stageConfig[stage];\n\n  if (!config) continue;\n  if (!lead.Email) continue;\n\n  results.push({\n    json: {\n      recordId: lead.id,\n      email: lead.Email,\n      name: lead.Name || lead.Company || 'there',\n      company: lead.Company || '',\n      stage: stage,\n      subject: config.subject,\n      daysUntilNext: config.daysUntilNext,\n      nextStage: config.daysUntilNext ? stage + 1 : null,\n      prompt: config.prompt + '\\n\\nRecipient name: ' + (lead.Name || lead.Company || 'valued prospect') + '\\nCompany: ' + (lead.Company || 'their business'),\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "36abe163-aebd-4ae7-8f88-5e2dea2762f2",
+      "name": "Prepare Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a professional email copywriter for AnyVision Media, an AI automation agency in Johannesburg, South Africa. Write emails that are personalized, warm, and convert. Sign off as 'Ian Immelman, AnyVision Media'. Return ONLY the email body HTML (no subject line, no ```html tags). Use simple inline-styled HTML with paragraphs.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.prompt) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "3c4da918-5cbd-4fd0-8c3d-dfe131cb7aa8",
+      "name": "AI Generate Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const context = $('Prepare Context').item.json;\nconst aiResponse = $json.choices?.[0]?.message?.content || '';\n\n// Wrap in branded HTML template\nconst html = `\n<div style=\"font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;\">\n  ${aiResponse}\n  <br/>\n  <div style=\"margin-top: 24px; padding-top: 16px; border-top: 2px solid #FF6D5A;\">\n    <p style=\"margin: 4px 0; font-weight: bold; color: #FF6D5A;\">Ian Immelman</p>\n    <p style=\"margin: 4px 0; font-size: 14px;\">Founder, AnyVision Media</p>\n    <p style=\"margin: 4px 0; font-size: 13px; color: #666;\">\n      <a href=\"https://www.anyvisionmedia.com\" style=\"color: #FF6D5A;\">www.anyvisionmedia.com</a>\n       | ian@anyvisionmedia.com\n    </p>\n  </div>\n</div>`;\n\nreturn [{\n  json: {\n    ...context,\n    htmlBody: html,\n  }\n}];"
+      },
+      "id": "dd035b44-3eb0-4ab0-9ca9-0ee4da0efd0b",
+      "name": "Format HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.htmlBody }}",
+        "options": {
+          "replyTo": "ian@anyvisionmedia.com",
+          "senderName": "Ian Immelman | AnyVision Media"
+        }
+      },
+      "id": "ee781663-fe6e-4052-8932-d3d63252ad7c",
+      "name": "Send Nurture Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "id": "={{ $json.recordId }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Nurture Stage": "={{ $json.nextStage || $json.stage }}",
+            "Next Nurture Date": "={{ $json.daysUntilNext ? $now.plus({days: $json.daysUntilNext}).format('yyyy-MM-dd') : '' }}",
+            "Last Activity": "={{ $now.format('yyyy-MM-dd') }}",
+            "Touch Count": "={{ ($('Read Warm Leads Due').item.json['Touch Count'] || 0) + 1 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nurture Stage",
+              "displayName": "Nurture Stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ebcf097d-72ec-43a2-bc53-babcc91fdbaf",
+      "name": "Update Nurture Stage",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Whatsapp Multi Agent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Bridge Nurture Run - {{ $now.format('yyyy-MM-dd') }}",
+        "message": "=<h3>Warm Lead Nurture Complete</h3>\n<p><strong>Emails sent:</strong> {{ $input.all().length }}</p>\n<p><em>Run at {{ $now.format('yyyy-MM-dd HH:mm') }} SAST</em></p>\n<p>Check the SEO Leads table for updated Nurture Stage values.</p>",
+        "options": {}
+      },
+      "id": "57b96378-4c92-4438-8835-b23c45785ba4",
+      "name": "Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Grade} = 'Cold', {Nurture Stage} < 1, IS_BEFORE({Created At}, DATEADD(TODAY(), -7, 'days')), {Status} != 'Bounced', {Status} != 'Unsubscribed', {Status} != 'Exhausted')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "b1c62cf7-984c-4deb-8d66-b47e2efe3420",
+      "name": "Read Cold Leads Due",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        600
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Whatsapp Multi Agent"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "id": "67f1c25b-7c58-4e3a-87a0-cfab1d8fed54",
+      "name": "Has Cold Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const lead = item.json;\n  if (!lead.Email) continue;\n\n  results.push({\n    json: {\n      recordId: lead.id,\n      email: lead.Email,\n      name: lead.Name || lead.Company || 'there',\n      company: lead.Company || '',\n      stage: 0,\n      subject: 'Quick question about AI for ' + (lead.Company || 'your business'),\n      daysUntilNext: null,\n      nextStage: null,\n      prompt: `Write a brief cold lead re-engagement email. This person was contacted before but didn't respond.\nThe email should:\n- Be very brief (under 100 words)\n- Acknowledge we reached out before but understand they may have been busy\n- Mention one specific benefit: \"businesses like yours typically save 10+ hours/week with AI automation\"\n- End with this exact CTA: \"Reply YES if you'd like a free 5-minute assessment\"\n- Tone: casual, respectful of their time, not pushy at all\n- Do NOT use phrases like \"following up\" or \"circling back\"\n\nRecipient name: ${lead.Name || lead.Company || 'valued prospect'}\nCompany: ${lead.Company || 'their business'}`,\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{ json: { _empty: true } }];"
+      },
+      "id": "f40da1e3-584b-4882-8b41-760071a62647",
+      "name": "Prepare Cold Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 300,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a professional email copywriter for AnyVision Media, an AI automation agency in Johannesburg, South Africa. Write a very brief, casual re-engagement email. Sign off as 'Ian Immelman, AnyVision Media'. Return ONLY the email body HTML (no subject line, no ```html tags). Use simple inline-styled HTML with paragraphs.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.prompt) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "69951a4b-84bd-47bb-8fc9-a2d33e2b5225",
+      "name": "AI Generate Cold Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        600
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const context = $('Prepare Cold Context').item.json;\nconst aiResponse = $json.choices?.[0]?.message?.content || '';\n\nconst html = `\n<div style=\"font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;\">\n  ${aiResponse}\n  <br/>\n  <div style=\"margin-top: 24px; padding-top: 16px; border-top: 2px solid #FF6D5A;\">\n    <p style=\"margin: 4px 0; font-weight: bold; color: #FF6D5A;\">Ian Immelman</p>\n    <p style=\"margin: 4px 0; font-size: 14px;\">Founder, AnyVision Media</p>\n    <p style=\"margin: 4px 0; font-size: 13px; color: #666;\">\n      <a href=\"https://www.anyvisionmedia.com\" style=\"color: #FF6D5A;\">www.anyvisionmedia.com</a>\n       | ian@anyvisionmedia.com\n    </p>\n  </div>\n</div>`;\n\nreturn [{\n  json: {\n    ...context,\n    htmlBody: html,\n  }\n}];"
+      },
+      "id": "4b1e89e2-fe12-4ae1-96cc-cdee0131f15c",
+      "name": "Format Cold HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.htmlBody }}",
+        "options": {
+          "replyTo": "ian@anyvisionmedia.com",
+          "senderName": "Ian Immelman | AnyVision Media"
+        }
+      },
+      "id": "aa1be7f5-a77b-43dc-92e0-e4bcc2db8891",
+      "name": "Send Cold Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        600
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "id": "={{ $json.recordId }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Nurture Stage": 1,
+            "Grade": "Exhausted",
+            "Last Activity": "={{ $now.format('yyyy-MM-dd') }}",
+            "Touch Count": "={{ ($('Read Cold Leads Due').item.json['Touch Count'] || 0) + 1 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nurture Stage",
+              "displayName": "Nurture Stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d0e56bc2-e8fb-4029-a81f-a779adbfd5ef",
+      "name": "Mark Exhausted",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        600
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Whatsapp Multi Agent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Touch Count} = 1, {Nurture Stage} < 2, IS_BEFORE({Last Activity}, DATEADD(TODAY(), -4, 'days')), {Status} != 'Responded', {Status} != 'Bounced', {Status} != 'Unsubscribed', {Status} != 'Exhausted', {Grade} != 'Exhausted')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "2468fcff-a16e-4cc1-a850-f271f804b669",
+      "name": "Read Unanswered",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        900
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Whatsapp Multi Agent"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ]
+        }
+      },
+      "id": "b6250aa0-9c23-4f90-b13e-ad1aea9327be",
+      "name": "Has Unanswered?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const lead = item.json;\n  if (!lead.Email) continue;\n\n  results.push({\n    json: {\n      recordId: lead.id,\n      email: lead.Email,\n      name: lead.Name || lead.Company || 'there',\n      company: lead.Company || '',\n      stage: 1,\n      subject: 'Still interested? Quick AI wins for ' + (lead.Company || 'your business'),\n      daysUntilNext: null,\n      nextStage: 2,\n      prompt: `Write a brief follow-up email. This person received an initial outreach email 4-7 days ago but hasn't responded.\nThe email should:\n- Be very brief (under 100 words)\n- NOT say \"following up\" or \"circling back\" or \"just checking in\"\n- Instead, offer one NEW piece of value: a specific quick win relevant to their business\n- Reference a concrete result: \"One of our clients automated their entire email follow-up process and recovered R40,000 in lost leads\"\n- End with: \"Reply YES for a free 15-minute AI assessment\"\n- Tone: helpful, low-pressure, conversational\n\nRecipient name: ${lead.Name || lead.Company || 'valued prospect'}\nCompany: ${lead.Company || 'their business'}`,\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{ json: { _empty: true } }];"
+      },
+      "id": "c0f5e371-076d-4805-ac9a-2155a282888d",
+      "name": "Prepare Follow-Up Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 300,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a professional email copywriter for AnyVision Media, an AI automation agency in Johannesburg, South Africa. Write a very brief follow-up email that adds new value (not a generic follow-up). Sign off as 'Ian Immelman, AnyVision Media'. Return ONLY the email body HTML (no subject line, no ```html tags). Use simple inline-styled HTML with paragraphs.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify($json.prompt) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "bb0b7235-75eb-4c3f-97a7-1a774cd3b0bd",
+      "name": "AI Generate Follow-Up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        900
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const context = $('Prepare Follow-Up Context').item.json;\nconst aiResponse = $json.choices?.[0]?.message?.content || '';\n\nconst html = `\n<div style=\"font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;\">\n  ${aiResponse}\n  <br/>\n  <div style=\"margin-top: 24px; padding-top: 16px; border-top: 2px solid #FF6D5A;\">\n    <p style=\"margin: 4px 0; font-weight: bold; color: #FF6D5A;\">Ian Immelman</p>\n    <p style=\"margin: 4px 0; font-size: 14px;\">Founder, AnyVision Media</p>\n    <p style=\"margin: 4px 0; font-size: 13px; color: #666;\">\n      <a href=\"https://www.anyvisionmedia.com\" style=\"color: #FF6D5A;\">www.anyvisionmedia.com</a>\n       | ian@anyvisionmedia.com\n    </p>\n  </div>\n</div>`;\n\nreturn [{\n  json: {\n    ...context,\n    htmlBody: html,\n  }\n}];"
+      },
+      "id": "173b846b-18ee-4353-a3b9-11cbb1fec1d0",
+      "name": "Format Follow-Up HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.htmlBody }}",
+        "options": {
+          "replyTo": "ian@anyvisionmedia.com",
+          "senderName": "Ian Immelman | AnyVision Media"
+        }
+      },
+      "id": "9d2e3eae-4ca6-4b7c-acda-8095812f10da",
+      "name": "Send Follow-Up",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        900
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblwOPTPY85Tcj7NJ",
+          "mode": "id"
+        },
+        "id": "={{ $json.recordId }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Nurture Stage": "={{ $json.nextStage || 2 }}",
+            "Last Activity": "={{ $now.format('yyyy-MM-dd') }}",
+            "Touch Count": "={{ ($('Read Unanswered').item.json['Touch Count'] || 1) + 1 }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nurture Stage",
+              "displayName": "Nurture Stage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ad8b0aa0-32e5-4e5c-a4fd-57a0ea5fc3d3",
+      "name": "Update Follow-Up Stage",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        900
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Whatsapp Multi Agent"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## BRIDGE-04: Nurture + Reactivation + Follow-Up\n**Row 1 (Warm):** 3-stage nurture for warm leads (score 50-79).\n**Row 2 (Cold):** Single reactivation for cold leads 7+ days old.\n**Row 3 (Follow-Up):** 2nd touch for any lead with 1 email sent, no reply after 4 days.\n\nAll branches run in parallel daily at 11 AM SAST.",
+        "width": 420,
+        "height": 180
+      },
+      "id": "b8708039-c92b-4fd8-9e90-f55ee84cd19a",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Warm Leads Due",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Cold Leads Due",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Unanswered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Warm Leads Due": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Prepare Context": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Email": {
+      "main": [
+        [
+          {
+            "node": "Format HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format HTML": {
+      "main": [
+        [
+          {
+            "node": "Send Nurture Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Nurture Email": {
+      "main": [
+        [
+          {
+            "node": "Update Nurture Stage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Nurture Stage": {
+      "main": [
+        [
+          {
+            "node": "Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Cold Leads Due": {
+      "main": [
+        [
+          {
+            "node": "Has Cold Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Cold Leads?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Cold Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Prepare Cold Context": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Cold Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Cold Email": {
+      "main": [
+        [
+          {
+            "node": "Format Cold HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Cold HTML": {
+      "main": [
+        [
+          {
+            "node": "Send Cold Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Cold Email": {
+      "main": [
+        [
+          {
+            "node": "Mark Exhausted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Unanswered": {
+      "main": [
+        [
+          {
+            "node": "Has Unanswered?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Unanswered?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Follow-Up Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Prepare Follow-Up Context": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Follow-Up": {
+      "main": [
+        [
+          {
+            "node": "Format Follow-Up HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Follow-Up HTML": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-Up": {
+      "main": [
+        [
+          {
+            "node": "Update Follow-Up Stage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

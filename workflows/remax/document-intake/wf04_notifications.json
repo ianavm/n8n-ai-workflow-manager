@@ -1,0 +1,472 @@
+{
+  "name": "Document Intake - Notifications & Monitoring (WF-DI-04)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## WF-DI-04: Notifications & Monitoring\nDaily summary, review alerts, error handling.",
+        "width": 400,
+        "height": 80,
+        "color": 5
+      },
+      "id": "f7b55b87-d93a-43d1-b681-678d1df25c0c",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        180,
+        80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "5d2f664e-c457-4883-8964-2c3e477a8ae4",
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "1c3be3dc-bc16-4b73-8418-4f4f65bb0814",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        500
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "661a28e0-e10e-44ab-a0c9-326a94e946dd",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Review_Queue",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "d7e83868-b737-4a84-96c4-cce0fce86199",
+      "name": "Read Reviews",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Document_Log",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "381f85c1-25e6-401a-ab4e-e007e5d9a266",
+      "name": "Read Documents",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        500,
+        500
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build daily summary statistics\nconst reviews = $('Read Reviews').all().map(i => i.json);\nconst docs = $('Read Documents').all().map(i => i.json);\n\nconst today = new Date().toISOString().split('T')[0];\n\n// Filter today's documents\nconst todayDocs = docs.filter(d => (d.intake_timestamp || '').startsWith(today));\n\n// Count by status\nconst processed = todayDocs.filter(d => d.status === 'processed').length;\nconst pending = todayDocs.filter(d => d.status === 'pending').length;\nconst reviewRequired = todayDocs.filter(d => d.status === 'review_required').length;\nconst errors = todayDocs.filter(d => d.status === 'error').length;\nconst duplicates = todayDocs.filter(d => d.status === 'duplicate').length;\n\n// Open reviews (any date)\nconst openReviews = reviews.filter(r => r.status === 'open');\n\n// Count by doc type (all time today)\nconst typeCounts = {};\nfor (const doc of todayDocs) {\n  const t = doc.doc_type || 'Unknown';\n  typeCounts[t] = (typeCounts[t] || 0) + 1;\n}\n\n// Average confidence\nconst confidences = todayDocs\n  .filter(d => d.doc_type_confidence)\n  .map(d => parseFloat(d.doc_type_confidence));\nconst avgConfidence = confidences.length > 0\n  ? (confidences.reduce((a, b) => a + b, 0) / confidences.length).toFixed(2)\n  : 'N/A';\n\n// Build type breakdown HTML\nlet typeBreakdown = '';\nfor (const [type, count] of Object.entries(typeCounts).sort((a, b) => b[1] - a[1])) {\n  typeBreakdown += `<tr><td>${type}</td><td>${count}</td></tr>`;\n}\n\n// Build open review list HTML\nlet reviewList = '';\nfor (const r of openReviews.slice(0, 20)) {\n  reviewList += `<tr>\n    <td>${r.review_id || ''}</td>\n    <td>${r.original_filename || ''}</td>\n    <td>${r.reason || ''}</td>\n    <td>${r.ai_doc_type || ''}</td>\n    <td>${r.ai_confidence || ''}</td>\n    <td><a href=\"${r.raw_drive_url || '#'}\">View</a></td>\n  </tr>`;\n}\n\nreturn [{\n  json: {\n    date: today,\n    totalToday: todayDocs.length,\n    processed,\n    pending,\n    reviewRequired,\n    errors,\n    duplicates,\n    openReviewCount: openReviews.length,\n    avgConfidence,\n    typeBreakdown,\n    reviewList,\n    hasOpenReviews: openReviews.length > 0,\n  }\n}];\n"
+      },
+      "id": "c6641a33-135f-4b3a-8942-3f4b9916acd8",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.openReviewCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "ac8c7d41-a7c6-40af-8857-989d74ca9f98",
+      "name": "Has Open Reviews?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=[ACTION REQUIRED] {{ $json.openReviewCount }} Documents Pending Review - {{ $json.date }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px;\">\n<h2 style=\"color: #FF6D5A;\">Document Review Required</h2>\n<p><strong>{{ $json.openReviewCount }}</strong> document(s) need your review.</p>\n\n<table style=\"border-collapse: collapse; width: 100%; margin: 16px 0;\">\n<thead>\n<tr style=\"background: #f5f5f5;\">\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">Review ID</th>\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">File</th>\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">Reason</th>\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">AI Type</th>\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">Confidence</th>\n<th style=\"padding: 8px; border: 1px solid #ddd; text-align: left;\">File</th>\n</tr>\n</thead>\n<tbody>\n{{ $json.reviewList }}\n</tbody>\n</table>\n\n<p>Open the <strong>Review_Queue</strong> tab in the tracking spreadsheet to review these documents.</p>\n<p style=\"color: #888; font-size: 12px;\">Document Intake System - AnyVision Media</p>\n</div>",
+        "options": {}
+      },
+      "id": "14c6c2bd-5637-4f1c-84b0-c9bb4a7f168f",
+      "name": "Review Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Document Intake Daily Summary - {{ $json.date }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 700px;\">\n<h2 style=\"color: #FF6D5A;\">Daily Document Intake Summary</h2>\n<p>Date: <strong>{{ $json.date }}</strong></p>\n\n<table style=\"border-collapse: collapse; width: 100%; margin: 16px 0;\">\n<tr style=\"background: #f5f5f5;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>Total Documents Today</strong></td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json.totalToday }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Processed</td><td style=\"padding: 8px; border: 1px solid #ddd; color: green;\">{{ $json.processed }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Pending</td><td style=\"padding: 8px; border: 1px solid #ddd; color: orange;\">{{ $json.pending }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Review Required</td><td style=\"padding: 8px; border: 1px solid #ddd; color: #FF6D5A;\">{{ $json.reviewRequired }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Errors</td><td style=\"padding: 8px; border: 1px solid #ddd; color: red;\">{{ $json.errors }}</td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Duplicates Detected</td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json.duplicates }}</td></tr>\n<tr style=\"background: #f5f5f5;\"><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>Open Reviews (all time)</strong></td><td style=\"padding: 8px; border: 1px solid #ddd;\"><strong>{{ $json.openReviewCount }}</strong></td></tr>\n<tr><td style=\"padding: 8px; border: 1px solid #ddd;\">Avg AI Confidence</td><td style=\"padding: 8px; border: 1px solid #ddd;\">{{ $json.avgConfidence }}</td></tr>\n</table>\n\n<h3>Document Type Breakdown</h3>\n<table style=\"border-collapse: collapse; width: 50%; margin: 16px 0;\">\n<thead><tr style=\"background: #f5f5f5;\"><th style=\"padding: 6px; border: 1px solid #ddd; text-align: left;\">Type</th><th style=\"padding: 6px; border: 1px solid #ddd; text-align: left;\">Count</th></tr></thead>\n<tbody>{{ $json.typeBreakdown }}</tbody>\n</table>\n\n<p style=\"color: #888; font-size: 12px;\">Document Intake System - AnyVision Media</p>\n</div>",
+        "options": {}
+      },
+      "id": "d0b6ed3c-f619-4c4b-bb89-2f3e6e4d8795",
+      "name": "Daily Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        500
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format error details from the error trigger\nconst error = $input.first().json;\n\nconst workflowName = error.workflow?.name || 'Unknown Workflow';\nconst nodeName = error.execution?.error?.node?.name || 'Unknown Node';\nconst errorMessage = error.execution?.error?.message || 'No error message';\nconst executionId = error.execution?.id || '';\nconst timestamp = new Date().toISOString();\n\nreturn [{\n  json: {\n    workflowName,\n    nodeName,\n    errorMessage,\n    executionId,\n    timestamp,\n    subject: `[ERROR] Document Intake - ${workflowName} failed at ${nodeName}`,\n    body: `<h3 style=\"color: red;\">Document Intake Error</h3>\n<p><strong>Workflow:</strong> ${workflowName}</p>\n<p><strong>Node:</strong> ${nodeName}</p>\n<p><strong>Error:</strong> ${errorMessage}</p>\n<p><strong>Execution ID:</strong> ${executionId}</p>\n<p><strong>Time:</strong> ${timestamp}</p>\n<p>Check the n8n execution log for details.</p>`,\n  }\n}];\n"
+      },
+      "id": "f88ad697-dd00-46e6-ba05-5c6984ed9fc7",
+      "name": "Format Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "d03bfca9-5ca6-4116-9b19-67ce4fae0122",
+      "name": "Error Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        740,
+        700
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_SHEETS_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Audit_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "audit_id": "=AUD-{{ $now.toMillis() }}-err",
+            "timestamp": "={{ $now.toISO() }}",
+            "actor": "system",
+            "action": "error_alert_sent",
+            "doc_id": "",
+            "before_value": "",
+            "after_value": "={{ JSON.stringify({workflow: $json.workflowName, node: $json.nodeName, error: $json.errorMessage}) }}",
+            "notes": "Error alert email sent"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "audit_id",
+              "type": "string",
+              "display": true,
+              "displayName": "audit_id"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            },
+            {
+              "id": "actor",
+              "type": "string",
+              "display": true,
+              "displayName": "actor"
+            },
+            {
+              "id": "action",
+              "type": "string",
+              "display": true,
+              "displayName": "action"
+            },
+            {
+              "id": "doc_id",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_id"
+            },
+            {
+              "id": "before_value",
+              "type": "string",
+              "display": true,
+              "displayName": "before_value"
+            },
+            {
+              "id": "after_value",
+              "type": "string",
+              "display": true,
+              "displayName": "after_value"
+            },
+            {
+              "id": "notes",
+              "type": "string",
+              "display": true,
+              "displayName": "notes"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "97b44639-08bd-400e-b590-3f0e7badb38f",
+      "name": "Audit Log - Error",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        960,
+        700
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Reviews",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Reviews",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Reviews": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Documents": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Build Summary": {
+      "main": [
+        [
+          {
+            "node": "Has Open Reviews?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Daily Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Open Reviews?": {
+      "main": [
+        [
+          {
+            "node": "Review Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error": {
+      "main": [
+        [
+          {
+            "node": "Error Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

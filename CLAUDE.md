@@ -29,6 +29,7 @@ tools/                    Python scripts (see patterns below)
 workflows/                n8n JSON exports + SOPs
   accounting-dept/        7 workflows (wf01-wf07): invoicing, collections, reconciliation, bills, month-end, audit, exceptions
   marketing-dept/         4 workflows (wf01-wf04): intelligence, strategy, content, distribution
+  seo-social-dept/        8 workflows (wf05-wf11 + wf_score): trend discovery, SEO content, publishing, engagement, lead capture, SEO maintenance, analytics, scoring engine
   lead-scraper/           Google Places API scraper (workflow_v2_places_api.json)
   email_classifier_outlook.json   Outlook email classification + routing
   *.md                    SOPs (deployment, monitoring, troubleshooting, AI optimization)
@@ -71,6 +72,15 @@ GitHub, Supabase, Airtable, Playwright, Context7 (live API docs), n8n (workflow 
 - AI: Claude Sonnet via OpenRouter (50k daily token budget)
 - Publishing: Blotato → TikTok, Instagram, Facebook
 
+### SEO + Social Growth Engine (8 workflows)
+- Pipeline: trend discovery (Mon/Thu 6:00) → content production (daily 9:30) → publishing (daily 10:30) → engagement monitoring (every 30min)
+- Additional: lead capture (webhook), SEO maintenance (Sun 2:00), analytics & reporting (Mon 6:00)
+- Scoring engine sub-workflow: engagement/lead/SEO/composite scores (0-100)
+- Airtable: 8 new tables in marketing base (Keywords, SERP Snapshots, Engagement Log, Leads, SEO Audits, Analytics Snapshots, Scoring Log, Content Topics)
+- Integrations: SerpAPI, Google PageSpeed API, Blotato (9 platforms), OpenRouter/Claude, Gmail
+- Deploy: `python tools/deploy_seo_social_dept.py build|deploy|activate`
+- Setup: `python tools/setup_seo_social_airtable.py --seed`
+
 ### Lead Scraper
 - Google Places API → Airtable (`app2ALQUP7CKEkHOz`) + Google Sheets
 - Targets: Fourways, Johannesburg businesses
@@ -90,7 +100,7 @@ GitHub, Supabase, Airtable, Playwright, Context7 (live API docs), n8n (workflow 
 
 **Core:** n8n Cloud, Python 3, Airtable
 **AI:** OpenRouter (preferred) → Claude Sonnet (`anthropic/claude-sonnet-4-20250514`) for qualification/code, GPT-4o for conversation
-**Integrations:** Xero, Gmail OAuth, Outlook OAuth, Blotato, Google Places API, WhatsApp Business API, Google Slides/Calendar
+**Integrations:** Xero, Gmail OAuth, Outlook OAuth, Blotato, Google Places API, WhatsApp Business API, Google Slides/Calendar, SerpAPI, Google PageSpeed API
 **Client Portal:** Next.js 16, React 19, TypeScript, Supabase (PostgreSQL + Auth + RLS), Tailwind v4, Recharts
 **Hosting:** n8n Cloud (workflows), Vercel (client portal), Netlify (landing pages)
 

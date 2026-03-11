@@ -1,0 +1,1140 @@
+{
+  "name": "Email Classifier - AGENT_NAME_HERE",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "c1000001-0001-4000-8000-000000000001",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "id": "c1000001-0002-4000-8000-000000000002",
+      "name": "Outlook Trigger",
+      "type": "n8n-nodes-base.microsoftOutlookTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        400
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// AGENT CONFIG — Change these two values when duplicating\n// ============================================================\nconst AGENT_NAME = 'AGENT_NAME_HERE';\nconst AGENT_EMAIL = 'agent@example.com';\n// ============================================================\n\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // Extract sender info from Outlook's Microsoft Graph API structure\n  const senderAddress = item.json.sender?.emailAddress?.address || item.json.from?.emailAddress?.address || '';\n  const senderName = item.json.sender?.emailAddress?.name || item.json.from?.emailAddress?.name || '';\n\n  const emailData = {\n    from: senderName ? `${senderName} <${senderAddress}>` : senderAddress,\n    to: (item.json.toRecipients || []).map(r => r.emailAddress?.address || '').join(', '),\n    subject: item.json.subject || '',\n    date: item.json.receivedDateTime || item.json.createdDateTime || new Date().toISOString(),\n    body: (item.json.bodyPreview || (item.json.body?.content || '').replace(/<[^>]*>/g, '') || '').substring(0, 3000),\n    hasAttachments: item.json.hasAttachments || false,\n    attachmentCount: item.json.hasAttachments ? 1 : 0,\n    messageId: item.json.id || '',\n    threadId: item.json.conversationId || '',\n    agentName: AGENT_NAME,\n    agentEmail: AGENT_EMAIL\n  };\n\n  const classificationPrompt = `Analyze this business email. Return ONLY valid JSON, no markdown, no backticks.\n\nAgent: ${AGENT_NAME} (${AGENT_EMAIL})\nFrom: ${emailData.from}\nSubject: ${emailData.subject}\nDate: ${emailData.date}\nBody:\n${emailData.body}\nHas Attachments: ${emailData.hasAttachments ? 'Yes (' + emailData.attachmentCount + ')' : 'No'}\n\nReturn this exact JSON:\n{\n  \"sender\": \"<email>\",\n  \"sender_name\": \"<name>\",\n  \"subject\": \"<subject>\",\n  \"intent\": \"<what sender wants>\",\n  \"tone\": \"<formal|informal|urgent|angry|friendly|neutral>\",\n  \"urgency\": \"<high|medium|low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance|Customer_Support|Sales|Management|Admin|Legal|Internal|Spam_Irrelevant>\",\n  \"tags\": [\"<from: Invoice,Payment,Refund,Complaint,New_Lead,Contract,Meeting_Request,Follow_Up,Escalation,Urgent>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<professional reply if action_required, else null>\",\n  \"summary\": \"<1-2 sentence summary>\",\n  \"escalation_needed\": true or false\n}\n\nRules:\n- Accounting_Finance: invoices, payments, billing, refunds\n- Customer_Support: complaints, technical issues, service support\n- Sales: new enquiries, pricing, leads\n- Management: strategy, legal, partnerships, high-level complaints\n- Spam_Irrelevant: suspicious links, phishing, irrelevant promos\n- Mark urgency HIGH if: urgent/ASAP in subject, legal threats, payment issues\n- Responses must be professional and concise`;\n\n  results.push({\n    json: {\n      ...emailData,\n      classificationPrompt\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "c1000001-0003-4000-8000-000000000003",
+      "name": "Prepare Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": "={{ /* Set this to the Master Sub-Workflow ID after import */ 'YOUR_MASTER_WORKFLOW_ID' }}"
+      },
+      "id": "c1000001-0004-4000-8000-000000000004",
+      "name": "Classify Email (Sub-Workflow)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        700,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dept-spam",
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Spam_Irrelevant",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dept-finance",
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Accounting_Finance",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dept-support",
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Customer_Support",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dept-sales",
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Sales",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dept-management",
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Management",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "c1000001-0005-4000-8000-000000000005",
+      "name": "Route by Department",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        960,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Junk"
+          ]
+        }
+      },
+      "id": "c1000001-0006-4000-8000-000000000006",
+      "name": "Categorize Junk",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        80
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Accounting_Finance"
+          ]
+        }
+      },
+      "id": "c1000001-0007-4000-8000-000000000007",
+      "name": "Categorize Finance",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        256
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Customer_Support"
+          ]
+        }
+      },
+      "id": "c1000001-0008-4000-8000-000000000008",
+      "name": "Categorize Support",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        432
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Sales"
+          ]
+        }
+      },
+      "id": "c1000001-0009-4000-8000-000000000009",
+      "name": "Categorize Sales",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        608
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Management"
+          ]
+        }
+      },
+      "id": "c1000001-0010-4000-8000-000000000010",
+      "name": "Categorize Management",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        784
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "General"
+          ]
+        }
+      },
+      "id": "c1000001-0011-4000-8000-000000000011",
+      "name": "Categorize General",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        960
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "c1000001-0012-4000-8000-000000000012",
+      "name": "Mark Spam Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        80
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "urgency-check",
+              "leftValue": "={{ $json.urgency }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1000001-0013-4000-8000-000000000013",
+      "name": "Is Urgent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Urgent"
+          ]
+        }
+      },
+      "id": "c1000001-0014-4000-8000-000000000014",
+      "name": "Categorize Urgent",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        1152
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "c1000001-0015-4000-8000-000000000015",
+      "name": "Not Urgent",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "action-check",
+              "leftValue": "={{ $json.action_required }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            },
+            {
+              "id": "response-check",
+              "leftValue": "={{ $json.suggested_response }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "spam-check",
+              "leftValue": "={{ $json.is_spam }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            },
+            {
+              "id": "noreply-check-1",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "noreply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "noreply-check-2",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "no-reply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "noreply-check-3",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "donotreply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "noreply-check-4",
+              "leftValue": "={{ $json.original_body }}",
+              "rightValue": "no reply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1000001-0016-4000-8000-000000000016",
+      "name": "Reply Needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "additionalFields": {
+          "subject": "=Re: {{ $json.original_subject }}",
+          "bodyContent": "={{ $json.suggested_response }}",
+          "bodyContentType": "Text",
+          "toRecipients": "={{ $json.sender }}"
+        }
+      },
+      "id": "c1000001-0017-4000-8000-000000000017",
+      "name": "Create Draft Reply",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        1472
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "c1000001-0018-4000-8000-000000000018",
+      "name": "No Reply Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "noreply-or-1",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "noreply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "noreply-or-2",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "no-reply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "noreply-or-3",
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "donotreply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "c1000001-0019-4000-8000-000000000019",
+      "name": "Is No-Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        960,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "c1000001-0020-4000-8000-000000000020",
+      "name": "Mark No-Reply Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        1744
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "c1000001-0021-4000-8000-000000000021",
+      "name": "Not No-Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        1904
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "1Adp3x0ler5H69Cih5tbMLqWEgZMziebhnOEWbMPTvaA"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Email Log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "c1000001-0022-4000-8000-000000000022",
+      "name": "Log to Email Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        960,
+        2080
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst d = item.json;\n\nif (d.department === 'Sales' && d.tags_string && d.tags_string.includes('New_Lead')) {\n  return [{\n    json: {\n      date: d.processed_at,\n      lead_name: d.sender_name,\n      email: d.sender,\n      subject: d.original_subject,\n      interest: d.intent,\n      summary: d.summary,\n      urgency: d.urgency,\n      status: 'New',\n      follow_up_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],\n      agent_name: d.agent_name || 'Unknown Agent',\n      agent_email: d.agent_email || '',\n      is_lead: true\n    }\n  }];\n}\n\nreturn [{ json: { is_lead: false } }];"
+      },
+      "id": "c1000001-0023-4000-8000-000000000023",
+      "name": "Check If Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        2320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "lead-check",
+              "leftValue": "={{ $json.is_lead }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1000001-0024-4000-8000-000000000024",
+      "name": "Is New Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        2320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "1G2P9gYuPKtqhDkkJaTVLbuA_yxj_IqTI7vuCfhFLklM"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "lead_name": "={{ $json.lead_name }}",
+            "email": "={{ $json.email }}",
+            "subject": "={{ $json.subject }}",
+            "interest": "={{ $json.interest }}",
+            "summary": "={{ $json.summary }}",
+            "urgency": "={{ $json.urgency }}",
+            "status": "={{ $json.status }}",
+            "follow_up_date": "={{ $json.follow_up_date }}",
+            "agent_name": "={{ $json.agent_name }}",
+            "agent_email": "={{ $json.agent_email }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "c1000001-0025-4000-8000-000000000025",
+      "name": "Log New Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1480,
+        2272
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "event",
+        "operation": "create",
+        "additionalFields": {
+          "subject": "=Follow up: {{ $json.lead_name }}",
+          "start": "={{ $json.follow_up_date + 'T09:00:00' }}",
+          "end": "={{ $json.follow_up_date + 'T09:30:00' }}",
+          "bodyContent": "=Auto-generated sales lead follow-up.\n\nAgent: {{ $json.agent_name }}\nLead: {{ $json.lead_name }} ({{ $json.email }})\nInterest: {{ $json.interest }}\nSummary: {{ $json.summary }}",
+          "bodyContentType": "Text"
+        }
+      },
+      "id": "c1000001-0026-4000-8000-000000000026",
+      "name": "Create Follow-Up",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        2272
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "c1000001-0027-4000-8000-000000000027",
+      "name": "Not a Lead",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1480,
+        2400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "dnt-check-001",
+              "leftValue": "={{ ($json.categories || []).includes('DNT') }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1000001-0040-4000-8000-000000000040",
+      "name": "Has DNT Label?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        310,
+        400
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "c1000001-0041-4000-8000-000000000041",
+      "name": "Skip - DNT",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        310,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Email Classifier - Agent Trigger Template\n\n**To set up a new agent:**\n1. Duplicate this workflow\n2. Rename to: Email Classifier - [Agent Name]\n3. Open 'Prepare Email Data' → change AGENT_NAME and AGENT_EMAIL\n4. Open 'Classify Email (Sub-Workflow)' → set Master Workflow ID\n5. Click each Outlook node → assign agent's credential\n6. Activate and test\n\n**Time per agent: ~5 minutes**",
+        "height": 340,
+        "width": 350
+      },
+      "id": "c1000001-0028-4000-8000-000000000028",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Department Routing\nSwitch node routes to ONE department.\nEach department gets an Outlook category.\nSpam is categorized + marked as read.",
+        "width": 300
+      },
+      "id": "c1000001-0029-4000-8000-000000000029",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1480,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Response & Tracking\nDraft replies created for human review (never auto-sent).\nAll emails logged to Google Sheets with agent_name column.\nSales leads tracked + Outlook calendar follow-ups.",
+        "width": 320
+      },
+      "id": "c1000001-0030-4000-8000-000000000030",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1480,
+        1408
+      ]
+    }
+  ],
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outlook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Has DNT Label?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has DNT Label?": {
+      "main": [
+        [
+          {
+            "node": "Skip - DNT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          {
+            "node": "Classify Email (Sub-Workflow)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Email (Sub-Workflow)": {
+      "main": [
+        [
+          {
+            "node": "Route by Department",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Urgent?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reply Needed?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is No-Reply?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Email Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check If Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Department": {
+      "main": [
+        [
+          {
+            "node": "Categorize Junk",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Finance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Support",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Sales",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Management",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize General",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Categorize Junk": {
+      "main": [
+        [
+          {
+            "node": "Mark Spam Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Urgent?": {
+      "main": [
+        [
+          {
+            "node": "Categorize Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Needed?": {
+      "main": [
+        [
+          {
+            "node": "Create Draft Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Reply Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is No-Reply?": {
+      "main": [
+        [
+          {
+            "node": "Mark No-Reply Read",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not No-Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Lead": {
+      "main": [
+        [
+          {
+            "node": "Is New Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Lead?": {
+      "main": [
+        [
+          {
+            "node": "Log New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not a Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log New Lead": {
+      "main": [
+        [
+          {
+            "node": "Create Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5e29b98ac016474bbaa188119322bbd3129dd99d846912cff4e9c01c7bdc7b8a"
+  }
+}

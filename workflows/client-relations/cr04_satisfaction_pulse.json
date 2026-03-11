@@ -1,0 +1,403 @@
+{
+  "name": "Client Relations - Satisfaction Pulse (CR-04)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "08e0b855-a87c-431f-ab7c-6dd6c212b557",
+      "name": "Monthly 1st 10:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "ade05ccc-2e6e-490b-965c-e4620af38dce",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "55b49199-0b74-4ccf-ac10-8489c444f855",
+              "name": "todayDate",
+              "value": "={{ $now.format('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "52ac6b22-45b3-4f27-8291-cd4b9b4fc682",
+              "name": "aiModel",
+              "value": "anthropic/claude-sonnet-4-20250514",
+              "type": "string"
+            },
+            {
+              "id": "ccc2682a-f68d-4783-8572-51342a527121",
+              "name": "companyName",
+              "value": "AnyVision Media",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "c1795133-c750-42e0-8d2c-7b2a8d10051d",
+      "name": "System Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://portal.anyvisionmedia.com/api/admin/clients",
+        "authentication": "none",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5cec4d2c-46e1-412a-be63-d7c29343795a",
+      "name": "Fetch All Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter active clients, exclude recently contacted (last 14 days)\nconst input = $input.first().json;\nconst clients = input.body || input.data || input || [];\nconst clientList = Array.isArray(clients) ? clients : (clients.clients || []);\n\nconst now = new Date();\nconst fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000);\n\nconst activeClients = clientList.filter(c => {\n  const isActive = (c.status || '').toLowerCase() === 'active' || c.active === true;\n  const lastContacted = c.last_contacted ? new Date(c.last_contacted) : null;\n  const notRecentlyContacted = !lastContacted || lastContacted < fourteenDaysAgo;\n  return isActive && notRecentlyContacted;\n});\n\nreturn {\n  json: {\n    clients: activeClients.map(c => ({\n      email: c.email || c.client_email || '',\n      name: c.name || c.client_name || '',\n      company: c.company || '',\n      plan: c.plan || 'unknown',\n      usage_count: c.usage_count || c.logins_30d || 0,\n      features_used: c.features_used || 0,\n      health_score: c.health_score || 50,\n      last_login: c.last_login || '',\n      subscription_start: c.subscription_start || c.created_at || '',\n    })),\n    total_eligible: activeClients.length,\n  }\n};"
+      },
+      "id": "9cc96836-3be7-4d63-982b-742880531aba",
+      "name": "Filter Active Clients",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n  \"max_tokens\": 3000,\n  \"temperature\": 0.7,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a client relations specialist for AnyVision Media, a digital media and AI automation agency based in South Africa.\\n\\n## Your Task\\nDraft a personalized check-in email for each client based on their usage data, subscription status, and recent activity. The email should feel genuine and personal, not templated.\\n\\n## Company Context\\n- Brand: AnyVision Media\\n- Owner: Ian Immelman\\n- Services: AI workflow automation, web development, social media management\\n- Tone: Professional but warm, relationship-focused, value-driven\\n\\n## For Each Client, Generate:\\n1. A personalized subject line referencing something specific to their usage\\n2. A warm greeting using their name\\n3. 1-2 sentences acknowledging their specific usage patterns or achievements\\n4. A helpful tip or suggestion based on their plan/usage\\n5. An open-ended question to encourage dialogue\\n6. A professional sign-off\\n\\n## Output Format (JSON only, no markdown, no backticks):\\n{\\n  \\\"emails\\\": [\\n    {\\n      \\\"client_email\\\": \\\"email\\\",\\n      \\\"client_name\\\": \\\"name\\\",\\n      \\\"subject\\\": \\\"personalized subject\\\",\\n      \\\"body_html\\\": \\\"<p>Full HTML email body</p>\\\",\\n      \\\"tone\\\": \\\"warm|celebratory|supportive|re-engaging\\\"\\n    }\\n  ],\\n  \\\"summary\\\": \\\"Brief summary of outreach batch\\\"\\n}\\n\\n## Rules\\n- Never use generic phrases like \\\"Just checking in\\\" or \\\"Hope you're well\\\"\\n- Reference specific data points (e.g., \\\"Your team ran 142 automations this month\\\")\\n- South African business context (ZAR, local references where natural)\\n- Keep each email under 200 words\\n- Flag any clients who seem disengaged for special attention\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": {{ JSON.stringify('CLIENT DATA: ' + JSON.stringify($json.clients).substring(0, 4000) + '\\n\\nTotal eligible clients: ' + $json.total_eligible) }}\n    }\n  ]\n}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "1646ddf2-fd40-430b-b864-e7e3bbf3dd5f",
+      "name": "AI Draft Check-in Emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nlet emails;\ntry {\n  const content = input.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  emails = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);\n} catch(e) {\n  return { json: { error: 'Failed to parse AI response', raw: input } };\n}\n\n// Return individual items for loop processing\nconst items = (emails.emails || []).map(e => ({\n  json: {\n    client_email: e.client_email,\n    client_name: e.client_name,\n    subject: e.subject,\n    body_html: e.body_html,\n    tone: e.tone,\n  }\n}));\n\nreturn items.length > 0 ? items : [{ json: { error: 'No emails generated' } }];"
+      },
+      "id": "d4fe96fe-7bdd-48c8-9a08-43cc6dfa605c",
+      "name": "Parse AI Emails",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1400,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.client_email }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body_html }}",
+        "options": {}
+      },
+      "id": "24f0272c-5645-4ccd-b2fc-b875b62d595b",
+      "name": "Send Check-in Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1640,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Event Type": "satisfaction_pulse_sent",
+            "Source": "CR-04",
+            "Details": "={{ JSON.stringify({total_eligible: $('Filter Active Clients').first().json.total_eligible, emails_sent: $input.all().length}) }}",
+            "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}"
+          },
+          "schema": [
+            {
+              "id": "Event Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Event Type"
+            },
+            {
+              "id": "Source",
+              "type": "string",
+              "display": true,
+              "displayName": "Source"
+            },
+            {
+              "id": "Details",
+              "type": "string",
+              "display": true,
+              "displayName": "Details"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "b046b50a-dd96-426b-800b-88d9615d03ef",
+      "name": "Log Pulse Event",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1880,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "1d49a38f-eea2-4c5e-9001-b2634e0615ea",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        880
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "CR-04 ERROR - Client Satisfaction Pulse",
+        "emailType": "html",
+        "message": "=<h2>Satisfaction Pulse Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>",
+        "options": {}
+      },
+      "id": "9c48c83f-5dcd-404f-a0b3-172a982016d5",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## CR-04: Client Satisfaction Pulse\n\n**Schedule:** Monthly 1st 10:00 SAST\n**Purpose:** AI-drafted personalized check-in emails to active clients based on usage data.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "cr04-note-1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note 1"
+    }
+  ],
+  "connections": {
+    "Monthly 1st 10:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "System Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Clients": {
+      "main": [
+        [
+          {
+            "node": "Filter Active Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Active Clients": {
+      "main": [
+        [
+          {
+            "node": "AI Draft Check-in Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Draft Check-in Emails": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Emails": {
+      "main": [
+        [
+          {
+            "node": "Send Check-in Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Check-in Email": {
+      "main": [
+        [
+          {
+            "node": "Log Pulse Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
