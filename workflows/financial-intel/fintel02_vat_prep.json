@@ -1,0 +1,346 @@
+{
+  "name": "Financial Intel - Quarterly VAT Prep (FINTEL-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 1 1,4,7,10 *"
+            }
+          ]
+        }
+      },
+      "id": "abff3c9f-a0b2-4f0a-93ff-32d9db615ae3",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2467b895-c527-4ed1-ba95-318f88d44946",
+              "name": "quarterStart",
+              "value": "={{ $now.minus({months: 3}).startOf('month').toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "f8dc91b9-212f-4e59-8741-298f8a0af35d",
+              "name": "quarterEnd",
+              "value": "={{ $now.minus({days: 1}).toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "63bc792b-deae-49c4-84ec-36739c9ce4d9",
+              "name": "quarterLabel",
+              "value": "={{ $now.minus({months: 3}).toFormat('MMMM') + ' - ' + $now.minus({months: 1}).toFormat('MMMM yyyy') }}",
+              "type": "string"
+            },
+            {
+              "id": "dd836681-56fb-41fa-bd2e-042c0619b33d",
+              "name": "filingDeadline",
+              "value": "={{ $now.plus({days: 25}).toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c0ea90b0-ffb1-4235-9a4f-54098481e4ed",
+      "name": "Set VAT Period",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.xero.com/api.xro/2.0/Reports/TrialBalance?date={{ $json.quarterEnd }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6ccd8e7f-cf47-4370-95fb-a0410e26fe2e",
+      "name": "Fetch Trial Balance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "xeroOAuth2Api",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/TaxRates",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4415e4b1-e429-45d2-a78f-483f91c4dcb2",
+      "name": "Fetch Tax Rates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "xeroOAuth2Api",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate VAT from trial balance data\nconst trialBalance = $('Fetch Trial Balance').first().json;\nconst taxRates = $('Fetch Tax Rates').first().json;\nconst period = $('Set VAT Period').first().json;\n\n// Extract revenue and expense totals from trial balance\nconst reports = trialBalance.Reports || [];\nlet totalRevenue = 0;\nlet totalExpenses = 0;\n\nfor (const report of reports) {\n  const rows = report.Rows || [];\n  for (const row of rows) {\n    if (row.RowType === 'Section') {\n      const title = (row.Title || '').toLowerCase();\n      const cells = (row.Rows || []);\n      for (const cell of cells) {\n        if (cell.RowType === 'Row' && cell.Cells) {\n          const amount = parseFloat(cell.Cells[1]?.Value || 0);\n          if (title.includes('revenue') || title.includes('income') || title.includes('sales')) {\n            totalRevenue += Math.abs(amount);\n          } else if (title.includes('expense') || title.includes('cost') || title.includes('overhead')) {\n            totalExpenses += Math.abs(amount);\n          }\n        }\n      }\n    }\n  }\n}\n\n// SA VAT rate = 15%\nconst vatRate = 0.15;\nconst outputVAT = Math.round(totalRevenue * vatRate * 100) / 100;\nconst inputVAT = Math.round(totalExpenses * vatRate * 100) / 100;\nconst netVATPayable = Math.round((outputVAT - inputVAT) * 100) / 100;\n\nreturn [{\n  json: {\n    quarterLabel: period.quarterLabel,\n    quarterStart: period.quarterStart,\n    quarterEnd: period.quarterEnd,\n    filingDeadline: period.filingDeadline,\n    totalRevenue: Math.round(totalRevenue * 100) / 100,\n    totalExpenses: Math.round(totalExpenses * 100) / 100,\n    outputVAT,\n    inputVAT,\n    netVATPayable,\n    vatRate: '15%',\n    direction: netVATPayable >= 0 ? 'Payable to SARS' : 'Refund from SARS',\n  }\n}];"
+      },
+      "id": "9131d869-ffee-443e-a3a8-0ad09b6f4463",
+      "name": "Calculate VAT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a South African VAT specialist for AnyVision Media. Review VAT calculations for the quarter. Flag anomalies: unusual output/input ratio, revenue spikes, missing categories, potential audit risks. SA VAT rate is 15%. Use ZAR. Provide concise findings with any recommended adjustments before filing.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Review VAT calculations for \" + $json.quarterLabel + \":\\n\\nTotal Revenue: R\" + $json.totalRevenue + \"\\nTotal Expenses: R\" + $json.totalExpenses + \"\\nOutput VAT (15% of revenue): R\" + $json.outputVAT + \"\\nInput VAT (15% of expenses): R\" + $json.inputVAT + \"\\nNet VAT Payable: R\" + $json.netVATPayable + \" (\" + $json.direction + \")\\nFiling Deadline: \" + $json.filingDeadline\n    }\n  ]\n}}",
+        "options": {}
+      },
+      "id": "9e06a2a1-35a0-441e-909d-a64329c4512b",
+      "name": "AI Review and Flag",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblrc93S8cwbNFb8l",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Period": "={{ $('Calculate VAT').first().json.quarterLabel }}",
+            "Type": "VAT",
+            "Quarter": "={{ $('Calculate VAT').first().json.quarterLabel }}",
+            "Output VAT": "={{ $('Calculate VAT').first().json.outputVAT }}",
+            "Input VAT": "={{ $('Calculate VAT').first().json.inputVAT }}",
+            "Net Payable": "={{ $('Calculate VAT').first().json.netVATPayable }}",
+            "Filing Deadline": "={{ $('Calculate VAT').first().json.filingDeadline }}",
+            "Status": "Pending Review",
+            "AI Notes": "={{ $json.choices[0].message.content.substring(0, 5000) }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "7675bf3c-5ffb-4629-8ab1-2a59cf77a9cd",
+      "name": "Write to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Quarterly VAT Prep - {{ $('Calculate VAT').first().json.quarterLabel }}",
+        "message": "=<h2 style=\"color: #FF6D5A;\">Quarterly VAT Preparation</h2><p><strong>Quarter:</strong> {{ $('Calculate VAT').first().json.quarterLabel }}</p><p><strong>Output VAT:</strong> R{{ $('Calculate VAT').first().json.outputVAT }}</p><p><strong>Input VAT:</strong> R{{ $('Calculate VAT').first().json.inputVAT }}</p><p><strong>Net VAT Payable:</strong> R{{ $('Calculate VAT').first().json.netVATPayable }} ({{ $('Calculate VAT').first().json.direction }})</p><p><strong>Filing Deadline:</strong> {{ $('Calculate VAT').first().json.filingDeadline }}</p><hr><h3>AI Review Notes</h3><p>{{ $('AI Review and Flag').first().json.choices[0].message.content.replace(/\\n/g, '<br>') }}</p><hr><p style=\"color: #888; font-size: 11px;\">Generated by AVM Financial Intelligence | FINTEL-02</p>",
+        "options": {}
+      },
+      "id": "910c51a2-abf9-4c73-aa56-14c81f835742",
+      "name": "Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## FINTEL-02: Quarterly VAT Prep\nRuns 1st of Jan/Apr/Jul/Oct 09:00 SAST.\nFetches trial balance + tax rates from Xero,\ncalculates output/input/net VAT (15%),\nAI reviews for anomalies, writes to Airtable.",
+        "width": 420,
+        "height": 120
+      },
+      "id": "a732b145-0cf3-4c0b-82b2-0454c5ae68f2",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set VAT Period",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set VAT Period": {
+      "main": [
+        [
+          {
+            "node": "Fetch Trial Balance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Trial Balance": {
+      "main": [
+        [
+          {
+            "node": "Fetch Tax Rates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Tax Rates": {
+      "main": [
+        [
+          {
+            "node": "Calculate VAT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate VAT": {
+      "main": [
+        [
+          {
+            "node": "AI Review and Flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Review and Flag": {
+      "main": [
+        [
+          {
+            "node": "Write to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

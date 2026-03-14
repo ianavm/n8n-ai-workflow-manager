@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="en-ZA">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnyVision Portal — Variant 3: Horizon (Top Nav)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================
+           RESET & BASE
+           ============================================ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0A0F1C;
+            --bg-card: rgba(255, 255, 255, 0.05);
+            --bg-card-hover: rgba(255, 255, 255, 0.08);
+            --accent-purple: #6C63FF;
+            --accent-teal: #00D4AA;
+            --accent-coral: #FF6D5A;
+            --text-white: #FFFFFF;
+            --text-muted: #B0B8C8;
+            --text-dim: #6B7280;
+            --glow-purple: rgba(108, 99, 255, 0.3);
+            --glow-teal: rgba(0, 212, 170, 0.3);
+            --glow-coral: rgba(255, 109, 90, 0.3);
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-accent: rgba(108, 99, 255, 0.4);
+            --gradient-main: linear-gradient(135deg, #6C63FF, #00D4AA);
+            --gradient-coral: linear-gradient(135deg, #FF6D5A, #FF8F7A);
+            --nav-height: 64px;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-muted);
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           DOT MATRIX BACKGROUND
+           ============================================ */
+        .dot-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+
+        /* ============================================
+           VIEW TOGGLE BAR
+           ============================================ */
+        .view-toggle-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 36px;
+            z-index: 2000;
+            background: rgba(108, 99, 255, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(108, 99, 255, 0.3);
+        }
+
+        .view-toggle-bar span {
+            color: var(--text-dim);
+        }
+
+        .view-toggle-bar button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            padding: 4px 12px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .view-toggle-bar button.active {
+            color: var(--text-white);
+            background: rgba(108, 99, 255, 0.3);
+        }
+
+        .view-toggle-bar button:hover {
+            color: var(--text-white);
+        }
+
+        /* ============================================
+           UTILITY
+           ============================================ */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .section-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent-teal);
+            margin-bottom: 16px;
+        }
+
+        .section-label::before {
+            content: '';
+            display: inline-block;
+            width: 24px;
+            height: 2px;
+            background: var(--accent-teal);
+            border-radius: 1px;
+        }
+
+        /* ============================================
+           SCROLL ANIMATIONS
+           ============================================ */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .reveal-delay-1 { transition-delay: 0.1s; }
+        .reveal-delay-2 { transition-delay: 0.2s; }
+        .reveal-delay-3 { transition-delay: 0.3s; }
+        .reveal-delay-4 { transition-delay: 0.4s; }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes counterUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ============================================
+           NAV — IDENTICAL TO LANDING PAGE
+           ============================================ */
+        .nav {
+            position: fixed;
+            top: 36px;
+            left: 0;
+            width: 100%;
+            height: var(--nav-height);
+            z-index: 1000;
+            background: rgba(10, 15, 28, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            transition: background 0.3s ease;
+        }
+
+        .nav.scrolled {
+            background: rgba(10, 15, 28, 0.92);
+        }
+
+        .nav-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-white);
+        }
+
+        .nav-logo svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.3s ease;
+            position: relative;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--gradient-main);
+            transition: width 0.3s ease;
+            border-radius: 1px;
+        }
+
+        .nav-links a:hover,
+        .nav-links a:focus {
+            color: var(--text-white);
+        }
+
+        .nav-links a:hover::after,
+        .nav-links a:focus::after {
+            width: 100%;
+        }
+
+        .nav-links a.active {
+            color: var(--text-white);
+        }
+
+        .nav-links a.active::after {
+            width: 100%;
+        }
+
+        /* User avatar area */
+        .nav-user {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-white);
+            border: 2px solid transparent;
+            background-image: linear-gradient(var(--bg-primary), var(--bg-primary)), var(--gradient-main);
+            background-origin: border-box;
+            background-clip: padding-box, border-box;
+        }
+
+        .nav-user-name {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .nav-signout {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            transition: color 0.3s ease;
+        }
+
+        .nav-signout:hover {
+            color: var(--accent-coral);
+        }
+
+        /* Hamburger */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 8px;
+            z-index: 1100;
+        }
+
+        .hamburger span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: var(--text-white);
+            border-radius: 2px;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .hamburger.open span:nth-child(1) {
+            transform: translateY(7px) rotate(45deg);
+        }
+
+        .hamburger.open span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .hamburger.open span:nth-child(3) {
+            transform: translateY(-7px) rotate(-45deg);
+        }
+
+        /* Mobile overlay */
+        .mobile-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1050;
+            background: rgba(10, 15, 28, 0.95);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 32px;
+        }
+
+        .mobile-overlay.open {
+            display: flex;
+        }
+
+        .mobile-overlay a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: color 0.3s ease;
+        }
+
+        .mobile-overlay.open a {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .mobile-overlay.open a:nth-child(1) { animation-delay: 0.05s; }
+        .mobile-overlay.open a:nth-child(2) { animation-delay: 0.10s; }
+        .mobile-overlay.open a:nth-child(3) { animation-delay: 0.15s; }
+        .mobile-overlay.open a:nth-child(4) { animation-delay: 0.20s; }
+        .mobile-overlay.open a:nth-child(5) { animation-delay: 0.25s; }
+        .mobile-overlay.open a:nth-child(6) { animation-delay: 0.30s; }
+
+        .mobile-overlay a:hover {
+            color: var(--text-white);
+        }
+
+        /* ============================================
+           MAIN CONTENT AREA
+           ============================================ */
+        .dashboard-view,
+        .login-view {
+            position: relative;
+            z-index: 1;
+            min-height: 100vh;
+        }
+
+        .dashboard-view {
+            padding-top: 132px; /* 36px toggle + 64px nav + 32px spacing */
+        }
+
+        .login-view {
+            padding-top: 132px;
+            display: none;
+        }
+
+        /* ============================================
+           BREADCRUMB
+           ============================================ */
+        .breadcrumb {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--accent-teal);
+            margin-bottom: 48px;
+        }
+
+        .breadcrumb::before {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 2px;
+            background: var(--accent-teal);
+            border-radius: 1px;
+        }
+
+        /* ============================================
+           SECTION: SYSTEM HEALTH
+           ============================================ */
+        .section-tinted {
+            background: rgba(108, 99, 255, 0.02);
+            border-radius: 32px;
+            padding: 48px;
+            margin-bottom: 64px;
+        }
+
+        .section-tinted-teal {
+            background: rgba(0, 212, 170, 0.02);
+            border-radius: 32px;
+            padding: 48px;
+            margin-bottom: 64px;
+        }
+
+        .section-plain {
+            padding: 0 0 64px 0;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .stat-card {
+            position: relative;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 32px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease, border-color 0.4s ease;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--gradient-main);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 32px rgba(108, 99, 255, 0.15), 0 0 64px rgba(108, 99, 255, 0.05);
+            border-color: var(--border-accent);
+        }
+
+        .stat-card:hover::before {
+            opacity: 1;
+        }
+
+        .stat-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .stat-icon.purple { background: rgba(108, 99, 255, 0.15); }
+        .stat-icon.teal { background: rgba(0, 212, 170, 0.15); }
+        .stat-icon.coral { background: rgba(255, 109, 90, 0.15); }
+        .stat-icon.white { background: rgba(255, 255, 255, 0.08); }
+
+        .stat-number {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--text-white);
+            line-height: 1.1;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .stat-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .stat-badge.up {
+            background: rgba(0, 212, 170, 0.12);
+            color: var(--accent-teal);
+        }
+
+        .stat-badge.down {
+            background: rgba(255, 109, 90, 0.12);
+            color: var(--accent-coral);
+        }
+
+        .stat-badge.neutral {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+        }
+
+        /* ============================================
+           SECTION: PERFORMANCE (CHARTS)
+           ============================================ */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 32px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-white);
+            margin-bottom: 24px;
+        }
+
+        .chart-placeholder {
+            width: 100%;
+            height: 200px;
+            position: relative;
+        }
+
+        /* ============================================
+           SECTION: ACTIVE WORKFLOWS
+           ============================================ */
+        .workflow-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .workflow-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 20px 28px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            transition: transform 0.3s ease, border-color 0.3s ease;
+        }
+
+        .workflow-item:hover {
+            transform: translateX(4px);
+            border-color: var(--border-accent);
+        }
+
+        .workflow-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .workflow-name {
+            flex: 1;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-white);
+        }
+
+        .workflow-status {
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .workflow-status.active {
+            background: rgba(0, 212, 170, 0.12);
+            color: var(--accent-teal);
+        }
+
+        .workflow-status.paused {
+            background: rgba(255, 109, 90, 0.12);
+            color: var(--accent-coral);
+        }
+
+        .workflow-time {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            min-width: 100px;
+            text-align: right;
+        }
+
+        .workflow-action {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-muted);
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .workflow-action:hover {
+            background: rgba(108, 99, 255, 0.15);
+            border-color: var(--border-accent);
+            color: var(--text-white);
+        }
+
+        /* ============================================
+           SECTION: SYSTEM STATUS
+           ============================================ */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .status-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 32px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .status-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-white);
+            margin-bottom: 24px;
+        }
+
+        .gauge-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px 0;
+        }
+
+        .error-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .error-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 16px;
+            background: rgba(255, 109, 90, 0.05);
+            border-radius: 10px;
+            border-left: 3px solid var(--accent-coral);
+        }
+
+        .error-item .error-time {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            white-space: nowrap;
+            min-width: 60px;
+        }
+
+        .error-item .error-msg {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        /* ============================================
+           LOGIN VIEW
+           ============================================ */
+        .login-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: calc(100vh - 132px);
+            position: relative;
+        }
+
+        .login-orb-1 {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(108, 99, 255, 0.15) 0%, transparent 70%);
+            top: -100px;
+            left: -100px;
+            pointer-events: none;
+        }
+
+        .login-orb-2 {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 212, 170, 0.12) 0%, transparent 70%);
+            bottom: -50px;
+            right: -50px;
+            pointer-events: none;
+        }
+
+        .login-card {
+            position: relative;
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 24px;
+            padding: 48px;
+            max-width: 420px;
+            width: 100%;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .login-card h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-white);
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .login-card p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .login-field {
+            margin-bottom: 20px;
+        }
+
+        .login-field label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .login-field input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            color: var(--text-white);
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .login-field input:focus {
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.15);
+        }
+
+        .login-field input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--gradient-main);
+            color: var(--text-white);
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: box-shadow 0.3s ease, transform 0.2s ease;
+            margin-top: 8px;
+        }
+
+        .login-btn:hover {
+            box-shadow: 0 0 24px var(--glow-purple), 0 0 48px rgba(108, 99, 255, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .login-forgot {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .login-forgot:hover {
+            color: var(--accent-purple);
+        }
+
+        /* "What you'll see inside" section */
+        .login-preview-section {
+            text-align: center;
+            margin-top: 80px;
+            padding-bottom: 80px;
+        }
+
+        .login-preview-section h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-white);
+            margin-bottom: 8px;
+        }
+
+        .login-preview-section p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-bottom: 40px;
+        }
+
+        .preview-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .preview-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 28px 20px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            text-align: center;
+        }
+
+        .preview-card .preview-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 1.25rem;
+        }
+
+        .preview-card .preview-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-white);
+            margin-bottom: 4px;
+        }
+
+        .preview-card .preview-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        /* Mini chart in preview */
+        .mini-chart-lines {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 4px;
+            height: 40px;
+            margin-bottom: 12px;
+        }
+
+        .mini-chart-lines .bar {
+            width: 6px;
+            border-radius: 3px;
+            background: var(--gradient-main);
+            opacity: 0.6;
+        }
+
+        /* Mini gauge */
+        .mini-gauge-ring {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 12px;
+        }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 1024px) {
+            .stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links,
+            .nav-user {
+                display: none;
+            }
+
+            .hamburger {
+                display: flex;
+            }
+
+            .stat-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .chart-grid,
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .section-tinted,
+            .section-tinted-teal {
+                padding: 32px 20px;
+                border-radius: 24px;
+            }
+
+            .workflow-item {
+                flex-wrap: wrap;
+                gap: 12px;
+                padding: 16px 20px;
+            }
+
+            .workflow-time {
+                text-align: left;
+                min-width: auto;
+            }
+
+            .preview-cards {
+                grid-template-columns: 1fr;
+                max-width: 280px;
+            }
+
+            .dashboard-view,
+            .login-view {
+                padding-top: 116px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stat-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-card {
+                padding: 24px;
+            }
+
+            .section-tinted,
+            .section-tinted-teal {
+                padding: 24px 16px;
+                margin-left: -8px;
+                margin-right: -8px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Dot matrix background -->
+    <div class="dot-bg"></div>
+
+    <!-- View Toggle Bar -->
+    <div class="view-toggle-bar">
+        <span>View:</span>
+        <button id="btnLogin" onclick="showView('login')">Login</button>
+        <button id="btnDashboard" class="active" onclick="showView('dashboard')">Dashboard</button>
+    </div>
+
+    <!-- Navigation — matches landing page exactly -->
+    <nav class="nav" role="navigation" aria-label="Main navigation">
+        <div class="nav-inner">
+            <a href="#" class="nav-logo" aria-label="AnyVision Media home">
+                <svg viewBox="0 0 200 200" width="32" height="32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <defs>
+                        <linearGradient id="navEyeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#6C63FF"/><stop offset="100%" stop-color="#00D4AA"/>
+                        </linearGradient>
+                    </defs>
+                    <path d="M16,100 Q100,2 184,100 Q100,198 16,100 Z" fill="url(#navEyeGrad)" opacity="0.10"/>
+                    <path d="M16,100 Q100,2 184,100 Q100,198 16,100 Z" fill="none" stroke="url(#navEyeGrad)" stroke-width="8" stroke-linejoin="round"/>
+                    <circle cx="100" cy="100" r="42" fill="none" stroke="url(#navEyeGrad)" stroke-width="5" opacity="0.5"/>
+                    <path d="M100,52 L140,100 L100,92 Z" fill="url(#navEyeGrad)"/>
+                    <path d="M100,108 L140,100 L100,148 Z" fill="url(#navEyeGrad)"/>
+                    <path d="M100,52 L60,100 L100,92 Z" fill="url(#navEyeGrad)"/>
+                    <path d="M100,108 L60,100 L100,148 Z" fill="url(#navEyeGrad)"/>
+                    <circle cx="100" cy="100" r="16" fill="#0A0F1C"/>
+                    <circle cx="100" cy="100" r="16" fill="none" stroke="url(#navEyeGrad)" stroke-width="2" opacity="0.4"/>
+                    <circle cx="91" cy="91" r="5" fill="rgba(255,255,255,0.85)"/>
+                </svg>
+                <span>AnyVision<span style="color: var(--accent-coral)">.</span></span>
+            </a>
+
+            <ul class="nav-links" id="navLinks">
+                <li><a href="#" class="active">Dashboard</a></li>
+                <li><a href="#">Automations</a></li>
+                <li><a href="#">AI Agents</a></li>
+                <li><a href="#">Documents</a></li>
+                <li><a href="#">Billing</a></li>
+                <li><a href="#">Settings</a></li>
+            </ul>
+
+            <div class="nav-user">
+                <div class="nav-avatar">I</div>
+                <span class="nav-user-name">Ian</span>
+                <button class="nav-signout" aria-label="Sign out" title="Sign out">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <button class="hamburger" id="hamburgerBtn" aria-label="Toggle menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Mobile overlay -->
+    <div class="mobile-overlay" id="mobileOverlay">
+        <a href="#">Dashboard</a>
+        <a href="#">Automations</a>
+        <a href="#">AI Agents</a>
+        <a href="#">Documents</a>
+        <a href="#">Billing</a>
+        <a href="#">Settings</a>
+    </div>
+
+    <!-- ============================================
+         DASHBOARD VIEW
+         ============================================ -->
+    <main class="dashboard-view" id="dashboardView">
+        <div class="container">
+
+            <!-- Breadcrumb -->
+            <div class="breadcrumb reveal">Portal / Dashboard</div>
+
+            <!-- Section 1: System Health (tinted) -->
+            <section class="section-tinted reveal">
+                <div class="section-label">System Health</div>
+                <div class="stat-grid">
+                    <div class="stat-card reveal reveal-delay-1">
+                        <div class="stat-icon purple">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6C63FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                            </svg>
+                        </div>
+                        <div class="stat-number" data-target="12">0</div>
+                        <div class="stat-label">Active Workflows</div>
+                        <span class="stat-badge up">+2 this week</span>
+                    </div>
+                    <div class="stat-card reveal reveal-delay-2">
+                        <div class="stat-icon teal">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                        </div>
+                        <div class="stat-number" data-target="98.7" data-suffix="%">0</div>
+                        <div class="stat-label">Uptime (30d)</div>
+                        <span class="stat-badge up">+0.3%</span>
+                    </div>
+                    <div class="stat-card reveal reveal-delay-3">
+                        <div class="stat-icon coral">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF6D5A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                        </div>
+                        <div class="stat-number" data-target="1847">0</div>
+                        <div class="stat-label">Messages Processed</div>
+                        <span class="stat-badge up">+12.4%</span>
+                    </div>
+                    <div class="stat-card reveal reveal-delay-4">
+                        <div class="stat-icon white">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B0B8C8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <polyline points="12 6 12 12 16 14"/>
+                            </svg>
+                        </div>
+                        <div class="stat-number" data-target="3" data-suffix="">0</div>
+                        <div class="stat-label">Errors (7d)</div>
+                        <span class="stat-badge down">+1 from last week</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Performance (no tint) -->
+            <section class="section-plain reveal">
+                <div class="section-label">Performance</div>
+                <div class="chart-grid">
+                    <div class="chart-card reveal reveal-delay-1">
+                        <div class="chart-title">Messages Over Time</div>
+                        <div class="chart-placeholder">
+                            <svg width="100%" height="100%" viewBox="0 0 500 200" preserveAspectRatio="none">
+                                <defs>
+                                    <linearGradient id="chartGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
+                                        <stop offset="0%" stop-color="#6C63FF" stop-opacity="0.3"/>
+                                        <stop offset="100%" stop-color="#6C63FF" stop-opacity="0"/>
+                                    </linearGradient>
+                                    <linearGradient id="lineGrad1" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stop-color="#6C63FF"/>
+                                        <stop offset="100%" stop-color="#00D4AA"/>
+                                    </linearGradient>
+                                </defs>
+                                <path d="M0,160 C40,140 80,150 120,120 C160,90 200,100 240,70 C280,40 320,60 360,45 C400,30 440,50 500,20 L500,200 L0,200 Z" fill="url(#chartGrad1)"/>
+                                <path d="M0,160 C40,140 80,150 120,120 C160,90 200,100 240,70 C280,40 320,60 360,45 C400,30 440,50 500,20" fill="none" stroke="url(#lineGrad1)" stroke-width="2.5"/>
+                                <!-- Data points -->
+                                <circle cx="0" cy="160" r="3" fill="#6C63FF"/>
+                                <circle cx="120" cy="120" r="3" fill="#7B73FF"/>
+                                <circle cx="240" cy="70" r="3" fill="#4D9BDD"/>
+                                <circle cx="360" cy="45" r="3" fill="#00C4A0"/>
+                                <circle cx="500" cy="20" r="3" fill="#00D4AA"/>
+                                <!-- Grid lines -->
+                                <line x1="0" y1="50" x2="500" y2="50" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                                <line x1="0" y1="100" x2="500" y2="100" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                                <line x1="0" y1="150" x2="500" y2="150" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="chart-card reveal reveal-delay-2">
+                        <div class="chart-title">Lead Conversion</div>
+                        <div class="chart-placeholder">
+                            <svg width="100%" height="100%" viewBox="0 0 500 200" preserveAspectRatio="none">
+                                <defs>
+                                    <linearGradient id="chartGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+                                        <stop offset="0%" stop-color="#00D4AA" stop-opacity="0.3"/>
+                                        <stop offset="100%" stop-color="#00D4AA" stop-opacity="0"/>
+                                    </linearGradient>
+                                    <linearGradient id="lineGrad2" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stop-color="#00D4AA"/>
+                                        <stop offset="100%" stop-color="#6C63FF"/>
+                                    </linearGradient>
+                                </defs>
+                                <!-- Bars -->
+                                <rect x="20" y="110" width="40" height="90" rx="4" fill="rgba(0,212,170,0.15)"/>
+                                <rect x="80" y="80" width="40" height="120" rx="4" fill="rgba(0,212,170,0.2)"/>
+                                <rect x="140" y="100" width="40" height="100" rx="4" fill="rgba(0,212,170,0.15)"/>
+                                <rect x="200" y="60" width="40" height="140" rx="4" fill="rgba(0,212,170,0.25)"/>
+                                <rect x="260" y="50" width="40" height="150" rx="4" fill="rgba(0,212,170,0.3)"/>
+                                <rect x="320" y="70" width="40" height="130" rx="4" fill="rgba(0,212,170,0.2)"/>
+                                <rect x="380" y="40" width="40" height="160" rx="4" fill="rgba(0,212,170,0.35)"/>
+                                <rect x="440" y="30" width="40" height="170" rx="4" fill="rgba(108,99,255,0.3)"/>
+                                <!-- Trend line -->
+                                <path d="M40,110 C100,85 160,95 220,60 C280,45 340,65 400,35 C430,25 460,20 460,30" fill="none" stroke="url(#lineGrad2)" stroke-width="2" stroke-dasharray="6,4"/>
+                                <!-- Grid lines -->
+                                <line x1="0" y1="50" x2="500" y2="50" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                                <line x1="0" y1="100" x2="500" y2="100" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                                <line x1="0" y1="150" x2="500" y2="150" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Active Workflows (teal tint) -->
+            <section class="section-tinted-teal reveal">
+                <div class="section-label">Active Workflows</div>
+                <div class="workflow-list">
+                    <div class="workflow-item reveal reveal-delay-1">
+                        <div class="workflow-icon" style="background: rgba(108,99,255,0.15);">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6C63FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                        </div>
+                        <div class="workflow-name">Email Classifier (Outlook)</div>
+                        <span class="workflow-status active">Active</span>
+                        <span class="workflow-time">2 min ago</span>
+                        <button class="workflow-action">Manage</button>
+                    </div>
+                    <div class="workflow-item reveal reveal-delay-2">
+                        <div class="workflow-icon" style="background: rgba(0,212,170,0.15);">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#00D4AA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        </div>
+                        <div class="workflow-name">Lead Scraper (Google Places)</div>
+                        <span class="workflow-status active">Active</span>
+                        <span class="workflow-time">15 min ago</span>
+                        <button class="workflow-action">Manage</button>
+                    </div>
+                    <div class="workflow-item reveal reveal-delay-3">
+                        <div class="workflow-icon" style="background: rgba(255,109,90,0.15);">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF6D5A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        </div>
+                        <div class="workflow-name">Accounting WF-01: Invoice Processing</div>
+                        <span class="workflow-status active">Active</span>
+                        <span class="workflow-time">1 hr ago</span>
+                        <button class="workflow-action">Manage</button>
+                    </div>
+                    <div class="workflow-item reveal reveal-delay-4">
+                        <div class="workflow-icon" style="background: rgba(108,99,255,0.15);">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6C63FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        </div>
+                        <div class="workflow-name">SEO Content Production (WF-06)</div>
+                        <span class="workflow-status active">Active</span>
+                        <span class="workflow-time">3 hr ago</span>
+                        <button class="workflow-action">Manage</button>
+                    </div>
+                    <div class="workflow-item reveal reveal-delay-4">
+                        <div class="workflow-icon" style="background: rgba(255,255,255,0.08);">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B0B8C8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </div>
+                        <div class="workflow-name">WhatsApp Multi-Agent (Real Estate)</div>
+                        <span class="workflow-status paused">Paused</span>
+                        <span class="workflow-time">--</span>
+                        <button class="workflow-action">Manage</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: System Status (no tint) -->
+            <section class="section-plain reveal" style="padding-bottom: 96px;">
+                <div class="section-label">System Status</div>
+                <div class="status-grid">
+                    <div class="status-card reveal reveal-delay-1">
+                        <div class="status-title">Uptime (30 Days)</div>
+                        <div class="gauge-container">
+                            <svg width="180" height="180" viewBox="0 0 180 180">
+                                <defs>
+                                    <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                        <stop offset="0%" stop-color="#6C63FF"/>
+                                        <stop offset="100%" stop-color="#00D4AA"/>
+                                    </linearGradient>
+                                </defs>
+                                <!-- Background track -->
+                                <circle cx="90" cy="90" r="74" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10" stroke-dasharray="370 465" stroke-dashoffset="-48" stroke-linecap="round" transform="rotate(0 90 90)"/>
+                                <!-- Value arc (98.7% of 80% visible arc = ~78.96%) -->
+                                <circle cx="90" cy="90" r="74" fill="none" stroke="url(#gaugeGrad)" stroke-width="10" stroke-dasharray="365 465" stroke-dashoffset="-48" stroke-linecap="round" transform="rotate(0 90 90)"/>
+                                <!-- Center text -->
+                                <text x="90" y="82" text-anchor="middle" fill="#FFFFFF" font-family="Inter, sans-serif" font-size="32" font-weight="700">98.7</text>
+                                <text x="90" y="82" text-anchor="middle" fill="#FFFFFF" font-family="Inter, sans-serif" font-size="32" font-weight="700" dx="38" dy="-6" font-size="14">%</text>
+                                <text x="90" y="108" text-anchor="middle" fill="#B0B8C8" font-family="Inter, sans-serif" font-size="12" font-weight="400">uptime</text>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="status-card reveal reveal-delay-2">
+                        <div class="status-title">Recent Errors</div>
+                        <div class="error-list">
+                            <div class="error-item">
+                                <span class="error-time">2h ago</span>
+                                <span class="error-msg">Xero OAuth token refresh failed - auto-retried successfully</span>
+                            </div>
+                            <div class="error-item">
+                                <span class="error-time">18h ago</span>
+                                <span class="error-msg">Lead Scraper: Google Places API rate limit hit (429)</span>
+                            </div>
+                            <div class="error-item">
+                                <span class="error-time">3d ago</span>
+                                <span class="error-msg">SEO WF-08: SerpAPI timeout on batch keyword check</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- ============================================
+         LOGIN VIEW
+         ============================================ -->
+    <div class="login-view" id="loginView">
+        <div class="container">
+            <div class="login-wrapper">
+                <div class="login-orb-1"></div>
+                <div class="login-orb-2"></div>
+
+                <div class="login-card">
+                    <div style="text-align:center; margin-bottom: 24px;">
+                        <svg viewBox="0 0 200 200" width="48" height="48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="loginEyeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#6C63FF"/><stop offset="100%" stop-color="#00D4AA"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M16,100 Q100,2 184,100 Q100,198 16,100 Z" fill="url(#loginEyeGrad)" opacity="0.10"/>
+                            <path d="M16,100 Q100,2 184,100 Q100,198 16,100 Z" fill="none" stroke="url(#loginEyeGrad)" stroke-width="8" stroke-linejoin="round"/>
+                            <circle cx="100" cy="100" r="42" fill="none" stroke="url(#loginEyeGrad)" stroke-width="5" opacity="0.5"/>
+                            <path d="M100,52 L140,100 L100,92 Z" fill="url(#loginEyeGrad)"/>
+                            <path d="M100,108 L140,100 L100,148 Z" fill="url(#loginEyeGrad)"/>
+                            <path d="M100,52 L60,100 L100,92 Z" fill="url(#loginEyeGrad)"/>
+                            <path d="M100,108 L60,100 L100,148 Z" fill="url(#loginEyeGrad)"/>
+                            <circle cx="100" cy="100" r="16" fill="#0A0F1C"/>
+                            <circle cx="100" cy="100" r="16" fill="none" stroke="url(#loginEyeGrad)" stroke-width="2" opacity="0.4"/>
+                            <circle cx="91" cy="91" r="5" fill="rgba(255,255,255,0.85)"/>
+                        </svg>
+                    </div>
+                    <h2>Welcome Back</h2>
+                    <p>Sign in to your AnyVision portal</p>
+                    <div class="login-field">
+                        <label>Email</label>
+                        <input type="email" placeholder="ian@anyvisionmedia.com" autocomplete="email">
+                    </div>
+                    <div class="login-field">
+                        <label>Password</label>
+                        <input type="password" placeholder="Enter your password" autocomplete="current-password">
+                    </div>
+                    <button class="login-btn" onclick="showView('dashboard')">Sign In</button>
+                    <a href="#" class="login-forgot">Forgot password?</a>
+                </div>
+
+                <!-- "What you'll see inside" preview -->
+                <div class="login-preview-section">
+                    <h3>What you'll see inside</h3>
+                    <p>Real-time visibility into your AI automation stack</p>
+                    <div class="preview-cards">
+                        <div class="preview-card reveal reveal-delay-1">
+                            <div class="preview-icon" style="background: rgba(108,99,255,0.15);">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6C63FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                            </div>
+                            <div class="preview-value">12</div>
+                            <div class="preview-label">Active Workflows</div>
+                        </div>
+                        <div class="preview-card reveal reveal-delay-2">
+                            <div class="mini-chart-lines">
+                                <div class="bar" style="height: 50%;"></div>
+                                <div class="bar" style="height: 70%;"></div>
+                                <div class="bar" style="height: 45%;"></div>
+                                <div class="bar" style="height: 85%;"></div>
+                                <div class="bar" style="height: 60%;"></div>
+                                <div class="bar" style="height: 95%;"></div>
+                                <div class="bar" style="height: 75%;"></div>
+                            </div>
+                            <div class="preview-value">1.8K</div>
+                            <div class="preview-label">Messages / Week</div>
+                        </div>
+                        <div class="preview-card reveal reveal-delay-3">
+                            <div class="mini-gauge-ring">
+                                <svg width="48" height="48" viewBox="0 0 48 48">
+                                    <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="4" stroke-dasharray="100 126" stroke-dashoffset="-13" stroke-linecap="round"/>
+                                    <defs>
+                                        <linearGradient id="miniGaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" stop-color="#00D4AA"/>
+                                            <stop offset="100%" stop-color="#6C63FF"/>
+                                        </linearGradient>
+                                    </defs>
+                                    <circle cx="24" cy="24" r="20" fill="none" stroke="url(#miniGaugeGrad)" stroke-width="4" stroke-dasharray="99 126" stroke-dashoffset="-13" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <div class="preview-value">98.7%</div>
+                            <div class="preview-label">System Uptime</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+         JAVASCRIPT
+         ============================================ -->
+    <script>
+        // --- View Toggle ---
+        function showView(view) {
+            const dashboardView = document.getElementById('dashboardView');
+            const loginView = document.getElementById('loginView');
+            const btnDashboard = document.getElementById('btnDashboard');
+            const btnLogin = document.getElementById('btnLogin');
+
+            if (view === 'dashboard') {
+                dashboardView.style.display = 'block';
+                loginView.style.display = 'none';
+                btnDashboard.classList.add('active');
+                btnLogin.classList.remove('active');
+                // Re-trigger reveal animations
+                setTimeout(() => triggerAllReveals(), 100);
+                // Re-trigger counters
+                setTimeout(() => initCounters(), 300);
+            } else {
+                dashboardView.style.display = 'none';
+                loginView.style.display = 'block';
+                btnLogin.classList.add('active');
+                btnDashboard.classList.remove('active');
+                // Trigger login preview reveals
+                setTimeout(() => triggerAllReveals(), 100);
+            }
+        }
+
+        // --- Scroll Reveal (IntersectionObserver) ---
+        function initReveal() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                    }
+                });
+            }, {
+                threshold: 0.1,
+                rootMargin: '0px 0px -40px 0px'
+            });
+
+            document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+        }
+
+        function triggerAllReveals() {
+            document.querySelectorAll('.reveal').forEach(el => {
+                const rect = el.getBoundingClientRect();
+                if (rect.top < window.innerHeight) {
+                    el.classList.add('active');
+                }
+            });
+        }
+
+        // --- Number Counter Animation ---
+        function animateCounter(el) {
+            const target = parseFloat(el.dataset.target);
+            const suffix = el.dataset.suffix !== undefined ? el.dataset.suffix : '';
+            const duration = 1500;
+            const startTime = performance.now();
+            const isDecimal = target % 1 !== 0;
+
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                // Ease out cubic
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const current = target * eased;
+
+                if (isDecimal) {
+                    el.textContent = current.toFixed(1) + suffix;
+                } else {
+                    el.textContent = Math.round(current).toLocaleString() + suffix;
+                }
+
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        function initCounters() {
+            const counters = document.querySelectorAll('.stat-number[data-target]');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        animateCounter(entry.target);
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.5 });
+
+            counters.forEach(el => {
+                el.textContent = '0';
+                observer.observe(el);
+            });
+        }
+
+        // --- Navbar scroll effect ---
+        window.addEventListener('scroll', () => {
+            const nav = document.querySelector('.nav');
+            if (window.scrollY > 20) {
+                nav.classList.add('scrolled');
+            } else {
+                nav.classList.remove('scrolled');
+            }
+        });
+
+        // --- Mobile Hamburger ---
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+
+        hamburgerBtn.addEventListener('click', () => {
+            hamburgerBtn.classList.toggle('open');
+            mobileOverlay.classList.toggle('open');
+            document.body.style.overflow = mobileOverlay.classList.contains('open') ? 'hidden' : '';
+        });
+
+        // Close mobile menu on link click
+        mobileOverlay.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                hamburgerBtn.classList.remove('open');
+                mobileOverlay.classList.remove('open');
+                document.body.style.overflow = '';
+            });
+        });
+
+        // --- Init ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initReveal();
+            initCounters();
+        });
+    </script>
+
+</body>
+</html>

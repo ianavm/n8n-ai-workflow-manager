@@ -1,0 +1,290 @@
+{
+  "name": "Financial Intel - Smart Payment Scheduler (FINTEL-04)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * *"
+            }
+          ]
+        }
+      },
+      "id": "ee4f0796-1342-414a-8bbb-9cf71ab9f4ae",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Invoices?Statuses=AUTHORISED&where=Type%3D%3D%22ACCPAY%22",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dd93988d-2f59-4ad3-b871-959b76ebbc1f",
+      "name": "Fetch Unpaid Bills",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "xeroOAuth2Api",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Reports/BankSummary",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "eaae89fd-9cad-4c6a-897a-cad5bbe52a14",
+      "name": "Fetch Bank Balance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "xeroOAuth2Api",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a treasury/payments analyst for AnyVision Media, a South African company. Analyze unpaid supplier bills and current bank balance to recommend which bills to pay today. Use ZAR currency.\\n\\nPrioritization rules:\\n1. OVERDUE bills (past due date) - pay immediately\\n2. DUE TODAY - pay now\\n3. DUE WITHIN 7 DAYS with early payment discount - pay to capture discount\\n4. All other bills - schedule based on cash position\\n\\nConsider: maintaining minimum cash reserve (R50,000), supplier relationship importance, payment terms. Output a clear payment schedule with: supplier name, amount, due date, priority, recommendation (Pay Now / Schedule / Defer). Also provide total recommended payments today vs available balance.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Today is \" + $now.toFormat('yyyy-MM-dd') + \". Generate payment recommendations:\\n\\nUnpaid Bills:\\n\" + JSON.stringify($('Fetch Unpaid Bills').first().json, null, 2) + \"\\n\\nBank Balance:\\n\" + JSON.stringify($json, null, 2)\n    }\n  ]\n}}",
+        "options": {}
+      },
+      "id": "5db3cf38-69b2-4f1f-ad64-f2b20ccdfe22",
+      "name": "AI Payment Strategy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format payment recommendations as structured schedule\nconst aiResponse = $json.choices[0].message.content;\nconst today = $now.toFormat('yyyy-MM-dd');\n\nconst html = `<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n  <div style=\"background: #FF6D5A; color: white; padding: 24px; border-radius: 8px 8px 0 0;\">\n    <h1 style=\"margin: 0; font-size: 22px;\">Smart Payment Schedule</h1>\n    <p style=\"margin: 5px 0 0; opacity: 0.9; font-size: 14px;\">${today}</p>\n  </div>\n\n  <div style=\"background: white; padding: 24px; border: 1px solid #e0e0e0;\">\n    <div style=\"line-height: 1.6; color: #444;\">\n      ${aiResponse.replace(/\\n/g, '<br>').replace(/## (.*)/g, '<h3 style=\"color: #FF6D5A; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px;\">$1</h3>').replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')}\n    </div>\n\n    <hr style=\"border: 1px solid #eee; margin: 24px 0;\">\n    <p style=\"color: #888; font-size: 11px;\">Generated by AVM Financial Intelligence | FINTEL-04 | ${today}</p>\n  </div>\n</div>`;\n\nreturn [{\n  json: {\n    html,\n    subject: 'Payment Recommendations - ' + today,\n    reportDate: today,\n    aiSummary: aiResponse.substring(0, 5000),\n  }\n}];"
+      },
+      "id": "87a33c31-0b02-4abb-acf3-6ca263bc2653",
+      "name": "Format Payment Schedule",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblrc93S8cwbNFb8l",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Period": "={{ $json.reportDate }}",
+            "Type": "Payment Schedule",
+            "Report Date": "={{ $json.reportDate }}",
+            "Notes": "={{ $json.aiSummary }}",
+            "Status": "Pending Review"
+          }
+        },
+        "options": {}
+      },
+      "id": "bbf5f841-87f1-439e-bc65-27a1f977279a",
+      "name": "Write to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $('Format Payment Schedule').first().json.subject }}",
+        "message": "={{ $('Format Payment Schedule').first().json.html }}",
+        "options": {}
+      },
+      "id": "d2c8b0c7-845a-4738-998f-82756ec34b0b",
+      "name": "Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## FINTEL-04: Smart Payment Scheduler\nRuns daily 07:00 SAST.\nFetches unpaid bills (ACCPAY/AUTHORISED) + bank balance\nfrom Xero. AI prioritizes: overdue > due today >\n7-day discount > rest. Minimum R50k reserve.",
+        "width": 420,
+        "height": 120
+      },
+      "id": "c0db40cb-5560-4694-9f62-ef40e7358cc4",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Unpaid Bills",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Unpaid Bills": {
+      "main": [
+        [
+          {
+            "node": "Fetch Bank Balance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Bank Balance": {
+      "main": [
+        [
+          {
+            "node": "AI Payment Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Payment Strategy": {
+      "main": [
+        [
+          {
+            "node": "Format Payment Schedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Payment Schedule": {
+      "main": [
+        [
+          {
+            "node": "Write to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

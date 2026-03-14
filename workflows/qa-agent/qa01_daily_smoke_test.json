@@ -1,0 +1,311 @@
+{
+  "name": "QA-01 Daily Smoke Test",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * *"
+            }
+          ]
+        }
+      },
+      "id": "7cc310f0-8731-49c5-b920-14431a08fa77",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "[{\"url\": \"https://portal.anyvisionmedia.com/login\", \"name\": \"Portal Login\", \"expect\": \"portal\"}, {\"url\": \"https://portal.anyvisionmedia.com/dashboard\", \"name\": \"Portal Dashboard\", \"expect\": \"portal\"}, {\"url\": \"https://www.anyvisionmedia.com\", \"name\": \"Landing Page Home\", \"expect\": \"AnyVision\"}, {\"url\": \"https://www.anyvisionmedia.com/about\", \"name\": \"Landing Page About\", \"expect\": \"AnyVision\"}, {\"url\": \"https://www.anyvisionmedia.com/services\", \"name\": \"Landing Page Services\", \"expect\": \"AnyVision\"}]",
+        "options": {}
+      },
+      "id": "5abac5d5-805c-426c-ba17-0f9cdc69a409",
+      "name": "Set Test URLs",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const urls = $input.first().json;\nconst items = Array.isArray(urls) ? urls : (urls.json ? [urls] : Object.values(urls));\nreturn items.map(u => ({json: u}));"
+      },
+      "id": "da4fc38b-6095-4adc-be2c-a4c63dc7baad",
+      "name": "Split URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 10000,
+          "redirect": {
+            "followRedirects": true
+          }
+        }
+      },
+      "id": "02cda40b-105f-48d9-a748-9b72e183be33",
+      "name": "HTTP Health Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\nfor (const item of items) {\n  const d = item.json;\n  const urlInfo = $('Split URLs').all()[items.indexOf(item)]?.json || {};\n  const statusCode = d.statusCode || d.status || 0;\n  const responseTime = d.responseTime || d.timings?.total || 0;\n  const body = typeof d.data === 'string' ? d.data : (typeof d.body === 'string' ? d.body : JSON.stringify(d));\n  const expectStr = urlInfo.expect || 'AnyVision';\n  const hasExpected = body.toLowerCase().includes(expectStr.toLowerCase());\n  const isErrorPage = body.toLowerCase().includes('error') && body.toLowerCase().includes('500');\n  const passed = statusCode === 200 && responseTime < 3000 && hasExpected && !isErrorPage;\n  results.push({json: {\n    url: urlInfo.url || d.url || 'unknown',\n    name: urlInfo.name || 'unknown',\n    status_code: statusCode,\n    response_time_ms: responseTime,\n    has_expected_content: hasExpected,\n    is_error_page: isErrorPage,\n    passed: passed,\n    reason: !passed ? (statusCode !== 200 ? 'Bad status: ' + statusCode : responseTime >= 3000 ? 'Slow: ' + responseTime + 'ms' : !hasExpected ? 'Missing expected content' : 'Error page detected') : 'OK',\n  }});\n}\nreturn results;"
+      },
+      "id": "cc09bd6f-849d-4f95-ade9-ef71504b3834",
+      "name": "Analyze Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst total = results.length;\nconst passed = results.filter(r => r.passed).length;\nconst failed = total - passed;\nconst healthScore = total > 0 ? Math.round((passed / total) * 100) : 0;\nconst startTime = $('Schedule Trigger').first().json.timestamp || new Date().toISOString();\nconst duration = Date.now() - new Date(startTime).getTime();\nreturn [{json: {\n  date: new Date().toISOString().split('T')[0],\n  test_suite: 'Daily Smoke',\n  total_tests: total,\n  passed: passed,\n  failed: failed,\n  health_score: healthScore,\n  details: JSON.stringify(results),\n  duration_ms: duration > 0 && duration < 600000 ? duration : 0,\n  failed_tests: results.filter(r => !r.passed),\n}}];"
+      },
+      "id": "5a47dd84-4d0c-4ed0-9e59-c1095d5b1c0a",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQgiRK64YYMTSJ7",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Date": "={{ $json.date }}",
+            "Test Suite": "={{ $json.test_suite }}",
+            "Total Tests": "={{ $json.total_tests }}",
+            "Passed": "={{ $json.passed }}",
+            "Failed": "={{ $json.failed }}",
+            "Health Score %": "={{ $json.health_score }}",
+            "Details": "={{ $json.details }}",
+            "Duration ms": "={{ $json.duration_ms }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "2af0ee70-4171-4579-90d3-9d529460ac61",
+      "name": "Write Results",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $('Aggregate Results').first().json.failed }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d3f7dc62-d517-4731-9548-2ac6e73bd5d3",
+      "name": "Check Failures",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=QA ALERT: Smoke Test Failures ({{ $('Aggregate Results').first().json.failed }}/{{ $('Aggregate Results').first().json.total_tests }} failed)",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#FF6D5A;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">QA Alert - Smoke Test Failures</h2></div>\n<div style=\"padding:20px\">\n<p><strong>Date:</strong> {{ $('Aggregate Results').first().json.date }}</p>\n<p><strong>Health Score:</strong> {{ $('Aggregate Results').first().json.health_score }}%</p>\n<p><strong>Passed:</strong> {{ $('Aggregate Results').first().json.passed }} | <strong>Failed:</strong> {{ $('Aggregate Results').first().json.failed }}</p>\n<h3>Failed Tests:</h3>\n<ul>\n{{ $('Aggregate Results').first().json.failed_tests.map(t => '<li><strong>' + t.name + '</strong> (' + t.url + ') - ' + t.reason + '</li>').join('') }}\n</ul>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AnyVision Media QA Agent</div>\n</div>",
+        "options": {}
+      },
+      "id": "5177ea06-d8ed-476e-a221-38e19db10c6e",
+      "name": "Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## QA-01: Daily Smoke Test\n\n**Schedule:** Daily 06:00 SAST (04:00 UTC)\n\nTests all portal and landing page URLs for:\n- HTTP 200 status\n- Response time < 3s\n- Expected content present\n- No error pages\n\nAlerts on any failure via email."
+      },
+      "id": "8c199af2-66d9-47af-99c8-b90d42cb10cb",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Test URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Test URLs": {
+      "main": [
+        [
+          {
+            "node": "Split URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split URLs": {
+      "main": [
+        [
+          {
+            "node": "HTTP Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Health Check": {
+      "main": [
+        [
+          {
+            "node": "Analyze Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Response": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Write Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Results": {
+      "main": [
+        [
+          {
+            "node": "Check Failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Failures": {
+      "main": [
+        [
+          {
+            "node": "Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "qa",
+    "smoke-test",
+    "daily"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_qa_agent.py",
+    "built_at": "2026-03-14T19:08:24.047608"
+  }
+}

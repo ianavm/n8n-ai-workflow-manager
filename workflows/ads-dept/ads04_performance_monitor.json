@@ -1,0 +1,457 @@
+{
+  "name": "AVM Ads: Performance Monitor",
+  "nodes": [
+    {
+      "id": "920b139f-fd81-475e-bdc2-f921595e2be5",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */6 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c705791b-65e5-4631-bcbf-0248b5139ace",
+      "name": "Read Active Campaigns",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblon2FDqfifeF1Iv"
+        },
+        "filterByFormula": "=OR({Status}='Launched',{Status}='Active')",
+        "options": {}
+      }
+    },
+    {
+      "id": "de7f2014-6beb-4e4c-85df-1f57ff4e3ae7",
+      "name": "Google Ads Get Campaigns",
+      "type": "n8n-nodes-base.googleAds",
+      "typeVersion": 1,
+      "position": [
+        750,
+        100
+      ],
+      "credentials": {
+        "googleAdsOAuth2Api": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "Google Ads OAuth2"
+        }
+      },
+      "parameters": {
+        "resource": "campaign",
+        "operation": "getAll",
+        "customerId": "REPLACE",
+        "returnAll": true,
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "4ae1ff61-b5dc-48ea-ab21-bc4802cb9767",
+      "name": "Transform Google Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        100
+      ],
+      "parameters": {
+        "jsCode": "\n// Transform Google Ads API response to common schema\nconst items = $input.all();\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\nconst hour = new Date().toISOString().split('T')[1].substring(0, 5);\n\nfor (const item of items) {\n  const d = item.json;\n  const metrics = d.metrics || d;\n  const campaign = d.campaign || {};\n\n  const impressions = parseInt(metrics.impressions || 0);\n  const clicks = parseInt(metrics.clicks || 0);\n  const costMicros = parseInt(metrics.costMicros || metrics.cost_micros || 0);\n  const conversions = parseFloat(metrics.conversions || 0);\n  const videoViews = parseInt(metrics.videoViews || metrics.video_views || 0);\n\n  const spendZAR = costMicros / 1000000;\n  const ctr = impressions > 0 ? clicks / impressions : 0;\n  const cpc = clicks > 0 ? spendZAR / clicks : 0;\n  const cpm = impressions > 0 ? (spendZAR / impressions) * 1000 : 0;\n  const cpa = conversions > 0 ? spendZAR / conversions : 0;\n  const roas = spendZAR > 0 ? (conversions * 100) / spendZAR : 0;\n\n  results.push({\n    json: {\n      'Performance ID': `gads_${campaign.id || 'unknown'}_${now}_${hour}`,\n      'Campaign Name': campaign.name || d.campaignName || 'Unknown',\n      'Platform': 'google_ads',\n      'Date': now,\n      'Impressions': impressions,\n      'Clicks': clicks,\n      'CTR': parseFloat(ctr.toFixed(4)),\n      'Spend ZAR': parseFloat(spendZAR.toFixed(2)),\n      'Conversions': Math.round(conversions),\n      'CPA ZAR': parseFloat(cpa.toFixed(2)),\n      'ROAS': parseFloat(roas.toFixed(2)),\n      'CPM ZAR': parseFloat(cpm.toFixed(2)),\n      'CPC ZAR': parseFloat(cpc.toFixed(2)),\n      'Video Views': videoViews,\n      'Engagement Rate': 0,\n      'Snapshot Hour': hour,\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No Google Ads data'}}];\n"
+      }
+    },
+    {
+      "id": "3c0bd9db-bf0b-4ed6-aa0a-265be7ef7e13",
+      "name": "Meta Ads Get Insights",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        750,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "Meta Ads Graph API"
+        }
+      },
+      "parameters": {
+        "httpRequestMethod": "GET",
+        "graphApiVersion": "v21.0",
+        "node": "=REPLACE/insights",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "fields",
+                "value": "campaign_id,campaign_name,impressions,clicks,spend,actions,cpc,cpm,ctr,reach,video_views&date_preset=today&level=campaign"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "a4420f53-9b1c-4e52-bdd2-661109eb9c77",
+      "name": "Transform Meta Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Transform Meta Ads insights to common schema\nconst items = $input.all();\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\nconst hour = new Date().toISOString().split('T')[1].substring(0, 5);\n\nfor (const item of items) {\n  const d = item.json;\n  const impressions = parseInt(d.impressions || 0);\n  const clicks = parseInt(d.clicks || 0);\n  const spend = parseFloat(d.spend || 0);\n  const reach = parseInt(d.reach || 0);\n\n  // Extract conversions from actions array\n  let conversions = 0;\n  if (d.actions) {\n    for (const action of d.actions) {\n      if (action.action_type === 'lead' || action.action_type === 'complete_registration' || action.action_type === 'purchase') {\n        conversions += parseInt(action.value || 0);\n      }\n    }\n  }\n\n  const ctr = impressions > 0 ? clicks / impressions : 0;\n  const cpc = clicks > 0 ? spend / clicks : 0;\n  const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;\n  const cpa = conversions > 0 ? spend / conversions : 0;\n  const roas = spend > 0 ? (conversions * 100) / spend : 0;\n  const engRate = reach > 0 ? clicks / reach : 0;\n\n  results.push({\n    json: {\n      'Performance ID': `meta_${d.campaign_id || 'unknown'}_${now}_${hour}`,\n      'Campaign Name': d.campaign_name || 'Unknown',\n      'Platform': 'meta_ads',\n      'Date': now,\n      'Impressions': impressions,\n      'Clicks': clicks,\n      'CTR': parseFloat(ctr.toFixed(4)),\n      'Spend ZAR': parseFloat(spend.toFixed(2)),\n      'Conversions': conversions,\n      'CPA ZAR': parseFloat(cpa.toFixed(2)),\n      'ROAS': parseFloat(roas.toFixed(2)),\n      'CPM ZAR': parseFloat(cpm.toFixed(2)),\n      'CPC ZAR': parseFloat(cpc.toFixed(2)),\n      'Video Views': parseInt(d.video_views || 0),\n      'Engagement Rate': parseFloat(engRate.toFixed(4)),\n      'Snapshot Hour': hour,\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No Meta Ads data'}}];\n"
+      }
+    },
+    {
+      "id": "0bf1ab65-66e5-4ea3-9940-42feb9f1b2ff",
+      "name": "TikTok Ads Get Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        750,
+        500
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"advertiser_id\": \"REPLACE\", \"report_type\": \"BASIC\", \"data_level\": \"AUCTION_CAMPAIGN\", \"dimensions\": [\"campaign_id\"], \"metrics\": [\"campaign_name\", \"impressions\", \"clicks\", \"spend\", \"conversion\", \"cpc\", \"cpm\", \"ctr\"], \"start_date\": \"={{$now.minus({days: 1}).toFormat('yyyy-MM-dd')}}\", \"end_date\": \"={{$now.toFormat('yyyy-MM-dd')}}\"}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "TikTok Ads HTTP Auth"
+        }
+      }
+    },
+    {
+      "id": "798231d1-996d-4c29-b89a-c2780633615a",
+      "name": "Merge All Metrics",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "e39972b3-24c6-4fa8-9251-eccf083ab630",
+      "name": "Filter Valid Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Filter out skip items (no data from platform)\nconst items = $input.all();\nreturn items.filter(item => !item.json.skip);\n"
+      }
+    },
+    {
+      "id": "3f632da4-5964-45bb-9722-b120231f93ea",
+      "name": "Write Ad Performance",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1750,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblH1ztufqk5Kkkln"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "95e8aaab-fa27-460b-9648-c72fc028fe9c",
+      "name": "Anomaly Detection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Detect anomalies: spend > 2x daily budget, CTR drop > 50% vs 7-day avg\nconst items = $input.all();\nconst anomalies = [];\nconst DAILY_CAP = parseInt($env.ADS_DAILY_HARD_CAP_ZAR || '2000');\n\nfor (const item of items) {\n  const d = item.json;\n  if (d.skip) continue;\n\n  const issues = [];\n\n  // Check spend against daily cap\n  if (d['Spend ZAR'] > DAILY_CAP) {\n    issues.push(`Spend R${d['Spend ZAR']} exceeds daily cap R${DAILY_CAP}`);\n  }\n\n  // Flag very low CTR (potential issue)\n  if (d.Impressions > 1000 && d.CTR < 0.001) {\n    issues.push(`CTR ${(d.CTR * 100).toFixed(2)}% critically low with ${d.Impressions} impressions`);\n  }\n\n  // Flag high CPA\n  if (d['CPA ZAR'] > 500 && d.Conversions > 0) {\n    issues.push(`CPA R${d['CPA ZAR']} exceeds R500 threshold`);\n  }\n\n  if (issues.length > 0) {\n    anomalies.push({\n      json: {\n        campaign: d['Campaign Name'],\n        platform: d.Platform,\n        date: d.Date,\n        issues: issues,\n        spendZAR: d['Spend ZAR'],\n        ctr: d.CTR,\n        cpa: d['CPA ZAR'],\n        severity: d['Spend ZAR'] > DAILY_CAP ? 'CRITICAL' : 'WARNING',\n      }\n    });\n  }\n}\n\nif (anomalies.length > 0) {\n  return anomalies;\n} else {\n  return [{json: {noAnomalies: true}}];\n}\n"
+      }
+    },
+    {
+      "id": "9f3babbb-9881-40c6-93fa-509a1fb52118",
+      "name": "Has Anomalies",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2250,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.noAnomalies}}",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f3ac97ff-2960-4ad1-a90d-149dca276b41",
+      "name": "Send Anomaly Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2500,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "AVM Ads ALERT - Anomaly Detected",
+        "emailType": "html",
+        "message": "={{\"<h2>ADS ANOMALY ALERT</h2><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
+        "options": {}
+      }
+    },
+    {
+      "id": "b6d8d276-dd81-4273-8e07-56f4f679bdc3",
+      "name": "No Anomalies",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        400
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Active Campaigns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Active Campaigns": {
+      "main": [
+        [
+          {
+            "node": "Google Ads Get Campaigns",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Meta Ads Get Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "TikTok Ads Get Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Ads Get Campaigns": {
+      "main": [
+        [
+          {
+            "node": "Transform Google Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Google Data": {
+      "main": [
+        [
+          {
+            "node": "Merge All Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Ads Get Insights": {
+      "main": [
+        [
+          {
+            "node": "Transform Meta Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Meta Data": {
+      "main": [
+        [
+          {
+            "node": "Merge All Metrics",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "TikTok Ads Get Report": {
+      "main": [
+        [
+          {
+            "node": "Merge All Metrics",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge All Metrics": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Data": {
+      "main": [
+        [
+          {
+            "node": "Write Ad Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Ad Performance": {
+      "main": [
+        [
+          {
+            "node": "Anomaly Detection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anomaly Detection": {
+      "main": [
+        [
+          {
+            "node": "Has Anomalies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Anomalies": {
+      "main": [
+        [
+          {
+            "node": "Send Anomaly Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Anomalies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "ads-dept",
+    "monitoring",
+    "phase-1"
+  ]
+}

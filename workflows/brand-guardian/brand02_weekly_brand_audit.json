@@ -1,0 +1,258 @@
+{
+  "name": "BRAND-02 Weekly Brand Audit",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "5e63b036-88e1-46c3-bacf-dc8751759164",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblq3SGdZtvbFcfkw",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({created_at}, DATEADD(TODAY(), -7, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "0df68277-f6a1-4e41-8d9b-b410819bc935",
+      "name": "Fetch Recent Content",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $('Fetch Recent Content').all();\nconst contentList = items.map(i => {\n  const d = i.json;\n  return 'Title: ' + (d.title || d.Name || 'Untitled') + '\\nPlatform: ' + (d.platform || 'N/A') + '\\nContent: ' + (d.content || d.body || d.description || 'N/A').substring(0, 500);\n}).join('\\n---\\n');\nreturn { json: { content_count: items.length, content_list: contentList, audit_date: new Date().toISOString() }};"
+      },
+      "id": "fe458079-2ab3-490b-84f1-205c6586ba7f",
+      "name": "Aggregate Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are AnyVision Media's brand auditor. Analyze all content for brand consistency. Brand guidelines: tone=professional+innovative, terminology='digital growth partner' (not 'agency'), primary color=#FF6D5A, values=innovation+results+transparency. Return JSON: {overall_score: 0-100, content_audited: number, consistent_count: number, inconsistent_items: [{title, issues}], trends: string, recommendations: []}\"},\n    {\"role\": \"user\", \"content\": \"Audit {{ $json.content_count }} pieces of content from the past week:\\n\\n{{ $json.content_list }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "5d592151-fc06-4528-b17e-d3e798deac32",
+      "name": "AI Brand Audit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '{}';\nlet audit = {};\ntry { audit = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { audit = {overall_score: 0, content_audited: 0, consistent_count: 0, inconsistent_items: [], trends: 'Parse failed', recommendations: ['Manual review needed']}; }\nconst meta = $('Aggregate Content').first().json;\nreturn { json: {\n  overall_score: audit.overall_score || 0,\n  content_audited: audit.content_audited || meta.content_count,\n  consistent_count: audit.consistent_count || 0,\n  inconsistent_items: JSON.stringify(audit.inconsistent_items || []),\n  trends: audit.trends || '',\n  recommendations: (audit.recommendations || []).join('; '),\n  audit_date: meta.audit_date,\n}};"
+      },
+      "id": "e642e0a5-0caa-4a5c-95e3-9d1191657ca4",
+      "name": "Parse Audit Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "audit_type": "Weekly Brand Audit",
+            "compliance_score": "={{ $json.overall_score }}",
+            "title": "=Weekly Brand Audit {{ $json.audit_date }}",
+            "issues": "={{ $json.inconsistent_items }}",
+            "recommendations": "={{ $json.recommendations }}",
+            "status": "={{ $json.overall_score >= 80 ? 'Passed' : 'Action Required' }}",
+            "checked_at": "={{ $json.audit_date }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "add797a1-cb7b-4fe6-b621-1419bebd7b8a",
+      "name": "Write Audit Results",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Weekly Brand Health Report - Score: {{ $('Parse Audit Results').first().json.overall_score }}/100",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#FF6D5A;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Weekly Brand Health Report</h2></div>\n<div style=\"padding:20px\">\n<h3>Overall Score: {{ $('Parse Audit Results').first().json.overall_score }}/100</h3>\n<p><b>Content Audited:</b> {{ $('Parse Audit Results').first().json.content_audited }}</p>\n<p><b>Consistent:</b> {{ $('Parse Audit Results').first().json.consistent_count }}</p>\n<h3>Trends</h3><p>{{ $('Parse Audit Results').first().json.trends }}</p>\n<h3>Recommendations</h3><p>{{ $('Parse Audit Results').first().json.recommendations }}</p>\n<h3>Inconsistent Items</h3><p style=\"font-size:12px\">{{ $('Parse Audit Results').first().json.inconsistent_items }}</p>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Brand Guardian - Automated Report</div></div>",
+        "options": {}
+      },
+      "id": "12f26f2e-db8e-47d3-b2c5-67901f5fb472",
+      "name": "Send Report Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Recent Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Recent Content": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Content": {
+      "main": [
+        [
+          {
+            "node": "AI Brand Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Brand Audit": {
+      "main": [
+        [
+          {
+            "node": "Parse Audit Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Audit Results": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audit Results": {
+      "main": [
+        [
+          {
+            "node": "Send Report Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "brand",
+    "audit",
+    "weekly"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_brand_guardian.py",
+    "built_at": "2026-03-14T19:17:34.621694"
+  }
+}

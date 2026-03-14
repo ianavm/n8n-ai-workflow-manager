@@ -1,0 +1,406 @@
+{
+  "name": "AVM Ads: Campaign Builder",
+  "nodes": [
+    {
+      "id": "89d2ed33-c152-485f-ad29-e151d9bbae99",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "c0d08efb-31ce-4895-bdc6-9364a87b7c55",
+      "parameters": {
+        "path": "ads-build-campaign",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      }
+    },
+    {
+      "id": "f6dd746d-a7c6-4a87-b013-7db10e41931f",
+      "name": "Read Approved Campaigns",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblon2FDqfifeF1Iv"
+        },
+        "filterByFormula": "={Status}='Approved'",
+        "options": {}
+      }
+    },
+    {
+      "id": "8731a965-5a01-44ce-b5c1-622d62c3ffc4",
+      "name": "Read Creatives",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblF1FwoZEQlMG6X9"
+        },
+        "filterByFormula": "={Status}='Approved'",
+        "options": {}
+      }
+    },
+    {
+      "id": "43a7af58-d9a8-49a3-99d9-0a03a7fd941b",
+      "name": "Budget Safety Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Budget safety check - enforce all caps before campaign creation\nconst items = $input.all();\nconst DAILY_CAP = parseInt($env.ADS_DAILY_HARD_CAP_ZAR || '2000');\nconst WEEKLY_CAP = parseInt($env.ADS_WEEKLY_HARD_CAP_ZAR || '10000');\nconst MONTHLY_CAP = parseInt($env.ADS_MONTHLY_HARD_CAP_ZAR || '35000');\n\nconst results = [];\n\nfor (const item of items) {\n  const d = item.json;\n  const dailyBudget = d['Daily Budget ZAR'] || 0;\n  const errors = [];\n\n  if (dailyBudget > DAILY_CAP) {\n    errors.push(`Daily R${dailyBudget} exceeds cap R${DAILY_CAP}`);\n  }\n  if (dailyBudget * 7 > WEEKLY_CAP) {\n    errors.push(`Weekly projection R${dailyBudget * 7} exceeds cap R${WEEKLY_CAP}`);\n  }\n  if (dailyBudget * 30 > MONTHLY_CAP) {\n    errors.push(`Monthly projection R${dailyBudget * 30} exceeds cap R${MONTHLY_CAP}`);\n  }\n\n  if (errors.length > 0) {\n    results.push({json: {\n      ...d,\n      _budgetSafe: false,\n      _budgetErrors: errors,\n    }});\n  } else {\n    results.push({json: {\n      ...d,\n      _budgetSafe: true,\n      _budgetErrors: [],\n    }});\n  }\n}\n\nreturn results;\n"
+      }
+    },
+    {
+      "id": "251825bb-b172-44c0-9ad1-caabd3633c6c",
+      "name": "Budget Safe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json._budgetSafe}}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fba2738d-0699-42ed-bfa6-5f1e1c23f3da",
+      "name": "Build Google Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        100
+      ],
+      "parameters": {
+        "jsCode": "\n// Build Google Ads campaign creation payload\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const d = item.json;\n  if (!d._budgetSafe) continue;\n\n  const dailyBudgetMicros = Math.round((d['Daily Budget ZAR'] || 100) * 1000000);\n\n  results.push({json: {\n    _platform: 'google_ads',\n    _campaignName: d['Campaign Name'],\n    operations: [\n      {\n        create: {\n          name: d['Campaign Name'],\n          advertisingChannelType: d.Objective === 'Video_Views' ? 'VIDEO' : 'SEARCH',\n          status: 'PAUSED',\n          campaignBudget: {\n            amountMicros: dailyBudgetMicros,\n            deliveryMethod: 'STANDARD',\n          },\n          startDate: new Date().toISOString().split('T')[0].replace(/-/g, ''),\n          endDate: new Date(Date.now() + (d.duration_days || 14) * 86400000).toISOString().split('T')[0].replace(/-/g, ''),\n        }\n      }\n    ],\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
+      }
+    },
+    {
+      "id": "e7ce0297-f1d0-4380-9180-146b1de6609c",
+      "name": "Build Meta Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Build Meta Ads campaign creation payload\nconst items = $input.all();\nconst results = [];\n\nconst objectiveMap = {\n  'Traffic': 'OUTCOME_TRAFFIC',\n  'Conversions': 'OUTCOME_SALES',\n  'Lead_Gen': 'OUTCOME_LEADS',\n  'Awareness': 'OUTCOME_AWARENESS',\n  'Video_Views': 'OUTCOME_ENGAGEMENT',\n};\n\nfor (const item of items) {\n  const d = item.json;\n  if (!d._budgetSafe) continue;\n\n  results.push({json: {\n    _platform: 'meta_ads',\n    _campaignName: d['Campaign Name'],\n    name: d['Campaign Name'],\n    objective: objectiveMap[d.Objective] || 'OUTCOME_LEADS',\n    status: 'PAUSED',\n    daily_budget: Math.round((d['Daily Budget ZAR'] || 100) * 100),\n    special_ad_categories: [],\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
+      }
+    },
+    {
+      "id": "a3bd5f6a-377e-4578-8d91-ebbfd475be3f",
+      "name": "Create Google Campaign",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://googleads.googleapis.com/v20/customers/REPLACE/campaigns:mutate",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "Google Ads OAuth2"
+        }
+      }
+    },
+    {
+      "id": "07d72388-b983-476d-b69b-8e291a831274",
+      "name": "Create Meta Campaign",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "Meta Ads Graph API"
+        }
+      },
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v21.0",
+        "node": "=act_REPLACE/campaigns",
+        "options": {}
+      }
+    },
+    {
+      "id": "e829ef39-3536-46c5-9e12-ef1b3a59b2a2",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1750,
+        200
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "a7fe30eb-ca1b-43ac-9d8b-69d8f21105cf",
+      "name": "Update Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\n// Update campaign status to Launched after creation\nconst items = $input.all();\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\n\nfor (const item of items) {\n  const d = item.json;\n  if (d.skip) continue;\n\n  results.push({json: {\n    'Campaign Name': d._campaignName || d['Campaign Name'] || 'Unknown',\n    'Status': 'Launched',\n    'Start Date': now,\n    'External Campaign ID': d.id || d.campaign_id || '',\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
+      }
+    },
+    {
+      "id": "2e97a0cd-c683-4561-b3f9-60280cb6ee03",
+      "name": "Budget Rejected Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1250,
+        500
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "AVM Ads ALERT - Budget Safety Block",
+        "emailType": "html",
+        "message": "={{\"<h2>BUDGET SAFETY BLOCK</h2><pre>\" + JSON.stringify($json._budgetErrors, null, 2) + \"</pre>\"}}",
+        "options": {}
+      }
+    },
+    {
+      "id": "cf8ef229-7f03-47ea-ab2f-acb45011f475",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2250,
+        200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Approved Campaigns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Approved Campaigns": {
+      "main": [
+        [
+          {
+            "node": "Read Creatives",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Creatives": {
+      "main": [
+        [
+          {
+            "node": "Budget Safety Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Budget Safety Check": {
+      "main": [
+        [
+          {
+            "node": "Budget Safe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Budget Safe?": {
+      "main": [
+        [
+          {
+            "node": "Build Google Campaign",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Meta Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Budget Rejected Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Google Campaign": {
+      "main": [
+        [
+          {
+            "node": "Create Google Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Meta Campaign": {
+      "main": [
+        [
+          {
+            "node": "Create Meta Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Google Campaign": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Meta Campaign": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Update Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Status": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "ads-dept",
+    "publishing",
+    "phase-3"
+  ]
+}

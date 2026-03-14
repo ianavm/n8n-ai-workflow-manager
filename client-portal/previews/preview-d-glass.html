@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option D — Glass Morphism + Floating Islands (Vercel/Stripe)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #0A0F1C; color: #E2E8F0; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+
+  /* --- Animated gradient mesh background --- */
+  .mesh-bg { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.25; animation: float 20s ease-in-out infinite; }
+  .blob-1 { width: 600px; height: 600px; background: #6C63FF; top: -200px; left: -100px; }
+  .blob-2 { width: 500px; height: 500px; background: #00D4AA; top: 50%; right: -150px; animation-delay: -7s; animation-duration: 25s; }
+  .blob-3 { width: 400px; height: 400px; background: #FF6D5A; bottom: -100px; left: 30%; animation-delay: -14s; animation-duration: 22s; }
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -40px) scale(1.05); }
+    66% { transform: translate(-20px, 20px) scale(0.95); }
+  }
+
+  /* --- Layout --- */
+  .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 264px; z-index: 30; display: flex; flex-direction: column; padding: 28px 20px; background: rgba(10,15,28,0.7); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border-right: 1px solid rgba(255,255,255,0.06); }
+  .sidebar-logo { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 36px; letter-spacing: -0.5px; }
+  .sidebar-logo span { background: linear-gradient(135deg, #6C63FF, #00D4AA); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 10px; font-size: 13px; color: #6B7280; cursor: pointer; transition: all 0.2s; text-decoration: none; margin-bottom: 4px; }
+  .nav-item:hover { color: #E2E8F0; background: rgba(255,255,255,0.04); }
+  .nav-item.active { color: #fff; background: rgba(108,99,255,0.1); }
+  .nav-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .main { position: relative; z-index: 1; margin-left: 264px; }
+
+  /* --- Page sections --- */
+  .page-section { padding: 48px; border-bottom: 1px solid rgba(255,255,255,0.04); min-height: 100vh; }
+  .page-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: #6C63FF; margin-bottom: 8px; }
+  .page-title { font-size: 28px; font-weight: 700; color: #fff; letter-spacing: -0.8px; margin-bottom: 40px; }
+
+  /* --- Glass card --- */
+  .glass { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+  .glass:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+
+  /* --- Floating Island --- */
+  .island { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); padding: 28px; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 8px 48px rgba(0,0,0,0.15), 0 16px 64px rgba(0,0,0,0.1); }
+  .island:hover { transform: translateY(-8px); box-shadow: 0 8px 32px rgba(0,0,0,0.3), 0 16px 56px rgba(0,0,0,0.2), 0 24px 80px rgba(0,0,0,0.15); border-color: rgba(255,255,255,0.12); }
+
+  /* --- Hero Banner --- */
+  .hero-banner { position: relative; border-radius: 24px; padding: 48px; overflow: hidden; margin-bottom: 32px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); }
+  .hero-blob { position: absolute; border-radius: 50%; filter: blur(80px); }
+  .hero-blob-1 { width: 300px; height: 300px; background: #6C63FF; top: -100px; left: -50px; opacity: 0.2; animation: heroFloat1 15s ease-in-out infinite; }
+  .hero-blob-2 { width: 250px; height: 250px; background: #00D4AA; bottom: -80px; right: 100px; opacity: 0.15; animation: heroFloat2 18s ease-in-out infinite; }
+  .hero-blob-3 { width: 200px; height: 200px; background: #FF6D5A; top: 50%; right: -50px; opacity: 0.12; animation: heroFloat3 12s ease-in-out infinite; }
+  @keyframes heroFloat1 { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(40px, 20px); } }
+  @keyframes heroFloat2 { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(-30px, -25px); } }
+  @keyframes heroFloat3 { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(-20px, 30px); } }
+  .hero-content { position: relative; z-index: 2; }
+  .hero-greeting { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; letter-spacing: -0.5px; }
+  .hero-sub { font-size: 15px; color: #94A3B8; margin-bottom: 24px; }
+  .hero-pills { display: flex; gap: 10px; flex-wrap: wrap; }
+  .glass-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 100px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); font-size: 13px; color: #E2E8F0; backdrop-filter: blur(12px); }
+  .pill-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* --- Stat Islands Grid --- */
+  .island-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; margin-bottom: 36px; }
+  .stat-icon-wrap { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 20px; }
+  .stat-number { font-size: 32px; font-weight: 700; color: #fff; letter-spacing: -1px; margin-bottom: 6px; }
+  .stat-label { font-size: 13px; color: #94A3B8; }
+  .stat-badge { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .stat-badge.up { background: rgba(16,185,129,0.1); color: #10B981; }
+  .stat-badge.down { background: rgba(239,68,68,0.1); color: #EF4444; }
+
+  /* --- Two-col layout --- */
+  .two-col { display: grid; grid-template-columns: 1fr 380px; gap: 24px; }
+
+  /* --- Glass search bar --- */
+  .glass-search { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 24px; border-radius: 16px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(16px); margin-bottom: 28px; transition: all 0.3s; }
+  .glass-search:focus-within { border-color: rgba(108,99,255,0.4); box-shadow: 0 0 0 4px rgba(108,99,255,0.08); }
+  .glass-search input { flex: 1; background: none; border: none; outline: none; color: #fff; font-size: 14px; font-family: inherit; }
+  .glass-search input::placeholder { color: #4B5563; }
+  .glass-search .search-icon { color: #6B7280; font-size: 16px; }
+
+  /* --- Filter pills --- */
+  .filter-row { display: flex; gap: 8px; margin-bottom: 24px; }
+  .filter-pill { padding: 6px 16px; border-radius: 100px; font-size: 12px; font-weight: 500; border: 1px solid rgba(255,255,255,0.08); background: none; color: #6B7280; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+  .filter-pill:hover { color: #E2E8F0; border-color: rgba(255,255,255,0.15); }
+  .filter-pill.active { background: linear-gradient(135deg, rgba(108,99,255,0.15), rgba(0,212,170,0.1)); border-color: rgba(108,99,255,0.3); color: #fff; }
+
+  /* --- Client cards --- */
+  .client-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .client-card { border-radius: 20px; padding: 28px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); backdrop-filter: blur(16px); transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
+  .client-card:hover { transform: translateY(-4px); background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+  .client-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+  .client-avatar { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .client-name { font-size: 15px; font-weight: 600; color: #fff; }
+  .client-plan { font-size: 12px; color: #6B7280; margin-top: 2px; }
+  .client-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .cm-item { }
+  .cm-value { font-size: 18px; font-weight: 600; color: #fff; }
+  .cm-label { font-size: 11px; color: #6B7280; margin-top: 2px; }
+  .status-ring { position: relative; }
+  .status-ring::after { content: ''; position: absolute; inset: -3px; border-radius: 17px; border: 2px solid; opacity: 0.4; }
+  .status-ring.green::after { border-color: #10B981; box-shadow: 0 0 12px rgba(16,185,129,0.3); }
+  .status-ring.amber::after { border-color: #F59E0B; box-shadow: 0 0 12px rgba(245,158,11,0.3); }
+  .status-ring.red::after { border-color: #EF4444; box-shadow: 0 0 12px rgba(239,68,68,0.3); }
+
+  /* --- Detail Hero --- */
+  .detail-hero { position: relative; border-radius: 24px; padding: 48px; overflow: hidden; margin-bottom: 32px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); }
+  .detail-avatar { width: 96px; height: 96px; border-radius: 24px; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 800; color: #fff; position: relative; }
+  .detail-avatar::before { content: ''; position: absolute; inset: -3px; border-radius: 27px; background: linear-gradient(135deg, #6C63FF, #00D4AA); z-index: -1; }
+  .detail-avatar-inner { width: 96px; height: 96px; border-radius: 24px; display: flex; align-items: center; justify-content: center; background: #0D1224; }
+  .detail-name { font-size: 28px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+  .detail-sub { font-size: 14px; color: #94A3B8; margin-top: 4px; }
+
+  /* --- Gauge --- */
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; padding: 32px; }
+  .gauge-svg { width: 160px; height: 100px; }
+  .gauge-label { font-size: 13px; color: #6B7280; margin-top: 8px; }
+  .gauge-value { font-size: 32px; font-weight: 700; color: #fff; margin-top: 4px; }
+
+  /* --- Timeline Notes --- */
+  .timeline { position: relative; padding-left: 24px; }
+  .timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: linear-gradient(180deg, #6C63FF, #00D4AA, #FF6D5A); border-radius: 1px; }
+  .timeline-item { position: relative; margin-bottom: 20px; }
+  .timeline-dot { position: absolute; left: -20px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: #0A0F1C; border: 2px solid #6C63FF; }
+  .timeline-bubble { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 18px; }
+  .timeline-date { font-size: 11px; color: #6B7280; margin-bottom: 4px; }
+  .timeline-text { font-size: 13px; color: #E2E8F0; line-height: 1.5; }
+
+  /* --- Workflow pills --- */
+  .wf-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .wf-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 12px; font-size: 12px; font-weight: 500; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); color: #E2E8F0; transition: all 0.2s; cursor: pointer; }
+  .wf-pill:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.12); }
+  .wf-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* --- Section titles --- */
+  .section-title { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 20px; letter-spacing: -0.3px; }
+
+  /* --- Stagger entrance animation --- */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .anim-1 { animation: fadeUp 0.5s ease-out 0.06s both; }
+  .anim-2 { animation: fadeUp 0.5s ease-out 0.12s both; }
+  .anim-3 { animation: fadeUp 0.5s ease-out 0.18s both; }
+  .anim-4 { animation: fadeUp 0.5s ease-out 0.24s both; }
+  .anim-5 { animation: fadeUp 0.5s ease-out 0.30s both; }
+  .anim-6 { animation: fadeUp 0.5s ease-out 0.36s both; }
+
+  /* --- Chart --- */
+  .chart-glass { border-radius: 16px; padding: 28px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); margin-bottom: 24px; }
+  .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .chart-title { font-size: 14px; font-weight: 600; color: #fff; }
+  .granularity { display: flex; gap: 4px; }
+  .gran-btn { padding: 4px 10px; font-size: 11px; border-radius: 8px; border: none; background: transparent; color: #6B7280; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+  .gran-btn.active { background: rgba(108,99,255,0.12); color: #6C63FF; }
+</style>
+</head>
+<body>
+
+<!-- Animated mesh background -->
+<div class="mesh-bg">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-logo">any<span>vision</span></div>
+  <a class="nav-item active">
+    <div class="nav-icon" style="background:rgba(108,99,255,0.1);color:#6C63FF">&#9632;</div>
+    Overview
+  </a>
+  <a class="nav-item">
+    <div class="nav-icon">&#9679;</div>
+    AI Agents
+  </a>
+  <a class="nav-item">
+    <div class="nav-icon">&#9650;</div>
+    Clients
+  </a>
+  <a class="nav-item">
+    <div class="nav-icon">&#9670;</div>
+    Support
+  </a>
+  <a class="nav-item">
+    <div class="nav-icon">&#9644;</div>
+    Analytics
+  </a>
+  <a class="nav-item">
+    <div class="nav-icon">&#9881;</div>
+    Settings
+  </a>
+</nav>
+
+<main class="main">
+
+<!-- ============ PAGE 1: OVERVIEW ============ -->
+<section class="page-section">
+  <div class="page-label">Page 1</div>
+  <div class="page-title">Overview</div>
+
+  <!-- Hero banner with gradient blobs -->
+  <div class="hero-banner">
+    <div class="hero-blob hero-blob-1"></div>
+    <div class="hero-blob hero-blob-2"></div>
+    <div class="hero-blob hero-blob-3"></div>
+    <div class="hero-content">
+      <div class="hero-greeting">Good afternoon, Ian</div>
+      <div class="hero-sub">Everything is running smoothly. 34 workflows active across 24 clients.</div>
+      <div class="hero-pills">
+        <span class="glass-pill"><span class="pill-dot" style="background:#10B981"></span> All Systems Online</span>
+        <span class="glass-pill"><span class="pill-dot" style="background:#6C63FF"></span> 1,847 messages today</span>
+        <span class="glass-pill"><span class="pill-dot" style="background:#00D4AA"></span> 156 leads generated</span>
+        <span class="glass-pill"><span class="pill-dot" style="background:#FF6D5A"></span> 3 alerts</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 Floating Stat Islands -->
+  <div class="island-grid">
+    <div class="island anim-1">
+      <div class="stat-icon-wrap" style="background:rgba(108,99,255,0.1);color:#6C63FF">&#9632;</div>
+      <div class="stat-number">24</div>
+      <div class="stat-label">Active Clients</div>
+      <span class="stat-badge up">+3 this month</span>
+    </div>
+    <div class="island anim-2">
+      <div class="stat-icon-wrap" style="background:rgba(0,212,170,0.1);color:#00D4AA">&#9650;</div>
+      <div class="stat-number">1,847</div>
+      <div class="stat-label">Messages Today</div>
+      <span class="stat-badge up">+12%</span>
+    </div>
+    <div class="island anim-3">
+      <div class="stat-icon-wrap" style="background:rgba(255,109,90,0.1);color:#FF6D5A">&#9679;</div>
+      <div class="stat-number">156</div>
+      <div class="stat-label">Leads Generated</div>
+      <span class="stat-badge up">+8%</span>
+    </div>
+    <div class="island anim-4">
+      <div class="stat-icon-wrap" style="background:rgba(108,99,255,0.1);color:#6C63FF">&#9670;</div>
+      <div class="stat-number">34</div>
+      <div class="stat-label">Active Workflows</div>
+      <span class="stat-badge up">+2</span>
+    </div>
+    <div class="island anim-5">
+      <div class="stat-icon-wrap" style="background:rgba(16,185,129,0.1);color:#10B981">&#10003;</div>
+      <div class="stat-number">99.7%</div>
+      <div class="stat-label">System Uptime</div>
+    </div>
+  </div>
+
+  <!-- Two-col: Charts + Highlights -->
+  <div class="two-col">
+    <div>
+      <div class="chart-glass">
+        <div class="chart-header">
+          <div class="chart-title">Messages Received</div>
+          <div class="granularity">
+            <button class="gran-btn active">D</button>
+            <button class="gran-btn">W</button>
+            <button class="gran-btn">M</button>
+          </div>
+        </div>
+        <svg width="100%" height="160" viewBox="0 0 600 160" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="gGrad1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#6C63FF" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="#6C63FF" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,130 C30,120 60,100 100,90 C140,80 170,110 210,85 C250,60 280,70 320,50 C360,30 400,45 440,35 C480,25 520,40 560,20 C580,15 600,18 600,10 L600,160 L0,160 Z" fill="url(#gGrad1)"/>
+          <path d="M0,130 C30,120 60,100 100,90 C140,80 170,110 210,85 C250,60 280,70 320,50 C360,30 400,45 440,35 C480,25 520,40 560,20 C580,15 600,18 600,10" fill="none" stroke="#6C63FF" stroke-width="2.5"/>
+        </svg>
+      </div>
+      <div class="chart-glass">
+        <div class="chart-header">
+          <div class="chart-title">Leads Generated</div>
+          <div class="granularity">
+            <button class="gran-btn active">D</button>
+            <button class="gran-btn">W</button>
+            <button class="gran-btn">M</button>
+          </div>
+        </div>
+        <svg width="100%" height="120" viewBox="0 0 600 120" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="gGrad2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00D4AA" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="#00D4AA" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,100 C50,90 100,70 160,75 C220,80 280,50 340,40 C400,30 460,45 520,25 C560,18 600,22 600,15 L600,120 L0,120 Z" fill="url(#gGrad2)"/>
+          <path d="M0,100 C50,90 100,70 160,75 C220,80 280,50 340,40 C400,30 460,45 520,25 C560,18 600,22 600,15" fill="none" stroke="#00D4AA" stroke-width="2.5"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Right sidebar: alerts + gauge -->
+    <div>
+      <div class="glass" style="padding:24px;border-radius:16px;margin-bottom:20px">
+        <div class="section-title" style="font-size:14px;margin-bottom:16px">Flagged Clients</div>
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+          <div style="width:8px;height:8px;border-radius:50%;background:#EF4444"></div>
+          <div>
+            <div style="font-size:13px;color:#fff;font-weight:500">Atlas Financial</div>
+            <div style="font-size:11px;color:#EF4444">API auth failure — 3h ago</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+          <div style="width:8px;height:8px;border-radius:50%;background:#F59E0B"></div>
+          <div>
+            <div style="font-size:13px;color:#fff;font-weight:500">Coastal Realty</div>
+            <div style="font-size:11px;color:#F59E0B">Webhook timeouts elevated</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass" style="border-radius:16px">
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 160 100">
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#EF4444"/>
+                <stop offset="40%" stop-color="#F59E0B"/>
+                <stop offset="100%" stop-color="#10B981"/>
+              </linearGradient>
+            </defs>
+            <!-- Background arc -->
+            <path d="M 20 90 A 60 60 0 0 1 140 90" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10" stroke-linecap="round"/>
+            <!-- Value arc (99.7% = almost full) -->
+            <path d="M 20 90 A 60 60 0 0 1 139 88" fill="none" stroke="url(#gaugeGrad)" stroke-width="10" stroke-linecap="round" filter="drop-shadow(0 2px 8px rgba(16,185,129,0.3))"/>
+          </svg>
+          <div class="gauge-value">99.7%</div>
+          <div class="gauge-label">System Health</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PAGE 2: CLIENT LIST ============ -->
+<section class="page-section">
+  <div class="page-label">Page 2</div>
+  <div class="page-title">Clients</div>
+
+  <!-- Glass search bar -->
+  <div class="glass-search">
+    <span class="search-icon">&#128269;</span>
+    <input type="text" placeholder="Search clients by name, plan, or status...">
+  </div>
+
+  <!-- Filter pills -->
+  <div class="filter-row">
+    <button class="filter-pill active">All Clients</button>
+    <button class="filter-pill">Active</button>
+    <button class="filter-pill">Warning</button>
+    <button class="filter-pill">Inactive</button>
+    <button class="filter-pill">Enterprise</button>
+    <button class="filter-pill">Professional</button>
+  </div>
+
+  <!-- Client card grid -->
+  <div class="client-grid">
+    <div class="client-card anim-1">
+      <div class="client-header">
+        <div class="client-avatar status-ring green" style="background:linear-gradient(135deg,#6C63FF,#8B83FF)">MP</div>
+        <div>
+          <div class="client-name">Meridian Properties</div>
+          <div class="client-plan">Enterprise</div>
+        </div>
+      </div>
+      <div class="client-metrics">
+        <div class="cm-item"><div class="cm-value">2,341</div><div class="cm-label">Messages</div></div>
+        <div class="cm-item"><div class="cm-value">48</div><div class="cm-label">Leads</div></div>
+        <div class="cm-item"><div class="cm-value" style="color:#10B981">99.9%</div><div class="cm-label">Uptime</div></div>
+        <div class="cm-item"><div class="cm-value">7</div><div class="cm-label">Workflows</div></div>
+      </div>
+    </div>
+
+    <div class="client-card anim-2">
+      <div class="client-header">
+        <div class="client-avatar status-ring green" style="background:linear-gradient(135deg,#00D4AA,#33E0BF)">VL</div>
+        <div>
+          <div class="client-name">Vanguard Legal</div>
+          <div class="client-plan">Professional</div>
+        </div>
+      </div>
+      <div class="client-metrics">
+        <div class="cm-item"><div class="cm-value">1,892</div><div class="cm-label">Messages</div></div>
+        <div class="cm-item"><div class="cm-value">35</div><div class="cm-label">Leads</div></div>
+        <div class="cm-item"><div class="cm-value" style="color:#10B981">99.7%</div><div class="cm-label">Uptime</div></div>
+        <div class="cm-item"><div class="cm-value">5</div><div class="cm-label">Workflows</div></div>
+      </div>
+    </div>
+
+    <div class="client-card anim-3">
+      <div class="client-header">
+        <div class="client-avatar status-ring amber" style="background:linear-gradient(135deg,#F59E0B,#FBBF24)">CR</div>
+        <div>
+          <div class="client-name">Coastal Realty</div>
+          <div class="client-plan">Starter</div>
+        </div>
+      </div>
+      <div class="client-metrics">
+        <div class="cm-item"><div class="cm-value">743</div><div class="cm-label">Messages</div></div>
+        <div class="cm-item"><div class="cm-value">12</div><div class="cm-label">Leads</div></div>
+        <div class="cm-item"><div class="cm-value" style="color:#F59E0B">97.2%</div><div class="cm-label">Uptime</div></div>
+        <div class="cm-item"><div class="cm-value">3</div><div class="cm-label">Workflows</div></div>
+      </div>
+    </div>
+
+    <div class="client-card anim-4">
+      <div class="client-header">
+        <div class="client-avatar status-ring green" style="background:linear-gradient(135deg,#6C63FF,#8B83FF)">SC</div>
+        <div>
+          <div class="client-name">Summit Consulting</div>
+          <div class="client-plan">Professional</div>
+        </div>
+      </div>
+      <div class="client-metrics">
+        <div class="cm-item"><div class="cm-value">1,105</div><div class="cm-label">Messages</div></div>
+        <div class="cm-item"><div class="cm-value">22</div><div class="cm-label">Leads</div></div>
+        <div class="cm-item"><div class="cm-value" style="color:#10B981">99.5%</div><div class="cm-label">Uptime</div></div>
+        <div class="cm-item"><div class="cm-value">4</div><div class="cm-label">Workflows</div></div>
+      </div>
+    </div>
+
+    <div class="client-card anim-5">
+      <div class="client-header">
+        <div class="client-avatar status-ring red" style="background:linear-gradient(135deg,#EF4444,#F87171)">AF</div>
+        <div>
+          <div class="client-name">Atlas Financial</div>
+          <div class="client-plan">Enterprise</div>
+        </div>
+      </div>
+      <div class="client-metrics">
+        <div class="cm-item"><div class="cm-value">421</div><div class="cm-label">Messages</div></div>
+        <div class="cm-item"><div class="cm-value">8</div><div class="cm-label">Leads</div></div>
+        <div class="cm-item"><div class="cm-value" style="color:#EF4444">91.3%</div><div class="cm-label">Uptime</div></div>
+        <div class="cm-item"><div class="cm-value">6</div><div class="cm-label">Workflows</div></div>
+      </div>
+    </div>
+
+    <div class="client-card anim-6">
+      <div class="client-header">
+        <div class="client-avatar status-ring green" style="background:linear-gradient(135deg,#00D4AA,#33E0BF)">ND</div>
+        <div>
+          <div class="client-name">Nova Digital</div>
+          <div class="client-plan">Starter</div>
+        </div>
+      </div>
+      <div class="client-metrics">
+        <div class="cm-item"><div class="cm-value">567</div><div class="cm-label">Messages</div></div>
+        <div class="cm-item"><div class="cm-value">14</div><div class="cm-label">Leads</div></div>
+        <div class="cm-item"><div class="cm-value" style="color:#10B981">99.8%</div><div class="cm-label">Uptime</div></div>
+        <div class="cm-item"><div class="cm-value">4</div><div class="cm-label">Workflows</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PAGE 3: CLIENT DETAIL ============ -->
+<section class="page-section">
+  <div class="page-label">Page 3</div>
+  <div class="page-title" style="margin-bottom:24px">Client Detail</div>
+
+  <!-- Detail Hero with avatar + blobs -->
+  <div class="detail-hero">
+    <div class="hero-blob hero-blob-1"></div>
+    <div class="hero-blob hero-blob-2"></div>
+    <div class="hero-content" style="display:flex;align-items:center;gap:28px">
+      <div class="detail-avatar">
+        <div class="detail-avatar-inner">MP</div>
+      </div>
+      <div>
+        <div class="detail-name">Meridian Properties</div>
+        <div class="detail-sub">Enterprise Plan &middot; Active since Jan 2026 &middot; james@meridian.co.za</div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <span class="glass-pill" style="font-size:12px"><span class="pill-dot" style="background:#10B981"></span>Online</span>
+          <span class="glass-pill" style="font-size:12px"><span class="pill-dot" style="background:#6C63FF"></span>7 Workflows</span>
+          <span class="glass-pill" style="font-size:12px"><span class="pill-dot" style="background:#00D4AA"></span>3 Agents</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 Stat Islands -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:32px">
+    <div class="island anim-1">
+      <div class="stat-icon-wrap" style="background:rgba(108,99,255,0.1);color:#6C63FF;width:40px;height:40px;border-radius:10px;font-size:16px">&#9993;</div>
+      <div class="stat-number" style="font-size:28px">2,341</div>
+      <div class="stat-label">Messages Received</div>
+      <span class="stat-badge up">+12%</span>
+    </div>
+    <div class="island anim-2">
+      <div class="stat-icon-wrap" style="background:rgba(0,212,170,0.1);color:#00D4AA;width:40px;height:40px;border-radius:10px;font-size:16px">&#9733;</div>
+      <div class="stat-number" style="font-size:28px">48</div>
+      <div class="stat-label">Leads Generated</div>
+      <span class="stat-badge up">+8%</span>
+    </div>
+    <div class="island anim-3">
+      <div class="stat-icon-wrap" style="background:rgba(16,185,129,0.1);color:#10B981;width:40px;height:40px;border-radius:10px;font-size:16px">&#10003;</div>
+      <div class="stat-number" style="font-size:28px">99.2%</div>
+      <div class="stat-label">System Uptime</div>
+    </div>
+    <div class="island anim-4">
+      <div class="stat-icon-wrap" style="background:rgba(239,68,68,0.1);color:#EF4444;width:40px;height:40px;border-radius:10px;font-size:16px">&#9888;</div>
+      <div class="stat-number" style="font-size:28px">3</div>
+      <div class="stat-label">Errors (30d)</div>
+      <span class="stat-badge down">+2</span>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <!-- Chart -->
+      <div class="chart-glass">
+        <div class="chart-header">
+          <div class="chart-title">Messages Received — 30 Days</div>
+          <div class="granularity">
+            <button class="gran-btn active">D</button>
+            <button class="gran-btn">W</button>
+            <button class="gran-btn">M</button>
+          </div>
+        </div>
+        <svg width="100%" height="160" viewBox="0 0 600 160" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="dGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#6C63FF" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="#6C63FF" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,130 C30,120 60,100 100,90 C140,80 170,110 210,85 C250,60 280,70 320,50 C360,30 400,45 440,35 C480,25 520,40 560,20 C580,15 600,18 600,10 L600,160 L0,160 Z" fill="url(#dGrad)"/>
+          <path d="M0,130 C30,120 60,100 100,90 C140,80 170,110 210,85 C250,60 280,70 320,50 C360,30 400,45 440,35 C480,25 520,40 560,20 C580,15 600,18 600,10" fill="none" stroke="#6C63FF" stroke-width="2.5"/>
+        </svg>
+      </div>
+
+      <!-- Workflows -->
+      <div class="section-title">Active Workflows</div>
+      <div class="wf-pills" style="margin-bottom:32px">
+        <div class="wf-pill"><div class="wf-dot" style="background:#10B981"></div>WF-01 Invoice Processing</div>
+        <div class="wf-pill"><div class="wf-dot" style="background:#10B981"></div>WF-02 Collection Reminders</div>
+        <div class="wf-pill"><div class="wf-dot" style="background:#10B981"></div>WF-03 Payment Receipts</div>
+        <div class="wf-pill"><div class="wf-dot" style="background:#10B981"></div>WF-04 Supplier Bills</div>
+        <div class="wf-pill"><div class="wf-dot" style="background:#F59E0B"></div>WF-05 Trend Discovery</div>
+        <div class="wf-pill"><div class="wf-dot" style="background:#10B981"></div>WF-06 SEO Content</div>
+        <div class="wf-pill"><div class="wf-dot" style="background:#10B981"></div>WF-07 Publishing</div>
+      </div>
+
+      <!-- Notes Timeline -->
+      <div class="section-title">Notes</div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-bubble">
+            <div class="timeline-date">Mar 14, 2026 — 10:30 AM</div>
+            <div class="timeline-text">Client requested additional SEO reporting. Set up WF-10 analytics snapshot for weekly delivery.</div>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot" style="border-color:#00D4AA"></div>
+          <div class="timeline-bubble">
+            <div class="timeline-date">Mar 10, 2026 — 2:15 PM</div>
+            <div class="timeline-text">Upgraded from Professional to Enterprise plan. Added 3 new workflows for accounting automation.</div>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot" style="border-color:#FF6D5A"></div>
+          <div class="timeline-bubble">
+            <div class="timeline-date">Mar 5, 2026 — 9:00 AM</div>
+            <div class="timeline-text">Initial onboarding completed. All systems configured and tested. Client training session scheduled for next week.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Gauge + Agent info -->
+    <div>
+      <div class="glass" style="border-radius:16px;margin-bottom:20px">
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 160 100">
+            <defs>
+              <linearGradient id="gaugeGrad2" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#EF4444"/>
+                <stop offset="40%" stop-color="#F59E0B"/>
+                <stop offset="100%" stop-color="#10B981"/>
+              </linearGradient>
+            </defs>
+            <path d="M 20 90 A 60 60 0 0 1 140 90" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10" stroke-linecap="round"/>
+            <path d="M 20 90 A 60 60 0 0 1 137 82" fill="none" stroke="url(#gaugeGrad2)" stroke-width="10" stroke-linecap="round" filter="drop-shadow(0 2px 8px rgba(16,185,129,0.3))"/>
+          </svg>
+          <div class="gauge-value">99.2%</div>
+          <div class="gauge-label">Client Uptime</div>
+        </div>
+      </div>
+
+      <div class="glass" style="padding:24px;border-radius:16px;margin-bottom:20px">
+        <div class="section-title" style="font-size:14px;margin-bottom:16px">AI Agents</div>
+        <div style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#10B981"></div>
+            <span style="font-size:13px;color:#fff;font-weight:500">Marketing Agent</span>
+          </div>
+          <div style="font-size:11px;color:#6B7280;margin-left:18px">Active &middot; 234 tasks completed</div>
+        </div>
+        <div style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#10B981"></div>
+            <span style="font-size:13px;color:#fff;font-weight:500">Finance Agent</span>
+          </div>
+          <div style="font-size:11px;color:#6B7280;margin-left:18px">Active &middot; 189 tasks completed</div>
+        </div>
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+            <div style="width:8px;height:8px;border-radius:50%;background:#10B981"></div>
+            <span style="font-size:13px;color:#fff;font-weight:500">Support Agent</span>
+          </div>
+          <div style="font-size:11px;color:#6B7280;margin-left:18px">Active &middot; 67 tasks completed</div>
+        </div>
+      </div>
+
+      <div class="glass" style="padding:24px;border-radius:16px">
+        <div class="section-title" style="font-size:14px;margin-bottom:16px">Client Info</div>
+        <div style="margin-bottom:12px"><div style="font-size:11px;color:#6B7280;margin-bottom:2px">MRR</div><div style="font-size:16px;font-weight:600;color:#00D4AA">R 12,500</div></div>
+        <div style="margin-bottom:12px"><div style="font-size:11px;color:#6B7280;margin-bottom:2px">Joined</div><div style="font-size:13px;color:#E2E8F0">January 15, 2026</div></div>
+        <div style="margin-bottom:12px"><div style="font-size:11px;color:#6B7280;margin-bottom:2px">Renewal</div><div style="font-size:13px;color:#E2E8F0">April 15, 2026</div></div>
+        <div><div style="font-size:11px;color:#6B7280;margin-bottom:2px">Health Score</div><div style="font-size:16px;font-weight:600;color:#10B981">92 / 100</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+</body>
+</html>

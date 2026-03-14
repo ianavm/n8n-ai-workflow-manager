@@ -1,0 +1,544 @@
+{
+  "name": "CRM Sync - Nightly Dedup (CRM-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 23 * * *"
+            }
+          ]
+        }
+      },
+      "id": "6784d87f-6cd6-43e4-a07b-8c3ac693d667",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblLo3smPaM19XXkv",
+          "mode": "id"
+        },
+        "filterByFormula": "NOT({Sync Status} = 'Merged - Duplicate')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "3ac1b65b-bdd5-4e90-9c40-59c5c448b6f7",
+      "name": "Read All Unified Records",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Group by normalized email and detect duplicates\nconst records = $input.all().map(i => i.json);\n\n// Group by email\nconst emailGroups = {};\nfor (const rec of records) {\n  const email = (rec.Email || '').toLowerCase().trim();\n  if (!email || !email.includes('@')) continue;\n  if (!emailGroups[email]) emailGroups[email] = [];\n  emailGroups[email].push(rec);\n}\n\n// Find duplicate groups (>1 record per email)\nconst duplicateGroups = [];\nfor (const [email, group] of Object.entries(emailGroups)) {\n  if (group.length > 1) {\n    // Score each record by non-empty fields\n    const scored = group.map(rec => {\n      const fields = ['Name', 'Phone', 'Company', 'Source', 'First Seen'];\n      const filledCount = fields.filter(f => rec[f] && String(rec[f]).trim()).length;\n      return { record: rec, score: filledCount };\n    });\n    scored.sort((a, b) => b.score - a.score);\n\n    duplicateGroups.push({\n      email,\n      primaryId: scored[0].record.id,\n      primaryScore: scored[0].score,\n      duplicateIds: scored.slice(1).map(s => s.record.id),\n      records: scored.map(s => ({\n        id: s.record.id,\n        name: s.record.Name || '',\n        phone: s.record.Phone || '',\n        company: s.record.Company || '',\n        source: s.record.Source || '',\n        score: s.score,\n      })),\n    });\n  }\n}\n\n// Also fuzzy match on name+phone for records without email\nconst noEmailRecords = records.filter(r => {\n  const email = (r.Email || '').toLowerCase().trim();\n  return !email || !email.includes('@');\n});\n\nconst phoneGroups = {};\nfor (const rec of noEmailRecords) {\n  const phone = (rec.Phone || '').replace(/[^0-9]/g, '');\n  const name = (rec.Name || '').toLowerCase().trim();\n  if (!phone && !name) continue;\n  const key = phone + '|' + name;\n  if (!phoneGroups[key]) phoneGroups[key] = [];\n  phoneGroups[key].push(rec);\n}\n\nfor (const [key, group] of Object.entries(phoneGroups)) {\n  if (group.length > 1) {\n    const scored = group.map(rec => {\n      const fields = ['Name', 'Phone', 'Company', 'Source', 'First Seen'];\n      const filledCount = fields.filter(f => rec[f] && String(rec[f]).trim()).length;\n      return { record: rec, score: filledCount };\n    });\n    scored.sort((a, b) => b.score - a.score);\n\n    duplicateGroups.push({\n      email: key,\n      primaryId: scored[0].record.id,\n      primaryScore: scored[0].score,\n      duplicateIds: scored.slice(1).map(s => s.record.id),\n      records: scored.map(s => ({\n        id: s.record.id,\n        name: s.record.Name || '',\n        phone: s.record.Phone || '',\n        company: s.record.Company || '',\n        source: s.record.Source || '',\n        score: s.score,\n      })),\n    });\n  }\n}\n\nreturn [{ json: {\n  totalRecords: records.length,\n  duplicateGroupCount: duplicateGroups.length,\n  totalDuplicates: duplicateGroups.reduce((sum, g) => sum + g.duplicateIds.length, 0),\n  duplicateGroups,\n} }];"
+      },
+      "id": "551c3db7-8818-4d9a-8e5e-2884f7b28acd",
+      "name": "Detect Duplicates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.duplicateGroupCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "1ef91374-3c16-4ad1-9512-e6af80d82f36",
+      "name": "Duplicates Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a CRM data quality assistant. For each duplicate group, determine which record to keep as primary and what data to merge from duplicates. Return valid JSON array with objects: {keepId, mergeFromIds: [], mergedFields: {name, phone, company}}. Pick the record with the most complete data as primary. Merge non-empty fields from duplicates into the primary.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze these duplicate groups and decide merges:\\n\" + JSON.stringify($json.duplicateGroups, null, 2)\n    }\n  ]\n}}",
+        "options": {}
+      },
+      "id": "1438d271-272f-4b40-a343-6bfaaa3e2382",
+      "name": "AI Merge Decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process AI merge decisions\nconst aiResponse = $json.choices[0].message.content;\nlet decisions;\ntry {\n  // Extract JSON from AI response (may be wrapped in markdown)\n  const jsonMatch = aiResponse.match(/\\[[\\s\\S]*\\]/);\n  decisions = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(aiResponse);\n} catch (e) {\n  // Fallback: use simple heuristic from Detect Duplicates\n  const groups = $('Detect Duplicates').first().json.duplicateGroups;\n  decisions = groups.map(g => ({\n    keepId: g.primaryId,\n    mergeFromIds: g.duplicateIds,\n    mergedFields: {},\n  }));\n}\n\nconst updates = [];\nconst markDuplicates = [];\n\nfor (const d of decisions) {\n  // Update primary record with merged fields\n  if (d.mergedFields && Object.keys(d.mergedFields).length > 0) {\n    updates.push({\n      id: d.keepId,\n      fields: d.mergedFields,\n    });\n  }\n  // Mark duplicates\n  for (const dupId of (d.mergeFromIds || [])) {\n    markDuplicates.push({ id: dupId });\n  }\n}\n\nreturn [{ json: {\n  updateCount: updates.length,\n  duplicateMarkCount: markDuplicates.length,\n  updates,\n  markDuplicates,\n} }];"
+      },
+      "id": "c1275733-4373-48c8-a40c-48b61a403646",
+      "name": "Execute Merges",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const updates = $json.updates || [];\nif (updates.length === 0) return [{ json: { skip: true } }];\nreturn updates.map(u => ({ json: u }));"
+      },
+      "id": "288e38a9-dfa0-42e1-a1cf-ec45ab692887",
+      "name": "Split Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblLo3smPaM19XXkv",
+          "mode": "id"
+        },
+        "id": "={{ $json.id }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $json.fields.name || '' }}",
+            "Phone": "={{ $json.fields.phone || '' }}",
+            "Company": "={{ $json.fields.company || '' }}",
+            "Last Synced": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9370867b-1b8b-421b-aa47-8abdf6ce809f",
+      "name": "Update Primary Records",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        100
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dups = $('Execute Merges').first().json.markDuplicates || [];\nif (dups.length === 0) return [{ json: { skip: true } }];\nreturn dups.map(d => ({ json: d }));"
+      },
+      "id": "b099fac5-767a-41cd-82e6-dca2c3596c10",
+      "name": "Split Duplicates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblLo3smPaM19XXkv",
+          "mode": "id"
+        },
+        "id": "={{ $json.id }}",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Sync Status": "Merged - Duplicate",
+            "Last Synced": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Sync Status",
+              "displayName": "Sync Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bea45108-f29d-41b9-b2fe-99ea8d5cf660",
+      "name": "Mark Duplicates",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        320
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblHfJZj4awb2reuj",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Sync Time": "={{ $now.toISO() }}",
+            "Records Processed": "={{ $('Detect Duplicates').first().json.totalRecords }}",
+            "New": "=0",
+            "Updated": "={{ $('Execute Merges').first().json.updateCount }}",
+            "Errors": "=0",
+            "Duration": "=Nightly Dedup"
+          }
+        },
+        "options": {}
+      },
+      "id": "7b9715cc-ca6d-4a7a-a0f9-5f6be99ad95a",
+      "name": "Log Dedup Results",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Detect Duplicates').first().json.totalDuplicates }}",
+              "rightValue": 20,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "1ea8458c-7ba6-4769-8414-6e36cd02f87f",
+      "name": "Many Duplicates?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=CRM Dedup Alert - {{ $('Detect Duplicates').first().json.totalDuplicates }} duplicates found",
+        "message": "=<h3>CRM Dedup Alert</h3>\n<p><strong>Total records scanned:</strong> {{ $('Detect Duplicates').first().json.totalRecords }}</p>\n<p><strong>Duplicate groups found:</strong> {{ $('Detect Duplicates').first().json.duplicateGroupCount }}</p>\n<p><strong>Total duplicates merged:</strong> {{ $('Detect Duplicates').first().json.totalDuplicates }}</p>\n<p style=\"color: #FF6D5A;\"><strong>This exceeds the 20-duplicate threshold. Please review.</strong></p>\n<p><em>Run at {{ $now.toFormat('yyyy-MM-dd HH:mm') }} SAST</em></p>",
+        "options": {}
+      },
+      "id": "a1d937ff-3cb4-4819-8072-9869d7dcf501",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        380
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## CRM-02: Nightly Dedup\nRuns daily 01:00 SAST. Reads all unified records,\ndetects duplicates by email + fuzzy name/phone.\nAI decides merge strategy, updates primary, marks dupes.\nAlerts if > 20 duplicates found.",
+        "width": 440,
+        "height": 120
+      },
+      "id": "446af8db-c3f3-4bb6-9c08-dd25fd91da74",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read All Unified Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Unified Records": {
+      "main": [
+        [
+          {
+            "node": "Detect Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Duplicates Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicates Found?": {
+      "main": [
+        [
+          {
+            "node": "AI Merge Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Dedup Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Merge Decision": {
+      "main": [
+        [
+          {
+            "node": "Execute Merges",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Merges": {
+      "main": [
+        [
+          {
+            "node": "Split Updates",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Updates": {
+      "main": [
+        [
+          {
+            "node": "Update Primary Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Primary Records": {
+      "main": [
+        [
+          {
+            "node": "Log Dedup Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Mark Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Many Duplicates?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Many Duplicates?": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

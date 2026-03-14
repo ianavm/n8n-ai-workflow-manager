@@ -1,0 +1,211 @@
+{
+  "name": "BOOK-02 Follow-Up Nudge",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "id": "ffaf3e69-36e4-47ba-bfcd-673ffeb1ecf5",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({status} = 'Scheduled', IS_BEFORE({meeting_date}, DATEADD(TODAY(), 2, 'days')), IS_AFTER({meeting_date}, NOW()), {follow_up_sent} = 'false')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "95b00418-f606-4ee0-82e1-6374adf9180a",
+      "name": "Read Upcoming Bookings",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          }
+        }
+      },
+      "id": "36801f04-84e3-458f-b5c2-5ab674709bf6",
+      "name": "Has Upcoming Meetings",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.contact_email }}",
+        "subject": "=Reminder: {{ $json.meeting_type }} Tomorrow [{{ $json.booking_id }}]",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#FF6D5A;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Meeting Reminder</h2></div>\n<div style=\"padding:20px\">\n<p>Hi {{ $json.contact_name }},</p>\n<p>Just a friendly reminder about your upcoming meeting:</p>\n<ul>\n<li><b>Type:</b> {{ $json.meeting_type }}</li>\n<li><b>Date/Time:</b> {{ $json.meeting_date }}</li>\n<li><b>Duration:</b> {{ $json.duration_min }} minutes</li>\n<li><b>Booking ID:</b> {{ $json.booking_id }}</li>\n</ul>\n<p>Looking forward to connecting with you!</p>\n<p>Best regards,<br>AnyVision Media</p>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AnyVision Media - ian@anyvisionmedia.com</div>\n</div>",
+        "options": {}
+      },
+      "id": "f5d5108e-9f96-4060-9dd9-428860ac479f",
+      "name": "Send Reminder Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "follow_up_sent": "true"
+          }
+        },
+        "matchingColumns": [
+          "booking_id"
+        ],
+        "options": {}
+      },
+      "id": "465d35c6-e279-4be0-9d3e-6006a3ede6d8",
+      "name": "Mark Follow-Up Sent",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Upcoming Bookings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Upcoming Bookings": {
+      "main": [
+        [
+          {
+            "node": "Has Upcoming Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Upcoming Meetings": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send Reminder Email": {
+      "main": [
+        [
+          {
+            "node": "Mark Follow-Up Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "booking",
+    "reminder",
+    "daily"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_booking_assistant.py",
+    "built_at": "2026-03-14T19:18:44.277134"
+  }
+}

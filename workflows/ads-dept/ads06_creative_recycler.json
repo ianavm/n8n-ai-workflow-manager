@@ -1,0 +1,315 @@
+{
+  "name": "AVM Ads: Creative Recycler",
+  "nodes": [
+    {
+      "id": "74cffbd5-0c5c-413c-879c-be8b24ea23c9",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 3"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ce0ab827-0948-4991-b638-9f61e67f74ed",
+      "name": "Read Performance",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblH1ztufqk5Kkkln"
+        },
+        "filterByFormula": "=IS_AFTER({Date}, DATEADD(TODAY(), -14, 'days'))",
+        "options": {}
+      }
+    },
+    {
+      "id": "2cb22f52-7d58-4e7d-955d-01a0456d96fd",
+      "name": "Find Top Performers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Find top-performing campaigns (ROAS > 2.0 or CTR top 20%)\nconst items = $input.all();\nconst campaignMetrics = {};\n\nfor (const item of items) {\n  const d = item.json;\n  if (d.skip) continue;\n\n  const key = d['Campaign Name'];\n  if (!campaignMetrics[key]) {\n    campaignMetrics[key] = {\n      campaign: key,\n      platform: d.Platform,\n      totalSpend: 0,\n      totalConversions: 0,\n      totalClicks: 0,\n      totalImpressions: 0,\n    };\n  }\n  const m = campaignMetrics[key];\n  m.totalSpend += d['Spend ZAR'] || 0;\n  m.totalConversions += d.Conversions || 0;\n  m.totalClicks += d.Clicks || 0;\n  m.totalImpressions += d.Impressions || 0;\n}\n\nconst ranked = Object.values(campaignMetrics)\n  .map(m => ({\n    ...m,\n    roas: m.totalSpend > 0 ? (m.totalConversions * 100) / m.totalSpend : 0,\n    ctr: m.totalImpressions > 0 ? m.totalClicks / m.totalImpressions : 0,\n  }))\n  .filter(m => m.roas > 2.0 || m.ctr > 0.02)\n  .sort((a, b) => b.roas - a.roas)\n  .slice(0, 5);\n\nreturn ranked.length > 0\n  ? ranked.map(m => ({json: m}))\n  : [{json: {skip: true, reason: 'No top performers found'}}];\n"
+      }
+    },
+    {
+      "id": "f24b298d-a05a-4dfd-858a-1327c72b5905",
+      "name": "Filter Valid",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Filter out skip items (no data from platform)\nconst items = $input.all();\nreturn items.filter(item => !item.json.skip);\n"
+      }
+    },
+    {
+      "id": "70ebd33f-990e-40ce-96bc-5025b01e00e6",
+      "name": "Read Original Creatives",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1250,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblF1FwoZEQlMG6X9"
+        },
+        "filterByFormula": "=OR({Status}='Active',{Status}='Approved')",
+        "options": {}
+      }
+    },
+    {
+      "id": "8d9402d6-f5f6-4f80-9516-62240d2964ee",
+      "name": "AI Variant Generator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Creative Recycler for AnyVision Media.\\n\\nTOP PERFORMING CAMPAIGNS:\\n{{JSON.stringify($json)}}\\n\\nORIGINAL CREATIVES:\\n{{JSON.stringify($json)}}\\n\\nGenerate 2-3 new ad creative variants based on the winning patterns. For each variant:\\n- Keep the winning messaging angle but change the specific wording\\n- Try different hooks, CTAs, or emotional triggers\\n- Maintain platform-specific format requirements\\n- Reference the original creative it's based on\\n\\nOutput as JSON array with fields: campaign_name, platform, ad_format, headlines[], descriptions[], primary_text, cta\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "519502ce-43a3-4ff0-b15c-b04778dc1e3a",
+      "name": "Parse Variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1750,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse AI variant suggestions and create new creative records\nconst aiResp = $('AI Variant Generator').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\nconst originals = $('Read Original Creatives').all();\n\nlet variants;\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  variants = JSON.parse(cleaned);\n} catch (e) {\n  return [{json: {error: 'Failed to parse variants', raw: content}}];\n}\n\nif (!Array.isArray(variants)) variants = [variants];\n\nconst now = new Date().toISOString().split('T')[0];\nconst results = [];\n\nfor (let i = 0; i < variants.length; i++) {\n  const v = variants[i];\n  const orig = originals[0]?.json || {};\n\n  results.push({json: {\n    'Creative Name': `${orig['Creative Name'] || 'Recycled'} - Variant ${now} #${i + 1}`,\n    'Campaign Name': v.campaign_name || orig['Campaign Name'] || '',\n    'Platform': v.platform || orig.Platform || 'google_ads',\n    'Ad Format': v.ad_format || orig['Ad Format'] || 'RSA',\n    'Status': 'Draft',\n    'Headlines': JSON.stringify(v.headlines || []),\n    'Descriptions': JSON.stringify(v.descriptions || []),\n    'Primary Text': v.primary_text || '',\n    'CTA': v.cta || 'Learn_More',\n    'Parent Creative ID': orig['Creative Name'] || '',\n    'Created At': now,\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
+      }
+    },
+    {
+      "id": "7e062547-e240-4bfc-89dc-9cced0736626",
+      "name": "Write New Creatives",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblF1FwoZEQlMG6X9"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "9c18c7ca-11b2-4a8e-9704-9646ced19b8b",
+      "name": "Email Recycler Summary",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2250,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "AVM Ads - Creative Recycler: New Variants Created",
+        "emailType": "html",
+        "message": "={{\"<h2>Creative Recycler Results</h2><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Performance": {
+      "main": [
+        [
+          {
+            "node": "Find Top Performers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Top Performers": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid": {
+      "main": [
+        [
+          {
+            "node": "Read Original Creatives",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Original Creatives": {
+      "main": [
+        [
+          {
+            "node": "AI Variant Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Variant Generator": {
+      "main": [
+        [
+          {
+            "node": "Parse Variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Variants": {
+      "main": [
+        [
+          {
+            "node": "Write New Creatives",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write New Creatives": {
+      "main": [
+        [
+          {
+            "node": "Email Recycler Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "ads-dept",
+    "creative",
+    "phase-3"
+  ]
+}

@@ -1,0 +1,256 @@
+{
+  "name": "CURE-03 Monthly Schema Audit",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 1 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "3cb9a220-1002-4c95-aec6-653e5b4d44a9",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Define Airtable bases to audit\nconst bases = [\n  { base_id: 'appTCh0EeXQp0XqzW', base_name: 'Operations Control' },\n  { base_id: 'app2ALQUP7CKEkHOz', base_name: 'Lead Scraper' },\n  { base_id: 'apptjjBx34z9340tK', base_name: 'Marketing' },\n];\nreturn bases.map(b => ({json: b}));"
+      },
+      "id": "779c0191-55cc-44c7-b777-47bfe01753f4",
+      "name": "Set Bases to Audit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.airtable.com/v0/meta/bases/' + $json.base_id + '/tables' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "airtableTokenApi",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "78cb280e-2351-4d9b-ac47-bb28f03f30a9",
+      "name": "Fetch Base Schema",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const schemaResp = $input.first().json;\nconst baseInfo = $('Set Bases to Audit').item.json;\nconst tables = schemaResp.tables || [];\n\nconst tableAudit = tables.map(t => {\n  const fields = t.fields || [];\n  const fieldTypes = {};\n  for (const f of fields) {\n    const type = f.type || 'unknown';\n    fieldTypes[type] = (fieldTypes[type] || 0) + 1;\n  }\n  return {\n    table_name: t.name,\n    table_id: t.id,\n    field_count: fields.length,\n    field_types: fieldTypes,\n    field_names: fields.map(f => f.name),\n    has_primary: fields.some(f => f.id === t.primaryFieldId),\n  };\n});\n\n// Expected schema baselines (update these as tables are added)\nconst expectedTables = {\n  'Operations Control': ['Agent_Registry', 'Events', 'KPI_Snapshots', 'Escalation_Queue', 'Decision_Log'],\n  'Lead Scraper': ['Leads', 'Email Suppression'],\n  'Marketing': ['Content Calendar', 'Keywords', 'Content Topics'],\n};\n\nconst expected = expectedTables[baseInfo.base_name] || [];\nconst actual = tableAudit.map(t => t.table_name);\nconst missingTables = expected.filter(e => !actual.includes(e));\nconst unexpectedTables = actual.filter(a => !expected.includes(a) && expected.length > 0);\n\nreturn { json: {\n  base_name: baseInfo.base_name,\n  base_id: baseInfo.base_id,\n  total_tables: tables.length,\n  table_audit: tableAudit,\n  missing_tables: missingTables,\n  unexpected_tables: unexpectedTables,\n  drift_detected: missingTables.length > 0 || unexpectedTables.length > 0,\n  audited_at: new Date().toISOString(),\n}};"
+      },
+      "id": "b451a829-5948-4a98-bc17-a3dc302b9098",
+      "name": "Analyze Schema",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "scan_id": "=SCHEMA-{{ $json.base_name.replace(/ /g, '_') }}-{{ $now.toFormat('yyyyMM') }}",
+            "scan_type": "Schema Audit",
+            "table_name": "={{ $json.base_name }}",
+            "total_records": "={{ $json.total_tables }}",
+            "issues_found": "={{ $json.missing_tables.length + $json.unexpected_tables.length }}",
+            "issue_rate_pct": "={{ $json.total_tables > 0 ? Math.round((($json.missing_tables.length + $json.unexpected_tables.length) / $json.total_tables) * 100) : 0 }}",
+            "details": "={{ JSON.stringify({tables: $json.table_audit.map(t => ({name: t.table_name, fields: t.field_count})), missing: $json.missing_tables, unexpected: $json.unexpected_tables}) }}",
+            "scanned_at": "={{ $json.audited_at }}",
+            "status": "={{ $json.drift_detected ? 'Alert' : 'OK' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "8accd644-0ae3-4826-8073-189451867b57",
+      "name": "Write Audit Results",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $('Analyze Schema').item.json.drift_detected }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          }
+        }
+      },
+      "id": "e2777164-bf3e-495e-9cf6-dd4926f46c05",
+      "name": "Drift Detected",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=SCHEMA DRIFT: {{ $('Analyze Schema').item.json.base_name }} - {{ $('Analyze Schema').item.json.missing_tables.length }} missing, {{ $('Analyze Schema').item.json.unexpected_tables.length }} unexpected",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#FFA500;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Schema Drift Detected</h2></div>\n<div style=\"padding:20px\">\n<p><b>Base:</b> {{ $('Analyze Schema').item.json.base_name }}</p>\n<p><b>Total Tables:</b> {{ $('Analyze Schema').item.json.total_tables }}</p>\n<h3>Missing Expected Tables</h3>\n<ul>{{ $('Analyze Schema').item.json.missing_tables.map(t => '<li style=\"color:red\">' + t + '</li>').join('') || '<li>None</li>' }}</ul>\n<h3>Unexpected Tables</h3>\n<ul>{{ $('Analyze Schema').item.json.unexpected_tables.map(t => '<li style=\"color:orange\">' + t + '</li>').join('') || '<li>None</li>' }}</ul>\n<h3>Current Tables</h3>\n<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n<tr style=\"background:#FF6D5A;color:white;\"><th>Table</th><th>Fields</th></tr>\n{{ $('Analyze Schema').item.json.table_audit.map(t => '<tr><td>' + t.table_name + '</td><td>' + t.field_count + '</td></tr>').join('') }}\n</table>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Data Curator - Monthly Schema Audit</div>\n</div>",
+        "options": {}
+      },
+      "id": "fc3670fb-6fdf-4948-a6f6-a794ac3fd1be",
+      "name": "Alert Schema Drift",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Bases to Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Bases to Audit": {
+      "main": [
+        [
+          {
+            "node": "Fetch Base Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Base Schema": {
+      "main": [
+        [
+          {
+            "node": "Analyze Schema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Schema": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audit Results": {
+      "main": [
+        [
+          {
+            "node": "Drift Detected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drift Detected": {
+      "main": [
+        [
+          {
+            "node": "Alert Schema Drift",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "data-curator",
+    "schema",
+    "monthly"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_data_curator.py",
+    "built_at": "2026-03-14T19:18:48.886617"
+  }
+}

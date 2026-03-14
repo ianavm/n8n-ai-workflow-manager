@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design A: Bento Grid Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0A0F1C;
+  --purple: #6C63FF;
+  --teal: #00D4AA;
+  --coral: #FF6D5A;
+  --text: #FFFFFF;
+  --muted: #B0B8C8;
+  --dim: #6B7280;
+  --card-bg: rgba(255,255,255,0.05);
+  --card-border: rgba(255,255,255,0.08);
+  --radius: 20px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --sidebar-w: 264px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
+
+/* Sidebar */
+.sidebar{position:fixed;top:0;left:0;bottom:0;width:var(--sidebar-w);background:rgba(0,0,0,0.3);backdrop-filter:blur(40px);border-right:1px solid rgba(255,255,255,0.06);z-index:30;display:flex;flex-direction:column}
+.sidebar-logo{display:flex;align-items:center;gap:10px;padding:20px 16px;border-bottom:1px solid rgba(255,255,255,0.06);font-size:14px;font-weight:700}
+.sidebar-logo .dot{color:var(--teal)}
+.sidebar-logo .sub{color:var(--dim);font-weight:400;margin-left:4px}
+.sidebar nav{flex:1;padding:12px}
+.sidebar nav a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;font-size:13px;font-weight:500;color:var(--dim);text-decoration:none;transition:all 0.2s;margin-bottom:2px}
+.sidebar nav a:hover{color:var(--muted);background:rgba(255,255,255,0.03)}
+.sidebar nav a.active{color:var(--purple);background:rgba(108,99,255,0.12);border-left:3px solid var(--purple);padding-left:9px}
+
+/* Main */
+.main{margin-left:var(--sidebar-w);padding:32px}
+
+/* Section dividers */
+.page-divider{text-align:center;padding:80px 0 40px;position:relative}
+.page-divider h2{font-size:28px;font-weight:700;background:linear-gradient(135deg,var(--purple),var(--teal));-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:inline-block}
+.page-divider p{color:var(--dim);font-size:14px;margin-top:8px}
+.page-divider::before{content:'';position:absolute;top:40px;left:50%;transform:translateX(-50%);width:120px;height:2px;background:linear-gradient(90deg,var(--purple),var(--teal))}
+
+/* Bento Grid */
+.bento{display:grid;grid-template-columns:repeat(6,1fr);gap:20px;max-width:1200px}
+
+/* Floating Card */
+.fcard{background:var(--card-bg);backdrop-filter:blur(30px);border:1px solid var(--card-border);border-radius:var(--radius);box-shadow:0 2px 8px rgba(0,0,0,0.2),0 16px 48px rgba(0,0,0,0.15);transition:all 0.4s var(--ease);position:relative;overflow:hidden;padding:24px}
+.fcard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(135deg,var(--purple),var(--teal));border-radius:20px 20px 0 0;opacity:0;transition:opacity 0.4s var(--ease)}
+.fcard:hover{background:rgba(255,255,255,0.08);border-color:rgba(0,212,170,0.3);box-shadow:0 0 30px rgba(108,99,255,0.15),0 16px 48px rgba(0,0,0,0.25);transform:translateY(-4px) scale(1.02)}
+.fcard:hover::before{opacity:1}
+
+/* Glass Card */
+.gcard{background:var(--card-bg);backdrop-filter:blur(20px);border:1px solid var(--card-border);border-radius:16px;padding:24px;transition:all 0.4s var(--ease);position:relative;overflow:hidden}
+.gcard::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--purple),var(--teal));opacity:0;transition:opacity 0.4s var(--ease)}
+.gcard:hover{background:rgba(255,255,255,0.08);border-color:rgba(108,99,255,0.4);box-shadow:0 0 30px rgba(108,99,255,0.3);transform:translateY(-4px)}
+.gcard:hover::before{opacity:1}
+
+/* Gradient border card */
+.grad-border{position:relative;border-radius:18px;padding:2px;background:linear-gradient(135deg,rgba(108,99,255,0.25),rgba(0,212,170,0.15));overflow:hidden}
+.grad-border-inner{border-radius:16px;background:rgba(10,15,28,0.95);backdrop-filter:blur(20px);padding:32px;position:relative;overflow:hidden}
+
+/* Welcome Banner */
+.welcome{position:relative;overflow:hidden}
+.welcome .blob{position:absolute;border-radius:50%;filter:blur(100px);pointer-events:none}
+.blob-purple{width:300px;height:300px;background:var(--purple);opacity:0.15;top:-80px;right:80px;animation:blobFloat1 12s ease-in-out infinite}
+.blob-teal{width:250px;height:250px;background:var(--teal);opacity:0.12;bottom:-60px;right:200px;animation:blobFloat2 14s ease-in-out infinite}
+
+@keyframes blobFloat1{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(30px,-20px) scale(1.05)}50%{transform:translate(-20px,30px) scale(0.95)}75%{transform:translate(20px,10px) scale(1.02)}}
+@keyframes blobFloat2{0%,100%{transform:translate(0,0) scale(1)}25%{transform:translate(-30px,20px) scale(0.95)}50%{transform:translate(20px,-30px) scale(1.05)}75%{transform:translate(-10px,-20px) scale(0.98)}}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes pulseDot{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.4)}50%{box-shadow:0 0 0 6px rgba(16,185,129,0)}}
+
+.animate{animation:fadeInUp 0.5s var(--ease) both}
+.s1{animation-delay:0.1s}.s2{animation-delay:0.2s}.s3{animation-delay:0.3s}.s4{animation-delay:0.4s}.s5{animation-delay:0.5s}
+
+/* Stat card */
+.stat-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:20px}
+.stat-icon.purple{background:rgba(108,99,255,0.1);color:var(--purple)}
+.stat-icon.teal{background:rgba(0,212,170,0.1);color:var(--teal)}
+.stat-icon.red{background:rgba(239,68,68,0.1);color:#EF4444}
+.stat-icon.coral{background:rgba(255,109,90,0.1);color:var(--coral)}
+
+.stat-num{font-size:32px;font-weight:700;line-height:1;margin-bottom:6px;background:linear-gradient(90deg,rgba(255,255,255,0.6),rgba(255,255,255,1),rgba(255,255,255,0.6));background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 2s ease-in-out}
+.stat-label{font-size:13px;color:var(--muted)}
+.stat-badge{display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600}
+.stat-badge.up{background:rgba(16,185,129,0.12);color:#10B981}
+.stat-badge.down{background:rgba(239,68,68,0.12);color:#EF4444}
+
+/* Compact stat */
+.stat-compact .stat-icon{width:36px;height:36px;font-size:16px;margin-bottom:12px}
+.stat-compact .stat-num{font-size:24px}
+.stat-compact .stat-label{font-size:11px}
+
+/* Avatar */
+.avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:white;flex-shrink:0;background:linear-gradient(135deg,var(--purple),var(--teal))}
+.avatar-sm{width:44px;height:44px;font-size:14px}
+.avatar-lg{width:64px;height:64px;font-size:22px}
+.avatar-xl{width:96px;height:96px;font-size:28px}
+
+/* Health bar */
+.health-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:13px}
+.health-bar{height:4px;border-radius:2px;background:rgba(255,255,255,0.06);flex:1;margin:0 12px;overflow:hidden}
+.health-fill{height:100%;border-radius:2px;background:var(--teal);transition:width 1s var(--ease)}
+
+/* Pulse dot */
+.pulse-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:8px}
+.pulse-dot.green{background:#10B981;animation:pulseDot 2s ease-in-out infinite}
+.pulse-dot.red{background:#EF4444}
+.pulse-dot.amber{background:#F59E0B}
+.pulse-dot.gray{background:var(--dim)}
+
+/* Activity */
+.act-item{display:flex;align-items:center;gap:12px;padding:8px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04)}
+.act-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.act-time{color:var(--dim);font-size:11px;min-width:40px}
+
+/* Filter pills */
+.pills{display:flex;gap:8px;margin-bottom:24px}
+.pill{padding:6px 16px;border-radius:20px;font-size:13px;font-weight:500;border:1px solid var(--card-border);background:transparent;color:var(--dim);cursor:pointer;transition:all 0.3s;font-family:inherit}
+.pill:hover{background:rgba(255,255,255,0.03)}
+.pill.active{background:rgba(108,99,255,0.12);color:var(--purple);border-color:rgba(108,99,255,0.3)}
+
+/* Client card grid */
+.client-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px}
+
+/* Mini metric */
+.mini-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+.mini-metric .val{font-size:18px;font-weight:700;color:var(--text)}
+.mini-metric .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;margin-top:2px}
+.mini-bar{height:4px;border-radius:2px;background:rgba(255,255,255,0.06);margin-top:6px;overflow:hidden}
+.mini-bar-fill{height:100%;border-radius:2px}
+
+/* Gradient divider */
+.gdiv{height:1px;background:linear-gradient(90deg,var(--purple),var(--teal));margin:16px 0;opacity:0.3}
+
+/* Badge */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-success{background:rgba(16,185,129,0.12);color:#10B981}
+.badge-danger{background:rgba(239,68,68,0.12);color:#EF4444}
+.badge-warning{background:rgba(245,158,11,0.12);color:#F59E0B}
+
+/* Workflow list */
+.wf-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.03);font-size:13px;margin-bottom:8px}
+.wf-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.wf-name{flex:1;color:var(--muted)}
+.wf-status{font-size:11px;font-weight:600}
+
+/* Timeline notes */
+.timeline{position:relative;padding-left:24px}
+.timeline::before{content:'';position:absolute;left:4px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--purple),var(--teal))}
+.timeline-item{position:relative;margin-bottom:20px}
+.timeline-item::before{content:'';position:absolute;left:-24px;top:4px;width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--teal));box-shadow:0 0 12px rgba(108,99,255,0.3)}
+.timeline-note{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:14px;transition:transform 0.3s var(--ease)}
+.timeline-note:hover{transform:translateX(4px)}
+.timeline-date{font-size:12px;color:var(--dim);margin-bottom:6px}
+.timeline-text{font-size:13px;color:var(--muted)}
+
+/* Date range */
+.date-pills{display:flex;gap:4px}
+.date-pill{padding:4px 12px;border-radius:8px;font-size:12px;font-weight:500;border:none;background:transparent;color:var(--dim);cursor:pointer;font-family:inherit;transition:all 0.2s}
+.date-pill.active{background:rgba(108,99,255,0.15);color:var(--purple)}
+
+/* SVG Chart placeholder */
+.chart-area{width:100%;height:160px;position:relative}
+.chart-area.tall{height:240px}
+.chart-area svg{width:100%;height:100%}
+
+/* Cols */
+.col-span-1{grid-column:span 1}.col-span-2{grid-column:span 2}.col-span-3{grid-column:span 3}
+.col-span-4{grid-column:span 4}.col-span-6{grid-column:span 6}
+.row-span-2{grid-row:span 2}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-logo">AnyVision<span class="dot">.</span><span class="sub">Admin</span></div>
+  <nav>
+    <a href="#overview" class="active">&#9632; Overview</a>
+    <a href="#">&#9671; AI Agents</a>
+    <a href="#clients">&#9673; Clients</a>
+    <a href="#">&#9675; Support</a>
+    <a href="#">&#9651; Analytics</a>
+    <a href="#">&#9881; Management</a>
+    <a href="#">&#9776; Activity Log</a>
+  </nav>
+</div>
+
+<div class="main">
+
+<!-- ==================== SECTION 1: OVERVIEW ==================== -->
+<div class="page-divider" id="overview">
+  <h2>Section 1: Admin Overview</h2>
+  <p>Bento Grid Dashboard Layout</p>
+</div>
+
+<div class="bento">
+  <!-- Welcome Banner (4-col) -->
+  <div class="col-span-4 animate s1">
+    <div class="grad-border">
+      <div class="grad-border-inner welcome">
+        <div class="blob blob-purple"></div>
+        <div class="blob blob-teal"></div>
+        <div style="position:relative;z-index:1">
+          <h1 style="font-size:24px;font-weight:700;margin-bottom:4px">Good morning, Ian</h1>
+          <p style="font-size:14px;color:var(--muted)">Saturday, 14 March 2026</p>
+          <p style="font-size:13px;color:var(--dim);margin-top:12px">3 clients active, 0 critical alerts</p>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <span style="padding:4px 14px;border-radius:20px;font-size:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted)"><span class="pulse-dot green"></span>All Systems Nominal</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Health (2-col) -->
+  <div class="col-span-2 fcard animate s2" style="padding:20px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:16px;color:var(--text)">System Health</div>
+    <div class="health-row"><span class="pulse-dot green"></span>n8n Cloud<div class="health-bar"><div class="health-fill" style="width:99.98%"></div></div><span style="color:var(--teal);font-weight:600">99.98%</span></div>
+    <div class="health-row"><span class="pulse-dot green"></span>Supabase<div class="health-bar"><div class="health-fill" style="width:100%"></div></div><span style="color:var(--teal);font-weight:600">100%</span></div>
+    <div class="health-row"><span class="pulse-dot green"></span>Airtable<div class="health-bar"><div class="health-fill" style="width:99.91%"></div></div><span style="color:var(--teal);font-weight:600">99.91%</span></div>
+    <div class="health-row"><span class="pulse-dot green"></span>Xero<div class="health-bar"><div class="health-fill" style="width:100%"></div></div><span style="color:var(--teal);font-weight:600">Active</span></div>
+    <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--dim)">Overall: <span style="color:var(--teal);font-weight:700">99.4%</span></div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="col-span-2 fcard animate s1">
+    <div class="stat-icon purple">&#128101;</div>
+    <div class="stat-num">12</div>
+    <div class="stat-label">Total Clients</div>
+    <div class="stat-badge up">&#8599; +14%</div>
+  </div>
+  <div class="col-span-2 fcard animate s2">
+    <div class="stat-icon teal">&#10003;</div>
+    <div class="stat-num">8</div>
+    <div class="stat-label">Active Clients</div>
+    <div class="stat-badge up">&#8599; +8%</div>
+  </div>
+  <!-- Hero stat: double height -->
+  <div class="col-span-2 row-span-2 fcard animate s3" style="display:flex;flex-direction:column;justify-content:space-between">
+    <div>
+      <div class="stat-icon purple">&#9993;</div>
+      <div class="stat-num" style="font-size:40px">2,847</div>
+      <div class="stat-label">Total Messages</div>
+      <div class="stat-badge up">&#8599; +23%</div>
+    </div>
+    <div class="chart-area" style="height:80px;margin-top:16px">
+      <svg viewBox="0 0 200 60" preserveAspectRatio="none">
+        <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6C63FF" stop-opacity="0.3"/><stop offset="100%" stop-color="#6C63FF" stop-opacity="0"/></linearGradient></defs>
+        <path d="M0,45 Q25,35 50,40 T100,30 T150,35 T200,20 V60 H0 Z" fill="url(#g1)"/>
+        <path d="M0,45 Q25,35 50,40 T100,30 T150,35 T200,20" fill="none" stroke="#6C63FF" stroke-width="2"/>
+      </svg>
+    </div>
+  </div>
+  <div class="col-span-2 fcard animate s4">
+    <div class="stat-icon teal">&#128100;</div>
+    <div class="stat-num">342</div>
+    <div class="stat-label">Total Leads</div>
+    <div class="stat-badge up">&#8599; +45%</div>
+  </div>
+  <div class="col-span-2 fcard animate s5">
+    <div class="stat-icon red">&#9888;</div>
+    <div class="stat-num">3</div>
+    <div class="stat-label">Total Crashes</div>
+    <div class="stat-badge down">&#8600; -2</div>
+  </div>
+
+  <!-- Activity Feed (4-col) -->
+  <div class="col-span-4 gcard animate s1">
+    <div style="font-size:14px;font-weight:600;margin-bottom:16px">Recent Activity</div>
+    <div class="act-item"><div class="act-dot" style="background:var(--teal)"></div><span style="flex:1;color:var(--muted)">Acme Corp logged in</span><span class="act-time">2m ago</span></div>
+    <div class="act-item"><div class="act-dot" style="background:var(--purple)"></div><span style="flex:1;color:var(--muted)">NewCo sent 12 messages</span><span class="act-time">15m ago</span></div>
+    <div class="act-item"><div class="act-dot" style="background:var(--coral)"></div><span style="flex:1;color:var(--muted)">BigBiz WF-03 crashed</span><span class="act-time">1h ago</span></div>
+    <div class="act-item"><div class="act-dot" style="background:#F59E0B"></div><span style="flex:1;color:var(--muted)">StartupX created 5 leads</span><span class="act-time">2h ago</span></div>
+    <div class="act-item" style="border:none"><div class="act-dot" style="background:var(--purple)"></div><span style="flex:1;color:var(--muted)">DevHouse came online</span><span class="act-time">3h ago</span></div>
+    <div style="margin-top:12px"><a href="#" style="font-size:12px;color:var(--purple);text-decoration:none">Show all activity &rarr;</a></div>
+  </div>
+
+  <!-- Flagged (2-col) -->
+  <div class="col-span-2 gcard animate s2" style="border-left:3px solid #EF4444">
+    <div style="font-size:14px;font-weight:600;color:#EF4444;margin-bottom:16px">Needs Attention</div>
+    <div style="padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.1);display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:13px">BigBiz Inc</span><span style="font-size:13px;color:#EF4444;font-weight:600">3 crashes</span></div>
+    <div style="padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.1);display:flex;justify-content:space-between"><span style="font-size:13px">OldCorp</span><span style="font-size:13px;color:#EF4444;font-weight:600">1 crash</span></div>
+    <div style="margin-top:12px"><a href="#" style="font-size:12px;color:var(--purple);text-decoration:none">View all &rarr;</a></div>
+  </div>
+</div>
+
+<!-- ==================== SECTION 2: CLIENT LIST ==================== -->
+<div class="page-divider" id="clients">
+  <h2>Section 2: Client List</h2>
+  <p>Card Grid with Filter Pills</p>
+</div>
+
+<div style="max-width:1200px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+    <div>
+      <h1 style="font-size:28px;font-weight:700">All <span style="background:linear-gradient(135deg,var(--purple),var(--teal));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Clients</span></h1>
+      <p style="font-size:14px;color:var(--muted);margin-top:4px">12 clients registered</p>
+    </div>
+    <div style="position:relative"><input type="text" placeholder="Search clients..." style="background:rgba(255,255,255,0.04);border:1px solid var(--card-border);border-radius:10px;padding:10px 16px 10px 36px;color:white;font-size:13px;width:240px;outline:none;font-family:inherit"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--dim);font-size:14px">&#128269;</span></div>
+  </div>
+
+  <div class="pills">
+    <button class="pill active">All (12)</button>
+    <button class="pill">Active (8)</button>
+    <button class="pill">Suspended (2)</button>
+    <button class="pill">Pending (1)</button>
+  </div>
+
+  <div class="client-grid">
+    <!-- Client cards -->
+    <div class="fcard animate s1" style="cursor:pointer">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div class="avatar avatar-sm">JS</div><div><div style="font-size:14px;font-weight:600">John Smith</div><div style="font-size:12px;color:var(--dim)">john@acme.co</div><div style="font-size:12px;color:var(--dim)">Acme Corp</div></div><div style="margin-left:auto"><span class="badge badge-success">active</span></div></div>
+      <div class="gdiv"></div>
+      <div class="mini-metrics"><div class="mini-metric"><div class="val">5</div><div class="lbl">Workflows</div><div class="mini-bar"><div class="mini-bar-fill" style="width:60%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">342</div><div class="lbl">Messages</div><div class="mini-bar"><div class="mini-bar-fill" style="width:80%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">45</div><div class="lbl">Leads</div><div class="mini-bar"><div class="mini-bar-fill" style="width:45%;background:var(--teal)"></div></div></div><div class="mini-metric"><div class="val">0</div><div class="lbl">Crashes</div><div class="mini-bar"><div class="mini-bar-fill" style="width:0%;background:#EF4444"></div></div></div></div>
+      <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:var(--dim)">Last: 2h ago</span><a href="#detail" style="font-size:12px;color:var(--purple);text-decoration:none">View Details &rarr;</a></div>
+    </div>
+
+    <div class="fcard animate s2" style="cursor:pointer">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div class="avatar avatar-sm">SC</div><div><div style="font-size:14px;font-weight:600">Sarah Chen</div><div style="font-size:12px;color:var(--dim)">sarah@techflow.io</div><div style="font-size:12px;color:var(--dim)">TechFlow</div></div><div style="margin-left:auto"><span class="badge badge-success">active</span></div></div>
+      <div class="gdiv"></div>
+      <div class="mini-metrics"><div class="mini-metric"><div class="val">3</div><div class="lbl">Workflows</div><div class="mini-bar"><div class="mini-bar-fill" style="width:36%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">128</div><div class="lbl">Messages</div><div class="mini-bar"><div class="mini-bar-fill" style="width:30%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">12</div><div class="lbl">Leads</div><div class="mini-bar"><div class="mini-bar-fill" style="width:12%;background:var(--teal)"></div></div></div><div class="mini-metric"><div class="val">1</div><div class="lbl">Crashes</div><div class="mini-bar"><div class="mini-bar-fill" style="width:10%;background:#EF4444"></div></div></div></div>
+      <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:var(--dim)">Last: 1d ago</span><a href="#detail" style="font-size:12px;color:var(--purple);text-decoration:none">View Details &rarr;</a></div>
+    </div>
+
+    <div class="fcard animate s3" style="cursor:pointer;border-left:3px solid rgba(239,68,68,0.5)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div class="avatar avatar-sm">BW</div><div><div style="font-size:14px;font-weight:600">Brian Wilson</div><div style="font-size:12px;color:var(--dim)">brian@bigbiz.co.za</div><div style="font-size:12px;color:var(--dim)">BigBiz Inc</div></div><div style="margin-left:auto"><span class="badge badge-warning">suspended</span></div></div>
+      <div class="gdiv"></div>
+      <div class="mini-metrics"><div class="mini-metric"><div class="val">7</div><div class="lbl">Workflows</div><div class="mini-bar"><div class="mini-bar-fill" style="width:85%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">456</div><div class="lbl">Messages</div><div class="mini-bar"><div class="mini-bar-fill" style="width:100%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">78</div><div class="lbl">Leads</div><div class="mini-bar"><div class="mini-bar-fill" style="width:78%;background:var(--teal)"></div></div></div><div class="mini-metric"><div class="val" style="color:#EF4444">3</div><div class="lbl">Crashes</div><div class="mini-bar"><div class="mini-bar-fill" style="width:30%;background:#EF4444"></div></div></div></div>
+      <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:var(--dim)">Last: Never</span><a href="#detail" style="font-size:12px;color:var(--purple);text-decoration:none">View Details &rarr;</a></div>
+    </div>
+
+    <div class="fcard animate s4" style="cursor:pointer">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div class="avatar avatar-sm">MT</div><div><div style="font-size:14px;font-weight:600">Mike Torres</div><div style="font-size:12px;color:var(--dim)">mike@buildright.com</div><div style="font-size:12px;color:var(--dim)">BuildRight</div></div><div style="margin-left:auto"><span class="badge badge-success">active</span></div></div>
+      <div class="gdiv"></div>
+      <div class="mini-metrics"><div class="mini-metric"><div class="val">4</div><div class="lbl">Workflows</div><div class="mini-bar"><div class="mini-bar-fill" style="width:48%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">201</div><div class="lbl">Messages</div><div class="mini-bar"><div class="mini-bar-fill" style="width:47%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">31</div><div class="lbl">Leads</div><div class="mini-bar"><div class="mini-bar-fill" style="width:31%;background:var(--teal)"></div></div></div><div class="mini-metric"><div class="val">0</div><div class="lbl">Crashes</div><div class="mini-bar"><div class="mini-bar-fill" style="width:0%;background:#EF4444"></div></div></div></div>
+      <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:var(--dim)">Last: 5h ago</span><a href="#detail" style="font-size:12px;color:var(--purple);text-decoration:none">View Details &rarr;</a></div>
+    </div>
+
+    <div class="fcard animate s5" style="cursor:pointer">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div class="avatar avatar-sm">AP</div><div><div style="font-size:14px;font-weight:600">Ana Petrova</div><div style="font-size:12px;color:var(--dim)">ana@meridian.co.za</div><div style="font-size:12px;color:var(--dim)">Meridian</div></div><div style="margin-left:auto"><span class="badge badge-success">active</span></div></div>
+      <div class="gdiv"></div>
+      <div class="mini-metrics"><div class="mini-metric"><div class="val">6</div><div class="lbl">Workflows</div><div class="mini-bar"><div class="mini-bar-fill" style="width:72%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">567</div><div class="lbl">Messages</div><div class="mini-bar"><div class="mini-bar-fill" style="width:100%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">52</div><div class="lbl">Leads</div><div class="mini-bar"><div class="mini-bar-fill" style="width:52%;background:var(--teal)"></div></div></div><div class="mini-metric"><div class="val">0</div><div class="lbl">Crashes</div><div class="mini-bar"><div class="mini-bar-fill" style="width:0%;background:#EF4444"></div></div></div></div>
+      <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:var(--dim)">Last: 12m ago</span><a href="#detail" style="font-size:12px;color:var(--purple);text-decoration:none">View Details &rarr;</a></div>
+    </div>
+
+    <div class="fcard animate s1" style="cursor:pointer">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div class="avatar avatar-sm">EB</div><div><div style="font-size:14px;font-weight:600">Emma Brown</div><div style="font-size:12px;color:var(--dim)">emma@brightai.com</div><div style="font-size:12px;color:var(--dim)">BrightAI</div></div><div style="margin-left:auto"><span class="badge badge-danger">suspended</span></div></div>
+      <div class="gdiv"></div>
+      <div class="mini-metrics"><div class="mini-metric"><div class="val">1</div><div class="lbl">Workflows</div><div class="mini-bar"><div class="mini-bar-fill" style="width:12%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">23</div><div class="lbl">Messages</div><div class="mini-bar"><div class="mini-bar-fill" style="width:5%;background:var(--purple)"></div></div></div><div class="mini-metric"><div class="val">1</div><div class="lbl">Leads</div><div class="mini-bar"><div class="mini-bar-fill" style="width:1%;background:var(--teal)"></div></div></div><div class="mini-metric"><div class="val">0</div><div class="lbl">Crashes</div><div class="mini-bar"><div class="mini-bar-fill" style="width:0%;background:#EF4444"></div></div></div></div>
+      <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:var(--dim)">Last: 3mo ago</span><a href="#detail" style="font-size:12px;color:var(--purple);text-decoration:none">View Details &rarr;</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SECTION 3: CLIENT DETAIL ==================== -->
+<div class="page-divider" id="detail">
+  <h2>Section 3: Client Detail</h2>
+  <p>Bento Grid with Hero Profile + Asymmetric Stats</p>
+</div>
+
+<div class="bento" style="max-width:1200px">
+  <!-- Hero Profile (full width) -->
+  <div class="col-span-6 animate s1">
+    <div class="grad-border">
+      <div class="grad-border-inner welcome">
+        <div class="blob blob-purple"></div>
+        <div class="blob blob-teal"></div>
+        <div style="position:relative;z-index:1">
+          <a href="#clients" style="font-size:12px;color:var(--purple);text-decoration:none;margin-bottom:12px;display:inline-block">&larr; All Clients</a>
+          <div style="display:flex;align-items:center;gap:20px">
+            <div class="avatar avatar-lg">SJ</div>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:12px"><h1 style="font-size:24px;font-weight:700">Sarah Johnson</h1><span class="badge badge-success">active</span></div>
+              <div style="font-size:14px;color:var(--muted);margin-top:4px">sarah@acme.co <span style="color:var(--dim)">|</span> Acme Corp</div>
+              <div style="font-size:12px;color:var(--dim);margin-top:4px">Member since Mar 2025</div>
+            </div>
+            <div style="text-align:right">
+              <div class="date-pills" style="margin-bottom:8px"><button class="date-pill">7d</button><button class="date-pill active">30d</button><button class="date-pill">90d</button></div>
+              <div style="font-size:11px;color:var(--dim)">API Key: <code style="color:var(--muted);background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px;font-size:10px">avm_sk_7f3d...x91k</code></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats: 2+2+1+1 -->
+  <div class="col-span-2 fcard animate s1">
+    <div class="stat-icon teal">&#9993;</div>
+    <div class="stat-num">847</div>
+    <div class="stat-label">Messages Received</div>
+    <div class="stat-badge up">&#8599; +12%</div>
+  </div>
+  <div class="col-span-2 fcard animate s2">
+    <div class="stat-icon purple">&#10148;</div>
+    <div class="stat-num">623</div>
+    <div class="stat-label">Messages Sent</div>
+    <div class="stat-badge up">&#8599; +8%</div>
+  </div>
+  <div class="col-span-1 fcard animate s3 stat-compact">
+    <div class="stat-icon teal">&#128100;</div>
+    <div class="stat-num">142</div>
+    <div class="stat-label">Leads</div>
+    <div class="stat-badge up" style="font-size:10px">+24%</div>
+  </div>
+  <div class="col-span-1 fcard animate s4 stat-compact">
+    <div class="stat-icon red">&#9888;</div>
+    <div class="stat-num">3</div>
+    <div class="stat-label">Crashes</div>
+    <div class="stat-badge down" style="font-size:10px">-67%</div>
+  </div>
+
+  <!-- Charts: Recv (3-col, 2-row tall) + Sent (3-col) + Uptime (3-col) -->
+  <div class="col-span-3 row-span-2 gcard animate s1">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:14px;font-weight:600">Messages Received</div>
+      <div class="date-pills"><button class="date-pill active">D</button><button class="date-pill">W</button><button class="date-pill">M</button></div>
+    </div>
+    <div class="chart-area tall">
+      <svg viewBox="0 0 300 180" preserveAspectRatio="none">
+        <defs><linearGradient id="g2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#00D4AA" stop-opacity="0.3"/><stop offset="100%" stop-color="#00D4AA" stop-opacity="0"/></linearGradient></defs>
+        <path d="M0,140 Q30,120 60,130 T120,100 T180,110 T240,80 T300,60 V180 H0 Z" fill="url(#g2)"/>
+        <path d="M0,140 Q30,120 60,130 T120,100 T180,110 T240,80 T300,60" fill="none" stroke="#00D4AA" stroke-width="2.5"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="col-span-3 gcard animate s2">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:14px;font-weight:600">Messages Sent</div>
+      <div class="date-pills"><button class="date-pill active">D</button><button class="date-pill">W</button><button class="date-pill">M</button></div>
+    </div>
+    <div class="chart-area">
+      <svg viewBox="0 0 300 120" preserveAspectRatio="none">
+        <defs><linearGradient id="g3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#6C63FF" stop-opacity="0.3"/><stop offset="100%" stop-color="#6C63FF" stop-opacity="0"/></linearGradient></defs>
+        <path d="M0,90 Q30,80 60,85 T120,70 T180,75 T240,55 T300,45 V120 H0 Z" fill="url(#g3)"/>
+        <path d="M0,90 Q30,80 60,85 T120,70 T180,75 T240,55 T300,45" fill="none" stroke="#6C63FF" stroke-width="2.5"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Uptime Gauge -->
+  <div class="col-span-3 gcard animate s3" style="text-align:center">
+    <div style="font-size:14px;font-weight:600;margin-bottom:16px;text-align:left">Uptime / Success Rate</div>
+    <svg width="140" height="140" viewBox="0 0 140 140" style="margin:0 auto;display:block">
+      <defs><linearGradient id="gg" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#00D4AA"/><stop offset="100%" stop-color="#6C63FF"/></linearGradient></defs>
+      <circle cx="70" cy="70" r="58" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10"/>
+      <circle cx="70" cy="70" r="58" fill="none" stroke="url(#gg)" stroke-width="10" stroke-dasharray="361" stroke-dashoffset="3" stroke-linecap="round" transform="rotate(-90 70 70)" style="filter:drop-shadow(0 0 8px rgba(0,212,170,0.3))"/>
+      <text x="70" y="66" text-anchor="middle" fill="white" font-size="28" font-weight="700" font-family="Inter">99.2</text>
+      <text x="70" y="84" text-anchor="middle" fill="#6B7280" font-size="11" font-family="Inter">percent</text>
+    </svg>
+    <div style="display:flex;justify-content:center;gap:24px;margin-top:16px;font-size:12px">
+      <div><span style="color:var(--dim)">Total</span> <span style="font-weight:600">1,247</span></div>
+      <div><span style="color:var(--teal)">Successful</span> <span style="font-weight:600">1,237</span></div>
+      <div><span style="color:#EF4444">Failed</span> <span style="font-weight:600">10</span></div>
+    </div>
+  </div>
+
+  <!-- Bottom row: Leads + Workflows + Agents -->
+  <div class="col-span-2 gcard animate s1">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:14px;font-weight:600">Leads Created</div>
+      <div class="date-pills"><button class="date-pill active">D</button><button class="date-pill">W</button><button class="date-pill">M</button></div>
+    </div>
+    <div class="chart-area" style="height:120px">
+      <svg viewBox="0 0 200 80" preserveAspectRatio="none">
+        <defs><linearGradient id="g4" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#00D4AA" stop-opacity="0.25"/><stop offset="100%" stop-color="#00D4AA" stop-opacity="0"/></linearGradient></defs>
+        <path d="M0,60 Q25,50 50,55 T100,40 T150,45 T200,30 V80 H0 Z" fill="url(#g4)"/>
+        <path d="M0,60 Q25,50 50,55 T100,40 T150,45 T200,30" fill="none" stroke="#00D4AA" stroke-width="2"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="col-span-2 gcard animate s2">
+    <div style="font-size:14px;font-weight:600;margin-bottom:16px">Workflows (5)</div>
+    <div class="wf-item"><div class="wf-dot" style="background:#10B981"></div><span class="wf-name">Lead Qualifier</span><span class="wf-status" style="color:#10B981">active</span></div>
+    <div class="wf-item"><div class="wf-dot" style="background:#10B981"></div><span class="wf-name">Email Classifier</span><span class="wf-status" style="color:#10B981">active</span></div>
+    <div class="wf-item"><div class="wf-dot" style="background:#F59E0B"></div><span class="wf-name">WhatsApp Bot</span><span class="wf-status" style="color:#F59E0B">paused</span></div>
+    <div class="wf-item"><div class="wf-dot" style="background:#10B981"></div><span class="wf-name">CRM Sync</span><span class="wf-status" style="color:#10B981">active</span></div>
+    <div class="wf-item"><div class="wf-dot" style="background:#EF4444"></div><span class="wf-name">Report Gen</span><span class="wf-status" style="color:#EF4444">error</span></div>
+  </div>
+
+  <div class="col-span-2 gcard animate s3">
+    <div style="font-size:14px;font-weight:600;margin-bottom:16px">AI Agents (2)</div>
+    <div style="padding:12px;border-radius:10px;background:rgba(255,255,255,0.03);margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="pulse-dot green"></span><span style="font-size:13px;font-weight:600">Sales Agent</span><span class="badge badge-success" style="margin-left:auto;font-size:10px">Online</span></div>
+      <div style="font-size:11px;color:var(--dim)">08:00 - 17:00 &bull; Auto mode</div>
+    </div>
+    <div style="padding:12px;border-radius:10px;background:rgba(255,255,255,0.03)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="pulse-dot gray"></span><span style="font-size:13px;font-weight:600">Support Agent</span><span class="badge badge-danger" style="margin-left:auto;font-size:10px">Offline</span></div>
+      <div style="font-size:11px;color:var(--dim)">09:00 - 18:00 &bull; Manual: DNT</div>
+    </div>
+  </div>
+
+  <!-- Notes (full width, gradient border) -->
+  <div class="col-span-6 animate s1">
+    <div class="grad-border">
+      <div class="grad-border-inner">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div style="font-size:14px;font-weight:600">Internal Notes</div>
+          <button style="background:transparent;border:1px solid var(--card-border);color:var(--muted);padding:6px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit">+ Add Note</button>
+        </div>
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="timeline-note">
+              <div class="timeline-date">Mar 14, 2026 at 2:30 PM</div>
+              <div class="timeline-text">Client requested API rate limit increase for their lead qualifier workflow. Approved 500 req/min.</div>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-note">
+              <div class="timeline-date">Mar 10, 2026 at 10:00 AM</div>
+              <div class="timeline-text">Onboarding call completed. 5 workflows set up and activated. Client very satisfied with initial setup.</div>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-note">
+              <div class="timeline-date">Mar 1, 2026 at 9:15 AM</div>
+              <div class="timeline-text">Initial meeting. Needs invoicing, lead qualification, and email classification. Budget approved for Pro plan.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="height:100px"></div>
+</div>
+
+</body>
+</html>

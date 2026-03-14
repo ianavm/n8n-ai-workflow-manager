@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AnyVision Media — Floating Panels Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset ── */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 16px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #0A0F1C;
+    color: #FFFFFF;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Design Tokens ── */
+  :root {
+    --bg: #0A0F1C;
+    --purple: #6C63FF;
+    --teal: #00D4AA;
+    --coral: #FF6D5A;
+    --white: #FFFFFF;
+    --muted: #B0B8C8;
+    --dim: #6B7280;
+    --card-bg: rgba(255,255,255,0.05);
+    --card-border: rgba(255,255,255,0.08);
+    --sidebar-w-collapsed: 72px;
+    --sidebar-w-expanded: 240px;
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeInRight {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes countUp { from { opacity: 0.4; } to { opacity: 1; } }
+  @keyframes gaugeArc {
+    from { stroke-dashoffset: 408; }
+  }
+  @keyframes pulseGlow {
+    0%, 100% { filter: drop-shadow(0 0 8px rgba(0,212,170,0.3)); }
+    50%      { filter: drop-shadow(0 0 16px rgba(0,212,170,0.5)); }
+  }
+
+  /* ── View Toggle Bar ── */
+  .view-toggle-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    height: 44px;
+    background: rgba(10,15,28,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .view-toggle-bar span { font-size: 13px; color: var(--dim); font-weight: 500; margin-right: 12px; }
+  .view-toggle-bar button {
+    background: none; border: 1px solid rgba(255,255,255,0.1); color: var(--muted);
+    padding: 4px 16px; font-size: 13px; font-family: inherit; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .view-toggle-bar button:first-of-type { border-radius: 6px 0 0 6px; }
+  .view-toggle-bar button:last-of-type  { border-radius: 0 6px 6px 0; border-left: none; }
+  .view-toggle-bar button.active {
+    background: linear-gradient(135deg, var(--purple), var(--teal));
+    border-color: transparent; color: #fff; font-weight: 600;
+  }
+
+  /* ── Sidebar / Icon Rail ── */
+  .sidebar {
+    position: fixed; top: 44px; left: 0; bottom: 0;
+    width: var(--sidebar-w-collapsed);
+    background: rgba(10,15,28,0.95);
+    backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    z-index: 900;
+    display: flex; flex-direction: column; align-items: center;
+    padding-top: 20px;
+    transition: width 300ms cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+  }
+  .sidebar:hover { width: var(--sidebar-w-expanded); }
+  .sidebar:hover .nav-label { opacity: 1; transform: translateX(0); }
+  .sidebar:hover .logo-text  { opacity: 1; transform: translateX(0); }
+  .sidebar:hover .nav-item .tooltip { display: none !important; }
+
+  /* Logo */
+  .logo-area {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; padding: 0 14px; margin-bottom: 32px;
+    min-height: 44px; flex-shrink: 0;
+  }
+  .logo-mark {
+    width: 44px; height: 44px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo-mark svg { width: 32px; height: 32px; }
+  .logo-text {
+    font-size: 14px; font-weight: 700; letter-spacing: 2px; color: var(--white);
+    white-space: nowrap;
+    opacity: 0; transform: translateX(-8px);
+    transition: opacity 250ms 80ms, transform 250ms 80ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Nav Items */
+  .nav-list { list-style: none; width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 0 14px; }
+  .nav-item {
+    position: relative;
+    display: flex; align-items: center; gap: 14px;
+    width: 100%; height: 44px;
+    padding: 0 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.04); }
+  .nav-item.active { background: rgba(108,99,255,0.15); }
+  .nav-item .icon-wrap {
+    width: 24px; height: 24px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .nav-item .icon-wrap svg { width: 20px; height: 20px; }
+  .nav-item.active .icon-wrap svg { color: var(--purple); }
+  .nav-item:not(.active) .icon-wrap svg { color: var(--dim); }
+  .nav-label {
+    font-size: 14px; font-weight: 500; color: var(--muted); white-space: nowrap;
+    opacity: 0; transform: translateX(-8px);
+    transition: opacity 200ms 60ms, transform 200ms 60ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .nav-item.active .nav-label { color: var(--white); font-weight: 600; }
+
+  /* Tooltip (only when sidebar collapsed) */
+  .tooltip {
+    display: none;
+    position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+    background: rgba(20,25,40,0.95); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    padding: 6px 12px; font-size: 13px; color: var(--white); white-space: nowrap;
+    pointer-events: none; z-index: 999;
+    animation: fadeInRight 0.15s ease-out;
+  }
+  .sidebar:not(:hover) .nav-item:hover .tooltip { display: block; }
+
+  /* ── Main Content ── */
+  .main {
+    margin-left: var(--sidebar-w-collapsed);
+    margin-top: 44px;
+    padding: 32px;
+    min-height: calc(100vh - 44px);
+    transition: margin-left 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Dashboard header */
+  .dash-header {
+    margin-bottom: 32px;
+    animation: fadeInUp 0.5s ease-out;
+  }
+  .dash-header h1 { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+  .dash-header p  { font-size: 14px; color: var(--muted); font-weight: 400; }
+
+  /* ── Stat Cards — Floating Islands ── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(30px);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s, border-color 0.3s;
+    animation: fadeInUp 0.5s ease-out both;
+  }
+  .stat-card:nth-child(1) { animation-delay: 0.05s; }
+  .stat-card:nth-child(2) { animation-delay: 0.1s; }
+  .stat-card:nth-child(3) { animation-delay: 0.15s; }
+  .stat-card:nth-child(4) { animation-delay: 0.2s; }
+  .stat-card:hover {
+    transform: scale(1.02);
+    border-color: rgba(0,212,170,0.3);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,212,170,0.3), 0 0 24px rgba(0,212,170,0.08);
+  }
+  .stat-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+  }
+  .stat-icon svg { width: 20px; height: 20px; }
+  .stat-icon.purple { background: rgba(108,99,255,0.15); color: var(--purple); }
+  .stat-icon.teal   { background: rgba(0,212,170,0.15);  color: var(--teal); }
+  .stat-icon.coral   { background: rgba(255,109,90,0.15); color: var(--coral); }
+  .stat-label { font-size: 13px; color: var(--dim); font-weight: 500; margin-bottom: 6px; }
+  .stat-value { font-size: 32px; font-weight: 700; line-height: 1; margin-bottom: 8px; }
+  .stat-change { font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px; }
+  .stat-change.up   { color: var(--teal); }
+  .stat-change.down { color: var(--coral); }
+
+  /* ── Gradient Divider ── */
+  .gradient-divider {
+    height: 2px; width: 100%; margin-bottom: 32px;
+    background: linear-gradient(90deg, var(--purple), var(--teal), var(--coral));
+    border-radius: 1px;
+    box-shadow: 0 0 10px rgba(108,99,255,0.2), 0 0 20px rgba(0,212,170,0.1);
+    animation: fadeInUp 0.5s ease-out 0.25s both;
+  }
+
+  /* ── Glass Card ── */
+  .glass-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(30px);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 28px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2), 0 16px 48px rgba(0,0,0,0.3);
+    transition: border-color 0.3s, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    margin-bottom: 32px;
+    animation: fadeInUp 0.5s ease-out 0.3s both;
+  }
+  .glass-card:hover {
+    border-color: rgba(0,212,170,0.2);
+    transform: scale(1.005);
+  }
+
+  /* Card header row */
+  .card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .card-title { font-size: 18px; font-weight: 600; }
+  .legend { display: flex; gap: 20px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .legend-dot.purple { background: var(--purple); }
+  .legend-dot.teal   { background: var(--teal); }
+  .legend-dot.coral  { background: var(--coral); }
+
+  /* Tab pills */
+  .tab-pills {
+    display: inline-flex; gap: 4px;
+    background: rgba(255,255,255,0.04); border-radius: 10px; padding: 4px;
+  }
+  .tab-pill {
+    padding: 6px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    color: var(--muted); cursor: pointer; border: 1px solid transparent;
+    background: transparent; font-family: inherit;
+    transition: all 0.2s;
+  }
+  .tab-pill:hover { color: var(--white); }
+  .tab-pill.active {
+    background: linear-gradient(135deg, var(--purple), var(--teal));
+    color: #fff; border-color: transparent; font-weight: 600;
+  }
+
+  /* SVG chart area */
+  .chart-area { width: 100%; }
+  .chart-area svg { width: 100%; height: auto; display: block; }
+
+  /* ── Tabbed Charts Section ── */
+  .tabbed-section { animation: fadeInUp 0.5s ease-out 0.35s both; }
+  .tab-buttons { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab-btn {
+    padding: 8px 20px; border-radius: 10px; font-size: 14px; font-weight: 500;
+    color: var(--muted); cursor: pointer; border: 1px solid rgba(255,255,255,0.1);
+    background: transparent; font-family: inherit; transition: all 0.2s;
+  }
+  .tab-btn:hover { color: var(--white); border-color: rgba(255,255,255,0.2); }
+  .tab-btn.active {
+    background: linear-gradient(135deg, var(--purple), var(--teal));
+    color: #fff; border-color: transparent; font-weight: 600;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── Uptime Gauge ── */
+  .uptime-section {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 40px 0 20px;
+    animation: fadeInUp 0.5s ease-out 0.4s both;
+  }
+  .gauge-wrap {
+    position: relative; width: 160px; height: 160px;
+    animation: pulseGlow 3s ease-in-out infinite;
+  }
+  .gauge-wrap svg { width: 160px; height: 160px; }
+  .gauge-label {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  .gauge-value { font-size: 32px; font-weight: 700; color: var(--teal); display: block; }
+  .gauge-unit  { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .uptime-text { margin-top: 16px; font-size: 14px; color: var(--dim); font-weight: 400; }
+
+  /* ── Login View ── */
+  .login-view {
+    display: none;
+    position: fixed; top: 44px; left: 0; right: 0; bottom: 0;
+    background: var(--bg);
+    z-index: 800;
+    overflow-y: auto;
+  }
+  .login-view.active { display: flex; align-items: center; justify-content: center; }
+  .login-bg {
+    position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  }
+  .login-orb {
+    position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.35;
+  }
+  .login-orb.teal-orb {
+    width: 500px; height: 500px;
+    background: var(--teal);
+    top: 20%; right: 10%;
+  }
+  .login-orb.purple-orb {
+    width: 350px; height: 350px;
+    background: var(--purple);
+    bottom: 10%; left: 15%;
+  }
+  .login-card {
+    position: relative; z-index: 1;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(30px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 24px;
+    padding: 48px 40px;
+    width: 100%; max-width: 420px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4), 0 0 40px rgba(0,212,170,0.12);
+    animation: fadeInUp 0.6s ease-out;
+  }
+  .login-logo {
+    text-align: center; margin-bottom: 32px;
+  }
+  .login-logo-text {
+    font-size: 22px; font-weight: 700; letter-spacing: 3px;
+    background: linear-gradient(135deg, var(--purple), var(--teal));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .login-logo-sub { font-size: 13px; color: var(--dim); margin-top: 4px; }
+  .login-card h2 {
+    font-size: 22px; font-weight: 600; margin-bottom: 8px; text-align: center;
+  }
+  .login-card p.sub {
+    font-size: 14px; color: var(--muted); text-align: center; margin-bottom: 28px;
+  }
+  .form-group { margin-bottom: 18px; }
+  .form-group label {
+    display: block; font-size: 13px; color: var(--muted); font-weight: 500; margin-bottom: 6px;
+  }
+  .form-group input {
+    width: 100%; padding: 12px 16px; border-radius: 12px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    color: var(--white); font-family: inherit; font-size: 14px;
+    outline: none; transition: border-color 0.2s;
+  }
+  .form-group input::placeholder { color: var(--dim); }
+  .form-group input:focus { border-color: var(--teal); }
+  .login-btn {
+    width: 100%; padding: 14px; border: none; border-radius: 12px;
+    background: linear-gradient(135deg, #FF6D5A, #FF8F7A);
+    color: #fff; font-size: 15px; font-weight: 600; font-family: inherit;
+    cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+    margin-top: 8px;
+  }
+  .login-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(255,109,90,0.3);
+  }
+  .login-footer {
+    text-align: center; margin-top: 20px; font-size: 13px; color: var(--dim);
+  }
+  .login-footer a { color: var(--teal); text-decoration: none; font-weight: 500; }
+
+  /* ── Dashboard View Container ── */
+  .dashboard-view { }
+  .dashboard-view.hidden { display: none; }
+
+  /* ── Mobile Top Header (hidden on desktop) ── */
+  .mobile-header {
+    display: none;
+    position: fixed; top: 44px; left: 0; right: 0; height: 56px;
+    background: rgba(10,15,28,0.95); backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    z-index: 850;
+    align-items: center; justify-content: space-between; padding: 0 20px;
+  }
+  .mobile-header .mobile-logo { font-size: 14px; font-weight: 700; letter-spacing: 2px; }
+  .hamburger {
+    background: none; border: none; cursor: pointer; padding: 4px;
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .hamburger span { display: block; width: 22px; height: 2px; background: var(--muted); border-radius: 1px; }
+  .mobile-nav {
+    display: none;
+    position: fixed; top: 100px; left: 0; right: 0; bottom: 0;
+    background: rgba(10,15,28,0.98); backdrop-filter: blur(20px);
+    z-index: 840; padding: 20px;
+  }
+  .mobile-nav.open { display: block; }
+  .mobile-nav .nav-item { height: 48px; gap: 14px; padding: 0 16px; }
+  .mobile-nav .nav-label { opacity: 1; transform: none; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .mobile-header { display: flex; }
+    .main { margin-left: 0; margin-top: 100px; padding: 20px; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .tab-buttons { flex-wrap: wrap; }
+    .legend { flex-wrap: wrap; gap: 12px; }
+    .login-card { margin: 20px; padding: 32px 24px; }
+  }
+  @media (max-width: 480px) {
+    .stat-grid { grid-template-columns: 1fr; }
+    .card-header { flex-direction: column; gap: 12px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ View Toggle Bar ═══ -->
+<div class="view-toggle-bar">
+  <span>View:</span>
+  <button id="btn-login" onclick="showView('login')">Login</button>
+  <button id="btn-dash" class="active" onclick="showView('dashboard')">Dashboard</button>
+</div>
+
+<!-- ═══ Login View ═══ -->
+<div class="login-view" id="loginView">
+  <div class="login-bg">
+    <div class="login-orb teal-orb"></div>
+    <div class="login-orb purple-orb"></div>
+  </div>
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-text">ANYVISION</div>
+      <div class="login-logo-sub">Client Portal</div>
+    </div>
+    <h2>Welcome back</h2>
+    <p class="sub">Sign in to your automation dashboard</p>
+    <div class="form-group">
+      <label>Email address</label>
+      <input type="email" placeholder="you@company.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" placeholder="Enter your password">
+    </div>
+    <button class="login-btn">Sign In</button>
+    <div class="login-footer">
+      Don't have an account? <a href="#">Request access</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Dashboard View ═══ -->
+<div class="dashboard-view" id="dashView">
+
+  <!-- ── Sidebar / Icon Rail ── -->
+  <nav class="sidebar" id="sidebar">
+    <div class="logo-area">
+      <div class="logo-mark">
+        <svg viewBox="0 0 32 32" fill="none">
+          <defs>
+            <linearGradient id="logoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#6C63FF"/>
+              <stop offset="100%" stop-color="#00D4AA"/>
+            </linearGradient>
+          </defs>
+          <circle cx="16" cy="16" r="14" stroke="url(#logoGrad)" stroke-width="2.5" fill="none"/>
+          <circle cx="16" cy="16" r="5" fill="url(#logoGrad)"/>
+          <circle cx="16" cy="5" r="2.5" fill="#6C63FF"/>
+          <circle cx="25.5" cy="22" r="2.5" fill="#00D4AA"/>
+          <circle cx="6.5" cy="22" r="2.5" fill="#00D4AA"/>
+        </svg>
+      </div>
+      <span class="logo-text">ANYVISION</span>
+    </div>
+
+    <ul class="nav-list">
+      <li class="nav-item active">
+        <div class="icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        </div>
+        <span class="nav-label">Dashboard</span>
+        <div class="tooltip">Dashboard</div>
+      </li>
+      <li class="nav-item">
+        <div class="icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <span class="nav-label">Automations</span>
+        <div class="tooltip">Automations</div>
+      </li>
+      <li class="nav-item">
+        <div class="icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        </div>
+        <span class="nav-label">AI Agents</span>
+        <div class="tooltip">AI Agents</div>
+      </li>
+      <li class="nav-item">
+        <div class="icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <span class="nav-label">Documents</span>
+        <div class="tooltip">Documents</div>
+      </li>
+      <li class="nav-item">
+        <div class="icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        </div>
+        <span class="nav-label">Billing</span>
+        <div class="tooltip">Billing</div>
+      </li>
+      <li class="nav-item">
+        <div class="icon-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </div>
+        <span class="nav-label">Settings</span>
+        <div class="tooltip">Settings</div>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- ── Mobile Header ── -->
+  <div class="mobile-header">
+    <span class="mobile-logo">ANYVISION</span>
+    <button class="hamburger" onclick="toggleMobileNav()">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="mobile-nav" id="mobileNav">
+    <ul class="nav-list">
+      <li class="nav-item active"><div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div><span class="nav-label">Dashboard</span></li>
+      <li class="nav-item"><div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><span class="nav-label">Automations</span></li>
+      <li class="nav-item"><div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></div><span class="nav-label">AI Agents</span></li>
+      <li class="nav-item"><div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><span class="nav-label">Documents</span></li>
+      <li class="nav-item"><div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div><span class="nav-label">Billing</span></li>
+      <li class="nav-item"><div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09"/></svg></div><span class="nav-label">Settings</span></li>
+    </ul>
+  </div>
+
+  <!-- ── Main Content ── -->
+  <main class="main" id="mainContent">
+
+    <!-- Dashboard Header -->
+    <div class="dash-header">
+      <h1>Dashboard</h1>
+      <p>Welcome back, Ian. Here's your automation overview.</p>
+    </div>
+
+    <!-- Stat Cards — Floating Islands -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-icon purple">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        </div>
+        <div class="stat-label">Messages Processed</div>
+        <div class="stat-value" data-target="1247">0</div>
+        <div class="stat-change up">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10V2m0 0L2 6m4-4l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          +12.4% vs last week
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon teal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <div class="stat-label">Leads Captured</div>
+        <div class="stat-value" data-target="89">0</div>
+        <div class="stat-change up">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10V2m0 0L2 6m4-4l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          +8.7% vs last week
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon coral">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="stat-label">Active Workflows</div>
+        <div class="stat-value" data-target="12">0</div>
+        <div class="stat-change up">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 10V2m0 0L2 6m4-4l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          +2 this month
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon teal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <div class="stat-label">Success Rate</div>
+        <div class="stat-value" data-target="98.2" data-suffix="%">0</div>
+        <div class="stat-change down">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2v8m0 0l4-4m-4 4L2 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          -0.3% vs last week
+        </div>
+      </div>
+    </div>
+
+    <!-- Gradient Divider -->
+    <div class="gradient-divider"></div>
+
+    <!-- Performance Overview Chart -->
+    <div class="glass-card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Performance Overview</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:24px;">
+          <div class="legend">
+            <div class="legend-item"><span class="legend-dot purple"></span> Messages</div>
+            <div class="legend-item"><span class="legend-dot teal"></span> Leads</div>
+            <div class="legend-item"><span class="legend-dot coral"></span> Errors</div>
+          </div>
+          <div class="tab-pills">
+            <button class="tab-pill active" onclick="setTimePill(this)">7D</button>
+            <button class="tab-pill" onclick="setTimePill(this)">30D</button>
+            <button class="tab-pill" onclick="setTimePill(this)">90D</button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-area">
+        <svg viewBox="0 0 900 260" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="purpleFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#6C63FF" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#6C63FF" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="tealFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00D4AA" stop-opacity="0.25"/>
+              <stop offset="100%" stop-color="#00D4AA" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="coralFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#FF6D5A" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="#FF6D5A" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid lines -->
+          <line x1="0" y1="65" x2="900" y2="65" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="130" x2="900" y2="130" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="195" x2="900" y2="195" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <!-- Y-axis labels -->
+          <text x="8" y="62" fill="#6B7280" font-size="11" font-family="Inter">200</text>
+          <text x="8" y="127" fill="#6B7280" font-size="11" font-family="Inter">150</text>
+          <text x="8" y="192" fill="#6B7280" font-size="11" font-family="Inter">100</text>
+          <text x="8" y="248" fill="#6B7280" font-size="11" font-family="Inter">0</text>
+          <!-- X-axis labels -->
+          <text x="100" y="258" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Mon</text>
+          <text x="235" y="258" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Tue</text>
+          <text x="370" y="258" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Wed</text>
+          <text x="505" y="258" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Thu</text>
+          <text x="640" y="258" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Fri</text>
+          <text x="775" y="258" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Sat</text>
+          <text x="870" y="258" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Sun</text>
+          <!-- Purple (Messages) area -->
+          <path d="M50,180 C120,160 170,100 235,85 C300,70 350,50 370,45 C430,55 470,70 505,60 C560,50 610,80 640,75 C700,68 740,55 775,40 C820,48 850,65 880,55 L880,240 L50,240Z" fill="url(#purpleFill)"/>
+          <path d="M50,180 C120,160 170,100 235,85 C300,70 350,50 370,45 C430,55 470,70 505,60 C560,50 610,80 640,75 C700,68 740,55 775,40 C820,48 850,65 880,55" fill="none" stroke="#6C63FF" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- Teal (Leads) area -->
+          <path d="M50,210 C120,200 170,175 235,165 C300,155 350,140 370,145 C430,150 470,135 505,130 C560,140 610,155 640,145 C700,138 740,125 775,120 C820,128 850,140 880,132 L880,240 L50,240Z" fill="url(#tealFill)"/>
+          <path d="M50,210 C120,200 170,175 235,165 C300,155 350,140 370,145 C430,150 470,135 505,130 C560,140 610,155 640,145 C700,138 740,125 775,120 C820,128 850,140 880,132" fill="none" stroke="#00D4AA" stroke-width="2.5" stroke-linecap="round"/>
+          <!-- Coral (Errors) area -->
+          <path d="M50,232 C120,230 170,225 235,228 C300,230 350,222 370,220 C430,224 470,228 505,225 C560,220 610,226 640,230 C700,228 740,224 775,226 C820,222 850,218 880,220 L880,240 L50,240Z" fill="url(#coralFill)"/>
+          <path d="M50,232 C120,230 170,225 235,228 C300,230 350,222 370,220 C430,224 470,228 505,225 C560,220 610,226 640,230 C700,228 740,224 775,226 C820,222 850,218 880,220" fill="none" stroke="#FF6D5A" stroke-width="2" stroke-linecap="round"/>
+          <!-- Data dots on purple line -->
+          <circle cx="235" cy="85" r="4" fill="#6C63FF"/>
+          <circle cx="505" cy="60" r="4" fill="#6C63FF"/>
+          <circle cx="775" cy="40" r="4" fill="#6C63FF"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Tabbed Charts Section -->
+    <div class="tabbed-section">
+      <div class="tab-buttons">
+        <button class="tab-btn active" onclick="switchTab(this, 'tab-messages')">Messages</button>
+        <button class="tab-btn" onclick="switchTab(this, 'tab-leads')">Leads</button>
+        <button class="tab-btn" onclick="switchTab(this, 'tab-errors')">Errors</button>
+      </div>
+
+      <div class="glass-card" style="animation-delay:0.35s;">
+        <!-- Messages Tab -->
+        <div class="tab-content active" id="tab-messages">
+          <div class="chart-area">
+            <svg viewBox="0 0 900 200" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="msgBarGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#6C63FF"/>
+                  <stop offset="100%" stop-color="#6C63FF" stop-opacity="0.4"/>
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="50" x2="900" y2="50" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="100" x2="900" y2="100" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="150" x2="900" y2="150" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <!-- Bar chart -->
+              <rect x="60"  y="60"  width="50" height="130" rx="6" fill="url(#msgBarGrad)" opacity="0.9"/>
+              <rect x="160" y="40"  width="50" height="150" rx="6" fill="url(#msgBarGrad)" opacity="0.9"/>
+              <rect x="260" y="30"  width="50" height="160" rx="6" fill="url(#msgBarGrad)" opacity="0.9"/>
+              <rect x="360" y="50"  width="50" height="140" rx="6" fill="url(#msgBarGrad)" opacity="0.9"/>
+              <rect x="460" y="20"  width="50" height="170" rx="6" fill="url(#msgBarGrad)" opacity="0.9"/>
+              <rect x="560" y="45"  width="50" height="145" rx="6" fill="url(#msgBarGrad)" opacity="0.9"/>
+              <rect x="660" y="55"  width="50" height="135" rx="6" fill="url(#msgBarGrad)" opacity="0.9"/>
+              <rect x="760" y="35"  width="50" height="155" rx="6" fill="url(#msgBarGrad)" opacity="0.9"/>
+              <!-- Labels -->
+              <text x="85"  y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Mon</text>
+              <text x="185" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Tue</text>
+              <text x="285" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Wed</text>
+              <text x="385" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Thu</text>
+              <text x="485" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Fri</text>
+              <text x="585" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Sat</text>
+              <text x="685" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Sun</text>
+              <text x="785" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Today</text>
+              <!-- Values -->
+              <text x="85"  y="54" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">142</text>
+              <text x="185" y="34" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">168</text>
+              <text x="285" y="24" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">189</text>
+              <text x="385" y="44" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">155</text>
+              <text x="485" y="14" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">201</text>
+              <text x="585" y="39" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">162</text>
+              <text x="685" y="49" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">138</text>
+              <text x="785" y="29" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">192</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Leads Tab -->
+        <div class="tab-content" id="tab-leads">
+          <div class="chart-area">
+            <svg viewBox="0 0 900 200" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="leadFill2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#00D4AA" stop-opacity="0.35"/>
+                  <stop offset="100%" stop-color="#00D4AA" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="50" x2="900" y2="50" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="100" x2="900" y2="100" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="150" x2="900" y2="150" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <path d="M40,160 C120,145 200,120 300,100 C400,80 450,95 520,85 C600,75 680,60 780,50 C830,55 870,45 880,40 L880,190 L40,190Z" fill="url(#leadFill2)"/>
+              <path d="M40,160 C120,145 200,120 300,100 C400,80 450,95 520,85 C600,75 680,60 780,50 C830,55 870,45 880,40" fill="none" stroke="#00D4AA" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="300" cy="100" r="4" fill="#00D4AA"/>
+              <circle cx="520" cy="85" r="4" fill="#00D4AA"/>
+              <circle cx="780" cy="50" r="4" fill="#00D4AA"/>
+              <text x="300" y="92" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">24</text>
+              <text x="520" y="77" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">31</text>
+              <text x="780" y="42" fill="#B0B8C8" font-size="11" font-family="Inter" text-anchor="middle">34</text>
+              <text x="40"  y="198" fill="#6B7280" font-size="11" font-family="Inter">Week 1</text>
+              <text x="300" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Week 2</text>
+              <text x="600" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Week 3</text>
+              <text x="860" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="end">This Week</text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Errors Tab -->
+        <div class="tab-content" id="tab-errors">
+          <div class="chart-area">
+            <svg viewBox="0 0 900 200" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="errFill2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#FF6D5A" stop-opacity="0.3"/>
+                  <stop offset="100%" stop-color="#FF6D5A" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="50" x2="900" y2="50" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="100" x2="900" y2="100" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="150" x2="900" y2="150" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <!-- Scattered dot chart for errors -->
+              <circle cx="85"  cy="155" r="6" fill="#FF6D5A" opacity="0.7"/>
+              <circle cx="185" cy="140" r="8" fill="#FF6D5A" opacity="0.7"/>
+              <circle cx="285" cy="160" r="5" fill="#FF6D5A" opacity="0.7"/>
+              <circle cx="385" cy="120" r="10" fill="#FF6D5A" opacity="0.7"/>
+              <circle cx="485" cy="145" r="7" fill="#FF6D5A" opacity="0.7"/>
+              <circle cx="585" cy="165" r="4" fill="#FF6D5A" opacity="0.7"/>
+              <circle cx="685" cy="150" r="6" fill="#FF6D5A" opacity="0.7"/>
+              <circle cx="785" cy="170" r="3" fill="#FF6D5A" opacity="0.7"/>
+              <!-- Trend line -->
+              <path d="M85,155 C185,140 285,160 385,120 C485,145 585,165 685,150 C750,158 785,170 870,168" fill="none" stroke="#FF6D5A" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.5"/>
+              <!-- Labels -->
+              <text x="85"  y="148" fill="#B0B8C8" font-size="10" font-family="Inter" text-anchor="middle">3</text>
+              <text x="185" y="132" fill="#B0B8C8" font-size="10" font-family="Inter" text-anchor="middle">5</text>
+              <text x="285" y="153" fill="#B0B8C8" font-size="10" font-family="Inter" text-anchor="middle">2</text>
+              <text x="385" y="110" fill="#B0B8C8" font-size="10" font-family="Inter" text-anchor="middle">8</text>
+              <text x="485" y="137" fill="#B0B8C8" font-size="10" font-family="Inter" text-anchor="middle">4</text>
+              <text x="585" y="158" fill="#B0B8C8" font-size="10" font-family="Inter" text-anchor="middle">1</text>
+              <text x="685" y="143" fill="#B0B8C8" font-size="10" font-family="Inter" text-anchor="middle">3</text>
+              <text x="785" y="164" fill="#B0B8C8" font-size="10" font-family="Inter" text-anchor="middle">1</text>
+              <text x="85"  y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Mon</text>
+              <text x="185" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Tue</text>
+              <text x="285" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Wed</text>
+              <text x="385" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Thu</text>
+              <text x="485" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Fri</text>
+              <text x="585" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Sat</text>
+              <text x="685" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Sun</text>
+              <text x="785" y="198" fill="#6B7280" font-size="11" font-family="Inter" text-anchor="middle">Today</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Uptime Gauge -->
+    <div class="uptime-section">
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 160 160">
+          <defs>
+            <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#00D4AA"/>
+              <stop offset="100%" stop-color="#6C63FF"/>
+            </linearGradient>
+          </defs>
+          <!-- Background track -->
+          <circle cx="80" cy="80" r="65" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10"
+                  stroke-dasharray="408.4" stroke-dashoffset="0"
+                  transform="rotate(-90 80 80)" stroke-linecap="round"/>
+          <!-- Filled arc (98.2%) -->
+          <circle cx="80" cy="80" r="65" fill="none" stroke="url(#gaugeGrad)" stroke-width="10"
+                  stroke-dasharray="408.4" stroke-dashoffset="7.35"
+                  transform="rotate(-90 80 80)" stroke-linecap="round"
+                  style="animation: gaugeArc 1.5s ease-out forwards;"/>
+        </svg>
+        <div class="gauge-label">
+          <span class="gauge-value" data-target="98.2" data-suffix="%">0%</span>
+          <span class="gauge-unit">uptime</span>
+        </div>
+      </div>
+      <div class="uptime-text">System Uptime &mdash; Last 30 Days</div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // ── View Toggle ──
+  function showView(view) {
+    const loginView = document.getElementById('loginView');
+    const dashView = document.getElementById('dashView');
+    const btnLogin = document.getElementById('btn-login');
+    const btnDash = document.getElementById('btn-dash');
+
+    if (view === 'login') {
+      loginView.classList.add('active');
+      dashView.classList.add('hidden');
+      btnLogin.classList.add('active');
+      btnDash.classList.remove('active');
+    } else {
+      loginView.classList.remove('active');
+      dashView.classList.remove('hidden');
+      btnLogin.classList.remove('active');
+      btnDash.classList.add('active');
+      animateCounters();
+    }
+  }
+
+  // ── Tab Switching (chart tabs) ──
+  function switchTab(btn, tabId) {
+    btn.parentElement.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+  }
+
+  // ── Time Period Pills ──
+  function setTimePill(pill) {
+    pill.parentElement.querySelectorAll('.tab-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+  }
+
+  // ── Mobile Nav ──
+  function toggleMobileNav() {
+    document.getElementById('mobileNav').classList.toggle('open');
+  }
+
+  // ── Number Counter Animation ──
+  function animateCounters() {
+    document.querySelectorAll('.stat-value[data-target], .gauge-value[data-target]').forEach(el => {
+      const target = parseFloat(el.dataset.target);
+      const suffix = el.dataset.suffix || '';
+      const isDecimal = target % 1 !== 0;
+      const duration = 1200;
+      const startTime = performance.now();
+
+      function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // Ease out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = target * eased;
+
+        if (isDecimal) {
+          el.textContent = current.toFixed(1) + suffix;
+        } else {
+          el.textContent = Math.round(current).toLocaleString() + suffix;
+        }
+
+        if (progress < 1) {
+          requestAnimationFrame(update);
+        }
+      }
+      requestAnimationFrame(update);
+    });
+  }
+
+  // ── Init ──
+  document.addEventListener('DOMContentLoaded', () => {
+    animateCounters();
+  });
+</script>
+</body>
+</html>

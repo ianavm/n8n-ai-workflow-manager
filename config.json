@@ -88,17 +88,17 @@
     }
   },
   "accounting_dept": {
-    "airtable_base_id": "REPLACE_AFTER_SETUP",
+    "airtable_base_id": "appMmUkZzdDSiY1RS",
     "tables": {
-      "customers": "REPLACE_AFTER_SETUP",
-      "suppliers": "REPLACE_AFTER_SETUP",
-      "products_services": "REPLACE_AFTER_SETUP",
-      "invoices": "REPLACE_AFTER_SETUP",
-      "payments": "REPLACE_AFTER_SETUP",
-      "supplier_bills": "REPLACE_AFTER_SETUP",
-      "tasks": "REPLACE_AFTER_SETUP",
-      "audit_log": "REPLACE_AFTER_SETUP",
-      "system_config": "REPLACE_AFTER_SETUP"
+      "customers": "tblxHJrvob0OOSfTq",
+      "suppliers": "tbl3Qx26zY974kVNn",
+      "products_services": "tblsqsVglPblQgORy",
+      "invoices": "tbl0vZnALIvH72r2t",
+      "payments": "tblAjS2Ws2NjOtTRX",
+      "supplier_bills": "tblRRe24Xlm1J3C1I",
+      "tasks": "tblGtffCPlRoHAtTk",
+      "audit_log": "tblV4LPBYotAWW1RO",
+      "system_config": "tblDXcgsYXVphpDVb"
     },
     "schedules": {
       "invoice_processing": "08:00-17:00 hourly",
@@ -167,6 +167,65 @@
       "default_handoff_threshold": 0.4,
       "default_working_hours": "08:00-17:00",
       "default_working_days": "1,2,3,4,5"
+    }
+  },
+  "ads_dept": {
+    "airtable_base_id": "apptjjBx34z9340tK",
+    "tables": {
+      "campaigns": "tblon2FDqfifeF1Iv",
+      "ad_sets": "tbls8LRS2TIStKkZk",
+      "creatives": "tblF1FwoZEQlMG6X9",
+      "performance": "tblH1ztufqk5Kkkln",
+      "budget_allocations": "tblhYDUzyzNxnQQXw",
+      "audiences": "tblvx8fFi1S8UflyG",
+      "ab_tests": "tblTUyvpzb7aV6P6Y",
+      "approvals": "tblov57B8uj09ZF2k"
+    },
+    "schedules": {
+      "strategy_generator": "Mon 07:00 SAST",
+      "copy_generator": "Webhook (triggered by ADS-01)",
+      "campaign_builder": "Webhook (approval trigger)",
+      "performance_monitor": "Every 6 hours",
+      "optimization_engine": "Daily 20:00 SAST",
+      "creative_recycler": "Wed 10:00 SAST",
+      "attribution": "Daily 06:00 SAST",
+      "reporting": "Mon 08:00 SAST + Monthly 1st"
+    },
+    "platforms": {
+      "google_ads": {
+        "enabled": true,
+        "customer_id_env": "GOOGLE_ADS_CUSTOMER_ID",
+        "manager_id_env": "GOOGLE_ADS_MANAGER_ID",
+        "api_version": "v20"
+      },
+      "meta_ads": {
+        "enabled": true,
+        "account_id_env": "META_ADS_ACCOUNT_ID",
+        "api_version": "v21.0"
+      },
+      "tiktok_ads": {
+        "enabled": false,
+        "advertiser_id_env": "TIKTOK_ADS_ADVERTISER_ID",
+        "api_version": "v1.3"
+      }
+    },
+    "safety": {
+      "daily_hard_cap_zar": 2000,
+      "weekly_hard_cap_zar": 10000,
+      "monthly_hard_cap_zar": 35000,
+      "auto_approve_bid_change_max_percent": 20,
+      "auto_approve_budget_increase_max_zar": 200,
+      "anomaly_z_score_threshold": 2.0
+    },
+    "ai": {
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "max_tokens_strategy": 2000,
+      "max_tokens_copy": 1500,
+      "max_tokens_optimization": 1500,
+      "max_tokens_attribution": 1200,
+      "max_tokens_report": 1500,
+      "quality_threshold": 6,
+      "daily_token_budget": 30000
     }
   },
   "seo_social_dept": {
@@ -307,13 +366,13 @@
     ]
   },
   "orchestrator": {
-    "airtable_base_id": "REPLACE_AFTER_SETUP",
+    "airtable_base_id": "appTCh0EeXQp0XqzW",
     "tables": {
-      "agent_registry": "REPLACE_AFTER_SETUP",
-      "events": "REPLACE_AFTER_SETUP",
-      "kpi_snapshots": "REPLACE_AFTER_SETUP",
-      "escalation_queue": "REPLACE_AFTER_SETUP",
-      "decision_log": "REPLACE_AFTER_SETUP"
+      "agent_registry": "tblsees8vFGZaNLqZ",
+      "events": "tbl6PqkxZy0Md2Ocf",
+      "kpi_snapshots": "tblUsdtPRFN7UchgK",
+      "escalation_queue": "tbl2kDx0EqczOU3ib",
+      "decision_log": "tblHViYF9sEUOFdNO"
     },
     "schedules": {
       "health_check": "Every 15 minutes",
@@ -355,11 +414,11 @@
     }
   },
   "support": {
-    "airtable_base_id": "REPLACE_AFTER_SETUP",
+    "airtable_base_id": "appTCh0EeXQp0XqzW",
     "tables": {
-      "tickets": "REPLACE_AFTER_SETUP",
-      "knowledge_base": "REPLACE_AFTER_SETUP",
-      "sla_config": "REPLACE_AFTER_SETUP"
+      "tickets": "tbldPadf19Ky0JIez",
+      "knowledge_base": "tblPQFlV6Y5qDjiKT",
+      "sla_config": "tblJ7wayh08MflQGN"
     },
     "sla": {
       "P1_response_hours": 1,
@@ -383,6 +442,178 @@
     "churn_risk_threshold": 40,
     "renewal_reminder_days": [90, 60, 30, 14, 7],
     "onboarding_sequence_days": [0, 3, 7]
+  },
+  "agents": {
+    "roster": [
+      "chief", "finance", "growth_organic", "growth_paid", "pipeline",
+      "client_success", "support", "messenger", "sentinel", "engineer",
+      "intelligence", "market_intel", "knowledge_manager", "qa_agent",
+      "financial_intel", "crm_sync", "data_analyst", "brand_guardian",
+      "devops_coordinator", "compliance_auditor", "booking_assistant", "data_curator"
+    ],
+    "market_intel": {
+      "enabled": true,
+      "tavily_daily_queries": 10,
+      "tavily_search_depth": "basic",
+      "competitor_urls": [],
+      "industry_keywords": ["AI consulting", "digital agency South Africa", "automation", "n8n"],
+      "regulatory_bodies": ["SARS", "CIPC", "POPIA"],
+      "output_format": "email",
+      "schedule": {
+        "competitive_scan": "daily 06:00",
+        "market_digest": "weekly Mon 07:00",
+        "regulatory_alert": "daily 08:00"
+      }
+    },
+    "knowledge_manager": {
+      "enabled": true,
+      "index_sources": ["google_drive", "airtable_kb", "workflow_sops"],
+      "search_method": "semantic",
+      "faq_auto_generate": true,
+      "contradiction_check_frequency": "weekly",
+      "schedule": {
+        "document_indexer": "daily 02:00",
+        "contradiction_detector": "weekly Sun 03:00",
+        "faq_generator": "weekly Mon 04:00"
+      }
+    },
+    "qa_agent": {
+      "enabled": true,
+      "test_targets": {
+        "portal": "https://portal.anyvisionmedia.com",
+        "landing": "https://www.anyvisionmedia.com"
+      },
+      "screenshot_times": ["08:00", "14:00", "20:00"],
+      "smoke_test_frequency": "daily",
+      "regression_frequency": "weekly",
+      "performance_thresholds": {
+        "page_load_ms": 3000,
+        "lcp_ms": 2500,
+        "cls": 0.1,
+        "fid_ms": 100
+      }
+    },
+    "financial_intel": {
+      "enabled": true,
+      "xero_focus": ["payroll", "cash_flow", "vat", "aged_reports"],
+      "vat_rate": 0.15,
+      "currency": "ZAR",
+      "payroll_run_day": 25,
+      "vat_filing_months": [2, 4, 6, 8, 10, 12],
+      "cash_flow_scenarios": ["best", "expected", "worst"],
+      "alert_thresholds": {
+        "cash_low_zar": 50000,
+        "payroll_variance_pct": 0.10,
+        "aged_receivable_days": 60
+      },
+      "schedule": {
+        "payroll": "monthly 25th 06:00",
+        "vat_prep": "bimonthly 20th 06:00",
+        "cash_flow": "weekly Mon 06:30",
+        "smart_payments": "daily 07:00"
+      }
+    },
+    "crm_sync": {
+      "enabled": true,
+      "sync_sources": {
+        "airtable_leads": "app2ALQUP7CKEkHOz",
+        "airtable_marketing": "apptjjBx34z9340tK",
+        "supabase": "clients",
+        "xero": "contacts",
+        "google_contacts": true
+      },
+      "dedup_strategy": "fuzzy_match",
+      "dedup_fields": ["name", "email", "phone"],
+      "dedup_threshold": 0.85,
+      "schedule": {
+        "hourly_sync": "every 1h",
+        "nightly_dedup": "daily 01:00",
+        "weekly_enrichment": "weekly Wed 05:00"
+      }
+    },
+    "data_analyst": {
+      "enabled": true,
+      "allowed_databases": ["supabase"],
+      "chart_provider": "quickchart",
+      "max_query_rows": 10000,
+      "rls_enforced": true,
+      "schedule": {
+        "trend_dashboard": "daily 06:00",
+        "monthly_report": "monthly 1st 07:00"
+      }
+    },
+    "brand_guardian": {
+      "enabled": true,
+      "brand_color": "#FF6D5A",
+      "brand_attributes": ["professional", "innovative", "AI-forward", "South African", "approachable", "results-driven"],
+      "pre_publish_gate": true,
+      "compliance_threshold": 0.90,
+      "schedule": {
+        "pre_publish": "before each Blotato publish",
+        "weekly_audit": "weekly Fri 16:00",
+        "competitor_diff": "monthly 1st 10:00"
+      }
+    },
+    "devops_coordinator": {
+      "enabled": true,
+      "auto_rollback_window_hours": 1,
+      "credential_rotation_alert_days": 30,
+      "release_notes_auto": true,
+      "schedule": {
+        "credential_check": "weekly Mon 05:00",
+        "release_notes": "on_deploy"
+      }
+    },
+    "compliance_auditor": {
+      "enabled": true,
+      "regulations": ["POPIA", "BBBEE", "CPA", "VAT_Act"],
+      "tax_authority": "SARS",
+      "ad_platforms": ["Google", "Meta", "TikTok"],
+      "email_suppression_table": "tbl0LtepawDzFYg4I",
+      "schedule": {
+        "compliance_scan": "monthly 1st 08:00",
+        "ad_policy_check": "weekly Wed 09:00",
+        "popia_audit": "quarterly 1st 08:00"
+      }
+    },
+    "booking_assistant": {
+      "enabled": true,
+      "timezone": "Africa/Johannesburg",
+      "business_hours": {"start": "08:00", "end": "17:00"},
+      "business_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+      "default_durations_min": {
+        "discovery_call": 30,
+        "strategy_session": 60,
+        "technical_review": 45,
+        "quick_sync": 15
+      },
+      "follow_up_after_hours": 24,
+      "schedule": {
+        "follow_up_nudge": "daily 09:00",
+        "calendar_optimizer": "weekly Mon 07:30"
+      }
+    },
+    "data_curator": {
+      "enabled": true,
+      "airtable_bases": [
+        "apptjjBx34z9340tK",
+        "app2ALQUP7CKEkHOz",
+        "appzcZpiIZ6QPtJXT",
+        "appTCh0EeXQp0XqzW"
+      ],
+      "validation_rules": {
+        "email": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+        "sa_phone": "^\\+27[0-9]{9}$",
+        "zar_amount": "^[0-9]+(\\.[0-9]{2})?$"
+      },
+      "stale_threshold_days": 30,
+      "dedup_threshold": 0.90,
+      "schedule": {
+        "nightly_dedup": "daily 00:30",
+        "weekly_quality": "weekly Sun 01:00",
+        "monthly_schema": "monthly 1st 01:00"
+      }
+    }
   },
   "clients": {
     "anyvision": {

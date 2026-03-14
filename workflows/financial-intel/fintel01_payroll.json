@@ -1,0 +1,314 @@
+{
+  "name": "Financial Intel - Monthly Payroll Run (FINTEL-01)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 25 * *"
+            }
+          ]
+        }
+      },
+      "id": "45db03fd-ecf3-44f4-b53d-1ce3257020e3",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "461dc696-67c5-4494-a627-216ac82de9bf",
+              "name": "periodStart",
+              "value": "={{ $now.startOf('month').toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "cfcf2313-c009-47ed-9f6f-d2f3f28f0cf3",
+              "name": "periodEnd",
+              "value": "={{ $now.endOf('month').toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "704dff64-2d44-4f18-a506-45f9fd2e7d7a",
+              "name": "monthLabel",
+              "value": "={{ $now.toFormat('MMMM yyyy') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "95a02b66-e9a8-4dfb-a5b9-70e79d28bd4a",
+      "name": "Set Pay Period",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.xero.com/payroll.xro/2.0/Employees",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "551aa958-d76f-4212-9ad5-35a92540d4c3",
+      "name": "Fetch Employees",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "xeroOAuth2Api",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.xero.com/payroll.xro/2.0/Payslip?StartDate={{ $('Set Pay Period').first().json.periodStart }}&EndDate={{ $('Set Pay Period').first().json.periodEnd }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e423baaa-5f10-4a50-ba7d-f244ef4647ce",
+      "name": "Fetch Payslips",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "xeroOAuth2Api",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a payroll analyst for AnyVision Media, a South African company. Analyze payroll data and identify variances vs last month. Use ZAR currency. Flag: new employees, terminated employees, significant salary changes (>5%), overtime anomalies, total payroll cost change. Provide a concise summary with key metrics and any concerns.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze this month's payroll data for \" + $('Set Pay Period').first().json.monthLabel + \":\\n\\nEmployees:\\n\" + JSON.stringify($('Fetch Employees').first().json, null, 2) + \"\\n\\nPayslips:\\n\" + JSON.stringify($json, null, 2)\n    }\n  ]\n}}",
+        "options": {}
+      },
+      "id": "2b7eb402-a55a-4436-b4fb-badca53850d6",
+      "name": "AI Variance Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblrc93S8cwbNFb8l",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Period": "={{ $('Set Pay Period').first().json.monthLabel }}",
+            "Type": "Payroll",
+            "Total Payroll (ZAR)": "={{ $('Fetch Payslips').first().json.Payslips ? $('Fetch Payslips').first().json.Payslips.reduce((sum, p) => sum + (p.NetPay || 0), 0) : 0 }}",
+            "Employee Count": "={{ $('Fetch Employees').first().json.Employees ? $('Fetch Employees').first().json.Employees.length : 0 }}",
+            "Variance %": "={{ $json.choices[0].message.content.match(/variance.*?(\\d+\\.?\\d*)%/i) ? $json.choices[0].message.content.match(/variance.*?(\\d+\\.?\\d*)%/i)[1] : '0' }}",
+            "Notes": "={{ $json.choices[0].message.content.substring(0, 5000) }}",
+            "Status": "Pending Review"
+          }
+        },
+        "options": {}
+      },
+      "id": "3907d5d0-6dab-4847-b10c-2cc683a5f985",
+      "name": "Write Summary to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Payroll Run Summary - {{ $('Set Pay Period').first().json.monthLabel }}",
+        "message": "=<h2 style=\"color: #FF6D5A;\">Monthly Payroll Summary</h2><p><strong>Period:</strong> {{ $('Set Pay Period').first().json.monthLabel }}</p><p><strong>Employee Count:</strong> {{ $('Fetch Employees').first().json.Employees ? $('Fetch Employees').first().json.Employees.length : 'N/A' }}</p><hr><h3>AI Variance Analysis</h3><p>{{ $('AI Variance Analysis').first().json.choices[0].message.content.replace(/\\n/g, '<br>') }}</p><hr><p style=\"color: #888; font-size: 11px;\">Generated by AVM Financial Intelligence | FINTEL-01</p>",
+        "options": {}
+      },
+      "id": "159e9f4d-dd9d-4a05-9689-e881b9f9a4ae",
+      "name": "Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## FINTEL-01: Monthly Payroll Run\nRuns 25th of month 08:00 SAST.\nFetches employees & payslips from Xero,\nAI analyzes variances vs last month,\nwrites summary to Airtable, emails alert.",
+        "width": 420,
+        "height": 120
+      },
+      "id": "a1e03cfe-e4dd-4b89-9355-1dbf9845d602",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Pay Period",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Pay Period": {
+      "main": [
+        [
+          {
+            "node": "Fetch Employees",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Employees": {
+      "main": [
+        [
+          {
+            "node": "Fetch Payslips",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Payslips": {
+      "main": [
+        [
+          {
+            "node": "AI Variance Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Variance Analysis": {
+      "main": [
+        [
+          {
+            "node": "Write Summary to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Summary to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

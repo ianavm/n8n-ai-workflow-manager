@@ -1,0 +1,574 @@
+{
+  "name": "CRM Sync - Hourly Sync (CRM-01)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "9d37bb09-f72f-410e-8c33-fd3178254b9a",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "004c3c5e-6e53-4780-ad29-a69800350d58",
+              "name": "syncSince",
+              "value": "={{ $now.minus({hours: 2}).toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "ec9c4ee3-a0cf-4c01-8f96-ada424abc00c",
+              "name": "syncSinceDate",
+              "value": "={{ $now.minus({hours: 2}).toFormat('yyyy-MM-dd\\'T\\'HH:mm:ss') }}",
+              "type": "string"
+            },
+            {
+              "id": "0a926630-5318-4d2a-9cb7-2ba3c4f2ca5f",
+              "name": "syncRunTime",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "05fa0fb6-7d0b-4a10-9294-cd7edad82fc7",
+      "name": "Set Sync Window",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblLo3smPaM19XXkv",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER(LAST_MODIFIED_TIME(), '{{ $json.syncSinceDate }}')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "012a9cfb-4858-468c-bd22-8ce3869cd357",
+      "name": "Fetch Airtable Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "url": "https://api.xero.com/api.xro/2.0/Contacts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+            },
+            {
+              "name": "If-Modified-Since",
+              "value": "={{ $('Set Sync Window').first().json.syncSinceDate }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4f10d35b-dd38-4c25-9148-35f4e933b121",
+      "name": "Fetch Xero Contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        420
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "xeroOAuth2Api",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize both sources into unified format\nconst airtableRecords = $('Fetch Airtable Leads').all().map(i => i.json);\nconst xeroResponse = $('Fetch Xero Contacts').first().json;\nconst xeroContacts = (xeroResponse.Contacts || []);\n\nconst unified = [];\n\n// Normalize Airtable leads\nfor (const rec of airtableRecords) {\n  unified.push({\n    email: (rec.Email || rec.email || '').toLowerCase().trim(),\n    name: rec.Name || rec.name || '',\n    phone: rec.Phone || rec.phone || '',\n    company: rec.Company || rec.company || '',\n    source: 'Airtable',\n    lastModified: rec['Last Modified'] || rec.lastModified || '',\n    rawId: rec.id || '',\n  });\n}\n\n// Normalize Xero contacts\nfor (const contact of xeroContacts) {\n  const email = (contact.EmailAddress || '').toLowerCase().trim();\n  const phone = contact.Phones && contact.Phones.length > 0\n    ? (contact.Phones.find(p => p.PhoneNumber) || {}).PhoneNumber || ''\n    : '';\n  unified.push({\n    email,\n    name: contact.Name || '',\n    phone,\n    company: contact.Name || '',\n    source: 'Xero',\n    lastModified: contact.UpdatedDateUTC || '',\n    rawId: contact.ContactID || '',\n  });\n}\n\n// Filter out records without email\nconst valid = unified.filter(r => r.email && r.email.includes('@'));\n\nreturn [{ json: {\n  totalAirtable: airtableRecords.length,\n  totalXero: xeroContacts.length,\n  totalUnified: valid.length,\n  records: valid,\n} }];"
+      },
+      "id": "b4ecbfab-9024-439a-837b-fa1dd8f4704f",
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.totalUnified }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "5babecb2-94fd-4340-8f98-1a77322b921c",
+      "name": "Has Records?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const records = $json.records || [];\nreturn records.map(r => ({ json: r }));"
+      },
+      "id": "7ab54e7f-2b36-4ab7-92e4-c87b7fccc810",
+      "name": "Split Into Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblLo3smPaM19XXkv",
+          "mode": "id"
+        },
+        "filterByFormula": "={Email} = '{{ $json.email }}'",
+        "options": {}
+      },
+      "id": "ff97c789-a802-41b3-88a1-16b722c16b10",
+      "name": "Search Unified Table",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id ? 1 : 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "b8c0e172-d0a7-447f-ba73-e07b2f2dacad",
+      "name": "Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblLo3smPaM19XXkv",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Split Into Items').item.json.email }}",
+            "Name": "={{ $('Split Into Items').item.json.name }}",
+            "Phone": "={{ $('Split Into Items').item.json.phone }}",
+            "Company": "={{ $('Split Into Items').item.json.company }}",
+            "Source": "={{ $('Split Into Items').item.json.source }}",
+            "First Seen": "={{ $now.toFormat('yyyy-MM-dd') }}",
+            "Last Synced": "={{ $now.toISO() }}",
+            "Sync Status": "Active"
+          }
+        },
+        "options": {}
+      },
+      "id": "48923db2-b458-42aa-8cef-6ebaa90562e9",
+      "name": "Create New Records",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        100
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblLo3smPaM19XXkv",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Split Into Items').item.json.email }}",
+            "Name": "={{ $('Split Into Items').item.json.name }}",
+            "Phone": "={{ $('Split Into Items').item.json.phone }}",
+            "Company": "={{ $('Split Into Items').item.json.company }}",
+            "Last Synced": "={{ $now.toISO() }}",
+            "Sync Status": "Active"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "82048232-45d4-4349-b75d-50fc101872ed",
+      "name": "Update Existing",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        320
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblHfJZj4awb2reuj",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Sync Time": "={{ $('Set Sync Window').first().json.syncRunTime }}",
+            "Records Processed": "={{ $('Merge Data').first().json.totalUnified }}",
+            "New": "={{ $('Merge Data').first().json.totalUnified }}",
+            "Updated": "=0",
+            "Errors": "=0",
+            "Duration": "=Hourly Sync"
+          }
+        },
+        "options": {}
+      },
+      "id": "0278539e-2381-4065-a68c-c8be08060376",
+      "name": "Log Sync",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## CRM-01: Hourly Sync\nRuns every hour. Fetches modified Airtable leads + Xero contacts,\nnormalizes into unified format, creates or updates in CRM Unified table.\nLogs sync results to CRM Sync Log.",
+        "width": 440,
+        "height": 120
+      },
+      "id": "ed9633c6-d0f5-44aa-8aaf-0ce73b8e5bad",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Sync Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Sync Window": {
+      "main": [
+        [
+          {
+            "node": "Fetch Airtable Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Xero Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Airtable Leads": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Xero Contacts": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "Has Records?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Records?": {
+      "main": [
+        [
+          {
+            "node": "Split Into Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Into Items": {
+      "main": [
+        [
+          {
+            "node": "Search Unified Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Unified Table": {
+      "main": [
+        [
+          {
+            "node": "Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exists?": {
+      "main": [
+        [
+          {
+            "node": "Update Existing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create New Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create New Records": {
+      "main": [
+        [
+          {
+            "node": "Log Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Existing": {
+      "main": [
+        [
+          {
+            "node": "Log Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

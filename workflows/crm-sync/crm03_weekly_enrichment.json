@@ -1,0 +1,393 @@
+{
+  "name": "CRM Sync - Weekly Enrichment (CRM-03)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 1 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "89cd7f71-4db5-44ed-83cc-e6f4c8328c71",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblLo3smPaM19XXkv",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND(OR({Company} = '', {Phone} = ''), NOT({Sync Status} = 'Merged - Duplicate'))",
+        "options": {
+          "limit": 50
+        }
+      },
+      "id": "bbe8912b-d246-4b42-9fb8-f2bc5a967902",
+      "name": "Read Needing Enrichment",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id ? 1 : 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "58a6a344-78b1-459e-9b7e-7eb5e844b496",
+      "name": "Records Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract email domain for Tavily search\nconst records = $input.all().map(i => i.json);\nconst enrichable = [];\n\nfor (const rec of records) {\n  const email = (rec.Email || '').toLowerCase().trim();\n  if (!email.includes('@')) continue;\n  const domain = email.split('@')[1];\n  // Skip common free email providers\n  const freeProviders = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com'];\n  if (freeProviders.includes(domain)) {\n    enrichable.push({\n      id: rec.id,\n      email,\n      name: rec.Name || '',\n      domain: null,\n      searchQuery: (rec.Name || '') + ' company',\n    });\n  } else {\n    enrichable.push({\n      id: rec.id,\n      email,\n      name: rec.Name || '',\n      domain,\n      searchQuery: domain + ' company',\n    });\n  }\n}\n\nreturn enrichable.map(r => ({ json: r }));"
+      },
+      "id": "e0b94994-db6e-45d8-814f-f96214bd44a4",
+      "name": "Extract Email Domain",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.tavily.com/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.searchQuery }}\",\n  \"search_depth\": \"basic\",\n  \"max_results\": 3,\n  \"include_answer\": true\n}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bd748080-6b54-4056-bed7-5fbbd629c5d0",
+      "name": "Enrich via Tavily",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        200
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Extract company profile from search results. Return JSON: {company: string, industry: string, size: string, location: string}. Use empty string for unknown fields. Be concise.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Person: \" + $('Extract Email Domain').item.json.name + \"\\nEmail domain: \" + ($('Extract Email Domain').item.json.domain || 'unknown') + \"\\nSearch results: \" + JSON.stringify($json.answer || $json.results || 'No results')\n    }\n  ]\n}}",
+        "options": {}
+      },
+      "id": "e1ac652d-a5c9-4ddf-912b-ee72a102f202",
+      "name": "AI Extract Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI response and prepare update\nconst aiResponse = $json.choices ? $json.choices[0].message.content : '{}';\nlet profile;\ntry {\n  const jsonMatch = aiResponse.match(/\\{[\\s\\S]*\\}/);\n  profile = jsonMatch ? JSON.parse(jsonMatch[0]) : {};\n} catch (e) {\n  profile = {};\n}\n\nconst recordId = $('Extract Email Domain').item.json.id;\nconst email = $('Extract Email Domain').item.json.email;\n\nreturn [{ json: {\n  recordId,\n  email,\n  company: profile.company || '',\n  industry: profile.industry || '',\n  location: profile.location || '',\n  enriched: !!(profile.company || profile.industry),\n} }];"
+      },
+      "id": "fc26123a-85b9-45e1-8bed-3913a18d0d7f",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblLo3smPaM19XXkv",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.email }}",
+            "Company": "={{ $json.company }}",
+            "Last Synced": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9f1b2e53-f8c8-4a6e-9024-c36e16f2521e",
+      "name": "Update Enriched Records",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblHfJZj4awb2reuj",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Sync Time": "={{ $now.toISO() }}",
+            "Records Processed": "={{ $input.all().length }}",
+            "New": "=0",
+            "Updated": "={{ $input.all().filter(i => i.json.enriched).length }}",
+            "Errors": "=0",
+            "Duration": "=Weekly Enrichment"
+          }
+        },
+        "options": {}
+      },
+      "id": "23e524c5-e1fd-449f-a99b-e7b7d5148746",
+      "name": "Log Enrichment",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## CRM-03: Weekly Enrichment\nRuns Sunday 03:00 SAST. Finds records missing Company or Phone,\nsearches Tavily for company info using email domain,\nAI extracts profile data, updates CRM Unified table.\nLimit: 50 records per run.",
+        "width": 440,
+        "height": 120
+      },
+      "id": "e4236be8-36ba-4bf6-bb3a-94615179ef69",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Needing Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Needing Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Records Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Records Found?": {
+      "main": [
+        [
+          {
+            "node": "Extract Email Domain",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Extract Email Domain": {
+      "main": [
+        [
+          {
+            "node": "Enrich via Tavily",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich via Tavily": {
+      "main": [
+        [
+          {
+            "node": "AI Extract Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Extract Profile": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Update Enriched Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Enriched Records": {
+      "main": [
+        [
+          {
+            "node": "Log Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

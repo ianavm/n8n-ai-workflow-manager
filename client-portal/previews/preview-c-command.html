@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option C — Command Center (SpaceX/Datadog)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #060A14; color: #C8D0DE; -webkit-font-smoothing: antialiased; font-size: 13px; }
+
+  /* --- Status bar --- */
+  .status-bar { position: fixed; top: 0; left: 0; right: 0; height: 32px; background: #0A0E1A; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; z-index: 50; font-size: 11px; }
+  .status-bar-left { display: flex; align-items: center; gap: 16px; }
+  .status-bar-right { display: flex; align-items: center; gap: 16px; color: #6B7280; }
+  .system-indicator { display: flex; align-items: center; gap: 6px; }
+  .pulse { width: 8px; height: 8px; border-radius: 50%; background: #10B981; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .sys-label { font-size: 11px; font-weight: 600; color: #10B981; text-transform: uppercase; letter-spacing: 0.5px; }
+  .clock { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #6B7280; }
+
+  /* --- Sidebar --- */
+  .sidebar { position: fixed; top: 32px; left: 0; bottom: 0; width: 56px; background: #0A0E1A; border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; align-items: center; padding-top: 16px; gap: 8px; z-index: 30; }
+  .sidebar-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; color: #6B7280; font-size: 14px; }
+  .sidebar-icon:hover { background: rgba(255,255,255,0.06); color: #E2E8F0; }
+  .sidebar-icon.active { background: rgba(108,99,255,0.12); color: #6C63FF; }
+
+  /* --- Main --- */
+  .main { margin-left: 56px; margin-top: 32px; }
+
+  /* --- Page sections --- */
+  .page-section { padding: 20px 24px 60px; border-bottom: 1px solid rgba(108,99,255,0.15); }
+  .page-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #6C63FF; margin-bottom: 4px; }
+  .page-title { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 20px; letter-spacing: -0.3px; }
+
+  /* --- Dense widget grid --- */
+  .widget-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 20px; }
+  .widget { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 14px 16px; }
+  .widget-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #6B7280; margin-bottom: 8px; }
+  .widget-value { font-size: 24px; font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace; letter-spacing: -1px; }
+  .widget-sub { font-size: 11px; margin-top: 4px; }
+  .widget-sub.up { color: #10B981; }
+  .widget-sub.down { color: #EF4444; }
+  .widget-sub.neutral { color: #6B7280; }
+
+  /* --- System Health Row --- */
+  .health-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+  .health-panel { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .health-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .health-dot.ok { background: #10B981; box-shadow: 0 0 8px rgba(16,185,129,0.4); }
+  .health-dot.warn { background: #F59E0B; box-shadow: 0 0 8px rgba(245,158,11,0.4); }
+  .health-dot.err { background: #EF4444; box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+  .health-info { flex: 1; }
+  .health-name { font-size: 11px; font-weight: 600; color: #E2E8F0; }
+  .health-stat { font-size: 10px; color: #6B7280; margin-top: 2px; }
+  .health-spark { display: flex; align-items: flex-end; gap: 1px; height: 20px; }
+  .health-bar { width: 3px; border-radius: 1px; background: rgba(108,99,255,0.3); transition: height 0.2s; }
+
+  /* --- Two-column bottom --- */
+  .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* --- Live feed --- */
+  .feed { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 16px; max-height: 280px; overflow-y: auto; }
+  .feed-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6B7280; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .feed-title .live-dot { width: 6px; height: 6px; border-radius: 50%; background: #10B981; animation: pulse 1.5s infinite; }
+  .feed-item { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 12px; }
+  .feed-time { font-family: 'JetBrains Mono', monospace; color: #4B5563; font-size: 11px; min-width: 50px; }
+  .feed-tag { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .feed-tag.info { background: rgba(108,99,255,0.12); color: #6C63FF; }
+  .feed-tag.warn { background: rgba(245,158,11,0.12); color: #F59E0B; }
+  .feed-tag.err { background: rgba(239,68,68,0.12); color: #EF4444; }
+  .feed-tag.ok { background: rgba(16,185,129,0.12); color: #10B981; }
+
+  /* --- Alert panel --- */
+  .alert-panel { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 16px; }
+  .alert-item { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .alert-severity { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .alert-severity.critical { background: rgba(239,68,68,0.15); color: #EF4444; }
+  .alert-severity.warning { background: rgba(245,158,11,0.15); color: #F59E0B; }
+  .alert-text { flex: 1; font-size: 12px; }
+  .alert-ack { font-size: 10px; padding: 3px 10px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); background: none; color: #6B7280; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .alert-ack:hover { border-color: #6C63FF; color: #6C63FF; }
+
+  /* --- Workflow Tile Map --- */
+  .tile-map { margin-top: 20px; }
+  .tile-map-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6B7280; margin-bottom: 12px; }
+  .tile-group { margin-bottom: 16px; }
+  .tile-group-label { font-size: 10px; color: #4B5563; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .tiles { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tile { width: 28px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; font-family: 'JetBrains Mono', monospace; cursor: pointer; transition: all 0.15s; }
+  .tile:hover { transform: scale(1.2); z-index: 2; }
+  .tile.ok { background: rgba(16,185,129,0.15); color: #10B981; border: 1px solid rgba(16,185,129,0.2); }
+  .tile.warn { background: rgba(245,158,11,0.15); color: #F59E0B; border: 1px solid rgba(245,158,11,0.2); }
+  .tile.err { background: rgba(239,68,68,0.15); color: #EF4444; border: 1px solid rgba(239,68,68,0.2); }
+  .tile.off { background: rgba(255,255,255,0.03); color: #4B5563; border: 1px solid rgba(255,255,255,0.04); }
+
+  /* --- Dense table --- */
+  .dense-table { width: 100%; border-collapse: collapse; }
+  .dense-table th { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: #4B5563; text-align: left; padding: 8px 12px; background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .dense-table td { padding: 8px 12px; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .dense-table tr:hover { background: rgba(108,99,255,0.04); }
+  .dense-table .checkbox { width: 14px; height: 14px; border: 1px solid rgba(255,255,255,0.15); border-radius: 3px; cursor: pointer; }
+
+  /* --- Uptime bar --- */
+  .uptime-val { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .uptime-val.high { color: #10B981; }
+  .uptime-val.mid { color: #F59E0B; }
+  .uptime-val.low { color: #EF4444; }
+
+  /* --- Command bar (detail page) --- */
+  .command-bar { position: sticky; top: 32px; background: rgba(10,14,26,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.06); padding: 10px 24px; display: flex; align-items: center; gap: 16px; z-index: 20; }
+  .cmd-client { font-size: 14px; font-weight: 700; color: #fff; }
+  .cmd-status { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+  .cmd-actions { margin-left: auto; display: flex; gap: 8px; }
+  .cmd-btn { font-size: 11px; padding: 4px 12px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); background: none; color: #C8D0DE; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .cmd-btn:hover { border-color: #6C63FF; color: #6C63FF; }
+  .cmd-btn.primary { background: rgba(108,99,255,0.12); border-color: rgba(108,99,255,0.3); color: #6C63FF; }
+
+  /* --- 3-col detail --- */
+  .detail-3col { display: grid; grid-template-columns: 200px 1fr 240px; gap: 0; }
+  .detail-col { padding: 20px; }
+  .detail-col:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.06); }
+  .metric-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .metric-label { font-size: 11px; color: #6B7280; }
+  .metric-value { font-size: 14px; font-weight: 600; color: #fff; font-family: 'JetBrains Mono', monospace; }
+
+  /* --- Heatmap --- */
+  .heatmap { display: grid; grid-template-columns: repeat(52, 1fr); gap: 2px; margin: 12px 0; }
+  .hm-cell { width: 100%; aspect-ratio: 1; border-radius: 2px; }
+  .hm-0 { background: rgba(255,255,255,0.03); }
+  .hm-1 { background: rgba(16,185,129,0.15); }
+  .hm-2 { background: rgba(16,185,129,0.3); }
+  .hm-3 { background: rgba(16,185,129,0.5); }
+  .hm-4 { background: rgba(16,185,129,0.7); }
+
+  /* --- Event log --- */
+  .event-log { max-height: 200px; overflow-y: auto; }
+  .event-item { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 11px; }
+  .event-sev { width: 3px; border-radius: 2px; flex-shrink: 0; }
+  .event-sev.s-info { background: #6C63FF; }
+  .event-sev.s-warn { background: #F59E0B; }
+  .event-sev.s-err { background: #EF4444; }
+  .event-sev.s-ok { background: #10B981; }
+</style>
+</head>
+<body>
+
+<!-- Status Bar -->
+<div class="status-bar">
+  <div class="status-bar-left">
+    <span style="font-weight:700;color:#fff;font-size:12px">AVM</span>
+    <div class="system-indicator">
+      <div class="pulse"></div>
+      <span class="sys-label">All Systems Operational</span>
+    </div>
+  </div>
+  <div class="status-bar-right">
+    <span>CPU 23% | Mem 4.1GB</span>
+    <span class="clock" id="clock">14:32:07 SAST</span>
+  </div>
+</div>
+
+<!-- Sidebar (icon-only) -->
+<nav class="sidebar">
+  <div class="sidebar-icon active" title="Overview">&#9632;</div>
+  <div class="sidebar-icon" title="Agents">&#9679;</div>
+  <div class="sidebar-icon" title="Clients">&#9650;</div>
+  <div class="sidebar-icon" title="Support">&#9670;</div>
+  <div class="sidebar-icon" title="Analytics">&#9644;</div>
+</nav>
+
+<main class="main">
+
+<!-- ============ PAGE 1: OVERVIEW (COMMAND CENTER) ============ -->
+<section class="page-section">
+  <div class="page-label">Page 1</div>
+  <div class="page-title">Command Center</div>
+
+  <!-- System Health Row -->
+  <div class="health-row">
+    <div class="health-panel">
+      <div class="health-dot ok"></div>
+      <div class="health-info">
+        <div class="health-name">n8n Cloud</div>
+        <div class="health-stat">34/34 active | 99.9%</div>
+      </div>
+      <div class="health-spark">
+        <div class="health-bar" style="height:12px"></div>
+        <div class="health-bar" style="height:16px"></div>
+        <div class="health-bar" style="height:14px"></div>
+        <div class="health-bar" style="height:18px"></div>
+        <div class="health-bar" style="height:20px"></div>
+        <div class="health-bar" style="height:17px"></div>
+        <div class="health-bar" style="height:19px"></div>
+      </div>
+    </div>
+    <div class="health-panel">
+      <div class="health-dot ok"></div>
+      <div class="health-info">
+        <div class="health-name">Supabase</div>
+        <div class="health-stat">12ms avg | 0 errors</div>
+      </div>
+      <div class="health-spark">
+        <div class="health-bar" style="height:10px"></div>
+        <div class="health-bar" style="height:8px"></div>
+        <div class="health-bar" style="height:12px"></div>
+        <div class="health-bar" style="height:9px"></div>
+        <div class="health-bar" style="height:11px"></div>
+        <div class="health-bar" style="height:10px"></div>
+        <div class="health-bar" style="height:8px"></div>
+      </div>
+    </div>
+    <div class="health-panel">
+      <div class="health-dot ok"></div>
+      <div class="health-info">
+        <div class="health-name">Airtable</div>
+        <div class="health-stat">45ms avg | 0 errors</div>
+      </div>
+      <div class="health-spark">
+        <div class="health-bar" style="height:14px"></div>
+        <div class="health-bar" style="height:12px"></div>
+        <div class="health-bar" style="height:16px"></div>
+        <div class="health-bar" style="height:13px"></div>
+        <div class="health-bar" style="height:15px"></div>
+        <div class="health-bar" style="height:14px"></div>
+        <div class="health-bar" style="height:12px"></div>
+      </div>
+    </div>
+    <div class="health-panel">
+      <div class="health-dot warn"></div>
+      <div class="health-info">
+        <div class="health-name">OpenRouter</div>
+        <div class="health-stat">890ms avg | 2 retries</div>
+      </div>
+      <div class="health-spark">
+        <div class="health-bar" style="height:16px"></div>
+        <div class="health-bar" style="height:20px"></div>
+        <div class="health-bar" style="height:14px"></div>
+        <div class="health-bar" style="height:18px;background:rgba(245,158,11,0.4)"></div>
+        <div class="health-bar" style="height:15px"></div>
+        <div class="health-bar" style="height:17px"></div>
+        <div class="health-bar" style="height:13px"></div>
+      </div>
+    </div>
+    <div class="health-panel">
+      <div class="health-dot ok"></div>
+      <div class="health-info">
+        <div class="health-name">Xero</div>
+        <div class="health-stat">Connected | 0 errors</div>
+      </div>
+      <div class="health-spark">
+        <div class="health-bar" style="height:8px"></div>
+        <div class="health-bar" style="height:10px"></div>
+        <div class="health-bar" style="height:9px"></div>
+        <div class="health-bar" style="height:8px"></div>
+        <div class="health-bar" style="height:10px"></div>
+        <div class="health-bar" style="height:9px"></div>
+        <div class="health-bar" style="height:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6-widget KPI grid -->
+  <div class="widget-grid">
+    <div class="widget">
+      <div class="widget-label">Active Clients</div>
+      <div class="widget-value">24</div>
+      <div class="widget-sub up">+3 this month</div>
+    </div>
+    <div class="widget">
+      <div class="widget-label">Messages / 24h</div>
+      <div class="widget-value">1,847</div>
+      <div class="widget-sub up">+12.4%</div>
+    </div>
+    <div class="widget">
+      <div class="widget-label">Leads / 24h</div>
+      <div class="widget-value">156</div>
+      <div class="widget-sub up">+8.2%</div>
+    </div>
+    <div class="widget">
+      <div class="widget-label">Executions / 24h</div>
+      <div class="widget-value">3,412</div>
+      <div class="widget-sub neutral">steady</div>
+    </div>
+    <div class="widget">
+      <div class="widget-label">Error Rate</div>
+      <div class="widget-value" style="color:#10B981">0.3%</div>
+      <div class="widget-sub up">-0.1%</div>
+    </div>
+    <div class="widget">
+      <div class="widget-label">Avg Latency</div>
+      <div class="widget-value">142ms</div>
+      <div class="widget-sub up">-8ms</div>
+    </div>
+  </div>
+
+  <!-- Bottom: Feed + Alerts -->
+  <div class="bottom-grid">
+    <div class="feed">
+      <div class="feed-title"><div class="live-dot"></div> Live Activity Feed</div>
+      <div class="feed-item"><span class="feed-time">14:32</span><span class="feed-tag ok">OK</span><span>WF-01 Invoice Processing completed (Meridian)</span></div>
+      <div class="feed-item"><span class="feed-time">14:31</span><span class="feed-tag info">INFO</span><span>Lead scored 87 — Vanguard Legal pipeline</span></div>
+      <div class="feed-item"><span class="feed-time">14:28</span><span class="feed-tag warn">WARN</span><span>Webhook timeout on WF-09 (Coastal) — retry 1/3</span></div>
+      <div class="feed-item"><span class="feed-time">14:25</span><span class="feed-tag ok">OK</span><span>WF-03 Payment Receipt sent (Summit)</span></div>
+      <div class="feed-item"><span class="feed-time">14:22</span><span class="feed-tag info">INFO</span><span>SEO audit completed — 94/100 score</span></div>
+      <div class="feed-item"><span class="feed-time">14:18</span><span class="feed-tag err">ERR</span><span>Atlas Financial — API auth token expired</span></div>
+      <div class="feed-item"><span class="feed-time">14:15</span><span class="feed-tag ok">OK</span><span>Daily backup completed — 4.2GB</span></div>
+      <div class="feed-item"><span class="feed-time">14:10</span><span class="feed-tag info">INFO</span><span>Marketing strategy generated for week 12</span></div>
+    </div>
+
+    <div class="alert-panel">
+      <div class="feed-title">Active Alerts</div>
+      <div class="alert-item">
+        <span class="alert-severity critical">CRITICAL</span>
+        <span class="alert-text">Atlas Financial — API auth failure (3h)</span>
+        <button class="alert-ack">ACK</button>
+      </div>
+      <div class="alert-item">
+        <span class="alert-severity warning">WARNING</span>
+        <span class="alert-text">OpenRouter latency spike (890ms avg)</span>
+        <button class="alert-ack">ACK</button>
+      </div>
+      <div class="alert-item">
+        <span class="alert-severity warning">WARNING</span>
+        <span class="alert-text">Coastal Realty — webhook retries elevated</span>
+        <button class="alert-ack">ACK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workflow Tile Map -->
+  <div class="tile-map">
+    <div class="tile-map-title">Workflow Map — 34 Active</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+      <div class="tile-group">
+        <div class="tile-group-label">Accounting</div>
+        <div class="tiles">
+          <div class="tile ok">01</div><div class="tile ok">02</div><div class="tile ok">03</div>
+          <div class="tile ok">04</div><div class="tile ok">05</div><div class="tile ok">06</div><div class="tile ok">07</div>
+        </div>
+      </div>
+      <div class="tile-group">
+        <div class="tile-group-label">Marketing</div>
+        <div class="tiles">
+          <div class="tile ok">01</div><div class="tile ok">02</div><div class="tile ok">03</div><div class="tile ok">04</div>
+        </div>
+      </div>
+      <div class="tile-group">
+        <div class="tile-group-label">SEO + Social</div>
+        <div class="tiles">
+          <div class="tile ok">05</div><div class="tile ok">06</div><div class="tile ok">07</div>
+          <div class="tile warn">08</div><div class="tile ok">09</div><div class="tile ok">10</div>
+          <div class="tile ok">11</div><div class="tile ok">SC</div>
+        </div>
+      </div>
+      <div class="tile-group">
+        <div class="tile-group-label">Ads</div>
+        <div class="tiles">
+          <div class="tile off">01</div><div class="tile off">02</div><div class="tile off">03</div><div class="tile off">04</div>
+          <div class="tile off">05</div><div class="tile off">06</div><div class="tile off">07</div><div class="tile off">08</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:8px">
+      <div class="tile-group">
+        <div class="tile-group-label">Orchestrator</div>
+        <div class="tiles">
+          <div class="tile ok">O1</div><div class="tile ok">O2</div><div class="tile ok">O3</div><div class="tile ok">O4</div>
+        </div>
+      </div>
+      <div class="tile-group">
+        <div class="tile-group-label">Support</div>
+        <div class="tiles">
+          <div class="tile ok">S1</div><div class="tile ok">S2</div><div class="tile ok">S3</div><div class="tile ok">S4</div>
+        </div>
+      </div>
+      <div class="tile-group">
+        <div class="tile-group-label">Intelligence</div>
+        <div class="tiles">
+          <div class="tile ok">I1</div><div class="tile ok">I2</div><div class="tile ok">I3</div>
+        </div>
+      </div>
+      <div class="tile-group">
+        <div class="tile-group-label">Other</div>
+        <div class="tiles">
+          <div class="tile ok">EM</div><div class="tile err">LS</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PAGE 2: CLIENT LIST (DENSE TABLE) ============ -->
+<section class="page-section">
+  <div class="page-label">Page 2</div>
+  <div class="page-title">Client Registry</div>
+
+  <table class="dense-table">
+    <thead>
+      <tr>
+        <th style="width:30px"><div class="checkbox"></div></th>
+        <th>Client</th>
+        <th>Plan</th>
+        <th>Uptime</th>
+        <th>Msg/24h</th>
+        <th>Leads</th>
+        <th>Errors</th>
+        <th>Status</th>
+        <th>Last Seen</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><div class="checkbox"></div></td>
+        <td style="font-weight:600;color:#fff">Meridian Properties</td>
+        <td>Enterprise</td>
+        <td><span class="uptime-val high">99.9%</span></td>
+        <td style="font-family:'JetBrains Mono',monospace">342</td>
+        <td style="font-family:'JetBrains Mono',monospace">48</td>
+        <td style="font-family:'JetBrains Mono',monospace;color:#10B981">0</td>
+        <td><span class="status"><span class="status-dot green"></span>Online</span></td>
+        <td style="color:#6B7280;font-family:'JetBrains Mono',monospace;font-size:11px">2m ago</td>
+      </tr>
+      <tr>
+        <td><div class="checkbox"></div></td>
+        <td style="font-weight:600;color:#fff">Vanguard Legal</td>
+        <td>Professional</td>
+        <td><span class="uptime-val high">99.7%</span></td>
+        <td style="font-family:'JetBrains Mono',monospace">287</td>
+        <td style="font-family:'JetBrains Mono',monospace">35</td>
+        <td style="font-family:'JetBrains Mono',monospace;color:#10B981">0</td>
+        <td><span class="status"><span class="status-dot green"></span>Online</span></td>
+        <td style="color:#6B7280;font-family:'JetBrains Mono',monospace;font-size:11px">5m ago</td>
+      </tr>
+      <tr>
+        <td><div class="checkbox"></div></td>
+        <td style="font-weight:600;color:#fff">Coastal Realty</td>
+        <td>Starter</td>
+        <td><span class="uptime-val mid">97.2%</span></td>
+        <td style="font-family:'JetBrains Mono',monospace">89</td>
+        <td style="font-family:'JetBrains Mono',monospace">12</td>
+        <td style="font-family:'JetBrains Mono',monospace;color:#F59E0B">3</td>
+        <td><span class="status"><span class="status-dot amber"></span>Degraded</span></td>
+        <td style="color:#6B7280;font-family:'JetBrains Mono',monospace;font-size:11px">1h ago</td>
+      </tr>
+      <tr>
+        <td><div class="checkbox"></div></td>
+        <td style="font-weight:600;color:#fff">Summit Consulting</td>
+        <td>Professional</td>
+        <td><span class="uptime-val high">99.5%</span></td>
+        <td style="font-family:'JetBrains Mono',monospace">156</td>
+        <td style="font-family:'JetBrains Mono',monospace">22</td>
+        <td style="font-family:'JetBrains Mono',monospace;color:#10B981">1</td>
+        <td><span class="status"><span class="status-dot green"></span>Online</span></td>
+        <td style="color:#6B7280;font-family:'JetBrains Mono',monospace;font-size:11px">12m ago</td>
+      </tr>
+      <tr>
+        <td><div class="checkbox"></div></td>
+        <td style="font-weight:600;color:#fff">Atlas Financial</td>
+        <td>Enterprise</td>
+        <td><span class="uptime-val low">91.3%</span></td>
+        <td style="font-family:'JetBrains Mono',monospace">42</td>
+        <td style="font-family:'JetBrains Mono',monospace">8</td>
+        <td style="font-family:'JetBrains Mono',monospace;color:#EF4444">12</td>
+        <td><span class="status"><span class="status-dot red"></span>Error</span></td>
+        <td style="color:#6B7280;font-family:'JetBrains Mono',monospace;font-size:11px">3h ago</td>
+      </tr>
+      <tr>
+        <td><div class="checkbox"></div></td>
+        <td style="font-weight:600;color:#fff">Nova Digital</td>
+        <td>Starter</td>
+        <td><span class="uptime-val high">99.8%</span></td>
+        <td style="font-family:'JetBrains Mono',monospace">121</td>
+        <td style="font-family:'JetBrains Mono',monospace">14</td>
+        <td style="font-family:'JetBrains Mono',monospace;color:#10B981">0</td>
+        <td><span class="status"><span class="status-dot green"></span>Online</span></td>
+        <td style="color:#6B7280;font-family:'JetBrains Mono',monospace;font-size:11px">30m ago</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ PAGE 3: CLIENT DETAIL (DENSE) ============ -->
+<section class="page-section" style="padding-top:0">
+
+  <!-- Command bar -->
+  <div class="command-bar">
+    <span class="cmd-client">Meridian Properties</span>
+    <span class="cmd-status"><div class="pulse" style="width:6px;height:6px"></div> Online</span>
+    <span style="color:#6B7280;font-size:11px">Enterprise</span>
+    <div class="cmd-actions">
+      <button class="cmd-btn">Export</button>
+      <button class="cmd-btn">Logs</button>
+      <button class="cmd-btn">Restart</button>
+      <button class="cmd-btn primary">Configure</button>
+    </div>
+  </div>
+
+  <div style="padding:20px 24px">
+    <div class="page-label">Page 3</div>
+    <div class="page-title" style="margin-bottom:16px">Client Detail</div>
+
+    <div class="detail-3col">
+      <!-- Left: Metrics -->
+      <div class="detail-col">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6B7280;margin-bottom:12px">Metrics</div>
+        <div class="metric-row"><span class="metric-label">Messages / 24h</span><span class="metric-value">342</span></div>
+        <div class="metric-row"><span class="metric-label">Leads / 24h</span><span class="metric-value">48</span></div>
+        <div class="metric-row"><span class="metric-label">Uptime</span><span class="metric-value" style="color:#10B981">99.9%</span></div>
+        <div class="metric-row"><span class="metric-label">Errors / 24h</span><span class="metric-value">0</span></div>
+        <div class="metric-row"><span class="metric-label">Avg Response</span><span class="metric-value">89ms</span></div>
+        <div class="metric-row"><span class="metric-label">Workflows</span><span class="metric-value">7</span></div>
+        <div class="metric-row"><span class="metric-label">Agents</span><span class="metric-value">3</span></div>
+        <div class="metric-row"><span class="metric-label">MRR</span><span class="metric-value" style="color:#00D4AA">R12.5k</span></div>
+      </div>
+
+      <!-- Center: Charts + Heatmap -->
+      <div class="detail-col">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6B7280;margin-bottom:12px">Message Volume (30d)</div>
+        <svg width="100%" height="120" viewBox="0 0 500 120" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="ccGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#6C63FF" stop-opacity="0.2"/>
+              <stop offset="100%" stop-color="#6C63FF" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,100 C25,90 50,80 80,75 C110,70 140,85 175,65 C210,45 240,55 275,40 C310,25 340,35 375,20 C410,15 440,20 500,10 L500,120 L0,120 Z" fill="url(#ccGrad)"/>
+          <path d="M0,100 C25,90 50,80 80,75 C110,70 140,85 175,65 C210,45 240,55 275,40 C310,25 340,35 375,20 C410,15 440,20 500,10" fill="none" stroke="#6C63FF" stroke-width="1.5"/>
+        </svg>
+
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6B7280;margin:16px 0 8px">Uptime Heatmap (52 weeks)</div>
+        <div class="heatmap">
+          <div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-3"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-3"></div>
+          <div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-2"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div>
+          <div class="hm-cell hm-3"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-1"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div>
+          <div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-3"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div>
+          <div class="hm-cell hm-4"></div><div class="hm-cell hm-2"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-3"></div><div class="hm-cell hm-4"></div>
+          <div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-0"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div>
+          <div class="hm-cell hm-4"></div><div class="hm-cell hm-3"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div>
+          <div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div><div class="hm-cell hm-4"></div>
+        </div>
+
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6B7280;margin:16px 0 8px">Workflow Uptime</div>
+        <table class="dense-table" style="font-size:11px">
+          <thead><tr><th>Workflow</th><th>Uptime</th><th>Runs/24h</th><th>Errors</th></tr></thead>
+          <tbody>
+            <tr><td>WF-01 Invoice</td><td><span class="uptime-val high">99.9%</span></td><td style="font-family:'JetBrains Mono',monospace">48</td><td style="font-family:'JetBrains Mono',monospace;color:#10B981">0</td></tr>
+            <tr><td>WF-02 Collections</td><td><span class="uptime-val high">100%</span></td><td style="font-family:'JetBrains Mono',monospace">24</td><td style="font-family:'JetBrains Mono',monospace;color:#10B981">0</td></tr>
+            <tr><td>WF-03 Receipts</td><td><span class="uptime-val high">99.5%</span></td><td style="font-family:'JetBrains Mono',monospace">36</td><td style="font-family:'JetBrains Mono',monospace;color:#10B981">0</td></tr>
+            <tr><td>WF-05 Trends</td><td><span class="uptime-val mid">97.2%</span></td><td style="font-family:'JetBrains Mono',monospace">2</td><td style="font-family:'JetBrains Mono',monospace;color:#F59E0B">1</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Right: Event Log -->
+      <div class="detail-col">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.8px;color:#6B7280;margin-bottom:12px">Event Log</div>
+        <div class="event-log">
+          <div class="event-item"><div class="event-sev s-ok"></div><span class="feed-time">14:32</span><span>Invoice INV-0847 sent</span></div>
+          <div class="event-item"><div class="event-sev s-info"></div><span class="feed-time">14:28</span><span>Lead scored 87 (qualified)</span></div>
+          <div class="event-item"><div class="event-sev s-ok"></div><span class="feed-time">14:22</span><span>Collection reminder sent</span></div>
+          <div class="event-item"><div class="event-sev s-info"></div><span class="feed-time">14:15</span><span>SEO content published</span></div>
+          <div class="event-item"><div class="event-sev s-ok"></div><span class="feed-time">13:58</span><span>Payment R4,200 received</span></div>
+          <div class="event-item"><div class="event-sev s-warn"></div><span class="feed-time">13:45</span><span>API latency >500ms (1.2s)</span></div>
+          <div class="event-item"><div class="event-sev s-ok"></div><span class="feed-time">13:30</span><span>Monthly report generated</span></div>
+          <div class="event-item"><div class="event-sev s-info"></div><span class="feed-time">13:15</span><span>3 new social engagements</span></div>
+          <div class="event-item"><div class="event-sev s-ok"></div><span class="feed-time">12:50</span><span>WF-06 completed normally</span></div>
+          <div class="event-item"><div class="event-sev s-err"></div><span class="feed-time">12:30</span><span>Webhook timeout (resolved)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+// Live clock
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = h + ':' + m + ':' + s + ' SAST';
+}
+setInterval(updateClock, 1000);
+updateClock();
+</script>
+</body>
+</html>

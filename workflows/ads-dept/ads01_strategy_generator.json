@@ -1,0 +1,367 @@
+{
+  "name": "AVM Ads: Strategy Generator",
+  "nodes": [
+    {
+      "id": "c2248f6e-56ef-45c8-8b84-ab3f0759e3df",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "97174042-86ec-4ed2-a193-6a845869aa69",
+      "name": "Read Research Insights",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        100
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblPHMyQMedBvcGQz"
+        },
+        "filterByFormula": "=IS_AFTER({Created At}, DATEADD(TODAY(), -7, 'days'))",
+        "options": {}
+      }
+    },
+    {
+      "id": "0f082849-b482-4723-b6bb-74295a8f4944",
+      "name": "Read Current Campaigns",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblon2FDqfifeF1Iv"
+        },
+        "filterByFormula": "=OR({Status}='Active',{Status}='Launched',{Status}='Planned')",
+        "options": {}
+      }
+    },
+    {
+      "id": "67bc9c54-c4a6-48c2-b681-428775da7b06",
+      "name": "Read Budget Data",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblhYDUzyzNxnQQXw"
+        },
+        "filterByFormula": "={Status}='Active'",
+        "options": {}
+      }
+    },
+    {
+      "id": "54c223fb-190b-44ec-a958-0b133c3f8a3e",
+      "name": "Merge Context",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "5a425bc0-22ac-4813-ac43-af389a2a5fdc",
+      "name": "AI Strategy Generator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Campaign Strategist for AnyVision Media, a South African SaaS/AI automation company.\\n\\nBUSINESS CONTEXT:\\n- Company: AnyVision Media (www.anyvisionmedia.com)\\n- Services: AI consulting, workflow automation, web development, social media management\\n- Target: SMBs in South Africa looking to automate and scale\\n- Brand color: #FF6D5A\\n- Currency: ZAR (South African Rand)\\n- Key CTA: \\\"Book a Free AI Strategy Call\\\"\\n\\nORGANIC CONTENT PERFORMANCE (last 7 days):\\n{{JSON.stringify($json)}}\\n\\nCURRENT PAID CAMPAIGNS:\\n{{JSON.stringify($json)}}\\n\\nBUDGET ALLOCATION:\\n{{JSON.stringify($json)}}\\n\\nGenerate 3-5 campaign recommendations as a JSON array. Each item must have:\\n- campaign_name: descriptive name\\n- platform: one of \\\"google_ads\\\", \\\"meta_ads\\\", \\\"tiktok_ads\\\"\\n- objective: one of \\\"Traffic\\\", \\\"Conversions\\\", \\\"Lead_Gen\\\", \\\"Awareness\\\", \\\"Video_Views\\\"\\n- target_audience: description of who to target\\n- suggested_daily_budget_zar: number (respect total weekly cap of R10000)\\n- ad_format: one of \\\"RSA\\\", \\\"Image\\\", \\\"Video\\\", \\\"Carousel\\\"\\n- key_messages: array of 2-3 messaging angles\\n- duration_days: 7, 14, or 30\\n- priority: \\\"High\\\", \\\"Medium\\\", or \\\"Low\\\"\\n- reasoning: why this campaign should run\\n\\nFocus on SaaS lead generation and client acquisition. Prioritize campaigns with highest expected ROAS.\\n\\nOutput ONLY valid JSON array, no markdown or extra text.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "e5e3f779-8999-4aa3-97da-1d96c763c48c",
+      "name": "Parse Strategy",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse AI strategy response into individual campaign records\nconst aiResp = $('AI Strategy Generator').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\n\nlet campaigns;\ntry {\n  // Strip markdown code fences if present\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  campaigns = JSON.parse(cleaned);\n} catch (e) {\n  return [{json: {error: 'Failed to parse AI response', raw: content}}];\n}\n\nif (!Array.isArray(campaigns)) campaigns = [campaigns];\n\nconst now = new Date().toISOString().split('T')[0];\nconst results = [];\n\nfor (const c of campaigns) {\n  results.push({\n    json: {\n      'Campaign Name': c.campaign_name || 'Untitled Campaign',\n      'Platform': c.platform || 'google_ads',\n      'Objective': c.objective || 'Conversions',\n      'Status': 'Planned',\n      'Target Audience': c.target_audience || '',\n      'Daily Budget ZAR': c.suggested_daily_budget_zar || 100,\n      'Lifetime Budget ZAR': (c.suggested_daily_budget_zar || 100) * (c.duration_days || 14),\n      'Key Messages': JSON.stringify(c.key_messages || []),\n      'Priority': c.priority || 'Medium',\n      'Created At': now,\n      'Created By': 'ADS-01',\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No campaigns generated'}}];\n"
+      }
+    },
+    {
+      "id": "a311c4a7-ee7e-44c4-9f31-58afcae44b77",
+      "name": "Filter Valid",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Filter out skip items (no data from platform)\nconst items = $input.all();\nreturn items.filter(item => !item.json.skip);\n"
+      }
+    },
+    {
+      "id": "e3416b23-3cc7-402f-9dfc-7b99ae3909ae",
+      "name": "Write Planned Campaigns",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1750,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblon2FDqfifeF1Iv"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b0e2ad45-d8c2-4b08-9122-0c0601f387ad",
+      "name": "Email Strategy Summary",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "AVM Ads Strategy - New Campaigns Planned",
+        "emailType": "html",
+        "message": "={{\"<h2>New Campaign Strategies</h2><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Research Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Current Campaigns",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Budget Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Research Insights": {
+      "main": [
+        [
+          {
+            "node": "Merge Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Current Campaigns": {
+      "main": [
+        [
+          {
+            "node": "Merge Context",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Read Budget Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Context",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Context": {
+      "main": [
+        [
+          {
+            "node": "AI Strategy Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Strategy Generator": {
+      "main": [
+        [
+          {
+            "node": "Parse Strategy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Strategy": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid": {
+      "main": [
+        [
+          {
+            "node": "Write Planned Campaigns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Planned Campaigns": {
+      "main": [
+        [
+          {
+            "node": "Email Strategy Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "ads-dept",
+    "strategy",
+    "phase-2"
+  ]
+}

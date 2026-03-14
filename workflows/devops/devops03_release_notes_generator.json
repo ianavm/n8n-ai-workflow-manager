@@ -1,0 +1,300 @@
+{
+  "name": "DEVOPS-03 Release Notes Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "devops-release-notes",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a582de4d-8515-44ac-a164-c962cf6dba81",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "5ce084ee-a75f-49c3-94b8-3216a4ff4b30"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst now = new Date();\nconst sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);\nreturn { json: {\n  from_date: body.from_date || sevenDaysAgo.toISOString().split('T')[0],\n  to_date: body.to_date || now.toISOString().split('T')[0],\n  requested_by: body.requested_by || 'system',\n  release_id: 'REL-' + Date.now().toString(36).toUpperCase(),\n  requested_at: now.toISOString(),\n}};"
+      },
+      "id": "8ff9e80f-166c-4ca0-98cd-6c254174a55b",
+      "name": "Parse Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://ianimmelman89.app.n8n.cloud/api/v1/executions?limit=50&status=success",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "4978e2c4-2f76-4182-81eb-ed0730603d65",
+      "name": "Fetch Executions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xymp9Nho08mRW2Wz",
+          "name": "n8n API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://ianimmelman89.app.n8n.cloud/api/v1/workflows?limit=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "3db11044-8053-42ac-afe4-e2264436baf2",
+      "name": "Fetch Workflows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xymp9Nho08mRW2Wz",
+          "name": "n8n API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const execResp = $('Fetch Executions').first().json;\nconst wfResp = $('Fetch Workflows').first().json;\nconst req = $('Parse Request').first().json;\nconst fromDate = new Date(req.from_date);\nconst toDate = new Date(req.to_date);\ntoDate.setHours(23, 59, 59);\n\nconst executions = execResp.data || execResp.results || [];\nconst workflows = wfResp.data || wfResp.results || [];\n\n// Find workflows updated in date range\nconst updatedWfs = workflows.filter(wf => {\n  const updated = new Date(wf.updatedAt || '');\n  return updated >= fromDate && updated <= toDate;\n});\n\n// Count executions per workflow in date range\nconst execCounts = {};\nfor (const exec of executions) {\n  const started = new Date(exec.startedAt || '');\n  if (started >= fromDate && started <= toDate) {\n    const wfId = exec.workflowId || exec.workflowData?.id || '';\n    execCounts[wfId] = (execCounts[wfId] || 0) + 1;\n  }\n}\n\nconst changeLog = updatedWfs.map(wf => {\n  return 'Workflow: ' + wf.name + ' (ID: ' + wf.id + ')\\nUpdated: ' + (wf.updatedAt || 'N/A') + '\\nActive: ' + wf.active + '\\nNodes: ' + (wf.nodes || []).length + '\\nExecutions in period: ' + (execCounts[wf.id] || 0);\n}).join('\\n---\\n');\n\nreturn { json: {\n  release_id: req.release_id,\n  from_date: req.from_date,\n  to_date: req.to_date,\n  updated_workflow_count: updatedWfs.length,\n  total_executions: Object.values(execCounts).reduce((a, b) => a + b, 0),\n  change_log: changeLog || 'No workflow changes detected in this period.',\n}};"
+      },
+      "id": "77996804-fb1e-4ef0-b329-fa92110b58a5",
+      "name": "Compile Changes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Generate professional release notes for AnyVision Media's automation platform. Format as markdown with sections: ## Summary, ## Changes, ## Stats, ## Notes. Be concise and highlight key changes.\"},\n    {\"role\": \"user\", \"content\": \"Generate release notes for period {{ $json.from_date }} to {{ $json.to_date }}.\\n\\nUpdated Workflows: {{ $json.updated_workflow_count }}\\nTotal Executions: {{ $json.total_executions }}\\n\\nChange Log:\\n{{ $json.change_log }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "b4b8ede2-fbbc-4800-bbfb-ef69ee33e352",
+      "name": "AI Generate Release Notes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst releaseNotes = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : 'No release notes generated.';\nconst meta = $('Compile Changes').first().json;\nreturn { json: {\n  release_id: meta.release_id,\n  from_date: meta.from_date,\n  to_date: meta.to_date,\n  release_notes: releaseNotes,\n  updated_workflows: meta.updated_workflow_count,\n  total_executions: meta.total_executions,\n  generated_at: new Date().toISOString(),\n}};"
+      },
+      "id": "4e5f4261-88e0-4d47-9702-89d4e6d29c6c",
+      "name": "Extract Notes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "deploy_id": "={{ $json.release_id }}",
+            "action": "release_notes",
+            "workflow_name": "=Release {{ $json.from_date }} to {{ $json.to_date }}",
+            "status": "Generated",
+            "health_check": "={{ $json.updated_workflows }} workflows, {{ $json.total_executions }} executions",
+            "pre_deploy_snapshot": "={{ $json.release_notes.substring(0, 2000) }}",
+            "started_at": "={{ $json.generated_at }}",
+            "completed_at": "={{ $json.generated_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "eaaa9005-45a4-480d-bd0a-38ad321aaacf",
+      "name": "Write Release Notes",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1560,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true, release_id: $('Extract Notes').first().json.release_id, release_notes: $('Extract Notes').first().json.release_notes, period: $('Extract Notes').first().json.from_date + ' to ' + $('Extract Notes').first().json.to_date}) }}",
+        "options": {}
+      },
+      "id": "8bd5a5d9-5e8a-4267-94a0-791d232d5cd6",
+      "name": "Respond Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1780,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Request": {
+      "main": [
+        [
+          {
+            "node": "Fetch Executions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Executions": {
+      "main": [
+        [
+          {
+            "node": "Compile Changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Workflows": {
+      "main": [
+        [
+          {
+            "node": "Compile Changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Changes": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Release Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Release Notes": {
+      "main": [
+        [
+          {
+            "node": "Extract Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Notes": {
+      "main": [
+        [
+          {
+            "node": "Write Release Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Release Notes": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "devops",
+    "release-notes",
+    "documentation"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_devops_coordinator.py",
+    "built_at": "2026-03-14T19:17:49.568715"
+  }
+}

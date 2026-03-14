@@ -1,0 +1,290 @@
+{
+  "name": "DATA-03 Monthly Report Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "9479f120-e3ea-4850-bfa8-6f2f52308c59",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUsdtPRFN7UchgK",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({snapshot_date}, DATEADD(TODAY(), -30, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "40bd3260-40f0-4d68-95e8-73ffb4628d6a",
+      "name": "Fetch KPI Data",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Reports/ProfitAndLoss?fromDate={{ $now.minus({months:1}).toFormat('yyyy-MM-dd') }}&toDate={{ $now.toFormat('yyyy-MM-dd') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "options": {}
+      },
+      "id": "e8b9439a-e610-4f5e-8cd0-b52e8fc44dd7",
+      "name": "Fetch Xero P&L",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const kpiItems = $('Fetch KPI Data').all();\nconst xeroResp = $('Fetch Xero P&L').first().json;\n\n// Aggregate KPIs\nconst kpis = kpiItems.map(i => i.json);\nconst avgHealth = kpis.length > 0 ? Math.round(kpis.reduce((sum, k) => sum + (parseFloat(k.health_score) || 0), 0) / kpis.length * 10) / 10 : 0;\nconst totalExecutions = kpis.reduce((sum, k) => sum + (parseInt(k.execution_count) || 0), 0);\nconst totalErrors = kpis.reduce((sum, k) => sum + (parseInt(k.error_count) || 0), 0);\nconst errorRate = totalExecutions > 0 ? Math.round(totalErrors / totalExecutions * 1000) / 10 : 0;\n\n// Extract Xero P&L summary\nlet revenue = 'N/A';\nlet expenses = 'N/A';\nlet netProfit = 'N/A';\ntry {\n  const reports = xeroResp.Reports || [];\n  if (reports.length > 0) {\n    const rows = reports[0].Rows || [];\n    for (const section of rows) {\n      if (section.Title === 'Income' && section.Rows) {\n        const totRow = section.Rows.find(r => r.RowType === 'SummaryRow');\n        if (totRow) revenue = totRow.Cells?.[1]?.Value || 'N/A';\n      }\n      if (section.Title === 'Less Operating Expenses' && section.Rows) {\n        const totRow = section.Rows.find(r => r.RowType === 'SummaryRow');\n        if (totRow) expenses = totRow.Cells?.[1]?.Value || 'N/A';\n      }\n      if (section.RowType === 'Section' && section.Title === 'Net Profit') {\n        const totRow = (section.Rows || []).find(r => r.RowType === 'SummaryRow');\n        if (totRow) netProfit = totRow.Cells?.[1]?.Value || 'N/A';\n      }\n    }\n  }\n} catch(e) { /* Xero parsing failed - use N/A defaults */ }\n\nconst reportMonth = new Date();\nreportMonth.setMonth(reportMonth.getMonth() - 1);\n\nreturn { json: {\n  report_month: reportMonth.toISOString().substring(0, 7),\n  avg_health_score: avgHealth,\n  total_executions: totalExecutions,\n  total_errors: totalErrors,\n  error_rate_pct: errorRate,\n  kpi_data_points: kpis.length,\n  revenue, expenses, net_profit: netProfit,\n  generated_at: new Date().toISOString(),\n}};"
+      },
+      "id": "5506debc-c50e-42b5-a326-5d95d0d29e55",
+      "name": "Aggregate Monthly Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Generate a comprehensive monthly report for AnyVision Media. Include: Executive Summary, Operations Performance, Financial Overview, Key Achievements, Areas of Concern, Recommendations for Next Month. Use ZAR (R) for all currency. Format as clean HTML for email.\"},\n    {\"role\": \"user\", \"content\": \"Monthly Report for {{ $json.report_month }}:\\n\\nOperations:\\n- Avg Health Score: {{ $json.avg_health_score }}/100\\n- Total Workflow Executions: {{ $json.total_executions }}\\n- Total Errors: {{ $json.total_errors }} ({{ $json.error_rate_pct }}% error rate)\\n- Data Points: {{ $json.kpi_data_points }}\\n\\nFinancials (from Xero):\\n- Revenue: R{{ $json.revenue }}\\n- Expenses: R{{ $json.expenses }}\\n- Net Profit: R{{ $json.net_profit }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "3e5bd4d8-16b8-43e4-b6b2-80b78cf20abd",
+      "name": "AI Generate Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        940,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst report = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : 'Report generation failed.';\nconst meta = $('Aggregate Monthly Data').first().json;\nreturn { json: {\n  report_month: meta.report_month,\n  report_content: report,\n  avg_health: meta.avg_health_score,\n  total_executions: meta.total_executions,\n  error_rate: meta.error_rate_pct,\n  revenue: meta.revenue,\n  net_profit: meta.net_profit,\n  generated_at: meta.generated_at,\n}};"
+      },
+      "id": "fb3a6eba-7fa5-40b7-96e7-fe2418ac1a56",
+      "name": "Extract Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "query_id": "=MONTHLY-{{ $json.report_month }}",
+            "question": "=Monthly Report {{ $json.report_month }}",
+            "summary": "={{ $json.report_content.substring(0, 2000) }}",
+            "sql_query": "=Health: {{ $json.avg_health }}, Executions: {{ $json.total_executions }}, Errors: {{ $json.error_rate }}%, Revenue: R{{ $json.revenue }}",
+            "status": "Completed",
+            "created_at": "={{ $json.generated_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "8a8700ad-4530-46f3-9e82-44e67ae50e5d",
+      "name": "Write Monthly Report",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1380,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=AnyVision Media Monthly Report - {{ $('Extract Report').first().json.report_month }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:700px\">\n<div style=\"background:#FF6D5A;padding:20px;text-align:center\">\n<h1 style=\"color:white;margin:0\">AnyVision Media</h1>\n<h2 style=\"color:white;margin:5px 0 0 0\">Monthly Report - {{ $('Extract Report').first().json.report_month }}</h2>\n</div>\n<div style=\"padding:20px\">\n<table style=\"width:100%;border-collapse:collapse;margin-bottom:20px\">\n<tr style=\"background:#f8f8f8\"><td style=\"padding:10px;border:1px solid #eee\"><b>Health Score</b></td><td style=\"padding:10px;border:1px solid #eee\">{{ $('Extract Report').first().json.avg_health }}/100</td></tr>\n<tr><td style=\"padding:10px;border:1px solid #eee\"><b>Executions</b></td><td style=\"padding:10px;border:1px solid #eee\">{{ $('Extract Report').first().json.total_executions }}</td></tr>\n<tr style=\"background:#f8f8f8\"><td style=\"padding:10px;border:1px solid #eee\"><b>Error Rate</b></td><td style=\"padding:10px;border:1px solid #eee\">{{ $('Extract Report').first().json.error_rate }}%</td></tr>\n<tr><td style=\"padding:10px;border:1px solid #eee\"><b>Revenue</b></td><td style=\"padding:10px;border:1px solid #eee\">R{{ $('Extract Report').first().json.revenue }}</td></tr>\n<tr style=\"background:#f8f8f8\"><td style=\"padding:10px;border:1px solid #eee\"><b>Net Profit</b></td><td style=\"padding:10px;border:1px solid #eee\">R{{ $('Extract Report').first().json.net_profit }}</td></tr>\n</table>\n<div>{{ $('Extract Report').first().json.report_content }}</div>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Data Analyst - Monthly Report Automation</div></div>",
+        "options": {}
+      },
+      "id": "431aa8c3-153d-4b01-bc8b-983e6dde628a",
+      "name": "Email Monthly Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch KPI Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Xero P&L",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch KPI Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Monthly Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Xero P&L": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Monthly Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Monthly Data": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Report": {
+      "main": [
+        [
+          {
+            "node": "Extract Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Report": {
+      "main": [
+        [
+          {
+            "node": "Write Monthly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Monthly Report": {
+      "main": [
+        [
+          {
+            "node": "Email Monthly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "data",
+    "report",
+    "monthly"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_data_analyst.py",
+    "built_at": "2026-03-14T19:18:33.788979"
+  }
+}

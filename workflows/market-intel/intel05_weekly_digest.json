@@ -1,0 +1,244 @@
+{
+  "name": "Market Intel - Weekly Market Digest (INTEL-05)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "aed57138-b5fe-4fb3-8f76-5873b36b5c7a",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c8fa4c4a-99d6-4f25-8336-85df36d4701d",
+              "name": "startDate",
+              "value": "={{ $now.minus({days: 7}).toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "e4414969-3f15-4bea-85fb-6ce9873c403f",
+              "name": "endDate",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "bd1550e4-fe6c-4f8d-8abe-a4ee0674e99f",
+              "name": "weekLabel",
+              "value": "={{ $now.minus({days: 7}).toFormat('dd MMM') }} - {{ $now.toFormat('dd MMM yyyy') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e4d5d49b-c2af-4330-ad29-8a404d257e06",
+      "name": "Set Date Range",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9vp3Wlx9H8bxcC",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({Date}, '{{ $json.startDate }}')",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "374a6ccc-9016-4b79-8ee4-c7f34c601544",
+      "name": "Read Week Findings",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a market intelligence analyst for AnyVision Media, a South African digital agency. Create a weekly market intelligence digest from competitive findings. Group by category (Pricing, Service, Hiring, Market, Regulatory), highlight trends, and provide 3-5 strategic recommendations. Use clear headers and concise bullet points. Currency in ZAR.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a weekly market intelligence digest for \" + $('Set Date Range').first().json.weekLabel + \" from these competitive findings:\\n\\n\" + JSON.stringify($input.all().map(i => i.json), null, 2)\n    }\n  ]\n}}",
+        "options": {}
+      },
+      "id": "8d60e420-699a-4ab3-aa8f-4fb1ddc518a6",
+      "name": "AI Market Digest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format weekly market digest as branded HTML email\nconst digest = $json.choices[0].message.content;\nconst weekLabel = $('Set Date Range').first().json.weekLabel;\nconst findings = $('Read Week Findings').all().map(i => i.json);\n\n// Count by category\nconst byCat = {};\nfor (const f of findings) {\n  const cat = f.Category || 'Unknown';\n  byCat[cat] = (byCat[cat] || 0) + 1;\n}\n\n// Count by significance\nconst bySig = {};\nfor (const f of findings) {\n  const sig = f.Significance || 'Unknown';\n  bySig[sig] = (bySig[sig] || 0) + 1;\n}\n\nconst catBadges = Object.entries(byCat).map(([cat, count]) =>\n  `<span style=\"display: inline-block; background: #f0f0f0; padding: 4px 10px; border-radius: 12px; margin: 2px; font-size: 12px;\">${cat}: ${count}</span>`\n).join(' ');\n\nconst html = `<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n  <div style=\"background: #FF6D5A; color: white; padding: 24px; border-radius: 8px 8px 0 0;\">\n    <h1 style=\"margin: 0; font-size: 22px;\">Weekly Market Intelligence Digest</h1>\n    <p style=\"margin: 5px 0 0; opacity: 0.9; font-size: 14px;\">${weekLabel}</p>\n  </div>\n\n  <div style=\"background: white; padding: 24px; border: 1px solid #e0e0e0;\">\n    <div style=\"display: flex; gap: 16px; margin-bottom: 20px;\">\n      <div style=\"flex: 1; background: #f7f7f7; padding: 16px; border-radius: 6px; text-align: center;\">\n        <div style=\"font-size: 28px; font-weight: bold; color: #FF6D5A;\">${findings.length}</div>\n        <div style=\"font-size: 12px; color: #888;\">Total Findings</div>\n      </div>\n      <div style=\"flex: 1; background: #f7f7f7; padding: 16px; border-radius: 6px; text-align: center;\">\n        <div style=\"font-size: 28px; font-weight: bold; color: #d32f2f;\">${bySig['High'] || 0}</div>\n        <div style=\"font-size: 12px; color: #888;\">High Significance</div>\n      </div>\n      <div style=\"flex: 1; background: #f7f7f7; padding: 16px; border-radius: 6px; text-align: center;\">\n        <div style=\"font-size: 28px; font-weight: bold; color: #f57c00;\">${bySig['Medium'] || 0}</div>\n        <div style=\"font-size: 12px; color: #888;\">Medium</div>\n      </div>\n      <div style=\"flex: 1; background: #f7f7f7; padding: 16px; border-radius: 6px; text-align: center;\">\n        <div style=\"font-size: 28px; font-weight: bold; color: #388e3c;\">${bySig['Low'] || 0}</div>\n        <div style=\"font-size: 12px; color: #888;\">Low</div>\n      </div>\n    </div>\n\n    <div style=\"margin-bottom: 16px;\">${catBadges}</div>\n\n    <h3 style=\"color: #333; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px;\">Analysis & Recommendations</h3>\n    <div style=\"line-height: 1.6; color: #444;\">${digest.replace(/\\n/g, '<br>')}</div>\n\n    <hr style=\"border: 1px solid #eee; margin: 24px 0;\">\n    <p style=\"color: #888; font-size: 11px;\">Generated by AVM Market Intelligence | INTEL-05 | ${findings.length} findings analyzed</p>\n  </div>\n</div>`;\n\nreturn [{ json: { html, subject: 'Weekly Market Intel Digest - ' + weekLabel } }];"
+      },
+      "id": "a6d5230c-a9b6-4083-b663-fe32641e3e2f",
+      "name": "Format HTML Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "bd9469e2-c456-4427-b287-72277a53f5cc",
+      "name": "Send Digest Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## INTEL-05: Weekly Market Digest\nRuns Monday 07:00 SAST. Reads last 7 days of\ncompetitive findings from Airtable, AI generates\ngrouped digest with recommendations, branded HTML email.",
+        "width": 420,
+        "height": 120
+      },
+      "id": "d21ffeb9-1b17-4308-9713-de3184a78d3d",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Date Range",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Date Range": {
+      "main": [
+        [
+          {
+            "node": "Read Week Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Week Findings": {
+      "main": [
+        [
+          {
+            "node": "AI Market Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Market Digest": {
+      "main": [
+        [
+          {
+            "node": "Format HTML Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format HTML Report": {
+      "main": [
+        [
+          {
+            "node": "Send Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

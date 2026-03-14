@@ -1,0 +1,180 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { validatePassword, isValidClientStatus } from "@/lib/validation";
+
+// GET /api/admin/clients — list all clients (admin only)
+export async function GET() {
+  const session = await getSession();
+  if (!session || (session.role !== "owner" && session.role !== "employee")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = await createServiceRoleClient();
+
+  const { data: clients, error } = await supabase
+    .from("clients")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: "Failed to fetch clients" }, { status: 500 });
+  }
+
+  // Fetch stats summary for each client
+  const enriched = await Promise.all(
+    (clients || []).map(async (client) => {
+      const { data: stats } = await supabase
+        .from("stat_events")
+        .select("event_type")
+        .eq("client_id", client.id);
+
+      const { count: workflowCount } = await supabase
+        .from("workflows")
+        .select("*", { count: "exact", head: true })
+        .eq("client_id", client.id)
+        .eq("status", "active");
+
+      const eventCounts = (stats || []).reduce(
+        (acc: Record<string, number>, s) => {
+          acc[s.event_type] = (acc[s.event_type] || 0) + 1;
+          return acc;
+        },
+        {}
+      );
+
+      return {
+        ...client,
+        active_workflows: workflowCount || 0,
+        messages_sent: eventCounts.message_sent || 0,
+        messages_received: eventCounts.message_received || 0,
+        leads_created: eventCounts.lead_created || 0,
+        total_crashes: eventCounts.workflow_crash || 0,
+      };
+    })
+  );
+
+  return NextResponse.json(enriched);
+}
+
+// POST /api/admin/clients — create a new client
+export async function POST(request: NextRequest) {
+  const session = await getSession();
+  if (!session || (session.role !== "owner" && session.role !== "employee")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const { email, full_name, company_name, password } = body;
+
+  if (!email || !full_name || !password) {
+    return NextResponse.json(
+      { error: "email, full_name, and password are required" },
+      { status: 400 }
+    );
+  }
+
+  // Validate password strength
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    return NextResponse.json({ error: passwordError }, { status: 400 });
+  }
+
+  const supabase = await createServiceRoleClient();
+
+  // Create auth user
+  const { data: authUser, error: authError } =
+    await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
+
+  if (authError) {
+    return NextResponse.json(
+      { error: "Failed to create user" },
+      { status: 400 }
+    );
+  }
+
+  // Create client record
+  const { data: client, error: clientError } = await supabase
+    .from("clients")
+    .insert({
+      auth_user_id: authUser.user.id,
+      email,
+      full_name,
+      company_name: company_name || null,
+      created_by: session.profileId,
+    })
+    .select()
+    .single();
+
+  if (clientError) {
+    // Rollback: delete auth user
+    await supabase.auth.admin.deleteUser(authUser.user.id);
+    return NextResponse.json(
+      { error: "Failed to create client record" },
+      { status: 500 }
+    );
+  }
+
+  // Log activity
+  await supabase.from("activity_log").insert({
+    actor_type: "admin",
+    actor_id: session.profileId,
+    action: "client_created",
+    target_type: "client",
+    target_id: client.id,
+    details: { email, full_name },
+  });
+
+  return NextResponse.json(client, { status: 201 });
+}
+
+// PATCH /api/admin/clients — update client status
+export async function PATCH(request: NextRequest) {
+  const session = await getSession();
+  if (!session || (session.role !== "owner" && session.role !== "employee")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await request.json();
+  const { client_id, status: newStatus } = body;
+
+  if (!client_id || !newStatus) {
+    return NextResponse.json(
+      { error: "client_id and status are required" },
+      { status: 400 }
+    );
+  }
+
+  // Validate status is an allowed value
+  if (!isValidClientStatus(newStatus)) {
+    return NextResponse.json(
+      { error: "status must be one of: active, suspended, inactive" },
+      { status: 400 }
+    );
+  }
+
+  const supabase = await createServiceRoleClient();
+
+  const { error } = await supabase
+    .from("clients")
+    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .eq("id", client_id);
+
+  if (error) {
+    return NextResponse.json({ error: "Failed to update client" }, { status: 500 });
+  }
+
+  await supabase.from("activity_log").insert({
+    actor_type: "admin",
+    actor_id: session.profileId,
+    action: `client_status_${newStatus}`,
+    target_type: "client",
+    target_id: client_id,
+  });
+
+  return NextResponse.json({ success: true });
+}

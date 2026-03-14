@@ -1,0 +1,332 @@
+{
+  "name": "QA-03 Performance Benchmark",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * *"
+            }
+          ]
+        }
+      },
+      "id": "6565e6fe-e24f-4e0e-aec2-79ea8e52709e",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "[{\"url\": \"https://www.anyvisionmedia.com\", \"name\": \"Landing Page\"}, {\"url\": \"https://portal.anyvisionmedia.com\", \"name\": \"Client Portal\"}]",
+        "options": {}
+      },
+      "id": "5b450fb6-3d97-488e-82aa-1d7e4902af47",
+      "name": "Set Target URLs",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const urls = $input.first().json;\nconst items = Array.isArray(urls) ? urls : Object.values(urls);\nreturn items.map(u => ({json: u}));"
+      },
+      "id": "ceec59e7-2d98-4fa8-b927-eb7b47764ed9",
+      "name": "Split Targets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={{ encodeURIComponent($json.url) }}&strategy=mobile&category=performance&category=accessibility&category=best-practices&category=seo",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "fbab2ded-cd94-4874-92f3-cb9774957cf9",
+      "name": "PageSpeed API Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst targets = $('Split Targets').all();\nconst results = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const d = items[i].json;\n  const target = targets[i]?.json || {};\n  const lhr = d.lighthouseResult || {};\n  const cats = lhr.categories || {};\n  const audits = lhr.audits || {};\n\n  const perfScore = Math.round((cats.performance?.score || 0) * 100);\n  const a11yScore = Math.round((cats.accessibility?.score || 0) * 100);\n  const seoScore = Math.round((cats.seo?.score || 0) * 100);\n  const bpScore = Math.round((cats['best-practices']?.score || 0) * 100);\n\n  const lcpMs = Math.round((audits['largest-contentful-paint']?.numericValue || 0));\n  const fidMs = Math.round((audits['max-potential-fid']?.numericValue || 0));\n  const clsVal = audits['cumulative-layout-shift']?.numericValue || 0;\n\n  const passed = perfScore >= 70 && lcpMs < 2500 && clsVal < 0.1;\n\n  results.push({json: {\n    date: new Date().toISOString().split('T')[0],\n    url: target.url || 'unknown',\n    name: target.name || 'unknown',\n    performance_score: perfScore,\n    accessibility_score: a11yScore,\n    seo_score: seoScore,\n    best_practices_score: bpScore,\n    lcp_ms: lcpMs,\n    fid_ms: fidMs,\n    cls: Math.round(clsVal * 1000) / 1000,\n    passed: passed,\n    reason: !passed ? (perfScore < 70 ? 'Performance below 70: ' + perfScore : lcpMs >= 2500 ? 'LCP too high: ' + lcpMs + 'ms' : 'CLS too high: ' + clsVal) : 'OK',\n  }});\n}\nreturn results;"
+      },
+      "id": "52e1f6ba-b272-4dc8-9d63-0a7f4c9ba7a5",
+      "name": "Parse PageSpeed Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst degraded = results.filter(r => !r.passed);\nconst allPassed = degraded.length === 0;\nreturn [{json: {\n  results: results,\n  degraded: degraded,\n  all_passed: allPassed,\n  degraded_count: degraded.length,\n  total: results.length,\n}}];"
+      },
+      "id": "cdc442d9-0a1c-4134-8193-e4363f521b1f",
+      "name": "Check Against Thresholds",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn data.results.map(r => ({json: r}));"
+      },
+      "id": "7581fe7f-3f73-4f7f-902b-0e5a43e7c7d0",
+      "name": "Expand Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Date": "={{ $json.date }}",
+            "Test Suite": "=Performance Benchmark",
+            "Total Tests": "=1",
+            "Passed": "={{ $json.passed ? 1 : 0 }}",
+            "Failed": "={{ $json.passed ? 0 : 1 }}",
+            "Health Score %": "={{ $json.performance_score }}",
+            "Details": "={{ JSON.stringify({url: $json.url, lcp_ms: $json.lcp_ms, cls: $json.cls, fid_ms: $json.fid_ms, accessibility: $json.accessibility_score, seo: $json.seo_score, best_practices: $json.best_practices_score}) }}",
+            "Duration ms": "={{ $json.lcp_ms }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "26fcc1b5-19f9-49fb-af3c-6c4b095dd139",
+      "name": "Write Benchmark",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $('Check Against Thresholds').first().json.degraded_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4a195658-c944-4a5c-b4d5-c5c8b2e91f9e",
+      "name": "Check Degradation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=QA ALERT: Performance Degradation Detected ({{ $('Check Against Thresholds').first().json.degraded_count }} URLs)",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#FF6D5A;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Performance Degradation Alert</h2></div>\n<div style=\"padding:20px\">\n<p><strong>Date:</strong> {{ $('Check Against Thresholds').first().json.results[0].date }}</p>\n<h3>Degraded URLs:</h3>\n<ul>\n{{ $('Check Against Thresholds').first().json.degraded.map(d => '<li><strong>' + d.name + '</strong> (' + d.url + ')<br>Performance: ' + d.performance_score + '% | LCP: ' + d.lcp_ms + 'ms | CLS: ' + d.cls + '<br>Issue: ' + d.reason + '</li>').join('') }}\n</ul>\n<h3>Thresholds:</h3>\n<ul><li>Performance Score >= 70</li><li>LCP < 2500ms</li><li>CLS < 0.1</li></ul>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AnyVision Media QA Agent</div>\n</div>",
+        "options": {}
+      },
+      "id": "25a5be0e-4c1d-4fb5-af94-be10dc063157",
+      "name": "Alert on Degradation",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## QA-03: Performance Benchmark\n\n**Schedule:** Daily 12:00 SAST (10:00 UTC)\n\nUses Google PageSpeed Insights API (mobile):\n- Performance score >= 70\n- LCP < 2500ms\n- CLS < 0.1\n\nAlerts on performance degradation."
+      },
+      "id": "6618faa4-c31c-4b2e-8604-7660364e7e53",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Target URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Target URLs": {
+      "main": [
+        [
+          {
+            "node": "Split Targets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Targets": {
+      "main": [
+        [
+          {
+            "node": "PageSpeed API Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PageSpeed API Call": {
+      "main": [
+        [
+          {
+            "node": "Parse PageSpeed Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse PageSpeed Results": {
+      "main": [
+        [
+          {
+            "node": "Check Against Thresholds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Against Thresholds": {
+      "main": [
+        [
+          {
+            "node": "Expand Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Results": {
+      "main": [
+        [
+          {
+            "node": "Write Benchmark",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Benchmark": {
+      "main": [
+        [
+          {
+            "node": "Check Degradation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Degradation": {
+      "main": [
+        [
+          {
+            "node": "Alert on Degradation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "qa",
+    "performance",
+    "pagespeed"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_qa_agent.py",
+    "built_at": "2026-03-14T18:11:30.885247"
+  }
+}

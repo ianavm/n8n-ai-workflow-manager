@@ -1,0 +1,374 @@
+{
+  "name": "COMPLY-03 POPIA Audit",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 15 * *"
+            }
+          ]
+        }
+      },
+      "id": "774b0de3-d854-4554-b760-b0c72db2d059",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app2ALQUP7CKEkHOz",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl0LtepawDzFYg4I",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "acfb3e5c-828f-4239-a40c-fae575668d64",
+      "name": "Read Suppression Records",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app2ALQUP7CKEkHOz",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({created_at}, DATEADD(TODAY(), -30, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "c03c47f6-e7db-42f8-a640-b6e28e9faafa",
+      "name": "Read Lead Data",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const suppressions = $('Read Suppression Records').all();\nconst leads = $('Read Lead Data').all();\n\n// Check consent and opt-out processing\nconst suppressionCount = suppressions.length;\nconst optOutStatuses = {};\nfor (const s of suppressions) {\n  const status = s.json.status || s.json.Status || 'Unknown';\n  optOutStatuses[status] = (optOutStatuses[status] || 0) + 1;\n}\n\n// Scan leads for PII fields\nconst piiFields = ['id_number', 'national_id', 'passport', 'bank_account', 'credit_card', 'medical', 'race', 'religion', 'political'];\nconst piiFindings = [];\nlet leadsWithConsent = 0;\nlet leadsWithoutConsent = 0;\n\nfor (const lead of leads) {\n  const d = lead.json;\n  for (const field of piiFields) {\n    if (d[field] && String(d[field]).trim().length > 0) {\n      piiFindings.push({ record_id: d.id || 'unknown', field, has_value: true });\n    }\n  }\n  if (d.consent || d.opted_in || d.consent_given) leadsWithConsent++;\n  else leadsWithoutConsent++;\n}\n\n// Check data retention (records older than 2 years)\nconst twoYearsAgo = new Date();\ntwoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);\nconst oldRecords = leads.filter(l => {\n  const created = new Date(l.json.created_at || l.json.createdTime || '');\n  return created < twoYearsAgo;\n}).length;\n\nreturn { json: {\n  suppression_count: suppressionCount,\n  opt_out_breakdown: JSON.stringify(optOutStatuses),\n  lead_count: leads.length,\n  leads_with_consent: leadsWithConsent,\n  leads_without_consent: leadsWithoutConsent,\n  pii_findings_count: piiFindings.length,\n  pii_findings: JSON.stringify(piiFindings.slice(0, 20)),\n  old_records_count: oldRecords,\n  scan_date: new Date().toISOString(),\n}};"
+      },
+      "id": "4cd952fd-5b38-40f5-add7-f13163e948e7",
+      "name": "Scan PII Compliance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a POPIA (Protection of Personal Information Act, South Africa) compliance auditor. Assess data handling practices. Key POPIA requirements: lawful processing, purpose limitation, data minimization, storage limitation, integrity/confidentiality, information officer duties. Return JSON: {popia_score: 0-100, findings: [{area, status: 'Compliant'|'Non-Compliant'|'Warning', detail, popia_section, severity: 'Critical'|'High'|'Medium'|'Low'}], data_retention_compliant: bool, consent_management_score: 0-100, recommendations: [], risk_level: 'Low'|'Medium'|'High'|'Critical'}\"},\n    {\"role\": \"user\", \"content\": \"POPIA Audit Data:\\n- Email Suppressions: {{ $json.suppression_count }} ({{ $json.opt_out_breakdown }})\\n- Total Leads (30 days): {{ $json.lead_count }}\\n- Leads WITH consent: {{ $json.leads_with_consent }}\\n- Leads WITHOUT consent: {{ $json.leads_without_consent }}\\n- PII fields found: {{ $json.pii_findings_count }}\\n- PII details: {{ $json.pii_findings }}\\n- Records older than 2 years: {{ $json.old_records_count }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "7566218f-4315-4869-85e1-c0acce2fd456",
+      "name": "AI POPIA Assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        940,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '{}';\nlet audit = {};\ntry { audit = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { audit = {popia_score: 0, findings: [], data_retention_compliant: false, consent_management_score: 0, recommendations: ['Parse failed'], risk_level: 'High'}; }\nconst meta = $('Scan PII Compliance').first().json;\nconst nonCompliant = (audit.findings || []).filter(f => f.status === 'Non-Compliant');\nreturn { json: {\n  popia_score: audit.popia_score || 0,\n  consent_score: audit.consent_management_score || 0,\n  data_retention_compliant: audit.data_retention_compliant || false,\n  findings: JSON.stringify(audit.findings || []),\n  findings_count: (audit.findings || []).length,\n  non_compliant_count: nonCompliant.length,\n  recommendations: (audit.recommendations || []).join('; '),\n  risk_level: audit.risk_level || 'Unknown',\n  scan_date: meta.scan_date,\n  has_violations: nonCompliant.length > 0,\n}};"
+      },
+      "id": "fa5e0c33-8a0b-47a5-875b-a5a940e24a4d",
+      "name": "Parse POPIA Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "scan_id": "=POPIA-{{ $now.toFormat('yyyy-MM') }}",
+            "audit_type": "POPIA Audit",
+            "overall_score": "={{ $json.popia_score }}",
+            "findings": "={{ $json.findings }}",
+            "recommendations": "={{ $json.recommendations }}",
+            "risk_level": "={{ $json.risk_level }}",
+            "non_compliant_count": "={{ $json.non_compliant_count }}",
+            "status": "={{ $json.has_violations ? 'Action Required' : 'Compliant' }}",
+            "scanned_at": "={{ $json.scan_date }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "08e220df-f09c-4ad9-99bb-11b0575f6c75",
+      "name": "Write POPIA Audit",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1380,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $('Parse POPIA Results').first().json.non_compliant_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "027c75dd-f8ab-47d8-9c5a-da299813d753",
+      "name": "Has POPIA Violations",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=POPIA COMPLIANCE ALERT: {{ $('Parse POPIA Results').first().json.non_compliant_count }} violations - Score {{ $('Parse POPIA Results').first().json.popia_score }}/100",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#DC3545;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">POPIA Compliance Alert</h2></div>\n<div style=\"padding:20px\">\n<h3>POPIA Score: {{ $('Parse POPIA Results').first().json.popia_score }}/100</h3>\n<p><b>Consent Management Score:</b> {{ $('Parse POPIA Results').first().json.consent_score }}/100</p>\n<p><b>Data Retention Compliant:</b> {{ $('Parse POPIA Results').first().json.data_retention_compliant }}</p>\n<p><b>Risk Level:</b> <span style=\"color:red;font-weight:bold\">{{ $('Parse POPIA Results').first().json.risk_level }}</span></p>\n<p><b>Non-Compliant Findings:</b> {{ $('Parse POPIA Results').first().json.non_compliant_count }}</p>\n<h3>Findings</h3><p style=\"font-size:12px\">{{ $('Parse POPIA Results').first().json.findings }}</p>\n<h3>Recommendations</h3><p>{{ $('Parse POPIA Results').first().json.recommendations }}</p>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Compliance Auditor - POPIA Audit</div></div>",
+        "options": {}
+      },
+      "id": "dea6b588-e759-4fb9-ab55-6a18e6ce804c",
+      "name": "Alert POPIA Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1820,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=POPIA Audit Passed - Score: {{ $('Parse POPIA Results').first().json.popia_score }}/100",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#28A745;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">POPIA Audit - Compliant</h2></div>\n<div style=\"padding:20px\">\n<h3>POPIA Score: {{ $('Parse POPIA Results').first().json.popia_score }}/100</h3>\n<p><b>Consent Management:</b> {{ $('Parse POPIA Results').first().json.consent_score }}/100</p>\n<p><b>Data Retention Compliant:</b> {{ $('Parse POPIA Results').first().json.data_retention_compliant }}</p>\n<h3>Recommendations</h3><p>{{ $('Parse POPIA Results').first().json.recommendations }}</p>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Compliance Auditor - POPIA Audit</div></div>",
+        "options": {}
+      },
+      "id": "78951f96-c0bc-48ce-a69c-b385a31e9486",
+      "name": "POPIA Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1820,
+        420
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Suppression Records",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Suppression Records": {
+      "main": [
+        [
+          {
+            "node": "Scan PII Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Scan PII Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan PII Compliance": {
+      "main": [
+        [
+          {
+            "node": "AI POPIA Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI POPIA Assessment": {
+      "main": [
+        [
+          {
+            "node": "Parse POPIA Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse POPIA Results": {
+      "main": [
+        [
+          {
+            "node": "Write POPIA Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write POPIA Audit": {
+      "main": [
+        [
+          {
+            "node": "Has POPIA Violations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has POPIA Violations": {
+      "main": [
+        [
+          {
+            "node": "Alert POPIA Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "POPIA Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "compliance",
+    "popia",
+    "privacy"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_compliance_auditor.py",
+    "built_at": "2026-03-14T19:17:42.699850"
+  }
+}

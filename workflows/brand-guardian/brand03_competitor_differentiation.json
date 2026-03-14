@@ -1,0 +1,292 @@
+{
+  "name": "BRAND-03 Competitor Differentiation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "bcb2975c-2b42-4781-a5be-82e211f5bf70",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cf722d7a-fa01-4dae-b234-8b023780e996",
+              "name": "competitors",
+              "value": "digital marketing agencies Johannesburg, SEO companies South Africa, social media marketing Fourways, digital growth partners Gauteng",
+              "type": "string"
+            },
+            {
+              "id": "1a4a484e-5715-4914-b1a1-2c3accccae46",
+              "name": "our_positioning",
+              "value": "AnyVision Media - Digital Growth Partner specializing in AI-powered automation, workflow optimization, and data-driven marketing for South African businesses",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "096241eb-b487-44c0-beb7-bc0cdf5470a0",
+      "name": "Set Competitor List",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"{{ $json.competitors }}\",\n  \"search_depth\": \"advanced\",\n  \"max_results\": 10,\n  \"include_answer\": true,\n  \"include_raw_content\": false\n}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5e1bd4f8-bfe4-479b-8e83-76ef4ea6c108",
+      "name": "Tavily Search Competitors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst results = resp.results || [];\nconst answer = resp.answer || '';\nconst summaries = results.map(r => 'Source: ' + r.url + '\\nTitle: ' + r.title + '\\nSnippet: ' + (r.content || '').substring(0, 300)).join('\\n---\\n');\nconst positioning = $('Set Competitor List').first().json.our_positioning;\nreturn { json: { competitor_data: summaries, answer, our_positioning: positioning, result_count: results.length, searched_at: new Date().toISOString() }};"
+      },
+      "id": "db2dadaf-ad95-4e92-bdfa-5bf7ab755b03",
+      "name": "Extract Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Analyze competitor positioning vs AnyVision Media. Return JSON: {differentiation_score: 0-100, our_strengths: [], competitor_threats: [], messaging_gaps: [], opportunities: [], recommended_actions: [], executive_summary: string}. Focus on actionable insights for South African digital marketing landscape.\"},\n    {\"role\": \"user\", \"content\": \"Our Positioning: {{ $json.our_positioning }}\\n\\nCompetitor Intelligence ({{ $json.result_count }} sources):\\n{{ $json.competitor_data }}\\n\\nSearch Summary: {{ $json.answer }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "bb234e34-d740-44f0-9cfb-82431a92f5c5",
+      "name": "AI Differentiation Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '{}';\nlet analysis = {};\ntry { analysis = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { analysis = {differentiation_score: 0, our_strengths: [], competitor_threats: [], messaging_gaps: [], opportunities: [], recommended_actions: [], executive_summary: 'Parse failed'}; }\nconst meta = $('Extract Search Results').first().json;\nreturn { json: {\n  differentiation_score: analysis.differentiation_score || 0,\n  our_strengths: (analysis.our_strengths || []).join('; '),\n  competitor_threats: (analysis.competitor_threats || []).join('; '),\n  messaging_gaps: (analysis.messaging_gaps || []).join('; '),\n  opportunities: (analysis.opportunities || []).join('; '),\n  recommended_actions: (analysis.recommended_actions || []).join('; '),\n  executive_summary: analysis.executive_summary || '',\n  searched_at: meta.searched_at,\n}};"
+      },
+      "id": "da2f29e4-dc8b-47e3-b040-0feb905b6a79",
+      "name": "Parse Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "audit_type": "Competitor Differentiation",
+            "title": "=Competitor Analysis {{ $json.searched_at }}",
+            "compliance_score": "={{ $json.differentiation_score }}",
+            "issues": "=Threats: {{ $json.competitor_threats }}. Gaps: {{ $json.messaging_gaps }}",
+            "recommendations": "={{ $json.recommended_actions }}",
+            "status": "={{ $json.differentiation_score >= 70 ? 'Strong' : 'Needs Attention' }}",
+            "checked_at": "={{ $json.searched_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "a5a49f52-e626-4e75-a1b0-2b4e326a88f1",
+      "name": "Write to Brand Audit",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Competitor Differentiation Report - Score: {{ $('Parse Analysis').first().json.differentiation_score }}/100",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#FF6D5A;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Competitor Differentiation Report</h2></div>\n<div style=\"padding:20px\">\n<h3>Differentiation Score: {{ $('Parse Analysis').first().json.differentiation_score }}/100</h3>\n<p><b>Executive Summary:</b> {{ $('Parse Analysis').first().json.executive_summary }}</p>\n<h3>Our Strengths</h3><p>{{ $('Parse Analysis').first().json.our_strengths }}</p>\n<h3>Competitor Threats</h3><p>{{ $('Parse Analysis').first().json.competitor_threats }}</p>\n<h3>Messaging Gaps</h3><p>{{ $('Parse Analysis').first().json.messaging_gaps }}</p>\n<h3>Opportunities</h3><p>{{ $('Parse Analysis').first().json.opportunities }}</p>\n<h3>Recommended Actions</h3><p>{{ $('Parse Analysis').first().json.recommended_actions }}</p>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Brand Guardian - Automated Report</div></div>",
+        "options": {}
+      },
+      "id": "3e8bd51e-2dfa-4da0-a26e-f732c162c375",
+      "name": "Send Insights Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Competitor List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Competitor List": {
+      "main": [
+        [
+          {
+            "node": "Tavily Search Competitors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Search Competitors": {
+      "main": [
+        [
+          {
+            "node": "Extract Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Search Results": {
+      "main": [
+        [
+          {
+            "node": "AI Differentiation Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Differentiation Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Analysis": {
+      "main": [
+        [
+          {
+            "node": "Write to Brand Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Brand Audit": {
+      "main": [
+        [
+          {
+            "node": "Send Insights Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "brand",
+    "competitor",
+    "intelligence"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_brand_guardian.py",
+    "built_at": "2026-03-14T19:17:35.128351"
+  }
+}

@@ -1,0 +1,272 @@
+{
+  "name": "AVM Ads: Attribution Engine",
+  "nodes": [
+    {
+      "id": "d065c775-88c9-4e24-8f50-80399ecafd98",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "271daa2f-2ab4-429e-be28-1e2d35f680b2",
+      "name": "Read Ad Performance",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblH1ztufqk5Kkkln"
+        },
+        "filterByFormula": "=IS_AFTER({Date}, DATEADD(TODAY(), -7, 'days'))",
+        "options": {}
+      }
+    },
+    {
+      "id": "c3d2186c-8215-4864-a88d-125afeb30734",
+      "name": "Read Organic Performance",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblLI70ZD0DkJKXvI"
+        },
+        "filterByFormula": "=IS_AFTER({Published At}, DATEADD(TODAY(), -7, 'days'))",
+        "options": {}
+      }
+    },
+    {
+      "id": "e3be09a1-ddd0-4e9c-860b-5407fc4e5f22",
+      "name": "Compute Attribution",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Compute cross-channel attribution: paid + organic data\nconst adPerf = $('Read Ad Performance').all();\nconst orgPerf = $('Read Organic Performance').all();\n\nconst channels = {};\n\n// Aggregate paid performance\nfor (const item of adPerf) {\n  const d = item.json;\n  if (d.skip) continue;\n  const key = d.Platform || 'unknown';\n  if (!channels[key]) {\n    channels[key] = {channel: key, type: 'paid', spend: 0, conversions: 0, clicks: 0, impressions: 0};\n  }\n  channels[key].spend += d['Spend ZAR'] || 0;\n  channels[key].conversions += d.Conversions || 0;\n  channels[key].clicks += d.Clicks || 0;\n  channels[key].impressions += d.Impressions || 0;\n}\n\n// Aggregate organic performance\nfor (const item of orgPerf) {\n  const d = item.json;\n  const key = 'organic_' + (d.Platform || d.platform || 'content');\n  if (!channels[key]) {\n    channels[key] = {channel: key, type: 'organic', spend: 0, conversions: 0, clicks: 0, impressions: 0};\n  }\n  channels[key].clicks += d.Clicks || d.clicks || d.Engagement || 0;\n  channels[key].impressions += d.Impressions || d.impressions || d.Reach || 0;\n}\n\n// Compute metrics\nconst totalSpend = Object.values(channels).reduce((sum, c) => sum + c.spend, 0);\nconst totalConversions = Object.values(channels).reduce((sum, c) => sum + c.conversions, 0);\nconst blendedCAC = totalConversions > 0 ? totalSpend / totalConversions : 0;\n\nconst results = Object.values(channels).map(c => ({\n  channel: c.channel,\n  type: c.type,\n  spend: parseFloat(c.spend.toFixed(2)),\n  conversions: c.conversions,\n  clicks: c.clicks,\n  impressions: c.impressions,\n  cpa: c.conversions > 0 ? parseFloat((c.spend / c.conversions).toFixed(2)) : 0,\n  roas: c.spend > 0 ? parseFloat(((c.conversions * 100) / c.spend).toFixed(2)) : 0,\n  spendShare: totalSpend > 0 ? parseFloat((c.spend / totalSpend * 100).toFixed(1)) : 0,\n}));\n\nreturn [{json: {\n  channels: results,\n  totalSpend: parseFloat(totalSpend.toFixed(2)),\n  totalConversions: totalConversions,\n  blendedCAC: parseFloat(blendedCAC.toFixed(2)),\n  reportDate: new Date().toISOString().split('T')[0],\n}}];\n"
+      }
+    },
+    {
+      "id": "e3e254b1-a5a4-4176-bf96-67b241769be4",
+      "name": "AI Attribution Analyst",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Attribution Analyst for AnyVision Media.\\n\\nCROSS-CHANNEL DATA (last 7 days):\\n{{JSON.stringify($json)}}\\n\\nAnalyze the data and provide:\\n1. CHANNEL EFFICIENCY: Rank channels by ROI (both paid and organic)\\n2. BUDGET REALLOCATION: Should budget shift between channels? Be specific.\\n3. ORGANIC-PAID SYNERGY: Are organic and paid reinforcing each other?\\n4. CAC ANALYSIS: Is the blended customer acquisition cost sustainable?\\n5. RECOMMENDED ACTIONS: 2-3 specific budget or strategy changes\\n\\nOutput as JSON:\\n{\\n  \\\"channel_rankings\\\": [{\\\"channel\\\": \\\"\\\", \\\"efficiency_score\\\": 0, \\\"recommendation\\\": \\\"\\\"}],\\n  \\\"budget_reallocation\\\": {\\\"from\\\": \\\"\\\", \\\"to\\\": \\\"\\\", \\\"amount_zar\\\": 0, \\\"reasoning\\\": \\\"\\\"},\\n  \\\"synergy_insights\\\": \\\"\\\",\\n  \\\"cac_assessment\\\": \\\"\\\",\\n  \\\"actions\\\": [\\\"\\\"]\\n}\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "9fba76bf-43ba-4dbf-bd4f-6db6dcbed2d7",
+      "name": "Write Attribution",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1250,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblhYDUzyzNxnQQXw"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c40072bb-fbe6-4f52-a56e-389a1d8b9586",
+      "name": "Email Attribution Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1500,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "AVM Ads - Daily Attribution Report",
+        "emailType": "html",
+        "message": "={{\"<h2>Cross-Channel Attribution</h2><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Ad Performance",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Organic Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Ad Performance": {
+      "main": [
+        [
+          {
+            "node": "Compute Attribution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Organic Performance": {
+      "main": [
+        [
+          {
+            "node": "Compute Attribution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Attribution": {
+      "main": [
+        [
+          {
+            "node": "AI Attribution Analyst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Attribution Analyst": {
+      "main": [
+        [
+          {
+            "node": "Write Attribution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Attribution": {
+      "main": [
+        [
+          {
+            "node": "Email Attribution Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "ads-dept",
+    "attribution",
+    "phase-2"
+  ]
+}

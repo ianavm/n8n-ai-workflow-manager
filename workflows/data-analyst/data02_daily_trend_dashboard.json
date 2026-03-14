@@ -1,0 +1,257 @@
+{
+  "name": "DATA-02 Daily Trend Dashboard",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 4 * * *"
+            }
+          ]
+        }
+      },
+      "id": "49431526-a530-4462-a2de-329d86f74cf4",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUsdtPRFN7UchgK",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({snapshot_date}, DATEADD(TODAY(), -30, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "e38a7b21-fec0-4e0c-9bfb-ea420c1b6f24",
+      "name": "Query KPI Snapshots",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $('Query KPI Snapshots').all();\nconst now = new Date();\n\n// Sort by date\nconst sorted = items.map(i => i.json).sort((a, b) => new Date(a.snapshot_date || a.createdTime || '') - new Date(b.snapshot_date || b.createdTime || ''));\n\n// Compute basic stats\nconst totalSnapshots = sorted.length;\n\n// Group by week for WoW comparison\nconst thisWeek = sorted.filter(s => {\n  const d = new Date(s.snapshot_date || s.createdTime || '');\n  return (now - d) < 7 * 86400000;\n});\nconst lastWeek = sorted.filter(s => {\n  const d = new Date(s.snapshot_date || s.createdTime || '');\n  return (now - d) >= 7 * 86400000 && (now - d) < 14 * 86400000;\n});\n\n// Extract numeric KPIs (health_score, execution_count, error_count)\nconst avgField = (arr, field) => {\n  const vals = arr.map(s => parseFloat(s[field])).filter(v => !isNaN(v));\n  return vals.length > 0 ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0;\n};\n\nconst thisWeekHealth = avgField(thisWeek, 'health_score');\nconst lastWeekHealth = avgField(lastWeek, 'health_score');\nconst healthWoW = lastWeekHealth > 0 ? Math.round((thisWeekHealth - lastWeekHealth) / lastWeekHealth * 1000) / 10 : 0;\n\n// 7-day moving average (last 7 entries)\nconst last7 = sorted.slice(-7);\nconst movingAvgHealth = avgField(last7, 'health_score');\n\n// Month over month\nconst thisMonth = sorted.filter(s => {\n  const d = new Date(s.snapshot_date || s.createdTime || '');\n  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();\n});\nconst lastMonth = sorted.filter(s => {\n  const d = new Date(s.snapshot_date || s.createdTime || '');\n  const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);\n  return d.getMonth() === lm.getMonth() && d.getFullYear() === lm.getFullYear();\n});\nconst thisMonthHealth = avgField(thisMonth, 'health_score');\nconst lastMonthHealth = avgField(lastMonth, 'health_score');\nconst healthMoM = lastMonthHealth > 0 ? Math.round((thisMonthHealth - lastMonthHealth) / lastMonthHealth * 1000) / 10 : 0;\n\nreturn { json: {\n  total_snapshots: totalSnapshots,\n  this_week_avg_health: thisWeekHealth,\n  last_week_avg_health: lastWeekHealth,\n  health_wow_change: healthWoW,\n  moving_avg_7d_health: movingAvgHealth,\n  this_month_avg_health: thisMonthHealth,\n  health_mom_change: healthMoM,\n  trend_date: now.toISOString(),\n  data_summary: sorted.slice(-7).map(s => (s.snapshot_date || s.createdTime || '').split('T')[0] + ': health=' + (s.health_score || 'N/A')).join('; '),\n}};"
+      },
+      "id": "9863666f-e6f9-474c-bb24-fe5cc9970a57",
+      "name": "Compute Trends",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1000,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Analyze KPI trends for AnyVision Media's automation platform. Provide actionable insights, highlight concerns, and suggest optimizations. Be concise with bullet points.\"},\n    {\"role\": \"user\", \"content\": \"Daily Trend Analysis:\\n- Total data points: {{ $json.total_snapshots }}\\n- This week avg health: {{ $json.this_week_avg_health }}\\n- Last week avg health: {{ $json.last_week_avg_health }}\\n- WoW change: {{ $json.health_wow_change }}%\\n- 7-day moving avg: {{ $json.moving_avg_7d_health }}\\n- This month avg: {{ $json.this_month_avg_health }}\\n- MoM change: {{ $json.health_mom_change }}%\\n- Recent data: {{ $json.data_summary }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "8336798f-3320-4297-83da-14a3b199dcc8",
+      "name": "AI Trend Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst insights = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : 'No insights available.';\nconst trends = $('Compute Trends').first().json;\nreturn { json: { ...trends, ai_insights: insights }};"
+      },
+      "id": "1c5a3129-f5a5-4c84-94ad-68bf6f0fc840",
+      "name": "Extract Insights",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "query_id": "=TREND-{{ $now.toFormat('yyyy-MM-dd') }}",
+            "question": "Daily Trend Dashboard",
+            "summary": "={{ $json.ai_insights.substring(0, 2000) }}",
+            "sql_query": "=Health WoW: {{ $json.health_wow_change }}%, MoM: {{ $json.health_mom_change }}%, 7d Avg: {{ $json.moving_avg_7d_health }}",
+            "status": "Completed",
+            "created_at": "={{ $json.trend_date }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "ad77c6fe-d7a1-40e8-95b8-83d1e4fd2a00",
+      "name": "Write Trend Data",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Daily Trends: Health {{ $('Compute Trends').first().json.this_week_avg_health }} ({{ $('Compute Trends').first().json.health_wow_change > 0 ? '+' : '' }}{{ $('Compute Trends').first().json.health_wow_change }}% WoW)",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#FF6D5A;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Daily Trend Dashboard</h2></div>\n<div style=\"padding:20px\">\n<table style=\"width:100%;border-collapse:collapse\">\n<tr><td style=\"padding:8px;border-bottom:1px solid #eee\"><b>This Week Avg Health</b></td><td style=\"padding:8px;border-bottom:1px solid #eee\">{{ $('Compute Trends').first().json.this_week_avg_health }}</td></tr>\n<tr><td style=\"padding:8px;border-bottom:1px solid #eee\"><b>Last Week Avg Health</b></td><td style=\"padding:8px;border-bottom:1px solid #eee\">{{ $('Compute Trends').first().json.last_week_avg_health }}</td></tr>\n<tr><td style=\"padding:8px;border-bottom:1px solid #eee\"><b>WoW Change</b></td><td style=\"padding:8px;border-bottom:1px solid #eee\">{{ $('Compute Trends').first().json.health_wow_change }}%</td></tr>\n<tr><td style=\"padding:8px;border-bottom:1px solid #eee\"><b>7-Day Moving Avg</b></td><td style=\"padding:8px;border-bottom:1px solid #eee\">{{ $('Compute Trends').first().json.moving_avg_7d_health }}</td></tr>\n<tr><td style=\"padding:8px;border-bottom:1px solid #eee\"><b>MoM Change</b></td><td style=\"padding:8px;border-bottom:1px solid #eee\">{{ $('Compute Trends').first().json.health_mom_change }}%</td></tr>\n</table>\n<h3>AI Insights</h3>\n<div style=\"white-space:pre-wrap\">{{ $('Extract Insights').first().json.ai_insights }}</div>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Data Analyst - Daily Trends</div></div>",
+        "options": {}
+      },
+      "id": "08662b71-1bc0-4143-a0ba-6adb3a526f1a",
+      "name": "Email Daily Trends",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Query KPI Snapshots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query KPI Snapshots": {
+      "main": [
+        [
+          {
+            "node": "Compute Trends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Trends": {
+      "main": [
+        [
+          {
+            "node": "AI Trend Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Trend Insights": {
+      "main": [
+        [
+          {
+            "node": "Extract Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Insights": {
+      "main": [
+        [
+          {
+            "node": "Write Trend Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Trend Data": {
+      "main": [
+        [
+          {
+            "node": "Email Daily Trends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "data",
+    "trends",
+    "daily"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_data_analyst.py",
+    "built_at": "2026-03-14T19:18:33.227102"
+  }
+}

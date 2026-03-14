@@ -1,0 +1,296 @@
+{
+  "name": "COMPLY-02 Ad Policy Check",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 3"
+            }
+          ]
+        }
+      },
+      "id": "64ec646c-e5f5-4fb1-8c44-1d3c41682407",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblq3SGdZtvbFcfkw",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND(OR({content_type} = 'ad', {content_type} = 'sponsored', {content_type} = 'paid'), IS_AFTER({created_at}, DATEADD(TODAY(), -7, 'days')))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "4ed3219b-e3bc-4d94-8f5a-1e05d0f1f96c",
+      "name": "Read Recent Ads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $('Read Recent Ads').all();\nif (items.length === 0 || (items.length === 1 && !items[0].json.id)) {\n  return { json: { ad_count: 0, ad_data: 'No recent ad campaigns found.', check_date: new Date().toISOString() }};\n}\nconst adList = items.map(i => {\n  const d = i.json;\n  return 'Title: ' + (d.title || d.Name || 'Untitled') + '\\nPlatform: ' + (d.platform || 'N/A') + '\\nContent: ' + (d.content || d.body || d.description || 'N/A').substring(0, 400) + '\\nCTA: ' + (d.cta || d.call_to_action || 'N/A');\n}).join('\\n---\\n');\nreturn { json: { ad_count: items.length, ad_data: adList, check_date: new Date().toISOString() }};"
+      },
+      "id": "c597857c-629e-4a2f-9b8c-dbc8e9ed0c2f",
+      "name": "Aggregate Ad Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are an advertising policy compliance checker. Check ads against Google Ads, Meta (Facebook/Instagram), and TikTok advertising policies. Common violations: misleading claims, prohibited content, missing disclaimers, trademark issues, targeting restrictions. Return JSON: {compliant_count: number, violation_count: number, findings: [{ad_title, platform, violation_type, policy_reference, severity: 'Critical'|'High'|'Medium'|'Low', recommendation}], overall_risk: 'Low'|'Medium'|'High'|'Critical'}\"},\n    {\"role\": \"user\", \"content\": \"Check {{ $json.ad_count }} recent ad campaigns for policy compliance:\\n\\n{{ $json.ad_data }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "1b120005-f9a2-4556-8812-05aa00a32010",
+      "name": "AI Policy Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '{}';\nlet check = {};\ntry { check = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { check = {compliant_count: 0, violation_count: 0, findings: [], overall_risk: 'Unknown'}; }\nconst meta = $('Aggregate Ad Data').first().json;\nreturn { json: {\n  ad_count: meta.ad_count,\n  compliant_count: check.compliant_count || 0,\n  violation_count: check.violation_count || 0,\n  findings: JSON.stringify(check.findings || []),\n  overall_risk: check.overall_risk || 'Unknown',\n  check_date: meta.check_date,\n  has_violations: (check.violation_count || 0) > 0,\n}};"
+      },
+      "id": "02ada046-fff5-4063-8895-85b31d1ef713",
+      "name": "Parse Policy Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "scan_id": "=AD-CHECK-{{ $json.check_date }}",
+            "audit_type": "Ad Policy Check",
+            "overall_score": "={{ Math.round((($json.compliant_count || 0) / Math.max($json.ad_count, 1)) * 100) }}",
+            "findings": "={{ $json.findings }}",
+            "recommendations": "={{ $json.violation_count }} violations found across {{ $json.ad_count }} ads",
+            "risk_level": "={{ $json.overall_risk }}",
+            "non_compliant_count": "={{ $json.violation_count }}",
+            "status": "={{ $json.has_violations ? 'Action Required' : 'Compliant' }}",
+            "scanned_at": "={{ $json.check_date }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "8c270a18-7c5d-46de-be67-623d17281e09",
+      "name": "Write Findings",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $('Parse Policy Results').first().json.violation_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "797d59f3-343e-4235-bd64-585084cd9fc8",
+      "name": "Has Policy Violations",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=AD POLICY ALERT: {{ $('Parse Policy Results').first().json.violation_count }} violations - {{ $('Parse Policy Results').first().json.overall_risk }} Risk",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#DC3545;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Ad Policy Violations Found</h2></div>\n<div style=\"padding:20px\">\n<p><b>Ads Checked:</b> {{ $('Parse Policy Results').first().json.ad_count }}</p>\n<p><b>Violations:</b> {{ $('Parse Policy Results').first().json.violation_count }}</p>\n<p><b>Risk Level:</b> <span style=\"color:red;font-weight:bold\">{{ $('Parse Policy Results').first().json.overall_risk }}</span></p>\n<h3>Findings</h3><p style=\"font-size:12px\">{{ $('Parse Policy Results').first().json.findings }}</p>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Compliance Auditor - Ad Policy Check</div></div>",
+        "options": {}
+      },
+      "id": "ec8c68a6-c0c9-4ded-8791-346fea832c80",
+      "name": "Alert Policy Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Recent Ads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Recent Ads": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Ad Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Ad Data": {
+      "main": [
+        [
+          {
+            "node": "AI Policy Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Policy Check": {
+      "main": [
+        [
+          {
+            "node": "Parse Policy Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Policy Results": {
+      "main": [
+        [
+          {
+            "node": "Write Findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Findings": {
+      "main": [
+        [
+          {
+            "node": "Has Policy Violations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Policy Violations": {
+      "main": [
+        [
+          {
+            "node": "Alert Policy Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "compliance",
+    "ads",
+    "policy"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_compliance_auditor.py",
+    "built_at": "2026-03-14T19:17:41.928511"
+  }
+}

@@ -1,0 +1,349 @@
+{
+  "name": "Market Intel - Daily Competitive Scan (INTEL-04)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * *"
+            }
+          ]
+        }
+      },
+      "id": "221fcbd7-5a3d-4f42-9f84-6dba2cb657e5",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a2fbb4e8-7216-4d89-8425-20f3e68609de",
+              "name": "scanDate",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "dc5b6405-8d37-4134-94c0-5055ed4f0d57",
+              "name": "competitors",
+              "value": "AnyVision Media, anyvisionmedia.com, digital agency Johannesburg, South Africa marketing agency",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0e51214e-5a3a-4ca6-a928-5adddf91d0a0",
+      "name": "Set Competitors",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"api_key\": \"\",\n  \"query\": \"AnyVision Media OR anyvisionmedia.com competitor digital agency Johannesburg\",\n  \"search_depth\": \"advanced\",\n  \"max_results\": 10\n}}",
+        "options": {}
+      },
+      "id": "40c2b8c0-646a-4dc3-b71e-34e23e9bd741",
+      "name": "Tavily Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Tavily search results and extract competitive intelligence\nconst results = $json.results || [];\nconst scanDate = $('Set Competitors').first().json.scanDate;\n\nconst parsed = results.map(r => ({\n  title: r.title || '',\n  url: r.url || '',\n  snippet: r.content || '',\n  score: r.score || 0,\n  published_date: r.published_date || '',\n}));\n\n// Detect competitor mentions\nconst competitorKeywords = [\n  'anyvision', 'digital agency', 'johannesburg agency',\n  'marketing agency south africa', 'web development johannesburg',\n  'seo agency gauteng', 'social media agency sa',\n];\n\nconst findings = parsed.map(r => {\n  const textLower = (r.title + ' ' + r.snippet).toLowerCase();\n  const mentions = competitorKeywords.filter(k => textLower.includes(k));\n  return {\n    ...r,\n    competitorMentions: mentions,\n    isRelevant: mentions.length > 0 || r.score > 0.7,\n    scanDate,\n  };\n}).filter(r => r.isRelevant);\n\nreturn [{\n  json: {\n    totalResults: results.length,\n    relevantFindings: findings.length,\n    findings,\n    scanDate,\n    rawResultCount: results.length,\n  }\n}];"
+      },
+      "id": "8630cdfb-e1c2-4ba9-bad2-13b5e692c383",
+      "name": "Parse Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a competitive intelligence analyst for AnyVision Media, a South African digital agency in Johannesburg. Analyze search results for competitive intelligence. For each finding, classify its Category as one of: Pricing, Service, Hiring, Market, Regulatory. Rate Significance as High, Medium, or Low. Return a JSON array of objects with keys: competitor, finding, category, significance. Be concise and specific.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze these search results for competitive intelligence. Identify new competitor activities, pricing changes, service launches, or market shifts relevant to a South African digital agency:\\n\\n\" + JSON.stringify($json.findings, null, 2)\n    }\n  ]\n}}",
+        "options": {}
+      },
+      "id": "1b20d0ca-c4df-4d97-9863-51570b24c5f9",
+      "name": "AI Analyze Changes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI response and prepare Airtable records\nconst aiResponse = $json.choices[0].message.content;\nconst scanDate = $('Parse Results').first().json.scanDate;\nconst rawData = JSON.stringify($('Parse Results').first().json.findings);\n\n// Try to parse AI JSON response\nlet findings = [];\ntry {\n  // Extract JSON array from response (may be wrapped in markdown)\n  const jsonMatch = aiResponse.match(/\\[[\\ \\s\\S]*\\]/);\n  if (jsonMatch) {\n    findings = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  // Fallback: single finding from raw text\n  findings = [{\n    competitor: 'Unknown',\n    finding: aiResponse.substring(0, 500),\n    category: 'Market',\n    significance: 'Medium',\n  }];\n}\n\n// Valid categories and significance levels\nconst validCategories = ['Pricing', 'Service', 'Hiring', 'Market', 'Regulatory'];\nconst validSignificance = ['High', 'Medium', 'Low'];\n\nconst records = findings.map(f => ({\n  json: {\n    Date: scanDate,\n    Source: 'Tavily Competitive Scan',\n    Competitor: (f.competitor || 'Unknown').substring(0, 200),\n    Finding: (f.finding || '').substring(0, 1000),\n    Category: validCategories.includes(f.category) ? f.category : 'Market',\n    Significance: validSignificance.includes(f.significance) ? f.significance : 'Medium',\n    'Raw Data': rawData.substring(0, 5000),\n  }\n}));\n\nif (records.length === 0) {\n  return [{\n    json: {\n      Date: scanDate,\n      Source: 'Tavily Competitive Scan',\n      Competitor: 'None',\n      Finding: 'No significant competitive findings today.',\n      Category: 'Market',\n      Significance: 'Low',\n      'Raw Data': rawData.substring(0, 5000),\n    }\n  }];\n}\n\nreturn records;"
+      },
+      "id": "9349436d-7a37-4cf9-b118-2aeb2cd40382",
+      "name": "Prepare Records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9vp3Wlx9H8bxcC",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.Date }}",
+            "Source": "={{ $json.Source }}",
+            "Competitor": "={{ $json.Competitor }}",
+            "Finding": "={{ $json.Finding }}",
+            "Category": "={{ $json.Category }}",
+            "Significance": "={{ $json.Significance }}",
+            "Raw Data": "={{ $json['Raw Data'] }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "e4b5bdd1-20cf-49d9-a30e-7735a1758d8c",
+      "name": "Write to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.Significance }}",
+              "rightValue": "High",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "6593085d-634c-4260-8950-21291f6461e6",
+      "name": "Check Significance",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=High Significance Alert: {{ $json.Competitor }} - {{ $json.Category }}",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <div style=\"background: #FF6D5A; color: white; padding: 16px; border-radius: 8px 8px 0 0;\">\n    <h2 style=\"margin: 0;\">Competitive Intelligence Alert</h2>\n    <p style=\"margin: 4px 0 0; opacity: 0.9;\">{{ $json.Date }}</p>\n  </div>\n  <div style=\"background: white; padding: 20px; border: 1px solid #e0e0e0; border-radius: 0 0 8px 8px;\">\n    <p><strong>Competitor:</strong> {{ $json.Competitor }}</p>\n    <p><strong>Category:</strong> {{ $json.Category }}</p>\n    <p><strong>Significance:</strong> <span style=\"color: #d32f2f; font-weight: bold;\">HIGH</span></p>\n    <p><strong>Finding:</strong></p>\n    <p style=\"background: #f5f5f5; padding: 12px; border-radius: 4px;\">{{ $json.Finding }}</p>\n    <hr style=\"border: 1px solid #eee;\">\n    <p style=\"color: #888; font-size: 11px;\">Generated by AVM Market Intelligence | INTEL-04</p>\n  </div>\n</div>",
+        "options": {}
+      },
+      "id": "57c0e6b0-2216-473b-b009-8c76e2b2e4b2",
+      "name": "Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## INTEL-04: Daily Competitive Scan\nRuns daily 06:00 SAST. Searches Tavily for competitor\nactivity, AI classifies findings by category & significance,\nwrites to Airtable, emails high-significance alerts.",
+        "width": 420,
+        "height": 120
+      },
+      "id": "65ff7b1d-43cc-46b2-a79c-e82ea3c0970f",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Competitors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Competitors": {
+      "main": [
+        [
+          {
+            "node": "Tavily Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Search": {
+      "main": [
+        [
+          {
+            "node": "Parse Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Results": {
+      "main": [
+        [
+          {
+            "node": "AI Analyze Changes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analyze Changes": {
+      "main": [
+        [
+          {
+            "node": "Prepare Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Records": {
+      "main": [
+        [
+          {
+            "node": "Write to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Check Significance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Significance": {
+      "main": [
+        [
+          {
+            "node": "Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

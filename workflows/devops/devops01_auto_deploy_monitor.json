@@ -1,0 +1,530 @@
+{
+  "name": "DEVOPS-01 Auto-Deploy Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "devops-deploy",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6c8ffa6a-068f-4293-8685-12619a4fd9c2",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "b6dab911-1838-4bf2-9272-978aeb6e9fbb"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn { json: {\n  workflow_id: body.workflow_id || '',\n  action: body.action || 'deploy',\n  source: body.source || 'manual',\n  deploy_id: 'DEP-' + Date.now().toString(36).toUpperCase(),\n  requested_at: new Date().toISOString(),\n}};"
+      },
+      "id": "c9895d48-8c91-4f40-997b-179e486010d8",
+      "name": "Parse Deploy Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://ianimmelman89.app.n8n.cloud/api/v1/workflows/{{ $json.workflow_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "1cf09cf4-0940-4b48-8a37-0d56442a81cf",
+      "name": "Fetch Current Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xymp9Nho08mRW2Wz",
+          "name": "n8n API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "deploy_id": "={{ $('Parse Deploy Request').first().json.deploy_id }}",
+            "workflow_id": "={{ $('Parse Deploy Request').first().json.workflow_id }}",
+            "action": "={{ $('Parse Deploy Request').first().json.action }}",
+            "source": "={{ $('Parse Deploy Request').first().json.source }}",
+            "workflow_name": "={{ $json.name || 'Unknown' }}",
+            "pre_deploy_snapshot": "={{ JSON.stringify({active: $json.active, nodeCount: ($json.nodes || []).length, updatedAt: $json.updatedAt}).substring(0, 1000) }}",
+            "status": "In Progress",
+            "started_at": "={{ $('Parse Deploy Request').first().json.requested_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "01c69803-2276-459a-86d0-54170ea3c63e",
+      "name": "Store Snapshot",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = $('Parse Deploy Request').first().json;\nconst action = req.action;\nconst workflowId = req.workflow_id;\n\n// Determine the API call to make\nlet apiAction = '';\nif (action === 'deploy' || action === 'activate') {\n  apiAction = 'activate';\n} else if (action === 'rollback' || action === 'deactivate') {\n  apiAction = 'deactivate';\n} else {\n  apiAction = 'activate';\n}\n\nreturn { json: {\n  workflow_id: workflowId,\n  deploy_id: req.deploy_id,\n  api_action: apiAction,\n  action_url: 'https://ianimmelman89.app.n8n.cloud/api/v1/workflows/' + workflowId + '/' + apiAction,\n}};"
+      },
+      "id": "4cab0d30-6912-4d41-b96c-738bc01d24dd",
+      "name": "Prepare Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.action_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "45facd09-7564-4674-95e1-9504fcf63092",
+      "name": "Execute Action",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xymp9Nho08mRW2Wz",
+          "name": "n8n API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "id": "f2fea62f-9d43-408b-a1f8-28e5b2fc5099",
+      "name": "Wait 60s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://ianimmelman89.app.n8n.cloud/api/v1/executions?workflowId={{ $('Prepare Action').first().json.workflow_id }}&limit=3&status=error",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "b4c082d1-b557-4776-a8c4-53195e27770a",
+      "name": "Health Check Executions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xymp9Nho08mRW2Wz",
+          "name": "n8n API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst executions = resp.data || resp.results || [];\nconst recentErrors = executions.filter(e => {\n  const finishedAt = new Date(e.stoppedAt || e.startedAt || '');\n  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);\n  return finishedAt > fiveMinAgo;\n});\nconst deployId = $('Prepare Action').first().json.deploy_id;\nconst workflowId = $('Prepare Action').first().json.workflow_id;\nconst healthy = recentErrors.length === 0;\nreturn { json: {\n  deploy_id: deployId,\n  workflow_id: workflowId,\n  healthy,\n  recent_error_count: recentErrors.length,\n  health_checked_at: new Date().toISOString(),\n}};"
+      },
+      "id": "a79e1bfe-16a7-4f04-8260-0313fb21de7f",
+      "name": "Evaluate Health",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.healthy }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b37c4432-7e91-452b-941a-546e658b5bfb",
+      "name": "Is Healthy",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "status": "Success",
+            "health_check": "Passed",
+            "completed_at": "={{ $('Evaluate Health').first().json.health_checked_at }}"
+          }
+        },
+        "options": {},
+        "matchingColumns": [
+          "deploy_id"
+        ]
+      },
+      "id": "40e5b5d8-9a13-4922-8a64-26990d3241cc",
+      "name": "Update Success",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://ianimmelman89.app.n8n.cloud/api/v1/workflows/{{ $('Evaluate Health').first().json.workflow_id }}/deactivate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "6d6b592e-bdb5-4334-a400-dc57538b20e7",
+      "name": "Auto-Rollback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        420
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xymp9Nho08mRW2Wz",
+          "name": "n8n API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "status": "Rolled Back",
+            "health_check": "=Failed - {{ $('Evaluate Health').first().json.recent_error_count }} errors",
+            "completed_at": "={{ $('Evaluate Health').first().json.health_checked_at }}"
+          }
+        },
+        "options": {},
+        "matchingColumns": [
+          "deploy_id"
+        ]
+      },
+      "id": "7b47deeb-6dcf-4cda-828c-c821c4014228",
+      "name": "Update Failed",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2640,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=DEPLOY ROLLBACK: {{ $('Evaluate Health').first().json.workflow_id }} - {{ $('Evaluate Health').first().json.recent_error_count }} errors",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#DC3545;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Deployment Rolled Back</h2></div>\n<div style=\"padding:20px\">\n<p><b>Deploy ID:</b> {{ $('Evaluate Health').first().json.deploy_id }}</p>\n<p><b>Workflow ID:</b> {{ $('Evaluate Health').first().json.workflow_id }}</p>\n<p><b>Errors Detected:</b> {{ $('Evaluate Health').first().json.recent_error_count }}</p>\n<p style=\"color:red;font-weight:bold\">Workflow has been automatically deactivated due to health check failure.</p>\n<p>Please investigate the errors and redeploy when fixed.</p>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM DevOps Coordinator - Auto-Rollback</div></div>",
+        "options": {}
+      },
+      "id": "c07ee4ac-4e17-4722-b41a-176b91dbba96",
+      "name": "Alert Rollback Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2860,
+        420
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true, deploy_id: $('Evaluate Health').first().json.deploy_id, healthy: $('Evaluate Health').first().json.healthy, workflow_id: $('Evaluate Health').first().json.workflow_id}) }}",
+        "options": {}
+      },
+      "id": "0ea086fa-1347-4444-8f82-58d3035580ca",
+      "name": "Respond Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2860,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Deploy Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Deploy Request": {
+      "main": [
+        [
+          {
+            "node": "Fetch Current Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Current Workflow": {
+      "main": [
+        [
+          {
+            "node": "Store Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Prepare Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Action": {
+      "main": [
+        [
+          {
+            "node": "Execute Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Action": {
+      "main": [
+        [
+          {
+            "node": "Wait 60s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 60s": {
+      "main": [
+        [
+          {
+            "node": "Health Check Executions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Health Check Executions": {
+      "main": [
+        [
+          {
+            "node": "Evaluate Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate Health": {
+      "main": [
+        [
+          {
+            "node": "Is Healthy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Healthy": {
+      "main": [
+        [
+          {
+            "node": "Update Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Auto-Rollback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Success": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-Rollback": {
+      "main": [
+        [
+          {
+            "node": "Update Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Failed": {
+      "main": [
+        [
+          {
+            "node": "Alert Rollback Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Rollback Email": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "devops",
+    "deploy",
+    "health-check"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_devops_coordinator.py",
+    "built_at": "2026-03-14T19:17:47.986328"
+  }
+}

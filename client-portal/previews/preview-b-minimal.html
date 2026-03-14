@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option B — Minimal Panels (Linear/Notion)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #0A0F1C; color: #E2E8F0; -webkit-font-smoothing: antialiased; }
+
+  /* --- Layout --- */
+  .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 240px; background: #0D1224; border-right: 1px solid rgba(255,255,255,0.06); padding: 24px 16px; display: flex; flex-direction: column; z-index: 30; }
+  .sidebar-logo { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 32px; letter-spacing: -0.3px; }
+  .sidebar-logo span { color: #6C63FF; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px; font-size: 13px; color: #6B7280; cursor: pointer; transition: all 0.15s; text-decoration: none; margin-bottom: 2px; }
+  .nav-item:hover { color: #E2E8F0; background: rgba(255,255,255,0.04); }
+  .nav-item.active { color: #fff; background: rgba(108,99,255,0.08); }
+  .nav-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .main { margin-left: 240px; }
+
+  /* --- Page sections --- */
+  .page-section { border-bottom: 4px solid #6C63FF; padding: 60px 48px 80px; }
+  .page-section:nth-child(2) { border-bottom-color: #00D4AA; }
+  .page-section:nth-child(3) { border-bottom-color: #FF6D5A; }
+  .page-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: #6C63FF; margin-bottom: 8px; }
+  .page-title { font-size: 22px; font-weight: 600; color: #fff; letter-spacing: -0.5px; margin-bottom: 40px; }
+
+  /* --- Inline Stats (no cards, bare numbers) --- */
+  .stat-row { display: flex; gap: 56px; margin-bottom: 48px; padding-bottom: 32px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .stat-item {}
+  .stat-label { font-size: 12px; color: #6B7280; margin-bottom: 6px; font-weight: 400; }
+  .stat-value { font-size: 36px; font-weight: 300; color: #fff; letter-spacing: -1px; line-height: 1; }
+  .stat-change { font-size: 12px; margin-top: 6px; font-weight: 500; }
+  .stat-change.up { color: #10B981; }
+  .stat-change.down { color: #EF4444; }
+
+  /* --- Clean table --- */
+  .clean-table { width: 100%; border-collapse: collapse; }
+  .clean-table th { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: #6B7280; text-align: left; padding: 0 0 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .clean-table td { padding: 14px 0; font-size: 13px; color: #E2E8F0; border-bottom: 1px dotted rgba(255,255,255,0.06); vertical-align: middle; }
+  .clean-table tr:hover td { color: #fff; }
+  .clean-table tr { cursor: pointer; transition: all 0.15s; }
+
+  /* --- Segmented Control --- */
+  .segmented { display: flex; gap: 0; margin-bottom: 32px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .seg-btn { padding: 8px 20px; font-size: 13px; color: #6B7280; cursor: pointer; border: none; background: none; font-family: inherit; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; }
+  .seg-btn:hover { color: #E2E8F0; }
+  .seg-btn.active { color: #6C63FF; border-bottom-color: #6C63FF; }
+
+  /* --- Search --- */
+  .search-input { background: none; border: none; border-bottom: 1px solid rgba(255,255,255,0.1); padding: 8px 0; font-size: 14px; color: #fff; font-family: inherit; width: 280px; outline: none; margin-bottom: 24px; transition: border-color 0.2s; }
+  .search-input::placeholder { color: #4B5563; }
+  .search-input:focus { border-bottom-color: #6C63FF; }
+
+  /* --- Sparkline (inline SVG) --- */
+  .sparkline-cell { display: flex; align-items: center; gap: 12px; }
+
+  /* --- Breadcrumb --- */
+  .breadcrumb { font-size: 13px; color: #6B7280; margin-bottom: 24px; }
+  .breadcrumb a { color: #6B7280; text-decoration: none; }
+  .breadcrumb a:hover { color: #E2E8F0; }
+  .breadcrumb .sep { margin: 0 8px; }
+
+  /* --- Section dividers --- */
+  .section-title { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 20px; letter-spacing: -0.2px; }
+  .section-rule { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 40px 0 32px; }
+
+  /* --- Collapsible --- */
+  .collapsible-header { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .collapsible-header .arrow { font-size: 12px; color: #6B7280; transition: transform 0.2s; }
+  .collapsible-header:hover .arrow { color: #E2E8F0; }
+  .collapsible-header .ch-title { font-size: 13px; font-weight: 500; color: #E2E8F0; }
+  .collapsible-header .ch-count { font-size: 12px; color: #6B7280; margin-left: auto; }
+  .collapsible-body { padding: 16px 0 8px 20px; }
+
+  /* --- Side panel (key-value pairs) --- */
+  .side-panel { border-left: 1px solid rgba(255,255,255,0.06); padding-left: 32px; }
+  .kv-pair { margin-bottom: 20px; }
+  .kv-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #6B7280; margin-bottom: 4px; }
+  .kv-value { font-size: 14px; color: #E2E8F0; }
+
+  /* --- Status dots --- */
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .status-dot.green { background: #10B981; }
+  .status-dot.amber { background: #F59E0B; }
+  .status-dot.red { background: #EF4444; }
+
+  /* --- Chart area --- */
+  .chart-area { position: relative; height: 180px; margin: 24px 0; }
+  .chart-svg { width: 100%; height: 100%; }
+
+  /* --- Two-col layout --- */
+  .detail-grid { display: grid; grid-template-columns: 1fr 280px; gap: 0; }
+
+  /* --- Activity timeline (overview) --- */
+  .timeline-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px dotted rgba(255,255,255,0.04); font-size: 13px; }
+  .timeline-time { color: #6B7280; font-size: 12px; white-space: nowrap; min-width: 48px; }
+  .timeline-text { color: #E2E8F0; }
+  .timeline-text strong { color: #fff; font-weight: 500; }
+
+  /* --- Pagination --- */
+  .pagination { display: flex; gap: 4px; margin-top: 24px; }
+  .page-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #6B7280; border: none; background: none; cursor: pointer; border-radius: 6px; font-family: inherit; }
+  .page-btn:hover { color: #E2E8F0; background: rgba(255,255,255,0.04); }
+  .page-btn.active { color: #6C63FF; background: rgba(108,99,255,0.08); }
+
+  /* --- Two-col overview --- */
+  .overview-grid { display: grid; grid-template-columns: 1fr 320px; gap: 48px; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-logo">any<span>vision</span></div>
+  <a class="nav-item active"><div class="nav-dot" style="background:#6C63FF"></div> Overview</a>
+  <a class="nav-item"><div class="nav-dot" style="background:#00D4AA"></div> AI Agents</a>
+  <a class="nav-item"><div class="nav-dot" style="background:#FF6D5A"></div> Clients</a>
+  <a class="nav-item"><div class="nav-dot" style="background:transparent"></div> Support</a>
+  <a class="nav-item"><div class="nav-dot" style="background:transparent"></div> Analytics</a>
+  <a class="nav-item"><div class="nav-dot" style="background:transparent"></div> Settings</a>
+</nav>
+
+<main class="main">
+
+<!-- ============ PAGE 1: OVERVIEW ============ -->
+<section class="page-section">
+  <div class="page-label">Page 1</div>
+  <div class="page-title">Overview</div>
+
+  <!-- Bare stats on one line -->
+  <div class="stat-row">
+    <div class="stat-item">
+      <div class="stat-label">Active Clients</div>
+      <div class="stat-value">24</div>
+      <div class="stat-change up">+3 this month</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Messages Today</div>
+      <div class="stat-value">1,847</div>
+      <div class="stat-change up">+12%</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Leads Generated</div>
+      <div class="stat-value">156</div>
+      <div class="stat-change up">+8%</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Active Workflows</div>
+      <div class="stat-value">34</div>
+      <div class="stat-change down">-2 paused</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">System Uptime</div>
+      <div class="stat-value">99.7%</div>
+    </div>
+  </div>
+
+  <div class="overview-grid">
+    <div>
+      <!-- Clean table -->
+      <div class="section-title">All Clients</div>
+      <table class="clean-table">
+        <thead>
+          <tr><th>Client</th><th>Status</th><th>Messages</th><th>Trend (14d)</th><th>Last Active</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:500;color:#fff">Meridian Properties</td>
+            <td><span class="status"><span class="status-dot green"></span>Active</span></td>
+            <td>2,341</td>
+            <td class="sparkline-cell">
+              <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,18 8,14 16,16 24,10 32,12 40,6 48,8 56,4 64,2" fill="none" stroke="#6C63FF" stroke-width="1.5"/></svg>
+            </td>
+            <td style="color:#6B7280">2 min ago</td>
+          </tr>
+          <tr>
+            <td style="font-weight:500;color:#fff">Vanguard Legal</td>
+            <td><span class="status"><span class="status-dot green"></span>Active</span></td>
+            <td>1,892</td>
+            <td class="sparkline-cell">
+              <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,12 8,10 16,14 24,8 32,6 40,10 48,4 56,6 64,3" fill="none" stroke="#00D4AA" stroke-width="1.5"/></svg>
+            </td>
+            <td style="color:#6B7280">5 min ago</td>
+          </tr>
+          <tr>
+            <td style="font-weight:500;color:#fff">Coastal Realty</td>
+            <td><span class="status"><span class="status-dot amber"></span>Warning</span></td>
+            <td>743</td>
+            <td class="sparkline-cell">
+              <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,6 8,8 16,4 24,10 32,14 40,12 48,16 56,14 64,18" fill="none" stroke="#F59E0B" stroke-width="1.5"/></svg>
+            </td>
+            <td style="color:#6B7280">1 hour ago</td>
+          </tr>
+          <tr>
+            <td style="font-weight:500;color:#fff">Summit Consulting</td>
+            <td><span class="status"><span class="status-dot green"></span>Active</span></td>
+            <td>1,105</td>
+            <td class="sparkline-cell">
+              <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,16 8,12 16,14 24,8 32,10 40,6 48,4 56,6 64,5" fill="none" stroke="#6C63FF" stroke-width="1.5"/></svg>
+            </td>
+            <td style="color:#6B7280">12 min ago</td>
+          </tr>
+          <tr>
+            <td style="font-weight:500;color:#fff">Atlas Financial</td>
+            <td><span class="status"><span class="status-dot red"></span>Error</span></td>
+            <td>421</td>
+            <td class="sparkline-cell">
+              <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,4 8,6 16,8 24,12 32,10 40,14 48,16 56,18 64,17" fill="none" stroke="#EF4444" stroke-width="1.5"/></svg>
+            </td>
+            <td style="color:#6B7280">3 hours ago</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <!-- Activity timeline -->
+      <div class="section-title">Activity</div>
+      <div>
+        <div class="timeline-item">
+          <div class="timeline-time">2m</div>
+          <div class="timeline-text"><strong>Meridian</strong> — 14 new messages processed</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">8m</div>
+          <div class="timeline-text"><strong>Vanguard</strong> — Lead qualified (score: 87)</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">15m</div>
+          <div class="timeline-text"><strong>System</strong> — WF-03 completed successfully</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">22m</div>
+          <div class="timeline-text"><strong>Coastal</strong> — Webhook timeout (retrying)</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">31m</div>
+          <div class="timeline-text"><strong>Summit</strong> — Monthly report generated</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">45m</div>
+          <div class="timeline-text"><strong>Atlas</strong> — API connection restored</div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-time">1h</div>
+          <div class="timeline-text"><strong>System</strong> — Daily backup completed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PAGE 2: CLIENT LIST ============ -->
+<section class="page-section">
+  <div class="page-label">Page 2</div>
+  <div class="page-title">Clients</div>
+
+  <div class="segmented">
+    <button class="seg-btn active">All Clients</button>
+    <button class="seg-btn">Active</button>
+    <button class="seg-btn">Warning</button>
+    <button class="seg-btn">Inactive</button>
+  </div>
+
+  <input type="text" class="search-input" placeholder="Search clients...">
+
+  <table class="clean-table">
+    <thead>
+      <tr><th>Client</th><th>Plan</th><th>Messages</th><th>Leads</th><th>Trend (14d)</th><th>Status</th><th>Last Active</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="font-weight:500;color:#fff">Meridian Properties</td>
+        <td>Enterprise</td>
+        <td>2,341</td>
+        <td>48</td>
+        <td class="sparkline-cell">
+          <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,18 8,14 16,16 24,10 32,12 40,6 48,8 56,4 64,2" fill="none" stroke="#6C63FF" stroke-width="1.5"/></svg>
+        </td>
+        <td><span class="status"><span class="status-dot green"></span>Active</span></td>
+        <td style="color:#6B7280">2 min ago</td>
+      </tr>
+      <tr>
+        <td style="font-weight:500;color:#fff">Vanguard Legal</td>
+        <td>Professional</td>
+        <td>1,892</td>
+        <td>35</td>
+        <td class="sparkline-cell">
+          <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,12 8,10 16,14 24,8 32,6 40,10 48,4 56,6 64,3" fill="none" stroke="#00D4AA" stroke-width="1.5"/></svg>
+        </td>
+        <td><span class="status"><span class="status-dot green"></span>Active</span></td>
+        <td style="color:#6B7280">5 min ago</td>
+      </tr>
+      <tr>
+        <td style="font-weight:500;color:#fff">Coastal Realty</td>
+        <td>Starter</td>
+        <td>743</td>
+        <td>12</td>
+        <td class="sparkline-cell">
+          <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,6 8,8 16,4 24,10 32,14 40,12 48,16 56,14 64,18" fill="none" stroke="#F59E0B" stroke-width="1.5"/></svg>
+        </td>
+        <td><span class="status"><span class="status-dot amber"></span>Warning</span></td>
+        <td style="color:#6B7280">1 hour ago</td>
+      </tr>
+      <tr>
+        <td style="font-weight:500;color:#fff">Summit Consulting</td>
+        <td>Professional</td>
+        <td>1,105</td>
+        <td>22</td>
+        <td class="sparkline-cell">
+          <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,16 8,12 16,14 24,8 32,10 40,6 48,4 56,6 64,5" fill="none" stroke="#6C63FF" stroke-width="1.5"/></svg>
+        </td>
+        <td><span class="status"><span class="status-dot green"></span>Active</span></td>
+        <td style="color:#6B7280">12 min ago</td>
+      </tr>
+      <tr>
+        <td style="font-weight:500;color:#fff">Atlas Financial</td>
+        <td>Enterprise</td>
+        <td>421</td>
+        <td>8</td>
+        <td class="sparkline-cell">
+          <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,4 8,6 16,8 24,12 32,10 40,14 48,16 56,18 64,17" fill="none" stroke="#EF4444" stroke-width="1.5"/></svg>
+        </td>
+        <td><span class="status"><span class="status-dot red"></span>Error</span></td>
+        <td style="color:#6B7280">3 hours ago</td>
+      </tr>
+      <tr>
+        <td style="font-weight:500;color:#fff">Nova Digital</td>
+        <td>Starter</td>
+        <td>567</td>
+        <td>14</td>
+        <td class="sparkline-cell">
+          <svg width="64" height="20" viewBox="0 0 64 20"><polyline points="0,14 8,12 16,10 24,12 32,8 40,6 48,8 56,4 64,6" fill="none" stroke="#00D4AA" stroke-width="1.5"/></svg>
+        </td>
+        <td><span class="status"><span class="status-dot green"></span>Active</span></td>
+        <td style="color:#6B7280">30 min ago</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="pagination">
+    <button class="page-btn active">1</button>
+    <button class="page-btn">2</button>
+    <button class="page-btn">3</button>
+    <button class="page-btn">...</button>
+    <button class="page-btn">8</button>
+  </div>
+</section>
+
+<!-- ============ PAGE 3: CLIENT DETAIL ============ -->
+<section class="page-section">
+  <div class="page-label">Page 3</div>
+  <div class="page-title" style="margin-bottom:8px">Client Detail</div>
+
+  <div class="breadcrumb">
+    <a href="#">Clients</a><span class="sep">/</span><span style="color:#E2E8F0">Meridian Properties</span>
+  </div>
+
+  <!-- Inline stats -->
+  <div class="stat-row">
+    <div class="stat-item">
+      <div class="stat-label">Messages</div>
+      <div class="stat-value">2,341</div>
+      <div class="stat-change up">+12%</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Leads</div>
+      <div class="stat-value">48</div>
+      <div class="stat-change up">+8%</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Uptime</div>
+      <div class="stat-value">99.2%</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Errors</div>
+      <div class="stat-value">3</div>
+      <div class="stat-change down">+2</div>
+    </div>
+  </div>
+
+  <div class="detail-grid">
+    <div>
+      <!-- Full-width chart -->
+      <div class="section-title">Messages Received — Last 30 Days</div>
+      <div class="chart-area">
+        <svg class="chart-svg" viewBox="0 0 700 180" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#6C63FF" stop-opacity="0.15"/>
+              <stop offset="100%" stop-color="#6C63FF" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid lines -->
+          <line x1="0" y1="45" x2="700" y2="45" stroke="rgba(255,255,255,0.04)" stroke-dasharray="4"/>
+          <line x1="0" y1="90" x2="700" y2="90" stroke="rgba(255,255,255,0.04)" stroke-dasharray="4"/>
+          <line x1="0" y1="135" x2="700" y2="135" stroke="rgba(255,255,255,0.04)" stroke-dasharray="4"/>
+          <!-- Area -->
+          <path d="M0,140 C30,130 60,110 100,100 C140,90 170,120 210,95 C250,70 280,80 320,60 C360,40 400,55 440,45 C480,35 520,50 560,30 C600,20 640,25 700,15 L700,180 L0,180 Z" fill="url(#chartGrad)"/>
+          <!-- Line -->
+          <path d="M0,140 C30,130 60,110 100,100 C140,90 170,120 210,95 C250,70 280,80 320,60 C360,40 400,55 440,45 C480,35 520,50 560,30 C600,20 640,25 700,15" fill="none" stroke="#6C63FF" stroke-width="2"/>
+          <!-- Axis labels -->
+          <text x="0" y="175" fill="#4B5563" font-size="10" font-family="Inter">Mar 1</text>
+          <text x="160" y="175" fill="#4B5563" font-size="10" font-family="Inter">Mar 8</text>
+          <text x="330" y="175" fill="#4B5563" font-size="10" font-family="Inter">Mar 15</text>
+          <text x="500" y="175" fill="#4B5563" font-size="10" font-family="Inter">Mar 22</text>
+          <text x="660" y="175" fill="#4B5563" font-size="10" font-family="Inter">Mar 30</text>
+        </svg>
+      </div>
+
+      <div class="section-title" style="margin-top:12px">Leads — Last 30 Days</div>
+      <div class="chart-area" style="height:140px">
+        <svg class="chart-svg" viewBox="0 0 700 140" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="chartGrad2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#00D4AA" stop-opacity="0.15"/>
+              <stop offset="100%" stop-color="#00D4AA" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,110 C50,100 100,80 160,85 C220,90 280,60 340,50 C400,40 460,55 520,35 C580,25 640,30 700,20 L700,140 L0,140 Z" fill="url(#chartGrad2)"/>
+          <path d="M0,110 C50,100 100,80 160,85 C220,90 280,60 340,50 C400,40 460,55 520,35 C580,25 640,30 700,20" fill="none" stroke="#00D4AA" stroke-width="2"/>
+        </svg>
+      </div>
+
+      <hr class="section-rule">
+
+      <!-- Collapsible: Workflows -->
+      <div class="collapsible-header">
+        <span class="arrow">&#9660;</span>
+        <span class="ch-title">Active Workflows</span>
+        <span class="ch-count">7 workflows</span>
+      </div>
+      <div class="collapsible-body">
+        <table class="clean-table">
+          <thead><tr><th>Workflow</th><th>Status</th><th>Last Run</th><th>Success Rate</th></tr></thead>
+          <tbody>
+            <tr><td>WF-01 Invoice Processing</td><td><span class="status"><span class="status-dot green"></span>Active</span></td><td style="color:#6B7280">2 min ago</td><td>98.5%</td></tr>
+            <tr><td>WF-02 Collection Reminders</td><td><span class="status"><span class="status-dot green"></span>Active</span></td><td style="color:#6B7280">15 min ago</td><td>100%</td></tr>
+            <tr><td>WF-03 Payment Receipts</td><td><span class="status"><span class="status-dot green"></span>Active</span></td><td style="color:#6B7280">1 hour ago</td><td>97.2%</td></tr>
+            <tr><td>WF-05 Trend Discovery</td><td><span class="status"><span class="status-dot amber"></span>Paused</span></td><td style="color:#6B7280">3 hours ago</td><td>94.1%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Collapsible: Agents -->
+      <div class="collapsible-header" style="margin-top:8px">
+        <span class="arrow">&#9654;</span>
+        <span class="ch-title">AI Agents</span>
+        <span class="ch-count">3 agents</span>
+      </div>
+
+      <!-- Collapsible: Notes -->
+      <div class="collapsible-header" style="margin-top:8px">
+        <span class="arrow">&#9654;</span>
+        <span class="ch-title">Notes</span>
+        <span class="ch-count">5 notes</span>
+      </div>
+    </div>
+
+    <!-- Side panel -->
+    <div class="side-panel">
+      <div class="kv-pair">
+        <div class="kv-label">Status</div>
+        <div class="kv-value"><span class="status"><span class="status-dot green"></span>Active</span></div>
+      </div>
+      <div class="kv-pair">
+        <div class="kv-label">Plan</div>
+        <div class="kv-value">Enterprise</div>
+      </div>
+      <div class="kv-pair">
+        <div class="kv-label">Company</div>
+        <div class="kv-value">Meridian Properties</div>
+      </div>
+      <div class="kv-pair">
+        <div class="kv-label">Contact</div>
+        <div class="kv-value">james@meridian.co.za</div>
+      </div>
+      <div class="kv-pair">
+        <div class="kv-label">Joined</div>
+        <div class="kv-value">Jan 15, 2026</div>
+      </div>
+      <div class="kv-pair">
+        <div class="kv-label">MRR</div>
+        <div class="kv-value" style="color:#00D4AA">R 12,500</div>
+      </div>
+      <div class="kv-pair">
+        <div class="kv-label">Last Invoice</div>
+        <div class="kv-value">Mar 1, 2026</div>
+      </div>
+      <div class="kv-pair">
+        <div class="kv-label">Renewal</div>
+        <div class="kv-value">Apr 15, 2026</div>
+      </div>
+      <div class="kv-pair">
+        <div class="kv-label">Health Score</div>
+        <div class="kv-value" style="color:#10B981">92 / 100</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+</body>
+</html>

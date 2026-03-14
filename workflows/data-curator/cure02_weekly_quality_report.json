@@ -1,0 +1,260 @@
+{
+  "name": "CURE-02 Weekly Quality Report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "ad123a83-7d50-4006-81b4-a9d28dc3c703",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({scanned_at}, DATEADD(TODAY(), -7, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "aad3a9c6-ab5b-43aa-8e9d-71781835a74a",
+      "name": "Read Weekly Scans",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const scans = $input.all();\nconst tableMetrics = {};\nlet totalIssues = 0;\nlet totalRecords = 0;\nlet alertCount = 0;\n\nfor (const item of scans) {\n  const s = item.json;\n  const tableName = s.table_name || 'Unknown';\n  if (!tableMetrics[tableName]) {\n    tableMetrics[tableName] = {\n      table_name: tableName,\n      scan_count: 0,\n      total_issues: 0,\n      total_records: 0,\n      worst_rate: 0,\n      latest_status: 'OK',\n    };\n  }\n  const tm = tableMetrics[tableName];\n  tm.scan_count++;\n  const issues = parseInt(s.issues_found || 0);\n  const records = parseInt(s.total_records || 0);\n  const rate = parseFloat(s.issue_rate_pct || 0);\n  tm.total_issues += issues;\n  tm.total_records = Math.max(tm.total_records, records);\n  if (rate > tm.worst_rate) tm.worst_rate = rate;\n  if (s.status === 'Alert') { tm.latest_status = 'Alert'; alertCount++; }\n  totalIssues += issues;\n  totalRecords += records;\n}\n\nconst tables = Object.values(tableMetrics);\nconst degrading = tables.filter(t => t.worst_rate > 5);\n\nreturn { json: {\n  week_ending: new Date().toISOString().split('T')[0],\n  total_scans: scans.length,\n  total_issues: totalIssues,\n  total_records: totalRecords,\n  alert_count: alertCount,\n  overall_rate_pct: totalRecords > 0 ? Math.round((totalIssues / totalRecords) * 10000) / 100 : 0,\n  tables: tables,\n  degrading_tables: degrading.map(t => t.table_name),\n  scan_data_summary: JSON.stringify(tables),\n}};"
+      },
+      "id": "f865fbbe-b726-48f5-b6a6-d9be2c489e54",
+      "name": "Aggregate Quality Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1000,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a data quality analyst for AnyVision Media. Analyze weekly data quality metrics across Airtable tables. Identify tables with degrading quality, recommend specific actions. Output JSON: {overall_grade: A/B/C/D/F, summary: string, table_assessments: [{table_name, grade, trend: improving/stable/degrading, recommendation}], priority_actions: [{action, table, urgency: high/medium/low}]}\"},\n    {\"role\": \"user\", \"content\": \"Weekly data quality report ending {{ $json.week_ending }}:\\nTotal scans: {{ $json.total_scans }}\\nTotal issues: {{ $json.total_issues }}\\nOverall issue rate: {{ $json.overall_rate_pct }}%\\nAlerts: {{ $json.alert_count }}\\nDegrading tables: {{ JSON.stringify($json.degrading_tables) }}\\nTable metrics: {{ $json.scan_data_summary }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "b62bc88e-afdc-4f62-990d-961dd9999bc8",
+      "name": "AI Quality Assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '{}';\nlet ai = {};\ntry { ai = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { ai = {overall_grade: 'N/A', summary: 'Parse failed'}; }\nconst metrics = $('Aggregate Quality Metrics').first().json;\nreturn { json: {\n  scan_id: 'QR-' + metrics.week_ending.replace(/-/g, ''),\n  scan_type: 'Weekly Quality Report',\n  overall_grade: ai.overall_grade || 'N/A',\n  ai_summary: ai.summary || '',\n  table_assessments: ai.table_assessments || [],\n  priority_actions: ai.priority_actions || [],\n  total_scans: metrics.total_scans,\n  total_issues: metrics.total_issues,\n  overall_rate_pct: metrics.overall_rate_pct,\n  alert_count: metrics.alert_count,\n  week_ending: metrics.week_ending,\n}};"
+      },
+      "id": "41c1491f-c810-461d-8162-1af7791d600e",
+      "name": "Extract Assessment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "scan_id": "={{ $json.scan_id }}",
+            "scan_type": "Weekly Quality Report",
+            "table_name": "All Tables",
+            "total_records": "={{ $json.total_scans }}",
+            "issues_found": "={{ $json.total_issues }}",
+            "issue_rate_pct": "={{ $json.overall_rate_pct }}",
+            "details": "={{ JSON.stringify({grade: $json.overall_grade, assessments: $json.table_assessments, actions: $json.priority_actions}) }}",
+            "scanned_at": "={{ $now.toISO() }}",
+            "status": "={{ $json.overall_grade }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "259f3dfa-3c7f-4d04-b86e-b17c93ddd579",
+      "name": "Write Weekly Report",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Weekly Data Quality Report - Grade: {{ $('Extract Assessment').first().json.overall_grade }} ({{ $('Extract Assessment').first().json.week_ending }})",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#FF6D5A;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Weekly Data Quality Report</h2></div>\n<div style=\"padding:20px\">\n<h3>Overall Grade: {{ $('Extract Assessment').first().json.overall_grade }}</h3>\n<p><b>Week Ending:</b> {{ $('Extract Assessment').first().json.week_ending }}</p>\n<p><b>Scans Run:</b> {{ $('Extract Assessment').first().json.total_scans }} | <b>Issues Found:</b> {{ $('Extract Assessment').first().json.total_issues }} | <b>Alerts:</b> {{ $('Extract Assessment').first().json.alert_count }}</p>\n<h3>Summary</h3>\n<p>{{ $('Extract Assessment').first().json.ai_summary }}</p>\n<h3>Table Assessments</h3>\n<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n<tr style=\"background:#FF6D5A;color:white;\"><th>Table</th><th>Grade</th><th>Trend</th><th>Recommendation</th></tr>\n{{ $('Extract Assessment').first().json.table_assessments.map(t => '<tr><td>' + t.table_name + '</td><td>' + t.grade + '</td><td>' + t.trend + '</td><td>' + t.recommendation + '</td></tr>').join('') || '<tr><td colspan=\"4\">No assessments</td></tr>' }}\n</table>\n<h3>Priority Actions</h3>\n<ul>{{ $('Extract Assessment').first().json.priority_actions.map(a => '<li>[' + a.urgency + '] ' + a.table + ': ' + a.action + '</li>').join('') || '<li>No actions needed</li>' }}</ul>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Data Curator - Weekly Quality Report</div>\n</div>",
+        "options": {}
+      },
+      "id": "f944f665-2d1b-4f01-8ec2-a2e89926bbef",
+      "name": "Email Quality Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Weekly Scans",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Weekly Scans": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Quality Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Quality Metrics": {
+      "main": [
+        [
+          {
+            "node": "AI Quality Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Quality Assessment": {
+      "main": [
+        [
+          {
+            "node": "Extract Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Assessment": {
+      "main": [
+        [
+          {
+            "node": "Write Weekly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Weekly Report": {
+      "main": [
+        [
+          {
+            "node": "Email Quality Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "data-curator",
+    "quality",
+    "weekly"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_data_curator.py",
+    "built_at": "2026-03-14T19:18:48.365167"
+  }
+}

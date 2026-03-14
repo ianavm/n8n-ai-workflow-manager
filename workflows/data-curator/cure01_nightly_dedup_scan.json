@@ -1,0 +1,299 @@
+{
+  "name": "CURE-01 Nightly Dedup Scan",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 23 * * *"
+            }
+          ]
+        }
+      },
+      "id": "0145940a-347b-49e1-849f-2f8e128675e3",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Define tables to scan for duplicates\nconst targets = [\n  {\n    base_id: 'app2ALQUP7CKEkHOz',\n    table_id: 'REPLACE_AFTER_SETUP',\n    table_name: 'CRM_Unified',\n    dedup_field: 'email'\n  },\n  {\n    base_id: 'app2ALQUP7CKEkHOz',\n    table_id: 'REPLACE_AFTER_SETUP',\n    table_name: 'Leads',\n    dedup_field: 'email'\n  },\n  {\n    base_id: 'apptjjBx34z9340tK',\n    table_id: 'REPLACE_AFTER_SETUP',\n    table_name: 'Contacts',\n    dedup_field: 'email'\n  }\n];\nreturn targets.map(t => ({json: t}));"
+      },
+      "id": "023f99a7-a73c-4f72-8b7a-8603eccf4569",
+      "name": "Set Target Tables",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "={{ $json.base_id }}",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "={{ $json.table_id }}",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "b55d5e8b-4a6d-4b26-871b-baebd928a20e",
+      "name": "Fetch Table Records",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const records = $input.all();\nconst targetInfo = $('Set Target Tables').item.json;\nconst dedupField = targetInfo.dedup_field;\nconst tableName = targetInfo.table_name;\n\n// Normalize and group by dedup field\nconst groups = {};\nlet totalRecords = 0;\nlet emptyFieldCount = 0;\n\nfor (const item of records) {\n  totalRecords++;\n  const raw = item.json[dedupField] || item.json.fields?.[dedupField] || '';\n  if (!raw) { emptyFieldCount++; continue; }\n  const normalized = String(raw).toLowerCase().trim();\n  if (!groups[normalized]) groups[normalized] = [];\n  groups[normalized].push({\n    record_id: item.json.id || item.json.record_id || 'unknown',\n    raw_value: raw,\n  });\n}\n\nconst duplicates = Object.entries(groups)\n  .filter(([_, recs]) => recs.length > 1)\n  .map(([key, recs]) => ({\n    value: key,\n    count: recs.length,\n    record_ids: recs.map(r => r.record_id),\n  }));\n\nconst totalDuplicateRecords = duplicates.reduce((sum, d) => sum + d.count - 1, 0);\n\nreturn { json: {\n  table_name: tableName,\n  base_id: targetInfo.base_id,\n  table_id: targetInfo.table_id,\n  dedup_field: dedupField,\n  total_records: totalRecords,\n  empty_field_count: emptyFieldCount,\n  duplicate_groups: duplicates.length,\n  duplicate_records: totalDuplicateRecords,\n  duplicate_rate_pct: totalRecords > 0 ? Math.round((totalDuplicateRecords / totalRecords) * 10000) / 100 : 0,\n  top_duplicates: duplicates.slice(0, 10),\n  scanned_at: new Date().toISOString(),\n}};"
+      },
+      "id": "55ec7874-2ba9-4fd9-9892-23deb498284b",
+      "name": "Detect Duplicates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "scan_id": "=DEDUP-{{ $json.table_name }}-{{ $now.toFormat('yyyyMMdd') }}",
+            "scan_type": "Dedup Scan",
+            "table_name": "={{ $json.table_name }}",
+            "total_records": "={{ $json.total_records }}",
+            "issues_found": "={{ $json.duplicate_records }}",
+            "issue_rate_pct": "={{ $json.duplicate_rate_pct }}",
+            "details": "={{ JSON.stringify({duplicate_groups: $json.duplicate_groups, top_duplicates: $json.top_duplicates, empty_fields: $json.empty_field_count}) }}",
+            "scanned_at": "={{ $json.scanned_at }}",
+            "status": "={{ $json.duplicate_records > 20 ? 'Alert' : 'OK' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "b24d243c-b321-4db5-a3c1-90e6e2102c4e",
+      "name": "Write Dedup Results",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $('Detect Duplicates').item.json.duplicate_records }}",
+              "rightValue": 20,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          }
+        }
+      },
+      "id": "2da1c04d-60f2-4fb7-8f1e-29d08c591950",
+      "name": "Too Many Duplicates",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=DATA ALERT: {{ $('Detect Duplicates').item.json.duplicate_records }} duplicates in {{ $('Detect Duplicates').item.json.table_name }}",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#DC3545;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Duplicate Data Alert</h2></div>\n<div style=\"padding:20px\">\n<p><b>Table:</b> {{ $('Detect Duplicates').item.json.table_name }}</p>\n<p><b>Dedup Field:</b> {{ $('Detect Duplicates').item.json.dedup_field }}</p>\n<p><b>Total Records:</b> {{ $('Detect Duplicates').item.json.total_records }}</p>\n<p><b>Duplicate Records:</b> {{ $('Detect Duplicates').item.json.duplicate_records }}</p>\n<p><b>Duplicate Rate:</b> {{ $('Detect Duplicates').item.json.duplicate_rate_pct }}%</p>\n<h3>Top Duplicates</h3>\n<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n<tr style=\"background:#FF6D5A;color:white;\"><th>Value</th><th>Count</th></tr>\n{{ $('Detect Duplicates').item.json.top_duplicates.map(d => '<tr><td>' + d.value + '</td><td>' + d.count + '</td></tr>').join('') }}\n</table>\n<p style=\"color:red;font-weight:bold\">Action required: Review and merge duplicate records.</p>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Data Curator - Nightly Dedup Scan</div>\n</div>",
+        "options": {}
+      },
+      "id": "f65e5547-0049-4848-b2cb-a67945ef203c",
+      "name": "Alert Duplicates Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3d35a3eb-6cdf-404c-9a83-fd4147c8a251",
+              "name": "status",
+              "value": "Dedup scan complete",
+              "type": "string"
+            },
+            {
+              "id": "e1835270-75f5-4c37-9a33-df80fba18ffd",
+              "name": "scanned_at",
+              "value": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "507afdd3-3188-4fd1-ace5-a1055a7e5608",
+      "name": "Scan Summary",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1540,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Target Tables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Target Tables": {
+      "main": [
+        [
+          {
+            "node": "Fetch Table Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Table Records": {
+      "main": [
+        [
+          {
+            "node": "Detect Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Write Dedup Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Dedup Results": {
+      "main": [
+        [
+          {
+            "node": "Too Many Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Too Many Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Alert Duplicates Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Scan Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "data-curator",
+    "dedup",
+    "nightly"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_data_curator.py",
+    "built_at": "2026-03-14T19:18:47.692758"
+  }
+}

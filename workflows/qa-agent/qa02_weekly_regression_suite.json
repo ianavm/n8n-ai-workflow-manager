@@ -1,0 +1,370 @@
+{
+  "name": "QA-02 Weekly Regression Suite",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 * * 0"
+            }
+          ]
+        }
+      },
+      "id": "17a0ee2d-7536-4ad7-8d82-3164b8a5e99d",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const tests = [\n  // Landing pages\n  {url: 'https://www.anyvisionmedia.com', name: 'Landing Home', method: 'GET', expect: 'AnyVision'},\n  {url: 'https://www.anyvisionmedia.com/about', name: 'Landing About', method: 'GET', expect: 'AnyVision'},\n  {url: 'https://www.anyvisionmedia.com/services', name: 'Landing Services', method: 'GET', expect: 'AnyVision'},\n  {url: 'https://www.anyvisionmedia.com/contact', name: 'Landing Contact', method: 'GET', expect: 'AnyVision'},\n  // Portal pages\n  {url: 'https://portal.anyvisionmedia.com/login', name: 'Portal Login', method: 'GET', expect: 'portal'},\n  {url: 'https://portal.anyvisionmedia.com/signup', name: 'Portal Signup', method: 'GET', expect: 'portal'},\n  {url: 'https://portal.anyvisionmedia.com/dashboard', name: 'Portal Dashboard', method: 'GET', expect: 'portal'},\n  {url: 'https://portal.anyvisionmedia.com/billing', name: 'Portal Billing', method: 'GET', expect: 'portal'},\n  // Robots & Sitemap\n  {url: 'https://www.anyvisionmedia.com/robots.txt', name: 'Robots.txt', method: 'GET', expect: 'User-agent', type: 'robots'},\n  {url: 'https://www.anyvisionmedia.com/sitemap.xml', name: 'Sitemap.xml', method: 'GET', expect: 'urlset', type: 'sitemap'},\n];\nreturn tests.map(t => ({json: t}));"
+      },
+      "id": "3ab49eb0-e8e1-464f-8855-6ae3f15176fa",
+      "name": "Set Test Suite",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 15000,
+          "redirect": {
+            "followRedirects": true
+          }
+        }
+      },
+      "id": "cc997a6c-8489-4ed3-b163-f0ad2574b3cb",
+      "name": "Execute Tests",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "HEAD",
+        "url": "https://www.anyvisionmedia.com",
+        "options": {
+          "timeout": 10000,
+          "redirect": {
+            "followRedirects": true
+          }
+        }
+      },
+      "id": "50c1c069-d32e-45c1-8e72-3568cadf7279",
+      "name": "SSL Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        500
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.anyvisionmedia.com/sitemap.xml",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "d4297259-5748-47c1-85c9-6a9c11bd9414",
+      "name": "Sitemap Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        650
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.anyvisionmedia.com/robots.txt",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "b9413279-0fe3-4edd-b0f7-f4c3158cb35a",
+      "name": "Robots Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        800
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const testResults = $('Execute Tests').all();\nconst testSuite = $('Set Test Suite').all();\nconst sslResult = $('SSL Check').first().json;\nconst sitemapResult = $('Sitemap Check').first().json;\nconst robotsResult = $('Robots Check').first().json;\n\nconst results = [];\nfor (let i = 0; i < testResults.length; i++) {\n  const d = testResults[i].json;\n  const info = testSuite[i]?.json || {};\n  const statusCode = d.statusCode || d.status || 0;\n  const responseTime = d.responseTime || d.timings?.total || 0;\n  const body = typeof d.data === 'string' ? d.data : (typeof d.body === 'string' ? d.body : JSON.stringify(d));\n  const expectStr = info.expect || '';\n  const hasExpected = expectStr ? body.toLowerCase().includes(expectStr.toLowerCase()) : true;\n  const passed = statusCode === 200 && hasExpected;\n  results.push({\n    url: info.url || 'unknown', name: info.name || 'unknown', type: info.type || 'page',\n    status_code: statusCode, response_time_ms: responseTime,\n    has_expected_content: hasExpected, passed: passed,\n    reason: passed ? 'OK' : (statusCode !== 200 ? 'Status ' + statusCode : 'Missing expected content'),\n  });\n}\n\n// SSL check\nconst sslPassed = (sslResult.statusCode || sslResult.status || 0) === 200;\nresults.push({url: 'https://www.anyvisionmedia.com', name: 'SSL Certificate', type: 'ssl',\n  status_code: sslResult.statusCode || 0, response_time_ms: 0,\n  passed: sslPassed, reason: sslPassed ? 'OK' : 'SSL check failed'});\n\n// Sitemap check\nconst sitemapBody = typeof sitemapResult.data === 'string' ? sitemapResult.data : JSON.stringify(sitemapResult);\nconst sitemapPassed = (sitemapResult.statusCode || 0) === 200 && sitemapBody.includes('urlset');\nresults.push({url: 'https://www.anyvisionmedia.com/sitemap.xml', name: 'Sitemap XML', type: 'sitemap',\n  status_code: sitemapResult.statusCode || 0, response_time_ms: 0,\n  passed: sitemapPassed, reason: sitemapPassed ? 'OK' : 'Sitemap invalid or missing'});\n\n// Robots check\nconst robotsBody = typeof robotsResult.data === 'string' ? robotsResult.data : JSON.stringify(robotsResult);\nconst robotsPassed = (robotsResult.statusCode || 0) === 200 && robotsBody.includes('User-agent');\nresults.push({url: 'https://www.anyvisionmedia.com/robots.txt', name: 'Robots.txt', type: 'robots',\n  status_code: robotsResult.statusCode || 0, response_time_ms: 0,\n  passed: robotsPassed, reason: robotsPassed ? 'OK' : 'Robots.txt invalid or missing'});\n\nconst total = results.length;\nconst passed = results.filter(r => r.passed).length;\nconst failed = total - passed;\nconst regressions = results.filter(r => !r.passed && r.type === 'page');\nconst perfScore = total > 0 ? Math.round((passed / total) * 100) : 0;\n\nreturn [{json: {\n  week: new Date().toISOString().split('T')[0],\n  test_suite: 'Weekly Regression',\n  total_tests: total, passed: passed, failed: failed,\n  regressions: regressions.length,\n  performance_score: perfScore,\n  all_results: results,\n  results_json: JSON.stringify(results),\n}}];"
+      },
+      "id": "953e49e6-7334-4253-86a4-4aafa53219eb",
+      "name": "Analyze All Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"anthropic/claude-sonnet-4-20250514\",\"max_tokens\":1500,\"messages\":[{\"role\":\"system\",\"content\":\"You are a QA engineer analyzing weekly regression test results for AnyVision Media web properties. Identify regressions, patterns, and recommend fixes. Be concise. Output JSON: {summary: string, regressions: [{url, issue, severity}], recommendations: [string], overall_status: PASS/WARN/FAIL}\"},{\"role\":\"user\",\"content\":\"Weekly regression results:\\n{{ JSON.stringify($json.all_results, null, 2) }}\"}]}",
+        "options": {}
+      },
+      "id": "a72166a5-7104-471c-8f89-9016ca65ae21",
+      "name": "AI Regression Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "Date": "={{ $('Analyze All Results').first().json.week }}",
+            "Test Suite": "=Weekly Regression",
+            "Total Tests": "={{ $('Analyze All Results').first().json.total_tests }}",
+            "Passed": "={{ $('Analyze All Results').first().json.passed }}",
+            "Failed": "={{ $('Analyze All Results').first().json.failed }}",
+            "Health Score %": "={{ $('Analyze All Results').first().json.performance_score }}",
+            "Details": "={{ $('Analyze All Results').first().json.results_json }}",
+            "Duration ms": "=0"
+          }
+        },
+        "options": {}
+      },
+      "id": "622ee731-57c3-4a03-bb97-17603d2d3f05",
+      "name": "Write Report",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=QA Weekly Regression Report - {{ $('Analyze All Results').first().json.week }} ({{ $('Analyze All Results').first().json.performance_score }}% health)",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:700px\">\n<div style=\"background:#FF6D5A;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Weekly Regression Report</h2></div>\n<div style=\"padding:20px\">\n<p><strong>Week:</strong> {{ $('Analyze All Results').first().json.week }}</p>\n<p><strong>Health Score:</strong> {{ $('Analyze All Results').first().json.performance_score }}%</p>\n<p><strong>Total:</strong> {{ $('Analyze All Results').first().json.total_tests }} | <strong>Passed:</strong> {{ $('Analyze All Results').first().json.passed }} | <strong>Failed:</strong> {{ $('Analyze All Results').first().json.failed }} | <strong>Regressions:</strong> {{ $('Analyze All Results').first().json.regressions }}</p>\n<h3>AI Analysis:</h3>\n<pre style=\"background:#f5f5f5;padding:10px;border-radius:4px;white-space:pre-wrap\">{{ $json.choices ? $json.choices[0].message.content : 'AI analysis unavailable' }}</pre>\n<h3>All Results:</h3>\n<table style=\"width:100%;border-collapse:collapse;font-size:13px\">\n<tr style=\"background:#eee\"><th style=\"padding:5px;border:1px solid #ddd\">Test</th><th style=\"padding:5px;border:1px solid #ddd\">Status</th><th style=\"padding:5px;border:1px solid #ddd\">Code</th><th style=\"padding:5px;border:1px solid #ddd\">Reason</th></tr>\n{{ $('Analyze All Results').first().json.all_results.map(r => '<tr><td style=\"padding:5px;border:1px solid #ddd\">' + r.name + '</td><td style=\"padding:5px;border:1px solid #ddd;color:' + (r.passed ? 'green' : 'red') + '\">' + (r.passed ? 'PASS' : 'FAIL') + '</td><td style=\"padding:5px;border:1px solid #ddd\">' + r.status_code + '</td><td style=\"padding:5px;border:1px solid #ddd\">' + r.reason + '</td></tr>').join('') }}\n</table>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AnyVision Media QA Agent</div>\n</div>",
+        "options": {}
+      },
+      "id": "0b836b1e-68c4-4caf-a288-0f1e6ee10620",
+      "name": "Send Weekly Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## QA-02: Weekly Regression Suite\n\n**Schedule:** Sunday 02:00 SAST (00:00 UTC)\n\nComprehensive tests:\n- All landing pages + portal pages\n- SSL certificate validation\n- robots.txt & sitemap.xml\n- AI-powered regression analysis\n\nFull report emailed weekly."
+      },
+      "id": "80d21511-5b51-4b1b-8716-9829a958299c",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Test Suite",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SSL Check",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Sitemap Check",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Robots Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Test Suite": {
+      "main": [
+        [
+          {
+            "node": "Execute Tests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Tests": {
+      "main": [
+        [
+          {
+            "node": "Analyze All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SSL Check": {
+      "main": [
+        [
+          {
+            "node": "Analyze All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sitemap Check": {
+      "main": [
+        [
+          {
+            "node": "Analyze All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Robots Check": {
+      "main": [
+        [
+          {
+            "node": "Analyze All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze All Results": {
+      "main": [
+        [
+          {
+            "node": "AI Regression Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Regression Analysis": {
+      "main": [
+        [
+          {
+            "node": "Write Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Report": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "qa",
+    "regression",
+    "weekly"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_qa_agent.py",
+    "built_at": "2026-03-14T18:11:30.884419"
+  }
+}

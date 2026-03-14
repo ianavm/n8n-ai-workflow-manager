@@ -1,0 +1,315 @@
+{
+  "name": "KM-03 FAQ Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "652fb9ae-8dfe-4a2a-8311-362cafcacc5d",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblPQFlV6Y5qDjiKT",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({category} != '', IS_AFTER({created_at}, DATEADD(TODAY(), -14, 'days')))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "822d034a-5433-491e-b086-7dab54d77863",
+      "name": "Read Resolved Tickets",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "filterByFormula": "={doc_type} = 'FAQ'",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "00fe28e6-a318-408e-a858-e23be1fdc005",
+      "name": "Read Existing FAQs",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Based on these resolved support tickets, generate FAQ entries. Avoid duplicating existing FAQs. Format output as JSON array: [{question: string, answer: string, category: string, source_articles: [string], confidence: 0-1}]. Only generate FAQs for recurring patterns or commonly asked questions. Max 5 new FAQs.\"},\n    {\"role\": \"user\", \"content\": \"Resolved support KB articles ({{ $('Read Resolved Tickets').all().length }}):\\n{{ $('Read Resolved Tickets').all().map(i => 'Title:' + (i.json.title||i.json.article_id||'N/A') + ' Category:' + (i.json.category||'N/A') + ' Content:' + (i.json.content||'N/A').substring(0, 200)).join('\\n') || 'None.' }}\\n\\nExisting FAQ titles:\\n{{ $('Read Existing FAQs').all().map(i => '- ' + (i.json.file_name||i.json.summary||'N/A')).join('\\n') || 'None.' }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "315fd2f5-b234-45b2-b21a-ca47789e85bd",
+      "name": "AI Generate FAQs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '[]';\nlet faqs = [];\ntry { faqs = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { faqs = []; }\nif (!Array.isArray(faqs)) faqs = [];\n\nconst existing = $('Read Existing FAQs').all().map(i => (i.json.file_name || i.json.summary || '').toLowerCase());\nconst unique = faqs.filter(f => f.question && !existing.some(e => e.includes(f.question.toLowerCase().substring(0, 30))));\n\nif (unique.length === 0) {\n  return { json: { skip: true, message: 'No new unique FAQs generated', faq_count: 0 } };\n}\n\nreturn unique.map(f => ({json: {\n  doc_id: 'FAQ-' + Date.now().toString(36).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(),\n  file_name: 'FAQ: ' + f.question,\n  doc_type: 'FAQ',\n  summary: 'Q: ' + f.question + '\\nA: ' + f.answer,\n  tags: f.category || 'general',\n  key_topics: (f.source_articles || []).join(', '),\n  confidence: f.confidence || 0.8,\n  skip: false,\n}}));"
+      },
+      "id": "d03bcb3a-8493-4be1-a0b2-8bf4050ba3c9",
+      "name": "Parse and Deduplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          }
+        }
+      },
+      "id": "166c541f-1051-459a-847d-bc46c240e96c",
+      "name": "Has New FAQs",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1140,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "doc_id": "={{ $json.doc_id }}",
+            "file_name": "={{ $json.file_name }}",
+            "doc_type": "FAQ",
+            "summary": "={{ $json.summary }}",
+            "tags": "={{ $json.tags }}",
+            "key_topics": "={{ $json.key_topics }}",
+            "indexed_at": "={{ $now.toISO() }}",
+            "contradictions": ""
+          }
+        },
+        "options": {}
+      },
+      "id": "b56cdfa2-2739-4d76-b2e4-b1cf191f7aab",
+      "name": "Create FAQ Records",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1360,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $('Parse and Deduplicate').all();\nconst created = allItems.filter(i => !i.json.skip).length;\nreturn { json: {\n  status: 'FAQ generation complete',\n  faqs_created: created,\n  completed_at: new Date().toISOString(),\n}};"
+      },
+      "id": "25aa7caf-b2cf-422a-bcb3-3a6d8e0b8da3",
+      "name": "Log FAQ Count",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Resolved Tickets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Existing FAQs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Resolved Tickets": {
+      "main": [
+        [
+          {
+            "node": "AI Generate FAQs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Existing FAQs": {
+      "main": [
+        [
+          {
+            "node": "AI Generate FAQs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate FAQs": {
+      "main": [
+        [
+          {
+            "node": "Parse and Deduplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse and Deduplicate": {
+      "main": [
+        [
+          {
+            "node": "Has New FAQs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has New FAQs": {
+      "main": [
+        [
+          {
+            "node": "Create FAQ Records",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Create FAQ Records": {
+      "main": [
+        [
+          {
+            "node": "Log FAQ Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "knowledge",
+    "faq",
+    "weekly"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_knowledge_manager.py",
+    "built_at": "2026-03-14T19:19:13.457066"
+  }
+}

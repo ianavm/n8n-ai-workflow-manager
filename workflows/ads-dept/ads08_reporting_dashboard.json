@@ -1,0 +1,343 @@
+{
+  "name": "AVM Ads: Reporting Dashboard",
+  "nodes": [
+    {
+      "id": "3330f31a-934f-427f-b935-d555772fc53e",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c90670c4-3afa-4d9b-b137-c0a5e272bfb9",
+      "name": "Read Campaign Summary",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblon2FDqfifeF1Iv"
+        },
+        "filterByFormula": "=OR({Status}='Active',{Status}='Launched',{Status}='Completed')",
+        "options": {}
+      }
+    },
+    {
+      "id": "fa849f1b-d4e8-496b-97d8-a4134784324a",
+      "name": "Read Performance Data",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblH1ztufqk5Kkkln"
+        },
+        "filterByFormula": "=IS_AFTER({Date}, DATEADD(TODAY(), -7, 'days'))",
+        "options": {}
+      }
+    },
+    {
+      "id": "e985b653-8ed0-4ec0-bdaa-6b4556023cd9",
+      "name": "Read Budget Allocations",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        100
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblhYDUzyzNxnQQXw"
+        },
+        "filterByFormula": "={Status}='Active'",
+        "options": {}
+      }
+    },
+    {
+      "id": "6a43be39-cbe4-4d2d-a850-7cc98c1a8c76",
+      "name": "Merge Report Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "a0054cbc-a125-47a6-a72c-06a19c642dd1",
+      "name": "AI Report Generator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Paid Advertising Report Analyst for AnyVision Media, a South African SaaS/AI automation company.\\n\\nAnalyze the following paid advertising performance data and generate a concise executive summary.\\n\\nPERFORMANCE DATA:\\n{{JSON.stringify($json)}}\\n\\nGenerate a summary that includes:\\n1. HIGHLIGHTS: Top 2-3 wins this week (best ROAS, lowest CPA, highest CTR)\\n2. CONCERNS: Any campaigns underperforming or burning budget\\n3. RECOMMENDATIONS: 2-3 specific actions to take next week\\n4. BUDGET: Whether current allocation is optimal or needs adjustment\\n\\nKeep it concise (under 300 words). Use ZAR currency. Focus on actionable insights.\\nOutput plain text, no JSON.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "afd9925a-8f41-431f-801a-943e60fef591",
+      "name": "Build HTML Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Build email-friendly HTML report from performance data + AI summary\nconst perfItems = $('Read Campaign Summary').all();\nconst aiSummary = $('AI Report Generator').first().json;\n\nconst now = new Date();\nconst weekNum = Math.ceil((now.getDate()) / 7);\nconst monthName = now.toLocaleString('en-ZA', {month: 'long', year: 'numeric'});\n\nlet totalSpend = 0;\nlet totalClicks = 0;\nlet totalImpressions = 0;\nlet totalConversions = 0;\nconst platformSummary = {};\n\nfor (const item of perfItems) {\n  const d = item.json;\n  if (d.skip) continue;\n  totalSpend += d['Spend ZAR'] || d['Total Spend ZAR'] || 0;\n  totalClicks += d.Clicks || 0;\n  totalImpressions += d.Impressions || 0;\n  totalConversions += d.Conversions || d['Total Conversions'] || 0;\n\n  const platform = d.Platform || 'Unknown';\n  if (!platformSummary[platform]) {\n    platformSummary[platform] = {spend: 0, clicks: 0, impressions: 0, conversions: 0};\n  }\n  platformSummary[platform].spend += d['Spend ZAR'] || d['Total Spend ZAR'] || 0;\n  platformSummary[platform].clicks += d.Clicks || 0;\n  platformSummary[platform].impressions += d.Impressions || 0;\n  platformSummary[platform].conversions += d.Conversions || d['Total Conversions'] || 0;\n}\n\nconst blendedCTR = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : '0.00';\nconst blendedCPA = totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : 'N/A';\nconst blendedROAS = totalSpend > 0 ? ((totalConversions * 100) / totalSpend).toFixed(2) : 'N/A';\n\n// Build platform rows\nlet platformRows = '';\nfor (const [platform, stats] of Object.entries(platformSummary)) {\n  const pCTR = stats.impressions > 0 ? ((stats.clicks / stats.impressions) * 100).toFixed(2) : '0.00';\n  const pCPA = stats.conversions > 0 ? (stats.spend / stats.conversions).toFixed(2) : 'N/A';\n  platformRows += `<tr>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${platform}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">R${stats.spend.toFixed(2)}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${stats.impressions.toLocaleString()}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${stats.clicks.toLocaleString()}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${pCTR}%</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${stats.conversions}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">R${pCPA}</td>\n  </tr>`;\n}\n\nconst summaryText = aiSummary.choices?.[0]?.message?.content || aiSummary.summary || 'No AI summary available.';\n\nconst html = `\n<div style=\"font-family:Arial,sans-serif;max-width:700px;margin:0 auto;\">\n  <div style=\"background:#FF6D5A;color:white;padding:20px;border-radius:8px 8px 0 0;\">\n    <h1 style=\"margin:0;font-size:22px;\">AVM Paid Ads - Weekly Report</h1>\n    <p style=\"margin:5px 0 0;opacity:0.9;\">${monthName} - Week ${weekNum}</p>\n  </div>\n\n  <div style=\"padding:20px;background:#f9f9f9;\">\n    <h2 style=\"color:#333;font-size:16px;\">Overview</h2>\n    <table style=\"width:100%;border-collapse:collapse;background:white;border-radius:4px;\">\n      <tr>\n        <td style=\"padding:12px;text-align:center;\"><strong>R${totalSpend.toFixed(2)}</strong><br><small>Total Spend</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${totalImpressions.toLocaleString()}</strong><br><small>Impressions</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${totalClicks.toLocaleString()}</strong><br><small>Clicks</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${blendedCTR}%</strong><br><small>CTR</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${totalConversions}</strong><br><small>Conversions</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>R${blendedCPA}</strong><br><small>CPA</small></td>\n      </tr>\n    </table>\n\n    <h2 style=\"color:#333;font-size:16px;margin-top:20px;\">By Platform</h2>\n    <table style=\"width:100%;border-collapse:collapse;background:white;border-radius:4px;\">\n      <thead>\n        <tr style=\"background:#f0f0f0;\">\n          <th style=\"padding:8px;text-align:left;\">Platform</th>\n          <th style=\"padding:8px;\">Spend</th>\n          <th style=\"padding:8px;\">Impressions</th>\n          <th style=\"padding:8px;\">Clicks</th>\n          <th style=\"padding:8px;\">CTR</th>\n          <th style=\"padding:8px;\">Conversions</th>\n          <th style=\"padding:8px;\">CPA</th>\n        </tr>\n      </thead>\n      <tbody>${platformRows}</tbody>\n    </table>\n\n    <h2 style=\"color:#333;font-size:16px;margin-top:20px;\">AI Analysis</h2>\n    <div style=\"background:white;padding:15px;border-radius:4px;border-left:4px solid #FF6D5A;\">\n      ${summaryText.replace(/\\n/g, '<br>')}\n    </div>\n  </div>\n\n  <div style=\"padding:15px;text-align:center;color:#999;font-size:12px;\">\n    Generated by AVM Ads Agent (ADS-08) | ${now.toISOString()}\n  </div>\n</div>`;\n\nreturn [{json: {\n  html: html,\n  subject: 'AVM Ads Report - ' + monthName + ' Week ' + weekNum,\n  totalSpend: totalSpend,\n  totalConversions: totalConversions,\n  blendedCPA: blendedCPA,\n  blendedROAS: blendedROAS,\n}}];\n"
+      }
+    },
+    {
+      "id": "fbbc80df-867e-4b14-b617-35d454de58c7",
+      "name": "Send Weekly Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1500,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{$json.subject}}",
+        "emailType": "html",
+        "message": "={{$json.html}}",
+        "options": {}
+      }
+    },
+    {
+      "id": "6f5ebdd0-cbe0-4e1f-928a-bbe581aea444",
+      "name": "Log Report Event",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1750,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "appTCh0EeXQp0XqzW"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tbl6PqkxZy0Md2Ocf"
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Campaign Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Performance Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Budget Allocations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Campaign Summary": {
+      "main": [
+        [
+          {
+            "node": "Merge Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Performance Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Report Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Read Budget Allocations": {
+      "main": [
+        [
+          {
+            "node": "Merge Report Data",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Report Data": {
+      "main": [
+        [
+          {
+            "node": "AI Report Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Report Generator": {
+      "main": [
+        [
+          {
+            "node": "Build HTML Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML Report": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Weekly Report": {
+      "main": [
+        [
+          {
+            "node": "Log Report Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "ads-dept",
+    "reporting",
+    "phase-1"
+  ]
+}

@@ -1,0 +1,368 @@
+{
+  "name": "AVM Ads: Optimization Engine",
+  "nodes": [
+    {
+      "id": "055c047e-90ba-4d1e-803e-433766f4f63a",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b948e141-e2c7-4080-a68b-6c012845b5c3",
+      "name": "Read 7-Day Performance",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblH1ztufqk5Kkkln"
+        },
+        "filterByFormula": "=IS_AFTER({Date}, DATEADD(TODAY(), -7, 'days'))",
+        "options": {}
+      }
+    },
+    {
+      "id": "a4f5a1c2-fac8-4d17-908d-54b66bf6688d",
+      "name": "Read Budgets",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblhYDUzyzNxnQQXw"
+        },
+        "filterByFormula": "={Status}='Active'",
+        "options": {}
+      }
+    },
+    {
+      "id": "e8390ac9-1253-48d2-ba80-fb4283233fdf",
+      "name": "Compute Signals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Compute optimization signals from 7-day performance data\nconst items = $input.all();\nconst campaignStats = {};\n\nfor (const item of items) {\n  const d = item.json;\n  if (d.skip) continue;\n\n  const key = d['Campaign Name'] + '|' + d.Platform;\n  if (!campaignStats[key]) {\n    campaignStats[key] = {\n      campaign: d['Campaign Name'],\n      platform: d.Platform,\n      days: 0,\n      totalSpend: 0,\n      totalClicks: 0,\n      totalImpressions: 0,\n      totalConversions: 0,\n      dailySpends: [],\n      dailyCTRs: [],\n      dailyCPAs: [],\n    };\n  }\n\n  const s = campaignStats[key];\n  s.days++;\n  s.totalSpend += d['Spend ZAR'] || 0;\n  s.totalClicks += d.Clicks || 0;\n  s.totalImpressions += d.Impressions || 0;\n  s.totalConversions += d.Conversions || 0;\n  s.dailySpends.push(d['Spend ZAR'] || 0);\n  s.dailyCTRs.push(d.CTR || 0);\n  if (d.Conversions > 0) s.dailyCPAs.push(d['CPA ZAR'] || 0);\n}\n\nconst results = [];\nfor (const [key, s] of Object.entries(campaignStats)) {\n  const avgDailySpend = s.totalSpend / Math.max(s.days, 1);\n  const avgCTR = s.dailyCTRs.reduce((a, b) => a + b, 0) / Math.max(s.dailyCTRs.length, 1);\n  const avgCPA = s.dailyCPAs.length > 0\n    ? s.dailyCPAs.reduce((a, b) => a + b, 0) / s.dailyCPAs.length\n    : 0;\n  const roas = s.totalSpend > 0 ? (s.totalConversions * 100) / s.totalSpend : 0;\n\n  // Trend: compare last 3 days vs first 3 days\n  const recentSpend = s.dailySpends.slice(-3).reduce((a, b) => a + b, 0) / 3;\n  const earlySpend = s.dailySpends.slice(0, 3).reduce((a, b) => a + b, 0) / 3;\n  const spendTrend = earlySpend > 0 ? (recentSpend - earlySpend) / earlySpend : 0;\n\n  results.push({json: {\n    campaign: s.campaign,\n    platform: s.platform,\n    days: s.days,\n    totalSpend: parseFloat(s.totalSpend.toFixed(2)),\n    avgDailySpend: parseFloat(avgDailySpend.toFixed(2)),\n    totalClicks: s.totalClicks,\n    totalImpressions: s.totalImpressions,\n    totalConversions: s.totalConversions,\n    avgCTR: parseFloat(avgCTR.toFixed(4)),\n    avgCPA: parseFloat(avgCPA.toFixed(2)),\n    roas: parseFloat(roas.toFixed(2)),\n    spendTrend: parseFloat(spendTrend.toFixed(2)),\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No performance data'}}];\n"
+      }
+    },
+    {
+      "id": "5e47e9c2-a73e-42af-a086-f62950881d16",
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1000,
+        400
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "29f4f750-2b8e-441e-b253-91fbff5d72fc",
+      "name": "AI Optimizer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1250,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Ads Optimization Agent for AnyVision Media.\\n\\n7-DAY PERFORMANCE DATA:\\n{{JSON.stringify($json)}}\\n\\nCURRENT BUDGET ALLOCATION:\\n{{JSON.stringify($json)}}\\n\\nSAFETY CONSTRAINTS:\\n- Max single bid change: 30%\\n- Max auto-approve budget increase: R200/day\\n- Daily hard cap: R2000\\n- Weekly hard cap: R10000\\n\\nAnalyze trends and recommend specific optimizations:\\n\\nFor each recommendation, output JSON:\\n{{\\n  \\\"campaign_name\\\": \\\"...\\\",\\n  \\\"platform\\\": \\\"...\\\",\\n  \\\"action\\\": \\\"bid_adjust|budget_change|pause|reactivate|targeting_change\\\",\\n  \\\"current_value\\\": N,\\n  \\\"proposed_value\\\": N,\\n  \\\"change_percent\\\": N,\\n  \\\"reasoning\\\": \\\"...\\\",\\n  \\\"confidence\\\": \\\"high|medium|low\\\",\\n  \\\"auto_approvable\\\": true/false\\n}}\\n\\nRules:\\n- Be conservative. Only recommend changes backed by data.\\n- Flag auto_approvable=true ONLY if bid change < 20% AND budget increase < R200/day\\n- Recommend pausing campaigns with CPA > R500 and < 5 conversions\\n- Recommend increasing budget for campaigns with ROAS > 3.0\\n- Never recommend exceeding safety caps\\n\\nOutput as JSON array.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "df1a5243-983e-4f51-9e77-8b5279654cb2",
+      "name": "Parse Optimizations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse AI optimization recommendations\nconst aiResp = $('AI Optimizer').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\n\nlet recommendations;\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  recommendations = JSON.parse(cleaned);\n} catch (e) {\n  return [{json: {error: 'Failed to parse optimization response', raw: content}}];\n}\n\nif (!Array.isArray(recommendations)) recommendations = [recommendations];\n\nconst autoApply = [];\nconst needsApproval = [];\n\nfor (const rec of recommendations) {\n  if (rec.auto_approvable) {\n    autoApply.push({json: {...rec, _action: 'auto_apply'}});\n  } else {\n    needsApproval.push({json: {...rec, _action: 'needs_approval'}});\n  }\n}\n\n// Output 0 = auto-apply, Output 1 = needs approval\nreturn [\n  autoApply.length > 0 ? autoApply : [{json: {skip: true}}],\n  needsApproval.length > 0 ? needsApproval : [{json: {skip: true}}],\n];\n"
+      }
+    },
+    {
+      "id": "14aa654d-6ead-489f-8734-5835581ec6d0",
+      "name": "Log Auto Changes",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1750,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblov57B8uj09ZF2k"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7142f38e-5677-4a15-a7ff-9e7d4bc31249",
+      "name": "Create Approval Requests",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1750,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblov57B8uj09ZF2k"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5a5f431c-0f6f-4dde-ad8f-e758d43980a7",
+      "name": "Email Optimization Summary",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        350
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "AVM Ads - Daily Optimization Report",
+        "emailType": "html",
+        "message": "={{\"<h2>Optimization Recommendations</h2><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read 7-Day Performance",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Budgets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read 7-Day Performance": {
+      "main": [
+        [
+          {
+            "node": "Compute Signals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Signals": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Budgets": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "AI Optimizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Optimizer": {
+      "main": [
+        [
+          {
+            "node": "Parse Optimizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Optimizations": {
+      "main": [
+        [
+          {
+            "node": "Log Auto Changes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Approval Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Auto Changes": {
+      "main": [
+        [
+          {
+            "node": "Email Optimization Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Approval Requests": {
+      "main": [
+        [
+          {
+            "node": "Email Optimization Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "ads-dept",
+    "optimization",
+    "phase-2"
+  ]
+}

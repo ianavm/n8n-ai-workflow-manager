@@ -1,0 +1,367 @@
+{
+  "name": "DATA-01 On-Demand Query Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "data-query",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "92572094-570f-48e9-804e-d73ff774785f",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "883c465e-8e49-4880-8e4f-79ca76847cb4"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn { json: {\n  question: body.question || body.query || '',\n  requested_by: body.requested_by || 'anonymous',\n  query_id: 'QRY-' + Date.now().toString(36).toUpperCase(),\n  requested_at: new Date().toISOString(),\n}};"
+      },
+      "id": "bb5e2a6e-0a71-4128-9fc3-522bb4763f24",
+      "name": "Parse Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 800,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Translate this natural language question into a PostgreSQL query for the Supabase database. Tables available: clients (id, name, email, company, plan, status, created_at), client_health_scores (id, client_id, health_score, revenue_at_risk, churn_probability, last_interaction, scored_at), agent_status (id, agent_id, agent_name, status, health_score, last_heartbeat), orchestrator_alerts (id, alert_type, severity, message, resolved, created_at). Use parameterized queries only. NEVER use DROP, DELETE, UPDATE, or ALTER. Return JSON: {sql: string, explanation: string, safe: bool}. Set safe=false if the query could modify data.\"},\n    {\"role\": \"user\", \"content\": \"{{ $json.question }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "182db9e4-dd17-4077-8fe6-302838ddfd08",
+      "name": "AI Translate to SQL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '{}';\nlet result = {};\ntry { result = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { result = {sql: '', explanation: 'Parse failed', safe: false}; }\nconst meta = $('Parse Query').first().json;\nreturn { json: {\n  query_id: meta.query_id,\n  question: meta.question,\n  requested_by: meta.requested_by,\n  sql: result.sql || '',\n  explanation: result.explanation || '',\n  safe: result.safe !== false,\n}};"
+      },
+      "id": "819c9148-60f2-4b4e-a094-7d67404d01fc",
+      "name": "Parse SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.safe }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5574faee-1bc2-406c-9081-a7fc0682d37c",
+      "name": "Is Safe Query",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=REPLACE_AFTER_SETUP/rest/v1/rpc/raw_sql",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"query\": \"{{ $('Parse SQL').first().json.sql }}\"}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE_AFTER_SETUP"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE_AFTER_SETUP"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8add6cce-5a31-4884-9804-541face58536",
+      "name": "Execute Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1000,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Format these SQL query results into a clear, human-readable summary. Include key numbers, trends, and actionable insights. Use bullet points for clarity.\"},\n    {\"role\": \"user\", \"content\": \"Original question: {{ $('Parse SQL').first().json.question }}\\nSQL: {{ $('Parse SQL').first().json.sql }}\\nResults: {{ JSON.stringify($json).substring(0, 3000) }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "7689f62e-3514-4aa2-a054-b844ccb3d0da",
+      "name": "AI Format Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst summary = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : 'No summary available.';\nconst meta = $('Parse SQL').first().json;\nreturn { json: {\n  query_id: meta.query_id,\n  question: meta.question,\n  sql: meta.sql,\n  explanation: meta.explanation,\n  summary,\n  answered_at: new Date().toISOString(),\n}};"
+      },
+      "id": "85f431f9-6be4-4c73-b9b5-d7bb270285a7",
+      "name": "Extract Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "query_id": "={{ $json.query_id }}",
+            "question": "={{ $json.question }}",
+            "sql_query": "={{ $json.sql }}",
+            "summary": "={{ $json.summary.substring(0, 2000) }}",
+            "requested_by": "={{ $('Parse Query').first().json.requested_by }}",
+            "status": "Completed",
+            "created_at": "={{ $json.answered_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "ec3ad02a-353e-4765-b9be-d8a356ed148d",
+      "name": "Write Analysis",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true, query_id: $('Extract Summary').first().json.query_id, question: $('Extract Summary').first().json.question, summary: $('Extract Summary').first().json.summary, sql: $('Extract Summary').first().json.sql}) }}",
+        "options": {}
+      },
+      "id": "941a2875-8b2c-444e-bbff-21e8b72be43d",
+      "name": "Respond Results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: false, query_id: $('Parse SQL').first().json.query_id, error: 'Query flagged as unsafe', explanation: $('Parse SQL').first().json.explanation}) }}",
+        "options": {}
+      },
+      "id": "a87ef5c6-6f4a-401c-a528-8c2c0515e353",
+      "name": "Respond Unsafe",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Query": {
+      "main": [
+        [
+          {
+            "node": "AI Translate to SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Translate to SQL": {
+      "main": [
+        [
+          {
+            "node": "Parse SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse SQL": {
+      "main": [
+        [
+          {
+            "node": "Is Safe Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Safe Query": {
+      "main": [
+        [
+          {
+            "node": "Execute Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Unsafe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Query": {
+      "main": [
+        [
+          {
+            "node": "AI Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Format Results": {
+      "main": [
+        [
+          {
+            "node": "Extract Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Summary": {
+      "main": [
+        [
+          {
+            "node": "Write Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Analysis": {
+      "main": [
+        [
+          {
+            "node": "Respond Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "data",
+    "query",
+    "webhook"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_data_analyst.py",
+    "built_at": "2026-03-14T19:18:32.590397"
+  }
+}

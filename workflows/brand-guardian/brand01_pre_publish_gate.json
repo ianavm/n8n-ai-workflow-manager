@@ -1,0 +1,261 @@
+{
+  "name": "BRAND-01 Pre-Publish Gate",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "brand-check",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "05c0a80d-a97b-4e97-811a-62fc89751c9a",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "0521a267-68cf-4c31-a340-0224d8eb3840"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn { json: {\n  title: body.title || '',\n  body: body.body || body.content || '',\n  platform: body.platform || 'unknown',\n  content_type: body.content_type || 'general',\n  submitted_at: new Date().toISOString(),\n}};"
+      },
+      "id": "2711b8d4-dbea-476f-9043-56175aeecc94",
+      "name": "Parse Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 800,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Score this content for brand compliance. Check: tone (professional, innovative), terminology (use 'digital growth partner' not 'agency'), color references (#FF6D5A), call to action clarity. Return JSON only: {compliance_score: 0-100, issues: [], recommendations: [], approved: bool}. approved = true if score >= 80.\"},\n    {\"role\": \"user\", \"content\": \"Title: {{ $json.title }}\\nPlatform: {{ $json.platform }}\\nContent Type: {{ $json.content_type }}\\nBody: {{ $json.body }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "9c917e19-ba09-4e0d-b0ed-9ca898a76971",
+      "name": "AI Brand Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '{}';\nlet result = {};\ntry { result = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { result = {compliance_score: 0, issues: ['Parse failed'], recommendations: ['Manual review required'], approved: false}; }\nconst content = $('Parse Content').first().json;\nreturn { json: {\n  compliance_score: result.compliance_score || 0,\n  issues: result.issues || [],\n  recommendations: result.recommendations || [],\n  approved: result.approved || false,\n  title: content.title,\n  body: content.body,\n  platform: content.platform,\n  content_type: content.content_type,\n  submitted_at: content.submitted_at,\n  checked_at: new Date().toISOString(),\n}};"
+      },
+      "id": "d789646d-be03-4d0e-b591-ce4cc21d6c8a",
+      "name": "Parse Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.compliance_score }}",
+              "rightValue": 80,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5bf22934-3962-4481-bd26-ef71e32f5b2c",
+      "name": "Check Threshold",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({approved: true, compliance_score: $('Parse Score').first().json.compliance_score, recommendations: $('Parse Score').first().json.recommendations}) }}",
+        "options": {}
+      },
+      "id": "1561b32c-d21b-4a9e-9b3b-e8e0406e878c",
+      "name": "Respond Approved",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "audit_type": "Pre-Publish Gate",
+            "title": "={{ $('Parse Score').first().json.title }}",
+            "platform": "={{ $('Parse Score').first().json.platform }}",
+            "compliance_score": "={{ $('Parse Score').first().json.compliance_score }}",
+            "issues": "={{ $('Parse Score').first().json.issues.join('; ') }}",
+            "recommendations": "={{ $('Parse Score').first().json.recommendations.join('; ') }}",
+            "status": "Failed",
+            "checked_at": "={{ $('Parse Score').first().json.checked_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "c8c61b39-8142-4479-bcd4-a5c85f2018ae",
+      "name": "Write Audit Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({approved: false, compliance_score: $('Parse Score').first().json.compliance_score, issues: $('Parse Score').first().json.issues, recommendations: $('Parse Score').first().json.recommendations}) }}",
+        "options": {}
+      },
+      "id": "5f2406a2-6f79-406c-a034-36dcf5684a83",
+      "name": "Respond Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1540,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Content": {
+      "main": [
+        [
+          {
+            "node": "AI Brand Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Brand Check": {
+      "main": [
+        [
+          {
+            "node": "Parse Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Score": {
+      "main": [
+        [
+          {
+            "node": "Check Threshold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Threshold": {
+      "main": [
+        [
+          {
+            "node": "Respond Approved",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Write Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audit Record": {
+      "main": [
+        [
+          {
+            "node": "Respond Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "brand",
+    "compliance",
+    "webhook"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_brand_guardian.py",
+    "built_at": "2026-03-14T19:17:33.953564"
+  }
+}

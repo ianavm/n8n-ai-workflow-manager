@@ -1,0 +1,349 @@
+{
+  "name": "Market Intel - Regulatory Alert (INTEL-06)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "e1c025bd-5214-40db-b932-d7c4580c3869",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"api_key\": \"\",\n  \"query\": \"South Africa POPIA digital marketing regulation law change 2026\",\n  \"search_depth\": \"advanced\",\n  \"max_results\": 10\n}}",
+        "options": {}
+      },
+      "id": "7454d77d-9ec9-42d8-aa7a-6bb78730f4c4",
+      "name": "Tavily Search Regulatory",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter for actual regulatory content\nconst results = $json.results || [];\nconst today = DateTime.now().toFormat('yyyy-MM-dd');\n\nconst regulatoryKeywords = [\n  'popia', 'regulation', 'compliance', 'law', 'legislation',\n  'act', 'amendment', 'gazette', 'directive', 'policy',\n  'data protection', 'privacy', 'consumer protection',\n  'advertising standards', 'asa', 'icasa', 'information regulator',\n];\n\nconst filtered = results.filter(r => {\n  const text = ((r.title || '') + ' ' + (r.content || '')).toLowerCase();\n  return regulatoryKeywords.some(kw => text.includes(kw));\n});\n\nreturn [{\n  json: {\n    scanDate: today,\n    totalResults: results.length,\n    regulatoryResults: filtered.length,\n    hasResults: filtered.length > 0,\n    findings: filtered.map(r => ({\n      title: r.title || '',\n      url: r.url || '',\n      content: (r.content || '').substring(0, 1000),\n      score: r.score || 0,\n      published_date: r.published_date || '',\n    })),\n  }\n}];"
+      },
+      "id": "e7a25c4c-049d-437f-bda7-5e4f7893d600",
+      "name": "Parse Regulatory Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.regulatoryResults }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "64ed15f8-a105-45a2-bb45-4f04688d6bfb",
+      "name": "Check New Alerts",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 1500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a regulatory compliance analyst for AnyVision Media, a South African digital agency. Analyze regulatory search results and classify each finding. For each, provide: regulation (name/reference), description (1-2 sentences), impact (High/Medium/Low), action_required (specific action the business should take). Return a JSON array. Focus on POPIA, advertising standards, digital marketing laws, and data protection regulations relevant to South Africa.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Classify these regulatory findings for business impact:\\n\\n\" + JSON.stringify($json.findings, null, 2)\n    }\n  ]\n}}",
+        "options": {}
+      },
+      "id": "8b71a076-a2ef-4808-b8ca-388ca0f33433",
+      "name": "AI Classify Impact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI classification and prepare Airtable records\nconst aiResponse = $json.choices[0].message.content;\nconst scanDate = $('Parse Regulatory Results').first().json.scanDate;\n\nlet classifications = [];\ntry {\n  const jsonMatch = aiResponse.match(/\\[[\\s\\S]*\\]/);\n  if (jsonMatch) {\n    classifications = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  classifications = [{\n    regulation: 'Unclassified',\n    description: aiResponse.substring(0, 500),\n    impact: 'Medium',\n    action_required: 'Manual review required',\n  }];\n}\n\nconst validImpact = ['High', 'Medium', 'Low'];\n\nconst records = classifications.map(c => ({\n  json: {\n    Date: scanDate,\n    Regulation: (c.regulation || 'Unknown').substring(0, 200),\n    Description: (c.description || '').substring(0, 1000),\n    Impact: validImpact.includes(c.impact) ? c.impact : 'Medium',\n    'Action Required': (c.action_required || '').substring(0, 500),\n    Status: 'New',\n    hasHighImpact: c.impact === 'High',\n  }\n}));\n\nif (records.length === 0) {\n  return [{\n    json: {\n      Date: scanDate,\n      Regulation: 'No findings',\n      Description: 'No regulatory changes detected today.',\n      Impact: 'Low',\n      'Action Required': 'None',\n      Status: 'New',\n      hasHighImpact: false,\n    }\n  }];\n}\n\nreturn records;"
+      },
+      "id": "1171383e-e874-4078-a7b6-d80076ebd536",
+      "name": "Prepare Alert Records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9vp3Wlx9H8bxcC",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.Date }}",
+            "Source": "Regulatory Scan",
+            "Competitor": "={{ $json.Regulation }}",
+            "Finding": "={{ $json.Description }}",
+            "Category": "Regulatory",
+            "Significance": "={{ $json.Impact }}",
+            "Raw Data": "={{ $json['Action Required'] }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "c2e3e8cc-dafd-4d31-80b2-01e6494bc363",
+      "name": "Write Alert",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": ""
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Prepare Alert Records').first().json.hasHighImpact }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        }
+      },
+      "id": "261f3c93-63ac-477b-9e3b-55dff1406743",
+      "name": "Alert if High Impact",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Regulatory Alert: {{ $('Prepare Alert Records').first().json.Regulation }}",
+        "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <div style=\"background: #d32f2f; color: white; padding: 16px; border-radius: 8px 8px 0 0;\">\n    <h2 style=\"margin: 0;\">Regulatory Alert - HIGH IMPACT</h2>\n    <p style=\"margin: 4px 0 0; opacity: 0.9;\">{{ $('Prepare Alert Records').first().json.Date }}</p>\n  </div>\n  <div style=\"background: white; padding: 20px; border: 1px solid #e0e0e0; border-radius: 0 0 8px 8px;\">\n    <p><strong>Regulation:</strong> {{ $('Prepare Alert Records').first().json.Regulation }}</p>\n    <p><strong>Description:</strong></p>\n    <p style=\"background: #fff3e0; padding: 12px; border-radius: 4px; border-left: 4px solid #d32f2f;\">{{ $('Prepare Alert Records').first().json.Description }}</p>\n    <p><strong>Action Required:</strong></p>\n    <p style=\"background: #fce4ec; padding: 12px; border-radius: 4px;\">{{ $('Prepare Alert Records').first().json['Action Required'] }}</p>\n    <hr style=\"border: 1px solid #eee;\">\n    <p style=\"color: #888; font-size: 11px;\">Generated by AVM Market Intelligence | INTEL-06</p>\n  </div>\n</div>",
+        "options": {}
+      },
+      "id": "6c86e0fe-91c0-4c12-a453-d15f8ac45b6b",
+      "name": "Send High Impact Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        100
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## INTEL-06: Regulatory Alert\nRuns daily 08:00 SAST. Searches Tavily for SA\nregulatory changes (POPIA, digital marketing law),\nAI classifies impact, writes to Airtable,\nemails high-impact alerts immediately.",
+        "width": 420,
+        "height": 120
+      },
+      "id": "34cedfbe-5568-4844-9222-721362ee8696",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Tavily Search Regulatory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tavily Search Regulatory": {
+      "main": [
+        [
+          {
+            "node": "Parse Regulatory Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Regulatory Results": {
+      "main": [
+        [
+          {
+            "node": "Check New Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check New Alerts": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Impact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "AI Classify Impact": {
+      "main": [
+        [
+          {
+            "node": "Prepare Alert Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Alert Records": {
+      "main": [
+        [
+          {
+            "node": "Write Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Alert": {
+      "main": [
+        [
+          {
+            "node": "Alert if High Impact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert if High Impact": {
+      "main": [
+        [
+          {
+            "node": "Send High Impact Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

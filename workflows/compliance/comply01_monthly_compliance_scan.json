@@ -1,0 +1,420 @@
+{
+  "name": "COMPLY-01 Monthly Compliance Scan",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "be585e27-14b9-4d4e-a2d5-4b4c67de994b",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5b0594d4-b401-4e8a-a6a5-a72852ff993d",
+              "name": "scan_id",
+              "value": "=COMPLY-{{ $now.toFormat('yyyy-MM') }}",
+              "type": "string"
+            },
+            {
+              "id": "35275d52-3b19-4e67-a2bb-f9c54172ba81",
+              "name": "departments",
+              "value": "accounting,marketing,seo-social,lead-scraper,support",
+              "type": "string"
+            },
+            {
+              "id": "6fb8caba-de42-446e-baea-bf21a2b17055",
+              "name": "scan_date",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "38f53832-3907-4ff7-b469-762c10b85ccd",
+      "name": "Set Scan Scope",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "app2ALQUP7CKEkHOz",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl0LtepawDzFYg4I",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "09381b68-d6de-493f-bfca-55fb893c354d",
+      "name": "Check Suppression Table",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblHViYF9sEUOFdNO",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({created_at}, DATEADD(TODAY(), -30, 'days'))",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "1f45d166-0220-4262-8fdf-a6293c830298",
+      "name": "Check Decision Log",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        420
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const suppressions = $('Check Suppression Table').all();\nconst decisions = $('Check Decision Log').all();\nconst scope = $('Set Scan Scope').first().json;\n\nconst suppressionCount = suppressions.length;\nconst suppressionStatuses = {};\nfor (const s of suppressions) {\n  const status = s.json.status || s.json.Status || 'Unknown';\n  suppressionStatuses[status] = (suppressionStatuses[status] || 0) + 1;\n}\n\nconst decisionCount = decisions.length;\nconst unreviewed = decisions.filter(d => !(d.json.reviewed || d.json.status === 'Reviewed')).length;\n\nreturn { json: {\n  scan_id: scope.scan_id,\n  scan_date: scope.scan_date,\n  departments: scope.departments,\n  suppression_count: suppressionCount,\n  suppression_breakdown: JSON.stringify(suppressionStatuses),\n  decision_count: decisionCount,\n  unreviewed_decisions: unreviewed,\n  email_compliance: suppressionCount > 0 ? 'Active' : 'Warning - Empty suppression list',\n  audit_trail: decisionCount > 0 ? 'Active' : 'Warning - No decisions logged',\n}};"
+      },
+      "id": "cd6a6268-0a57-4af8-a534-0d75a7493be3",
+      "name": "Compile Compliance Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1200,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a compliance auditor for a South African digital marketing company. Assess compliance based on: email suppression (POPIA), audit trail completeness, data handling. Return JSON: {overall_score: 0-100, findings: [{area, status: 'Compliant'|'Non-Compliant'|'Warning', detail, severity: 'Critical'|'High'|'Medium'|'Low'}], recommendations: [], risk_level: 'Low'|'Medium'|'High'|'Critical'}\"},\n    {\"role\": \"user\", \"content\": \"Monthly Compliance Scan {{ $json.scan_id }}\\nDepartments: {{ $json.departments }}\\n\\nEmail Suppression: {{ $json.suppression_count }} entries ({{ $json.suppression_breakdown }})\\nEmail Compliance: {{ $json.email_compliance }}\\nDecision Log: {{ $json.decision_count }} entries, {{ $json.unreviewed_decisions }} unreviewed\\nAudit Trail: {{ $json.audit_trail }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "bf27ab1f-36e4-49fc-8748-4ab210eeb7a4",
+      "name": "AI Compliance Assessment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '{}';\nlet assessment = {};\ntry { assessment = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { assessment = {overall_score: 0, findings: [], recommendations: ['Parse failed - manual review needed'], risk_level: 'High'}; }\nconst meta = $('Compile Compliance Data').first().json;\nconst nonCompliant = (assessment.findings || []).filter(f => f.status === 'Non-Compliant');\nreturn { json: {\n  scan_id: meta.scan_id,\n  overall_score: assessment.overall_score || 0,\n  findings: JSON.stringify(assessment.findings || []),\n  findings_count: (assessment.findings || []).length,\n  non_compliant_count: nonCompliant.length,\n  recommendations: (assessment.recommendations || []).join('; '),\n  risk_level: assessment.risk_level || 'Unknown',\n  scan_date: meta.scan_date,\n  has_violations: nonCompliant.length > 0,\n}};"
+      },
+      "id": "e388ed7f-ce1d-43d8-ad4a-690defcb11b5",
+      "name": "Parse Assessment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "scan_id": "={{ $json.scan_id }}",
+            "audit_type": "Monthly Compliance Scan",
+            "overall_score": "={{ $json.overall_score }}",
+            "findings": "={{ $json.findings }}",
+            "recommendations": "={{ $json.recommendations }}",
+            "risk_level": "={{ $json.risk_level }}",
+            "non_compliant_count": "={{ $json.non_compliant_count }}",
+            "status": "={{ $json.has_violations ? 'Action Required' : 'Compliant' }}",
+            "scanned_at": "={{ $json.scan_date }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "d3d2704e-a861-4747-ba07-7484f43a310c",
+      "name": "Write Compliance Results",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1560,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $('Parse Assessment').first().json.non_compliant_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "612a219d-6888-4cc1-921c-3c347eec9c6c",
+      "name": "Has Violations",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1780,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=COMPLIANCE ALERT: {{ $('Parse Assessment').first().json.non_compliant_count }} violations found - {{ $('Parse Assessment').first().json.risk_level }} Risk",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#DC3545;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Compliance Alert</h2></div>\n<div style=\"padding:20px\">\n<p><b>Scan ID:</b> {{ $('Parse Assessment').first().json.scan_id }}</p>\n<h3>Overall Score: {{ $('Parse Assessment').first().json.overall_score }}/100</h3>\n<p><b>Risk Level:</b> <span style=\"color:red;font-weight:bold\">{{ $('Parse Assessment').first().json.risk_level }}</span></p>\n<p><b>Non-Compliant Findings:</b> {{ $('Parse Assessment').first().json.non_compliant_count }}</p>\n<h3>Findings</h3><p style=\"font-size:12px\">{{ $('Parse Assessment').first().json.findings }}</p>\n<h3>Recommendations</h3><p>{{ $('Parse Assessment').first().json.recommendations }}</p>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Compliance Auditor - Automated Alert</div></div>",
+        "options": {}
+      },
+      "id": "424a3349-db18-4442-a106-5a4a4524d008",
+      "name": "Alert Violations Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Monthly Compliance Scan - Score: {{ $('Parse Assessment').first().json.overall_score }}/100 - All Clear",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#28A745;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Compliance Scan - All Clear</h2></div>\n<div style=\"padding:20px\">\n<p><b>Scan ID:</b> {{ $('Parse Assessment').first().json.scan_id }}</p>\n<h3>Overall Score: {{ $('Parse Assessment').first().json.overall_score }}/100</h3>\n<p><b>Risk Level:</b> {{ $('Parse Assessment').first().json.risk_level }}</p>\n<p><b>Total Findings:</b> {{ $('Parse Assessment').first().json.findings_count }}</p>\n<h3>Recommendations</h3><p>{{ $('Parse Assessment').first().json.recommendations }}</p>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">AVM Compliance Auditor - Automated Report</div></div>",
+        "options": {}
+      },
+      "id": "0b1e8cd2-2a2d-43de-8491-1b85f720705b",
+      "name": "Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        420
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Scan Scope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Scan Scope": {
+      "main": [
+        [
+          {
+            "node": "Check Suppression Table",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Decision Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Suppression Table": {
+      "main": [
+        [
+          {
+            "node": "Compile Compliance Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Decision Log": {
+      "main": [
+        [
+          {
+            "node": "Compile Compliance Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Compliance Data": {
+      "main": [
+        [
+          {
+            "node": "AI Compliance Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Compliance Assessment": {
+      "main": [
+        [
+          {
+            "node": "Parse Assessment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Assessment": {
+      "main": [
+        [
+          {
+            "node": "Write Compliance Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Compliance Results": {
+      "main": [
+        [
+          {
+            "node": "Has Violations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Violations": {
+      "main": [
+        [
+          {
+            "node": "Alert Violations Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "compliance",
+    "monthly",
+    "audit"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_compliance_auditor.py",
+    "built_at": "2026-03-14T19:17:41.255454"
+  }
+}

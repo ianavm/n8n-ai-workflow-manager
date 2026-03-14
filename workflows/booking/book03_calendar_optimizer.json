@@ -1,0 +1,268 @@
+{
+  "name": "BOOK-03 Calendar Optimizer",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 14 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "d37704e2-080d-4583-b9ec-5905215d0a61",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "timeMin",
+              "value": "={{ $now.plus({days: 3}).startOf('week').toISO() }}"
+            },
+            {
+              "name": "timeMax",
+              "value": "={{ $now.plus({days: 3}).startOf('week').plus({days: 5}).toISO() }}"
+            },
+            {
+              "name": "singleEvents",
+              "value": "true"
+            },
+            {
+              "name": "orderBy",
+              "value": "startTime"
+            },
+            {
+              "name": "maxResults",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "8079b967-2d91-4d3b-bb49-2f8fb8f77b80",
+      "name": "Fetch Next Week Events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const events = $input.first().json.items || [];\nconst days = {};\nlet totalMeetingMinutes = 0;\n\nfor (const evt of events) {\n  const start = new Date(evt.start.dateTime || evt.start.date);\n  const end = new Date(evt.end.dateTime || evt.end.date);\n  const dayKey = start.toISOString().split('T')[0];\n  const durationMin = Math.round((end - start) / 60000);\n\n  if (!days[dayKey]) {\n    days[dayKey] = { date: dayKey, events: [], total_minutes: 0, event_count: 0 };\n  }\n  days[dayKey].events.push({\n    summary: evt.summary || 'No title',\n    start: evt.start.dateTime || evt.start.date,\n    end: evt.end.dateTime || evt.end.date,\n    duration_min: durationMin,\n  });\n  days[dayKey].total_minutes += durationMin;\n  days[dayKey].event_count += 1;\n  totalMeetingMinutes += durationMin;\n}\n\n// Calculate focus time blocks (gaps >= 60 min between 06:00-15:00 UTC)\nconst focusBlocks = [];\nfor (const [dayKey, dayData] of Object.entries(days)) {\n  const sorted = dayData.events.sort((a, b) => new Date(a.start) - new Date(b.start));\n  let prevEnd = new Date(dayKey + 'T06:00:00Z');\n  for (const evt of sorted) {\n    const evtStart = new Date(evt.start);\n    const gapMin = Math.round((evtStart - prevEnd) / 60000);\n    if (gapMin >= 60) {\n      focusBlocks.push({ date: dayKey, start: prevEnd.toISOString(), end: evtStart.toISOString(), duration_min: gapMin });\n    }\n    prevEnd = new Date(evt.end);\n  }\n  const eodGap = Math.round((new Date(dayKey + 'T15:00:00Z') - prevEnd) / 60000);\n  if (eodGap >= 60) {\n    focusBlocks.push({ date: dayKey, start: prevEnd.toISOString(), end: dayKey + 'T15:00:00Z', duration_min: eodGap });\n  }\n}\n\nconst overloaded = Object.values(days).filter(d => d.total_minutes > 360);\nconst workHoursPerDay = 540; // 9 hours\nconst totalWorkMin = Object.keys(days).length * workHoursPerDay;\nconst meetingRatio = totalWorkMin > 0 ? Math.round((totalMeetingMinutes / totalWorkMin) * 100) : 0;\n\nreturn { json: {\n  total_events: events.length,\n  total_meeting_minutes: totalMeetingMinutes,\n  meeting_ratio_pct: meetingRatio,\n  days: Object.values(days),\n  overloaded_days: overloaded.map(d => d.date),\n  focus_blocks: focusBlocks,\n  analyzed_at: new Date().toISOString(),\n}};"
+      },
+      "id": "7f472e9b-99d4-4653-a13f-01b5bbd2adea",
+      "name": "Analyze Meeting Density",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1200,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"You are a calendar optimization expert for AnyVision Media. Analyze the meeting schedule and provide actionable recommendations. Consider: meeting density per day, focus time availability, back-to-back meetings, overloaded days. Output JSON: {summary: string, overload_warnings: [{day, issue, suggestion}], rescheduling_suggestions: [{event, reason, suggested_time}], focus_blocks: [{day, time_range, recommended_use}], weekly_score: 0-100}\"},\n    {\"role\": \"user\", \"content\": \"Calendar analysis for next week:\\nTotal events: {{ $json.total_events }}\\nMeeting ratio: {{ $json.meeting_ratio_pct }}%\\nOverloaded days: {{ JSON.stringify($json.overloaded_days) }}\\nDay breakdown: {{ JSON.stringify($json.days) }}\\nFocus blocks: {{ JSON.stringify($json.focus_blocks) }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "6c0e1067-98ce-4711-8ed7-1dcf2254d974",
+      "name": "AI Calendar Optimization",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '{}';\nlet ai = {};\ntry { ai = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { ai = {summary: 'Parse failed', weekly_score: 0}; }\nconst analysis = $('Analyze Meeting Density').first().json;\nreturn { json: {\n  booking_id: 'OPT-' + Date.now().toString(36).toUpperCase(),\n  contact_name: 'Calendar Optimizer',\n  contact_email: 'ian@anyvisionmedia.com',\n  meeting_type: 'Calendar Optimization Report',\n  status: 'Report',\n  ai_summary: ai.summary || '',\n  weekly_score: ai.weekly_score || 0,\n  overload_warnings: ai.overload_warnings || [],\n  rescheduling_suggestions: ai.rescheduling_suggestions || [],\n  focus_blocks: ai.focus_blocks || [],\n  total_events: analysis.total_events,\n  meeting_ratio_pct: analysis.meeting_ratio_pct,\n  analyzed_at: analysis.analyzed_at,\n}};"
+      },
+      "id": "257a8e0e-3ee4-46b5-8f43-ad3946ce0716",
+      "name": "Extract Recommendations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "booking_id": "={{ $json.booking_id }}",
+            "contact_name": "={{ $json.contact_name }}",
+            "contact_email": "={{ $json.contact_email }}",
+            "meeting_type": "={{ $json.meeting_type }}",
+            "status": "Report",
+            "booked_at": "={{ $json.analyzed_at }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "e9ca01ce-f06d-4ab6-8b30-1f8570688a3c",
+      "name": "Write Analysis to Log",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Weekly Calendar Optimization Report - Score: {{ $('Extract Recommendations').first().json.weekly_score }}/100",
+        "emailType": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#FF6D5A;padding:15px;text-align:center\"><h2 style=\"color:white;margin:0\">Calendar Optimization Report</h2></div>\n<div style=\"padding:20px\">\n<h3>Weekly Score: {{ $('Extract Recommendations').first().json.weekly_score }}/100</h3>\n<p><b>Total Events:</b> {{ $('Extract Recommendations').first().json.total_events }} | <b>Meeting Ratio:</b> {{ $('Extract Recommendations').first().json.meeting_ratio_pct }}%</p>\n<h3>Summary</h3>\n<p>{{ $('Extract Recommendations').first().json.ai_summary }}</p>\n<h3>Overload Warnings</h3>\n<ul>{{ $('Extract Recommendations').first().json.overload_warnings.map(w => '<li><b>' + w.day + ':</b> ' + w.issue + ' -> ' + w.suggestion + '</li>').join('') || '<li>No overloaded days</li>' }}</ul>\n<h3>Rescheduling Suggestions</h3>\n<ul>{{ $('Extract Recommendations').first().json.rescheduling_suggestions.map(s => '<li><b>' + s.event + ':</b> ' + s.reason + ' -> ' + s.suggested_time + '</li>').join('') || '<li>No rescheduling needed</li>' }}</ul>\n<h3>Recommended Focus Blocks</h3>\n<ul>{{ $('Extract Recommendations').first().json.focus_blocks.map(f => '<li><b>' + f.day + ' ' + f.time_range + ':</b> ' + f.recommended_use + '</li>').join('') || '<li>No focus blocks identified</li>' }}</ul>\n</div>\n<div style=\"background:#f0f0f0;padding:10px;font-size:12px;color:#666;text-align:center\">Generated by AVM Calendar Optimizer</div>\n</div>",
+        "options": {}
+      },
+      "id": "d1230a9e-c057-4abb-8e85-3692cd682042",
+      "name": "Email Calendar Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Next Week Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Next Week Events": {
+      "main": [
+        [
+          {
+            "node": "Analyze Meeting Density",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Meeting Density": {
+      "main": [
+        [
+          {
+            "node": "AI Calendar Optimization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Calendar Optimization": {
+      "main": [
+        [
+          {
+            "node": "Extract Recommendations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Recommendations": {
+      "main": [
+        [
+          {
+            "node": "Write Analysis to Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Analysis to Log": {
+      "main": [
+        [
+          {
+            "node": "Email Calendar Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "booking",
+    "calendar",
+    "optimization"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_booking_assistant.py",
+    "built_at": "2026-03-14T19:18:44.815079"
+  }
+}

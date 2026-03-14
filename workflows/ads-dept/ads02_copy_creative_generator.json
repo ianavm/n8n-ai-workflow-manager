@@ -1,0 +1,465 @@
+{
+  "name": "AVM Ads: Copy & Creative Generator",
+  "nodes": [
+    {
+      "id": "029cd043-da59-49b0-9d69-3ea15e46ff60",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "99e54df6-9d94-47c4-a8d9-e4ec31cb0fc0",
+      "parameters": {
+        "path": "ads-generate-creatives",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      }
+    },
+    {
+      "id": "2e2793ce-04f0-474f-bc6d-e06e1369ef56",
+      "name": "Read Campaign Plans",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblon2FDqfifeF1Iv"
+        },
+        "filterByFormula": "={Status}='Planned'",
+        "options": {}
+      }
+    },
+    {
+      "id": "fdfd0f3a-2cd4-4b29-9e20-8731f30ca86d",
+      "name": "Route by Platform",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Split campaigns by platform for platform-specific copy generation\nconst items = $input.all();\nconst google = [];\nconst meta = [];\nconst tiktok = [];\n\nfor (const item of items) {\n  const platform = (item.json.Platform || '').toLowerCase();\n  if (platform.includes('google')) google.push(item);\n  else if (platform.includes('meta')) meta.push(item);\n  else if (platform.includes('tiktok')) tiktok.push(item);\n  else google.push(item); // default to google\n}\n\n// Return items for the first output that has data, empty arrays for others\nreturn [\n  google.length > 0 ? google : [{json: {skip: true}}],\n  meta.length > 0 ? meta : [{json: {skip: true}}],\n  tiktok.length > 0 ? tiktok : [{json: {skip: true}}],\n];\n"
+      }
+    },
+    {
+      "id": "b58f8d52-b72c-47a5-87a4-07b05365acd4",
+      "name": "Google Copy Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        100
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Google Ads Copywriter for AnyVision Media.\\n\\nCAMPAIGN: {{$json['Campaign Name']}}\\nOBJECTIVE: {{$json.Objective}}\\nTARGET AUDIENCE: {{$json['Target Audience']}}\\nKEY MESSAGES: {{$json['Key Messages']}}\\n\\nGenerate a Google Responsive Search Ad (RSA) with:\\n- 15 headlines (EXACTLY 30 characters max each, no exceptions)\\n- 4 descriptions (EXACTLY 90 characters max each, no exceptions)\\n- display_url_path1 (15 chars max)\\n- display_url_path2 (15 chars max)\\n\\nRules:\\n- Include \\\"AnyVision Media\\\" or \\\"AnyVision\\\" in at least 2 headlines\\n- Include numbers/stats where possible (\\\"3x ROI\\\", \\\"60% faster\\\")\\n- Include CTA headlines (\\\"Book Free Call\\\", \\\"Start Today\\\")\\n- No exclamation marks in headlines (Google policy)\\n- South African English spelling\\n\\nOutput as JSON: {{\\\"headlines\\\": [...], \\\"descriptions\\\": [...], \\\"display_url_path1\\\": \\\"...\\\", \\\"display_url_path2\\\": \\\"...\\\"}}\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "306ce95a-e876-4a0a-9c85-c105cef70db7",
+      "name": "Meta Copy Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Meta Ads Copywriter for AnyVision Media.\\n\\nCAMPAIGN: {{$json['Campaign Name']}}\\nOBJECTIVE: {{$json.Objective}}\\nTARGET AUDIENCE: {{$json['Target Audience']}}\\nKEY MESSAGES: {{$json['Key Messages']}}\\nAD FORMAT: Image\\n\\nGenerate a Meta (Facebook/Instagram) ad with:\\n- primary_text: compelling body copy (max 125 chars for feed, can be longer for other placements)\\n- headline: attention-grabbing headline (max 40 chars)\\n- description: supporting text (max 30 chars)\\n- cta: one of \\\"LEARN_MORE\\\", \\\"SIGN_UP\\\", \\\"CONTACT_US\\\", \\\"GET_QUOTE\\\", \\\"BOOK_NOW\\\"\\n\\nAlso generate 2 alternative versions for A/B testing.\\n\\nRules:\\n- Hook in first line (question, stat, or bold claim)\\n- Social proof where possible\\n- Clear value proposition for SaaS/AI automation\\n- South African English\\n\\nOutput as JSON: {{\\\"variants\\\": [{{\\\"primary_text\\\": \\\"...\\\", \\\"headline\\\": \\\"...\\\", \\\"description\\\": \\\"...\\\", \\\"cta\\\": \\\"...\\\"}}, ...]}}\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "81fa0037-5de1-4a9e-a495-8c4cca3f4f8b",
+      "name": "TikTok Script Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1000,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM TikTok Ads Scriptwriter for AnyVision Media.\\n\\nCAMPAIGN: {{$json['Campaign Name']}}\\nOBJECTIVE: {{$json.Objective}}\\nTARGET AUDIENCE: {{$json['Target Audience']}}\\nKEY MESSAGES: {{$json['Key Messages']}}\\n\\nGenerate a TikTok ad script with:\\n- hook: first 3 seconds attention grabber (max 15 words)\\n- script: full video script (50-100 words, conversational tone)\\n- caption: post caption (max 100 chars)\\n- hashtags: 5 relevant hashtags\\n- cta_text: call to action overlay text (max 20 chars)\\n\\nRules:\\n- Native TikTok feel (not corporate)\\n- Problem-solution structure\\n- Fast-paced, direct language\\n- Speak to pain points of business owners\\n\\nOutput as JSON: {{\\\"hook\\\": \\\"...\\\", \\\"script\\\": \\\"...\\\", \\\"caption\\\": \\\"...\\\", \\\"hashtags\\\": [...], \\\"cta_text\\\": \\\"...\\\"}}\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "85ce6d3c-c499-4597-998e-71147f00b426",
+      "name": "Merge Creatives",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "6a41708b-fa26-4797-9cf9-6a31bb3c193c",
+      "name": "Parse Creatives",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse AI creative responses and prepare for Airtable\nconst items = $input.all();\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\nlet idx = 0;\n\nfor (const item of items) {\n  if (item.json.skip) continue;\n\n  const resp = item.json;\n  const content = resp.choices?.[0]?.message?.content || JSON.stringify(resp);\n\n  let creative;\n  try {\n    const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    creative = JSON.parse(cleaned);\n  } catch (e) {\n    creative = {raw: content};\n  }\n\n  const campaignName = item.json._campaignName || 'Unknown';\n  const platform = item.json._platform || 'google_ads';\n\n  // Handle Google RSA format\n  if (creative.headlines) {\n    idx++;\n    results.push({json: {\n      'Creative Name': `${campaignName} - RSA ${now} #${idx}`,\n      'Campaign Name': campaignName,\n      'Platform': platform,\n      'Ad Format': 'RSA',\n      'Status': 'Draft',\n      'Headlines': JSON.stringify(creative.headlines),\n      'Descriptions': JSON.stringify(creative.descriptions || []),\n      'CTA': 'Learn_More',\n      'Created At': now,\n    }});\n  }\n\n  // Handle Meta format with variants\n  if (creative.variants) {\n    for (const v of creative.variants) {\n      idx++;\n      results.push({json: {\n        'Creative Name': `${campaignName} - Meta ${now} #${idx}`,\n        'Campaign Name': campaignName,\n        'Platform': platform,\n        'Ad Format': 'Image',\n        'Status': 'Draft',\n        'Primary Text': v.primary_text || '',\n        'Headlines': JSON.stringify([v.headline || '']),\n        'Descriptions': JSON.stringify([v.description || '']),\n        'CTA': (v.cta || 'Learn_More').replace('_', '_'),\n        'Created At': now,\n      }});\n    }\n  }\n\n  // Handle TikTok format\n  if (creative.hook && creative.script) {\n    idx++;\n    results.push({json: {\n      'Creative Name': `${campaignName} - TikTok ${now} #${idx}`,\n      'Campaign Name': campaignName,\n      'Platform': platform,\n      'Ad Format': 'Video',\n      'Status': 'Draft',\n      'Primary Text': creative.script,\n      'Headlines': JSON.stringify([creative.hook]),\n      'Descriptions': JSON.stringify([creative.caption || '']),\n      'CTA': 'Learn_More',\n      'Created At': now,\n    }});\n  }\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No creatives parsed'}}];\n"
+      }
+    },
+    {
+      "id": "1ba91af7-3d5e-4f20-bc6d-a3da1a80e709",
+      "name": "Filter Valid Creatives",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1750,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Filter out skip items (no data from platform)\nconst items = $input.all();\nreturn items.filter(item => !item.json.skip);\n"
+      }
+    },
+    {
+      "id": "10c48b2b-0a95-48cb-b9cd-24bf167f495c",
+      "name": "Write Creatives",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblF1FwoZEQlMG6X9"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "21ffeff2-9d6d-4cbb-a803-a5c3e81662e4",
+      "name": "Create Approval Request",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2250,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblov57B8uj09ZF2k"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "86c7377d-cebb-4342-a5c3-f424abdccf6c",
+      "name": "Email Approval Link",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2500,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "AVM Ads - New Creatives Pending Approval",
+        "emailType": "html",
+        "message": "={{\"<h2>New Ad Creatives Ready for Review</h2><p>\" + $json['Creative Name'] + \" created for \" + $json['Campaign Name'] + \"</p><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
+        "options": {}
+      }
+    },
+    {
+      "id": "696aad02-11ef-4b5a-b4d1-5f02a0af9c92",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2750,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Campaign Plans",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Campaign Plans": {
+      "main": [
+        [
+          {
+            "node": "Route by Platform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Platform": {
+      "main": [
+        [
+          {
+            "node": "Google Copy Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta Copy Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Script Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Copy Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge Creatives",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Copy Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge Creatives",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "TikTok Script Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge Creatives",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Creatives": {
+      "main": [
+        [
+          {
+            "node": "Parse Creatives",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Creatives": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Creatives",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Creatives": {
+      "main": [
+        [
+          {
+            "node": "Write Creatives",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Creatives": {
+      "main": [
+        [
+          {
+            "node": "Create Approval Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Approval Request": {
+      "main": [
+        [
+          {
+            "node": "Email Approval Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Approval Link": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "ads-dept",
+    "creative",
+    "phase-2"
+  ]
+}

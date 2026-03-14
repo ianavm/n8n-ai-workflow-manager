@@ -1,0 +1,335 @@
+{
+  "name": "KM-01 Document Indexer",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 * * *"
+            }
+          ]
+        }
+      },
+      "id": "1fde9016-ab10-403c-a25c-6938b7763b81",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/drive/v3/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "=modifiedTime > '{{ $now.minus({hours: 24}).toISO() }}' and mimeType != 'application/vnd.google-apps.folder' and trashed = false"
+            },
+            {
+              "name": "fields",
+              "value": "files(id,name,mimeType,modifiedTime,webViewLink,owners)"
+            },
+            {
+              "name": "pageSize",
+              "value": "50"
+            },
+            {
+              "name": "orderBy",
+              "value": "modifiedTime desc"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "611c8334-591f-4d75-b148-5b828148ab58",
+      "name": "Fetch Recent Drive Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst files = resp.files || [];\nif (files.length === 0) {\n  return { json: { skip: true, message: 'No recently modified files found', indexed_count: 0 } };\n}\nreturn files.map(f => ({json: {\n  file_id: f.id,\n  file_name: f.name,\n  mime_type: f.mimeType,\n  modified_at: f.modifiedTime,\n  web_link: f.webViewLink || '',\n  owner: (f.owners && f.owners[0]) ? f.owners[0].emailAddress : '',\n  skip: false,\n}}));"
+      },
+      "id": "9c58ca94-e58c-4ede-a7f9-3565484b704a",
+      "name": "Extract File List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          }
+        }
+      },
+      "id": "339f784d-e11a-4ec6-b437-595de8485401",
+      "name": "Has Files",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.file_id + '/export?mimeType=text/plain' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "bdec2a63-99b6-437f-9b46-5b7b3fc69b3c",
+      "name": "Export File Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 600,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Summarize this document in 2-3 sentences. Classify type: Contract, SOP, FAQ, Brand Guide, Policy, Template. Extract key terms as tags (comma-separated, max 8). Output JSON only: {summary: string, doc_type: string, tags: string, key_topics: [string]}\"},\n    {\"role\": \"user\", \"content\": \"File: {{ $('Extract File List').item.json.file_name }}\\nContent (first 3000 chars):\\n{{ String($json.data || $json.body || $json).substring(0, 3000) }}\"}\n  ]}",
+        "options": {}
+      },
+      "id": "c810c312-9c5b-4fe2-bfba-556f1d85ab9d",
+      "name": "AI Summarize and Tag",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst raw = (resp.choices && resp.choices[0]) ? resp.choices[0].message.content : '{}';\nlet ai = {};\ntry { ai = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { ai = {summary: 'Parse failed', doc_type: 'Unknown', tags: '', key_topics: []}; }\nconst fileInfo = $('Extract File List').item.json;\nreturn { json: {\n  doc_id: 'DOC-' + fileInfo.file_id.substring(0, 8),\n  file_id: fileInfo.file_id,\n  file_name: fileInfo.file_name,\n  mime_type: fileInfo.mime_type,\n  web_link: fileInfo.web_link,\n  owner: fileInfo.owner,\n  doc_type: ai.doc_type || 'Unknown',\n  summary: ai.summary || '',\n  tags: ai.tags || '',\n  key_topics: (ai.key_topics || []).join(', '),\n  modified_at: fileInfo.modified_at,\n  indexed_at: new Date().toISOString(),\n}};"
+      },
+      "id": "50dde169-6442-4f9e-9276-fb39bcdea03e",
+      "name": "Extract AI Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_AFTER_SETUP",
+          "mode": "id"
+        },
+        "columns": {
+          "value": {
+            "doc_id": "={{ $json.doc_id }}",
+            "file_name": "={{ $json.file_name }}",
+            "doc_type": "={{ $json.doc_type }}",
+            "summary": "={{ $json.summary }}",
+            "tags": "={{ $json.tags }}",
+            "key_topics": "={{ $json.key_topics }}",
+            "web_link": "={{ $json.web_link }}",
+            "owner": "={{ $json.owner }}",
+            "indexed_at": "={{ $json.indexed_at }}",
+            "contradictions": ""
+          }
+        },
+        "options": {}
+      },
+      "id": "419994a9-ba5c-4751-8fce-0cfed8b520d6",
+      "name": "Write Knowledge Graph",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $('Extract File List').all();\nconst indexed = allItems.filter(i => !i.json.skip).length;\nreturn { json: {\n  status: 'Document indexing complete',\n  indexed_count: indexed,\n  completed_at: new Date().toISOString(),\n}};"
+      },
+      "id": "e5730dea-0230-4018-adf5-6dba918fc96f",
+      "name": "Log Indexed Count",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Recent Drive Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Recent Drive Files": {
+      "main": [
+        [
+          {
+            "node": "Extract File List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract File List": {
+      "main": [
+        [
+          {
+            "node": "Has Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Files": {
+      "main": [
+        [
+          {
+            "node": "Export File Content",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Export File Content": {
+      "main": [
+        [
+          {
+            "node": "AI Summarize and Tag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Summarize and Tag": {
+      "main": [
+        [
+          {
+            "node": "Extract AI Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract AI Result": {
+      "main": [
+        [
+          {
+            "node": "Write Knowledge Graph",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Knowledge Graph": {
+      "main": [
+        [
+          {
+            "node": "Log Indexed Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "knowledge",
+    "indexer",
+    "drive"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_knowledge_manager.py",
+    "built_at": "2026-03-14T19:19:12.245427"
+  }
+}

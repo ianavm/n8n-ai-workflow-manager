@@ -1,0 +1,395 @@
+{
+  "name": "Financial Intel - Cash Flow Scenarios (FINTEL-03)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "6166923b-4c46-4cc7-be04-77711d99b6bd",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2d91b555-b5a1-4ab0-b437-a8b17ca1c8e8",
+              "name": "forecastStart",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "453d4935-b8ac-4d31-a041-0db7d8685e6b",
+              "name": "forecastEnd",
+              "value": "={{ $now.plus({days: 90}).toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "c0141672-bbd4-4851-b04a-9bb92144e22b",
+              "name": "reportDate",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "ce1597f8-fcdf-4177-ac30-b401bf629b38",
+              "name": "forecastLabel",
+              "value": "=90-Day Forecast from {{ $now.toFormat('dd MMM yyyy') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9e168142-2ffa-4d39-991f-ca870bdd1a3d",
+      "name": "Set Forecast Window",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Reports/BankSummary",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e94af3e7-4bdd-4d6f-a72a-a39cb1957259",
+      "name": "Fetch Bank Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        200
+      ],
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "xeroOAuth2Api",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.xero.com/api.xro/2.0/Reports/AgedReceivablesByContact?date={{ $('Set Forecast Window').first().json.reportDate }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "49a852ee-61b5-4380-988d-51dac21d7747",
+      "name": "Fetch Aged Receivables",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        400
+      ],
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "xeroOAuth2Api",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.xero.com/api.xro/2.0/Reports/AgedPayablesByContact?date={{ $('Set Forecast Window').first().json.reportDate }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "xeroOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "xero-tenant-id",
+              "value": "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2c10e9d6-5c9e-4d14-b893-eded6bab1314",
+      "name": "Fetch Aged Payables",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        600
+      ],
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "xeroOAuth2Api",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a cash flow forecasting analyst for AnyVision Media, a South African company. Generate 3 cash flow scenarios for the next 90 days. Use ZAR currency.\\n\\nScenarios:\\n1. BEST CASE: All receivables collected on time, no unexpected expenses\\n2. EXPECTED: Based on historical collection rates (assume 80% on time, 15% 30 days late, 5% 60+ days late)\\n3. WORST CASE: Major clients delay 30 days, unexpected expenses arise\\n\\nFor each scenario provide: projected cash position at 30/60/90 days, key assumptions, risk factors. Also provide an overall recommendation (e.g., safe to invest, maintain reserves, cut spending).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Generate 90-day cash flow scenarios starting \" + $('Set Forecast Window').first().json.reportDate + \":\\n\\nBank Summary:\\n\" + JSON.stringify($('Fetch Bank Summary').first().json, null, 2) + \"\\n\\nAged Receivables:\\n\" + JSON.stringify($('Fetch Aged Receivables').first().json, null, 2) + \"\\n\\nAged Payables:\\n\" + JSON.stringify($('Fetch Aged Payables').first().json, null, 2)\n    }\n  ]\n}}",
+        "options": {}
+      },
+      "id": "6368ede6-9403-49b2-bbea-d64607772e0b",
+      "name": "AI Scenario Modeling",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format cash flow scenarios as branded HTML report\nconst aiResponse = $json.choices[0].message.content;\nconst period = $('Set Forecast Window').first().json;\n\nconst html = `<div style=\"font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;\">\n  <div style=\"background: #FF6D5A; color: white; padding: 24px; border-radius: 8px 8px 0 0;\">\n    <h1 style=\"margin: 0; font-size: 22px;\">Cash Flow Scenario Report</h1>\n    <p style=\"margin: 5px 0 0; opacity: 0.9; font-size: 14px;\">${period.forecastLabel}</p>\n  </div>\n\n  <div style=\"background: white; padding: 24px; border: 1px solid #e0e0e0;\">\n    <div style=\"line-height: 1.6; color: #444;\">\n      ${aiResponse.replace(/\\n/g, '<br>').replace(/## (.*)/g, '<h3 style=\"color: #FF6D5A; border-bottom: 2px solid #FF6D5A; padding-bottom: 8px;\">$1</h3>').replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')}\n    </div>\n\n    <hr style=\"border: 1px solid #eee; margin: 24px 0;\">\n    <p style=\"color: #888; font-size: 11px;\">Generated by AVM Financial Intelligence | FINTEL-03 | ${period.reportDate}</p>\n  </div>\n</div>`;\n\nreturn [{\n  json: {\n    html,\n    subject: 'Cash Flow Scenarios - ' + period.forecastLabel,\n    reportDate: period.reportDate,\n    forecastLabel: period.forecastLabel,\n    aiSummary: aiResponse.substring(0, 5000),\n  }\n}];"
+      },
+      "id": "d9dab6d4-05aa-41d2-afc3-d446b0d8cced",
+      "name": "Format Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appTCh0EeXQp0XqzW",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblrc93S8cwbNFb8l",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Period": "={{ $json.forecastLabel }}",
+            "Type": "Cash Flow",
+            "Report Date": "={{ $json.reportDate }}",
+            "Notes": "={{ $json.aiSummary }}",
+            "Status": "Pending Review"
+          }
+        },
+        "options": {}
+      },
+      "id": "ae07c3fd-96f9-43ad-ba9a-eeac45f33e0e",
+      "name": "Write to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $('Format Report').first().json.subject }}",
+        "message": "={{ $('Format Report').first().json.html }}",
+        "options": {}
+      },
+      "id": "2621f809-0fc4-4fdd-a621-b210357c422a",
+      "name": "Send Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        400
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## FINTEL-03: Cash Flow Scenarios\nRuns Friday 06:00 SAST.\nFetches bank balance, aged receivables, aged payables\nfrom Xero. AI generates 3 scenarios (best/expected/worst)\nfor next 90 days. Branded HTML report emailed.",
+        "width": 420,
+        "height": 120
+      },
+      "id": "6ad222cb-6ccf-4ada-ac87-233291af8bc0",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        180,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Forecast Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Forecast Window": {
+      "main": [
+        [
+          {
+            "node": "Fetch Bank Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Aged Receivables",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Aged Payables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Bank Summary": {
+      "main": [
+        [
+          {
+            "node": "AI Scenario Modeling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Aged Receivables": {
+      "main": [
+        [
+          {
+            "node": "AI Scenario Modeling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Aged Payables": {
+      "main": [
+        [
+          {
+            "node": "AI Scenario Modeling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Scenario Modeling": {
+      "main": [
+        [
+          {
+            "node": "Format Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Report": {
+      "main": [
+        [
+          {
+            "node": "Write to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Send Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
