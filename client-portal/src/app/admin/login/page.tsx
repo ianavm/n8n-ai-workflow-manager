@@ -63,11 +63,11 @@ export default function AdminLoginPage() {
         style={{ background: "radial-gradient(circle, rgba(0,212,170,0.2), transparent 70%)" }}
       />
 
-      <div className="w-full max-w-md relative animate-fade-in-up">
+      <div className="w-full max-w-lg relative animate-fade-in-up">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <svg viewBox="0 0 200 200" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-3 mb-5">
+            <svg viewBox="0 0 200 200" width="44" height="44" xmlns="http://www.w3.org/2000/svg">
               <defs>
                 <linearGradient id="adminGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                   <stop offset="0%" stopColor="#6C63FF" />
@@ -85,16 +85,16 @@ export default function AdminLoginPage() {
               <circle cx="100" cy="100" r="16" fill="none" stroke="url(#adminGrad)" strokeWidth="2" opacity="0.4" />
               <circle cx="91" cy="91" r="5" fill="rgba(255,255,255,0.85)" />
             </svg>
-            <span className="text-xl font-bold text-white">
-              AnyVision<span className="text-[#00D4AA]">.</span>
+            <span className="text-2xl font-bold text-white">
+              AnyVision<span className="text-[#FF6D5A]">.</span>
             </span>
           </div>
-          <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-          <p className="text-sm text-[#6B7280] mt-1">Internal access only</p>
+          <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+          <p className="text-base text-[#6B7280] mt-2">Internal access only</p>
         </div>
 
         {/* Form */}
-        <div className="glass-card p-8 transition-shadow duration-300 focus-within:shadow-[0_0_30px_rgba(108,99,255,0.08)]">
+        <div className="glass-card p-10 transition-shadow duration-300 focus-within:shadow-[0_0_30px_rgba(108,99,255,0.08)]">
           <form onSubmit={handleLogin} className="space-y-5">
             <Input
               label="Email"

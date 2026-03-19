@@ -15,7 +15,7 @@ export function Card({
   variant = "default",
   padding = "md",
 }: CardProps) {
-  const padMap = { none: "0", sm: "16px", md: "24px", lg: "32px" };
+  const padMap = { none: "0", sm: "20px", md: "28px", lg: "36px" };
   const pad = padMap[padding];
 
   if (variant === "gradient") {

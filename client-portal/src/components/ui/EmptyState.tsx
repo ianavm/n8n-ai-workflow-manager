@@ -14,16 +14,16 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-[rgba(108,99,255,0.08)] border border-[rgba(108,99,255,0.15)] flex items-center justify-center text-[#6C63FF] mb-5">
+    <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-[rgba(108,99,255,0.08)] border border-[rgba(108,99,255,0.15)] flex items-center justify-center text-[#6C63FF] mb-6">
         {icon}
       </div>
-      <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-      <p className="text-sm text-[#6B7280] max-w-sm">{description}</p>
+      <h3 className="text-xl font-semibold text-white mb-3">{title}</h3>
+      <p className="text-base text-[#6B7280] max-w-md">{description}</p>
       {action && (
         <a
           href={action.href}
-          className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-[#6C63FF] hover:text-[#00D4AA] transition-colors"
+          className="mt-6 inline-flex items-center gap-2 text-base font-medium text-[#6C63FF] hover:text-[#00D4AA] transition-colors"
         >
           {action.label}
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

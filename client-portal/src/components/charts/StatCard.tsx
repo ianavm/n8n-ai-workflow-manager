@@ -38,7 +38,7 @@ export function StatCard({
 }: StatCardProps) {
   if (loading) {
     return (
-      <div className="floating-card" style={{ padding: "24px" }}>
+      <div className="floating-card" style={{ padding: "28px" }}>
         <Skeleton className="w-12 h-12 mb-4" />
         <Skeleton className="h-8 w-24 mb-2" />
         <Skeleton className="h-4 w-20" />
@@ -47,7 +47,7 @@ export function StatCard({
   }
 
   return (
-    <div className="floating-card" style={{ padding: "24px" }}>
+    <div className="floating-card" style={{ padding: "28px" }}>
       {/* Icon wrap -- 48px, 12px border-radius */}
       <div
         style={{
@@ -57,7 +57,7 @@ export function StatCard({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          marginBottom: "16px",
+          marginBottom: "20px",
           backgroundColor: iconBgs[color],
           color: iconColors[color],
         }}
@@ -68,13 +68,13 @@ export function StatCard({
       {/* Stat number -- 32px, shimmer gradient text */}
       <div
         className="stat-number-shimmer"
-        style={{ marginBottom: "6px" }}
+        style={{ marginBottom: "8px" }}
       >
         {typeof value === "number" ? value.toLocaleString() : value}
       </div>
 
       {/* Label -- 13px, muted */}
-      <div style={{ fontSize: "13px", color: "#B0B8C8", fontWeight: 400 }}>
+      <div style={{ fontSize: "14px", color: "#B0B8C8", fontWeight: 400 }}>
         {title}
       </div>
 

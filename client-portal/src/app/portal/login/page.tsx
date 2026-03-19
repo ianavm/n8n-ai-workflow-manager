@@ -91,8 +91,8 @@ export default function PortalLoginPage() {
         className="animate-fade-in-up"
         style={{
           width: "100%",
-          maxWidth: "420px",
-          padding: "40px",
+          maxWidth: "480px",
+          padding: "48px",
           background: "rgba(255,255,255,0.05)",
           border: "1px solid rgba(255,255,255,0.08)",
           borderRadius: "20px",
@@ -120,7 +120,7 @@ export default function PortalLoginPage() {
           </svg>
           <div
             style={{
-              fontSize: "20px",
+              fontSize: "26px",
               fontWeight: 700,
               letterSpacing: "3px",
               background: "linear-gradient(135deg, #6C63FF, #00D4AA)",
@@ -132,7 +132,7 @@ export default function PortalLoginPage() {
           >
             ANYVISION MEDIA
           </div>
-          <div style={{ fontSize: "13px", color: "#6B7280", marginTop: "4px" }}>
+          <div style={{ fontSize: "14px", color: "#6B7280", marginTop: "6px" }}>
             {resetMode ? "Reset your password" : "AI Workflow Command Center"}
           </div>
         </div>
@@ -176,8 +176,8 @@ export default function PortalLoginPage() {
         ) : (
           <form onSubmit={resetMode ? handleReset : handleLogin}>
             {/* Email field */}
-            <div style={{ marginBottom: "18px" }}>
-              <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#B0B8C8", marginBottom: "6px" }}>
+            <div style={{ marginBottom: "22px" }}>
+              <label style={{ display: "block", fontSize: "14px", fontWeight: 500, color: "#B0B8C8", marginBottom: "8px" }}>
                 Email Address
               </label>
               <input
@@ -189,7 +189,7 @@ export default function PortalLoginPage() {
                 autoComplete="email"
                 style={{
                   width: "100%",
-                  padding: "12px 16px",
+                  padding: "14px 18px",
                   borderRadius: "10px",
                   border: "1px solid rgba(255,255,255,0.08)",
                   background: "rgba(255,255,255,0.04)",
@@ -203,8 +203,8 @@ export default function PortalLoginPage() {
 
             {/* Password field */}
             {!resetMode && (
-              <div style={{ marginBottom: "18px" }}>
-                <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#B0B8C8", marginBottom: "6px" }}>
+              <div style={{ marginBottom: "22px" }}>
+                <label style={{ display: "block", fontSize: "14px", fontWeight: 500, color: "#B0B8C8", marginBottom: "8px" }}>
                   Password
                 </label>
                 <input
@@ -216,7 +216,7 @@ export default function PortalLoginPage() {
                   autoComplete="current-password"
                   style={{
                     width: "100%",
-                    padding: "12px 16px",
+                    padding: "14px 18px",
                     borderRadius: "10px",
                     border: "1px solid rgba(255,255,255,0.08)",
                     background: "rgba(255,255,255,0.04)",
@@ -306,9 +306,9 @@ export default function PortalLoginPage() {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "14px",
-                    margin: "20px 0",
-                    fontSize: "12px",
+                    gap: "16px",
+                    margin: "28px 0",
+                    fontSize: "13px",
                     color: "#6B7280",
                   }}
                 >
@@ -316,13 +316,13 @@ export default function PortalLoginPage() {
                   or continue with
                   <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
                 </div>
-                <div style={{ display: "flex", gap: "12px" }}>
+                <div style={{ display: "flex", gap: "16px" }}>
                   <button
                     type="button"
                     style={{
                       flex: 1,
-                      padding: "10px",
-                      borderRadius: "10px",
+                      padding: "12px",
+                      borderRadius: "12px",
                       border: "1px solid rgba(255,255,255,0.08)",
                       background: "rgba(255,255,255,0.03)",
                       color: "#B0B8C8",
@@ -344,8 +344,8 @@ export default function PortalLoginPage() {
                     type="button"
                     style={{
                       flex: 1,
-                      padding: "10px",
-                      borderRadius: "10px",
+                      padding: "12px",
+                      borderRadius: "12px",
                       border: "1px solid rgba(255,255,255,0.08)",
                       background: "rgba(255,255,255,0.03)",
                       color: "#B0B8C8",

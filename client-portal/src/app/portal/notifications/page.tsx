@@ -90,7 +90,7 @@ export default function NotificationsPage() {
           />
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {notifications.map((n) => {
             const config = typeConfig[n.event_type] || {
               label: n.event_type,
@@ -98,7 +98,7 @@ export default function NotificationsPage() {
               icon: "?",
             };
             return (
-              <Card key={n.id} className="!p-4">
+              <Card key={n.id} className="!p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3">
                     <Badge variant={config.variant}>{config.label}</Badge>
@@ -111,7 +111,7 @@ export default function NotificationsPage() {
                             ? `New lead: ${(n.metadata as Record<string, string>)?.lead_name || "Unknown"}`
                             : `${config.label} event logged`}
                       </p>
-                      <p className="text-xs text-[#6B7280] mt-0.5">
+                      <p className="text-xs text-[#6B7280] mt-1">
                         {format(new Date(n.created_at), "MMM d, yyyy 'at' h:mm a")}
                       </p>
                     </div>

@@ -111,9 +111,9 @@ export default function PortalSupportPage() {
 
       {/* New Ticket Form */}
       {showForm && (
-        <Card className="p-5">
+        <Card className="p-6">
           <h2 className="text-sm font-semibold text-white mb-4">Create Support Ticket</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label className="text-xs text-[#6B7280] block mb-1">Subject</label>
               <Input
@@ -147,12 +147,12 @@ export default function PortalSupportPage() {
 
       {/* Ticket List */}
       {tickets.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {tickets.map((ticket) => (
-            <Card key={ticket.id} className="p-4">
+            <Card key={ticket.id} className="p-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-2">
                     <MessageSquare size={14} className="text-[#6C63FF] shrink-0" />
                     <h3 className="text-sm font-medium text-white truncate">{ticket.subject}</h3>
                   </div>

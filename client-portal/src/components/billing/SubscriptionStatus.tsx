@@ -57,7 +57,7 @@ export function SubscriptionStatus({
         background: "rgba(255, 255, 255, 0.05)",
         border: "1px solid rgba(255, 255, 255, 0.08)",
         borderRadius: "16px",
-        padding: "24px",
+        padding: "28px",
         fontFamily: "Inter, sans-serif",
       }}
     >

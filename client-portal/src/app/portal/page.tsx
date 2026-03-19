@@ -227,7 +227,7 @@ export default function PortalDashboard() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "28px",
+          marginBottom: "32px",
           animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both",
         }}
       >
@@ -266,8 +266,8 @@ export default function PortalDashboard() {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "24px",
-          marginBottom: "28px",
+          gap: "28px",
+          marginBottom: "32px",
         }}
       >
         <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both" }}>
@@ -285,29 +285,29 @@ export default function PortalDashboard() {
       </div>
 
       {/* ── Gradient Divider ── */}
-      <div className="gradient-divider" style={{ marginBottom: "28px" }} />
+      <div className="gradient-divider" style={{ marginBottom: "32px" }} />
 
       {/* ── Welcome Banner (V1 preview gradient border technique) ── */}
       <div
         className="welcome-banner"
         style={{
-          marginBottom: "28px",
+          marginBottom: "32px",
           animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both",
         }}
       >
         <div className="welcome-blob b1" />
         <div className="welcome-blob b2" />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <h2 style={{ fontSize: "20px", fontWeight: 600, color: "#fff", marginBottom: "6px" }}>
+          <h2 style={{ fontSize: "24px", fontWeight: 600, color: "#fff", marginBottom: "6px" }}>
             Your AI workforce is running smoothly
           </h2>
-          <p style={{ fontSize: "14px", color: "#B0B8C8", marginBottom: "20px" }}>
+          <p style={{ fontSize: "14px", color: "#B0B8C8", marginBottom: "24px" }}>
             {workflows.length} workflows processed {stats.message_sent.toLocaleString()} messages today with a {uptime.success_rate}% success rate.{" "}
             {stats.lead_created > 0
               ? `${stats.lead_created} new leads are awaiting review.`
               : "No new leads today."}
           </p>
-          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
             <a href="/portal/workflows" className="btn-gradient">
               <Search size={16} />
               Review Leads
@@ -330,8 +330,8 @@ export default function PortalDashboard() {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "24px",
-          marginBottom: "28px",
+          gap: "28px",
+          marginBottom: "32px",
         }}
       >
         <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both" }}>
@@ -374,7 +374,7 @@ export default function PortalDashboard() {
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr 1fr",
-          gap: "24px",
+          gap: "28px",
         }}
       >
         {/* Uptime Gauge */}
@@ -391,11 +391,11 @@ export default function PortalDashboard() {
         <div
           className="glass-card"
           style={{
-            padding: "24px",
+            padding: "28px",
             animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 1.1s both",
           }}
         >
-          <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#fff", marginBottom: "16px" }}>
+          <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "20px" }}>
             Active Workflows
           </h3>
           <div className="wf-list">
@@ -425,11 +425,11 @@ export default function PortalDashboard() {
         <div
           className="glass-card"
           style={{
-            padding: "24px",
+            padding: "28px",
             animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 1.2s both",
           }}
         >
-          <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#fff", marginBottom: "16px" }}>
+          <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "20px" }}>
             Recent Errors
           </h3>
           <div className="err-list">

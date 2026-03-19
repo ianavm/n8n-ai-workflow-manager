@@ -206,7 +206,7 @@ export default function AdminDashboard() {
               { name: "n8n Cloud", pct: 99.98, icon: <Cloud size={12} /> },
               { name: "Supabase", pct: 100, icon: <Database size={12} /> },
               { name: "Airtable", pct: 99.91, icon: <Database size={12} /> },
-              { name: "Xero", pct: 100, icon: <Zap size={12} /> },
+              { name: "QuickBooks", pct: 100, icon: <Zap size={12} /> },
             ].map((s) => (
               <div key={s.name} className="health-row">
                 <span className="w-2 h-2 rounded-full bg-[#10B981] pulse-dot mr-2 flex-shrink-0" />

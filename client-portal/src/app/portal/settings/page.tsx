@@ -141,8 +141,8 @@ export default function SettingsPage() {
 
       {/* Account Information */}
       <Card>
-        <h2 className="text-lg font-semibold text-white mb-5">Account Information</h2>
-        <form onSubmit={handleProfileSave} className="space-y-4">
+        <h2 className="text-lg font-semibold text-white mb-6">Account Information</h2>
+        <form onSubmit={handleProfileSave} className="space-y-5">
           <Input
             label="Full Name"
             type="text"
@@ -199,8 +199,8 @@ export default function SettingsPage() {
 
       {/* Change Password */}
       <Card>
-        <h2 className="text-lg font-semibold text-white mb-5">Change Password</h2>
-        <form onSubmit={handlePasswordChange} className="space-y-4">
+        <h2 className="text-lg font-semibold text-white mb-6">Change Password</h2>
+        <form onSubmit={handlePasswordChange} className="space-y-5">
           <div className="relative">
             <Input
               label="New Password"
@@ -282,7 +282,7 @@ export default function SettingsPage() {
       {/* Account Info */}
       <Card>
         <h2 className="text-lg font-semibold text-white mb-3">Account Details</h2>
-        <div className="text-sm text-[#6B7280] space-y-1">
+        <div className="text-sm text-[#6B7280] space-y-2">
           <p>Member since: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-ZA", { year: "numeric", month: "long", day: "numeric" }) : "N/A"}</p>
         </div>
       </Card>

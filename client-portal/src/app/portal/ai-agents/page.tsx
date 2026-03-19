@@ -151,7 +151,7 @@ export default function AIAgentsPage() {
           <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
             AI <span className="gradient-text">Agents</span>
           </h1>
-          <p className="text-sm text-[#6B7280] mt-1">
+          <p className="text-sm text-[#6B7280] mt-2">
             Toggle your agents online or offline. When offline, the AI assistant
             handles messages automatically.
           </p>
@@ -159,7 +159,7 @@ export default function AIAgentsPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard
           title="Total Agents"
           value={agents.length}
@@ -185,10 +185,10 @@ export default function AIAgentsPage() {
 
       {/* Agent cards */}
       {loading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {[1, 2].map((i) => (
             <Card key={i} hover={false}>
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="flex items-center justify-between">
                   <Skeleton className="h-6 w-40" />
                   <Skeleton className="h-8 w-16 rounded-full" />
@@ -215,7 +215,7 @@ export default function AIAgentsPage() {
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {agents.map((agent, index) => {
             const status = getEffectiveStatus(agent);
             const timeLeft = getOverrideTimeLeft(
@@ -230,9 +230,9 @@ export default function AIAgentsPage() {
                 className={`stagger-${Math.min(index + 1, 5)}`}
                 padding="none"
               >
-                <div className="p-6">
+                <div className="p-7">
                   {/* Top row: name + toggle */}
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start justify-between mb-5">
                     <div className="flex items-center gap-3">
                       <div
                         className="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -269,7 +269,7 @@ export default function AIAgentsPage() {
                           {agent.agent_name}
                         </h3>
                         {agent.phone_number && (
-                          <p className="text-xs text-[#6B7280] flex items-center gap-1 mt-0.5">
+                          <p className="text-xs text-[#6B7280] flex items-center gap-1 mt-1">
                             <Phone size={10} />
                             {agent.phone_number}
                           </p>
@@ -301,7 +301,7 @@ export default function AIAgentsPage() {
                   </div>
 
                   {/* Status + business hours */}
-                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <div className="flex flex-wrap items-center gap-2 mb-4">
                     <Badge variant={status.variant} pulse={status.label === "Online"}>
                       {status.label === "Online" && <Wifi size={10} />}
                       {status.label === "Offline" && <WifiOff size={10} />}

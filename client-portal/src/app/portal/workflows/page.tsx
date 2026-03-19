@@ -85,11 +85,11 @@ export default function WorkflowsPage() {
           />
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {workflows.map((wf) => (
             <Card key={wf.id}>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-4">
                   <div
                     className={`w-3 h-3 rounded-full flex-shrink-0 ${
                       wf.status === "active"
@@ -102,13 +102,13 @@ export default function WorkflowsPage() {
                   <div>
                     <h3 className="text-white font-medium">{wf.name}</h3>
                     {wf.description && (
-                      <p className="text-xs text-[#6B7280] mt-0.5">
+                      <p className="text-xs text-[#6B7280] mt-1">
                         {wf.description}
                       </p>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 sm:flex-shrink-0">
+                <div className="flex items-center gap-4 sm:flex-shrink-0">
                   <Badge variant={statusVariant(wf.status)}>{wf.status}</Badge>
                   <span className="text-xs text-[#6B7280]">
                     {wf.platform}

@@ -10,6 +10,7 @@ interface PricingCardProps {
   priceYearly: number;
   features: string[];
   limits: Record<string, number>;
+  currency?: string;
   isPopular?: boolean;
   isCurrentPlan?: boolean;
   billingInterval: "monthly" | "yearly";
@@ -17,11 +18,21 @@ interface PricingCardProps {
   loading?: boolean;
 }
 
-function formatZAR(cents: number): string {
-  return `R${(cents / 100).toLocaleString("en-ZA", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+const CURRENCY_SYMBOLS: Record<string, { symbol: string; locale: string }> = {
+  ZAR: { symbol: "R", locale: "en-ZA" },
+  USD: { symbol: "$", locale: "en-US" },
+  EUR: { symbol: "\u20AC", locale: "de-DE" },
+  GBP: { symbol: "\u00A3", locale: "en-GB" },
+};
+
+function formatPrice(cents: number, currency: string = "ZAR"): string {
+  const config = CURRENCY_SYMBOLS[currency] || CURRENCY_SYMBOLS.ZAR;
+  const amount = cents / 100;
+  const formatted = amount.toLocaleString(config.locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+  return `${config.symbol}${formatted}`;
 }
 
 export function PricingCard({
@@ -31,6 +42,7 @@ export function PricingCard({
   priceMonthly,
   priceYearly,
   features,
+  currency = "ZAR",
   isPopular = false,
   isCurrentPlan = false,
   billingInterval,
@@ -132,7 +144,7 @@ export function PricingCard({
               fontFamily: "Inter, sans-serif",
             }}
           >
-            {formatZAR(price)}
+            {formatPrice(price, currency)}
           </span>
           <span
             style={{
