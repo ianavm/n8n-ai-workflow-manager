@@ -275,7 +275,7 @@ return {
 
 ORCH03_COMPUTE_KPIS_CODE = r"""
 // Merge all data sources into per-agent KPI snapshots
-const today = $now.format('yyyy-MM-dd');
+const today = $now.toFormat('yyyy-MM-dd');
 
 // Try to read from previous nodes (graceful if missing)
 let marketingMetrics = {};
@@ -354,8 +354,8 @@ const escalations = $('Read Escalations').all();
 const decisions = $('Read Decisions').all();
 const aiSummary = $('AI Generate Summary').first().json;
 
-const reportDate = $now.format('yyyy-MM-dd');
-const weekStart = $now.minus({days: 7}).format('yyyy-MM-dd');
+const reportDate = $now.toFormat('yyyy-MM-dd');
+const weekStart = $now.minus({days: 7}).toFormat('yyyy-MM-dd');
 
 // Build agent summary table rows
 let agentRows = '';
@@ -622,7 +622,7 @@ def build_orch01_nodes():
             "table": {"__rl": True, "value": TABLE_DECISION_LOG, "mode": "id"},
             "columns": {
                 "value": {
-                    "Decision ID": "=dec_{{ $now.format('yyyyMMddHHmmss') }}_{{ $json.agentId }}",
+                    "Decision ID": "=dec_{{ $now.toFormat('yyyyMMddHHmmss') }}_{{ $json.agentId }}",
                     "Agent ID": "={{ $json.agentId }}",
                     "Decision Type": "auto_retry",
                     "Context": "={{ JSON.stringify($json.errorWorkflows) }}",
@@ -837,8 +837,8 @@ def build_orch03_nodes():
         "parameters": {
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "today", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
-                    {"id": uid(), "name": "yesterday", "value": "={{ $now.minus({days: 1}).format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "today", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "yesterday", "value": "={{ $now.minus({days: 1}).toFormat('yyyy-MM-dd') }}", "type": "string"},
                 ]
             },
             "options": {},
@@ -870,7 +870,7 @@ def build_orch03_nodes():
         "alwaysOutputData": True,
     })
 
-    # 4. Read Finance Metrics (placeholder - would connect to Xero)
+    # 4. Read Finance Metrics (placeholder - would connect to QuickBooks)
     nodes.append({
         "parameters": {
             "assignments": {

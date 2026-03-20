@@ -40,6 +40,22 @@ TABLE_CUSTOMERS = os.getenv("ACCOUNTING_TABLE_CUSTOMERS", "REPLACE_WITH_TABLE_ID
 TABLE_TASKS = os.getenv("ACCOUNTING_TABLE_TASKS", "REPLACE_WITH_TABLE_ID")
 TABLE_AUDIT_LOG = os.getenv("ACCOUNTING_TABLE_AUDIT_LOG", "REPLACE_WITH_TABLE_ID")
 
+# Validate required environment variables
+_required_vars = {
+    "ACCOUNTING_AIRTABLE_BASE_ID": AIRTABLE_BASE_ID,
+    "ACCOUNTING_TABLE_INVOICES": TABLE_INVOICES,
+    "ACCOUNTING_TABLE_CUSTOMERS": TABLE_CUSTOMERS,
+    "ACCOUNTING_TABLE_TASKS": TABLE_TASKS,
+    "ACCOUNTING_TABLE_AUDIT_LOG": TABLE_AUDIT_LOG,
+}
+_missing = [k for k, v in _required_vars.items() if isinstance(v, str) and "REPLACE_" in v.upper()]
+if _missing:
+    print(f"ERROR: These environment variables must be set before deploying:")
+    for var in _missing:
+        print(f"  - {var}")
+    print(f"\nCopy .env.template to .env and fill in the values.")
+    sys.exit(1)
+
 def uid():
     return str(uuid.uuid4())
 
@@ -93,7 +109,7 @@ def build_nodes():
                     {
                         "id": uid(),
                         "name": "todayDate",
-                        "value": "={{ $now.format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                     {
@@ -642,7 +658,7 @@ def build_nodes():
                     "Related Record ID": "={{ $json.invoiceNumber }}",
                     "Related Table": "Invoices",
                     "Owner": "ian@anyvisionmedia.com",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [
                     {"id": "Type", "type": "string", "display": True, "displayName": "Type"},
@@ -757,8 +773,8 @@ def build_nodes():
                 "value": {
                     "Invoice ID": "={{ $('Determine Reminder Stage').first().json['Invoice ID'] }}",
                     "Reminder Count": "={{ parseInt($('Determine Reminder Stage').first().json.reminderCount || '0') + 1 }}",
-                    "Last Reminder Date": "={{ $now.format('yyyy-MM-dd') }}",
-                    "Next Reminder Date": "={{ $now.plus(3, 'days').format('yyyy-MM-dd') }}",
+                    "Last Reminder Date": "={{ $now.toFormat('yyyy-MM-dd') }}",
+                    "Next Reminder Date": "={{ $now.plus(3, 'days').toFormat('yyyy-MM-dd') }}",
                     "Last Reminder Stage": "={{ $('Determine Reminder Stage').first().json.reminderStage }}",
                 },
                 "schema": [
@@ -1012,7 +1028,7 @@ def build_nodes():
                     "Related Record ID": "={{ $('Handle Dispute').first().json.invoiceNumber }}",
                     "Related Table": "Invoices",
                     "Owner": "={{ $('Handle Dispute').first().json.disputeOwner }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [
                     {"id": "Type", "type": "string", "display": True, "displayName": "Type"},

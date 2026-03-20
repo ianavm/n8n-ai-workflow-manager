@@ -93,13 +93,13 @@ def build_bridge01_nodes():
                     {
                         "id": uid(),
                         "name": "todayDate",
-                        "value": "={{ $now.format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                     {
                         "id": uid(),
                         "name": "threeDaysAgo",
-                        "value": "={{ $now.minus({days: 3}).format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.minus({days: 3}).toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                 ]
@@ -195,7 +195,7 @@ for (const item of scraperLeads) {
         'Lead Score': s['Lead Score'] || 0,
         Status: s.Status || 'New',
         'Page URL': s.Website || '',
-        'Created At': s['Date Scraped'] || $now.format('yyyy-MM-dd'),
+        'Created At': s['Date Scraped'] || $now.toFormat('yyyy-MM-dd'),
         'Scraper Record ID': s.id || '',
         'Source System': 'Outbound_Scraper',
         'Touch Count': 1,
@@ -298,12 +298,12 @@ return items.map(lead => ({ json: lead }));"""
     nodes.append({
         "parameters": {
             "sendTo": "ian@anyvisionmedia.com",
-            "subject": "=Bridge Lead Sync - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+            "subject": "=Bridge Lead Sync - {{ $now.toFormat('yyyy-MM-dd HH:mm') }}",
             "message": """=<h3>Bridge Lead Sync Complete</h3>
 <p><strong>Scraper leads scanned:</strong> {{ $('Dedup & Transform').first().json.totalScraperLeads }}</p>
 <p><strong>New leads synced to SEO table:</strong> {{ $('Dedup & Transform').first().json.newCount }}</p>
 <p><strong>Reverse status syncs:</strong> {{ $('Dedup & Transform').first().json.reverseSyncCount }}</p>
-<p><em>Run at {{ $now.format('yyyy-MM-dd HH:mm') }} SAST</em></p>""",
+<p><em>Run at {{ $now.toFormat('yyyy-MM-dd HH:mm') }} SAST</em></p>""",
             "options": {},
         },
         "id": uid(),
@@ -698,7 +698,7 @@ return matches.map(m => ({ json: m }));"""
                 "mappingMode": "defineBelow",
                 "value": {
                     "Status": "={{ $json.newStatus }}",
-                    "Last Activity": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Last Activity": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "matchingColumns": [],
                 "schema": [
@@ -724,7 +724,7 @@ return matches.map(m => ({ json: m }));"""
             "message": """=<h3>Email Reply Matcher Complete</h3>
 <p><strong>Emails processed:</strong> {{ $('Match All').first().json.totalProcessed }}</p>
 <p><strong>Leads matched:</strong> {{ $('Match All').first().json.matchCount }}</p>
-<p><em>Run at {{ $now.format('yyyy-MM-dd HH:mm') }} SAST</em></p>""",
+<p><em>Run at {{ $now.toFormat('yyyy-MM-dd HH:mm') }} SAST</em></p>""",
             "options": {},
         },
         "id": uid(),
@@ -1024,7 +1024,7 @@ return results;"""
                 "value": {
                     "Lead Score": "={{ $('Build Scoring Payload').item.json.compositeScore }}",
                     "Grade": "={{ $('Build Scoring Payload').item.json.grade }}",
-                    "Last Activity": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Last Activity": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "matchingColumns": [],
                 "schema": [
@@ -1123,7 +1123,7 @@ return results;"""
                 "mappingMode": "defineBelow",
                 "value": {
                     "Nurture Stage": 1,
-                    "Next Nurture Date": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Next Nurture Date": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "matchingColumns": [],
                 "schema": [
@@ -1144,10 +1144,10 @@ return results;"""
     nodes.append({
         "parameters": {
             "sendTo": "ian@anyvisionmedia.com",
-            "subject": "=Bridge Scoring Complete - {{ $now.format('yyyy-MM-dd') }}",
+            "subject": "=Bridge Scoring Complete - {{ $now.toFormat('yyyy-MM-dd') }}",
             "message": """=<h3>Unified Scoring Complete</h3>
 <p><strong>Leads scored:</strong> {{ $input.all().length }}</p>
-<p><em>Run at {{ $now.format('yyyy-MM-dd HH:mm') }} SAST</em></p>
+<p><em>Run at {{ $now.toFormat('yyyy-MM-dd HH:mm') }} SAST</em></p>
 <p>Check the SEO Leads table for updated Grade column (Hot/Warm/Cold).</p>""",
             "options": {},
         },
@@ -1465,8 +1465,8 @@ return [{
                 "mappingMode": "defineBelow",
                 "value": {
                     "Nurture Stage": "={{ $json.nextStage || $json.stage }}",
-                    "Next Nurture Date": "={{ $json.daysUntilNext ? $now.plus({days: $json.daysUntilNext}).format('yyyy-MM-dd') : '' }}",
-                    "Last Activity": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Next Nurture Date": "={{ $json.daysUntilNext ? $now.plus({days: $json.daysUntilNext}).toFormat('yyyy-MM-dd') : '' }}",
+                    "Last Activity": "={{ $now.toFormat('yyyy-MM-dd') }}",
                     "Touch Count": "={{ ($('Read Warm Leads Due').item.json['Touch Count'] || 0) + 1 }}",
                 },
                 "matchingColumns": [],
@@ -1488,10 +1488,10 @@ return [{
     nodes.append({
         "parameters": {
             "sendTo": "ian@anyvisionmedia.com",
-            "subject": "=Bridge Nurture Run - {{ $now.format('yyyy-MM-dd') }}",
+            "subject": "=Bridge Nurture Run - {{ $now.toFormat('yyyy-MM-dd') }}",
             "message": """=<h3>Warm Lead Nurture Complete</h3>
 <p><strong>Emails sent:</strong> {{ $input.all().length }}</p>
-<p><em>Run at {{ $now.format('yyyy-MM-dd HH:mm') }} SAST</em></p>
+<p><em>Run at {{ $now.toFormat('yyyy-MM-dd HH:mm') }} SAST</em></p>
 <p>Check the SEO Leads table for updated Nurture Stage values.</p>""",
             "options": {},
         },
@@ -1695,7 +1695,7 @@ return [{
                 "value": {
                     "Nurture Stage": 1,
                     "Grade": "Exhausted",
-                    "Last Activity": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Last Activity": "={{ $now.toFormat('yyyy-MM-dd') }}",
                     "Touch Count": "={{ ($('Read Cold Leads Due').item.json['Touch Count'] || 0) + 1 }}",
                 },
                 "matchingColumns": [],
@@ -1904,7 +1904,7 @@ return [{
                 "mappingMode": "defineBelow",
                 "value": {
                     "Nurture Stage": "={{ $json.nextStage || 2 }}",
-                    "Last Activity": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Last Activity": "={{ $now.toFormat('yyyy-MM-dd') }}",
                     "Touch Count": "={{ ($('Read Unanswered').item.json['Touch Count'] || 1) + 1 }}",
                 },
                 "matchingColumns": [],

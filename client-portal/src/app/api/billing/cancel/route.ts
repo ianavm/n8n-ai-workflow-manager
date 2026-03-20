@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { getStripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,18 @@ export async function POST() {
       } catch (pfError) {
         // Log but don't fail the request - subscription is marked for cancellation
         console.error("[billing/cancel] PayFast cancel error:", pfError);
+      }
+    }
+
+    // If subscription has a Stripe subscription, cancel at period end
+    if (subscription.stripe_subscription_id) {
+      try {
+        const stripe = getStripe();
+        await stripe.subscriptions.update(subscription.stripe_subscription_id, {
+          cancel_at_period_end: true,
+        });
+      } catch (stripeError) {
+        console.error("[billing/cancel] Stripe cancel error:", stripeError);
       }
     }
 

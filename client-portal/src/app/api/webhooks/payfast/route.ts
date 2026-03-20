@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       data[key] = value.toString();
     });
 
-    console.log("[webhooks/payfast] ITN received:", {
+    console.info("[webhooks/payfast] ITN received:", {
       payment_status: data.payment_status,
       m_payment_id: data.m_payment_id,
       pf_payment_id: data.pf_payment_id,
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     // Step 3: Extract identifiers
     const clientId = data.custom_str1;
     const planId = data.custom_str2;
+    const paymentType = data.custom_str3 || "subscription"; // subscription | addon | setup_fee
     const paymentStatus = data.payment_status;
     const pfPaymentId = data.pf_payment_id;
     const amountGross = data.amount_gross;
@@ -63,28 +64,52 @@ export async function POST(request: NextRequest) {
     const mPaymentId = data.m_payment_id;
     const payfastToken = data.token;
 
-    if (!clientId || !planId) {
-      console.error("[webhooks/payfast] Missing custom_str1 (client_id) or custom_str2 (plan_id)");
+    if (!clientId) {
+      console.error("[webhooks/payfast] Missing custom_str1 (client_id)");
       return new NextResponse("MISSING IDENTIFIERS", { status: 200 });
     }
 
+    console.info(`[webhooks/payfast] Payment type: ${paymentType}`);
+
     // Step 4: Handle payment status
     if (paymentStatus === "COMPLETE") {
-      await handlePaymentComplete({
-        clientId,
-        planId,
-        pfPaymentId,
-        mPaymentId,
-        amountGross,
-        amountFee,
-        amountNet,
-        payfastToken,
-        billingDate: data.billing_date,
-      });
+      if (paymentType === "addon") {
+        await handleAddonPaymentComplete({
+          clientId,
+          addonId: planId, // custom_str2 holds addon_id for add-on payments
+          pfPaymentId,
+          amountGross,
+          payfastToken,
+        });
+      } else if (paymentType === "setup_fee") {
+        await handleSetupFeePaymentComplete({
+          clientId,
+          setupFeeId: planId, // custom_str2 holds setup_fee_id
+          pfPaymentId,
+          amountGross,
+        });
+      } else {
+        // Default: subscription payment
+        if (!planId) {
+          console.error("[webhooks/payfast] Missing custom_str2 (plan_id) for subscription payment");
+          return new NextResponse("MISSING PLAN ID", { status: 200 });
+        }
+        await handlePaymentComplete({
+          clientId,
+          planId,
+          pfPaymentId,
+          mPaymentId,
+          amountGross,
+          amountFee,
+          amountNet,
+          payfastToken,
+          billingDate: data.billing_date,
+        });
+      }
     } else if (paymentStatus === "FAILED") {
       await handlePaymentFailed({
         clientId,
-        planId,
+        planId: planId || "",
         pfPaymentId,
         mPaymentId,
         amountGross,
@@ -92,7 +117,7 @@ export async function POST(request: NextRequest) {
     } else if (paymentStatus === "CANCELLED") {
       await handlePaymentCancelled({ clientId });
     } else {
-      console.log(`[webhooks/payfast] Unhandled payment_status: ${paymentStatus}`);
+      console.info(`[webhooks/payfast] Unhandled payment_status: ${paymentStatus}`);
     }
 
     // PayFast requires a 200 OK response
@@ -207,23 +232,30 @@ async function handlePaymentComplete(params: PaymentCompleteParams) {
   // Create invoice (status = paid)
   const invoiceNumber = generateInvoiceNumber();
   const amountCents = Math.round(parseFloat(amountGross) * 100);
-  const feeCents = Math.round(parseFloat(amountFee || "0") * 100);
-  const netCents = Math.round(parseFloat(amountNet || amountGross) * 100);
+  const vatCents = Math.round(amountCents * 15 / 115); // Extract 15% VAT from gross
 
-  await supabaseAdmin.from("invoices").insert({
-    client_id: clientId,
-    subscription_id: subscriptionId,
-    invoice_number: invoiceNumber,
-    status: "paid",
-    amount: amountCents,
-    fee: feeCents,
-    net_amount: netCents,
-    currency: "ZAR",
-    payfast_payment_id: pfPaymentId,
-    m_payment_id: mPaymentId,
-    paid_at: now.toISOString(),
-    description: plan ? `${plan.name} - ${billingInterval}` : `Subscription payment`,
-  });
+  // Skip if this payment was already recorded (idempotency)
+  const { data: existingInvoice } = await supabaseAdmin
+    .from("invoices")
+    .select("id")
+    .eq("payfast_payment_id", pfPaymentId)
+    .maybeSingle();
+
+  if (!existingInvoice) {
+    await supabaseAdmin.from("invoices").insert({
+      client_id: clientId,
+      subscription_id: subscriptionId,
+      invoice_number: invoiceNumber,
+      status: "paid",
+      amount_due: amountCents,
+      amount_paid: amountCents,
+      vat_amount: vatCents,
+      currency: "ZAR",
+      payfast_payment_id: pfPaymentId,
+      paid_at: now.toISOString(),
+      description: plan ? `${plan.name} - ${billingInterval}` : `Subscription payment`,
+    });
+  }
 
   // Log activity
   await supabaseAdmin.from("activity_log").insert({
@@ -241,7 +273,7 @@ async function handlePaymentComplete(params: PaymentCompleteParams) {
     },
   });
 
-  console.log(`[webhooks/payfast] Payment complete: client=${clientId}, invoice=${invoiceNumber}`);
+  console.info(`[webhooks/payfast] Payment complete: client=${clientId}, invoice=${invoiceNumber}`);
 }
 
 interface PaymentFailedParams {
@@ -283,10 +315,11 @@ async function handlePaymentFailed(params: PaymentFailedParams) {
     subscription_id: existingSub?.id || null,
     invoice_number: generateInvoiceNumber(),
     status: "open",
-    amount: amountCents,
+    amount_due: amountCents,
+    amount_paid: 0,
+    vat_amount: 0,
     currency: "ZAR",
     payfast_payment_id: pfPaymentId,
-    m_payment_id: mPaymentId,
     description: "Payment failed",
   });
 
@@ -305,7 +338,7 @@ async function handlePaymentFailed(params: PaymentFailedParams) {
     },
   });
 
-  console.log(`[webhooks/payfast] Payment failed: client=${clientId}`);
+  console.info(`[webhooks/payfast] Payment failed: client=${clientId}`);
 }
 
 interface PaymentCancelledParams {
@@ -346,5 +379,173 @@ async function handlePaymentCancelled(params: PaymentCancelledParams) {
     details: { client_id: clientId },
   });
 
-  console.log(`[webhooks/payfast] Payment cancelled: client=${clientId}`);
+  console.info(`[webhooks/payfast] Payment cancelled: client=${clientId}`);
+}
+
+// ---------------------------------------------------------------------------
+// Add-on payment handler
+// ---------------------------------------------------------------------------
+
+interface AddonPaymentCompleteParams {
+  clientId: string;
+  addonId: string;
+  pfPaymentId: string;
+  amountGross: string;
+  payfastToken?: string;
+}
+
+async function handleAddonPaymentComplete(params: AddonPaymentCompleteParams) {
+  const { clientId, addonId, pfPaymentId, amountGross, payfastToken } = params;
+
+  // Get current subscription
+  const { data: sub } = await supabaseAdmin
+    .from("subscriptions")
+    .select("id")
+    .eq("client_id", clientId)
+    .in("status", ["active", "trialing", "past_due"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!sub) {
+    console.error(`[webhooks/payfast] No active subscription for addon payment: client=${clientId}`);
+    return;
+  }
+
+  // Activate the add-on (update if exists, insert if not)
+  const { data: existing } = await supabaseAdmin
+    .from("subscription_addons")
+    .select("id")
+    .eq("subscription_id", sub.id)
+    .eq("addon_id", addonId)
+    .maybeSingle();
+
+  if (existing) {
+    await supabaseAdmin
+      .from("subscription_addons")
+      .update({
+        status: "active",
+        payfast_token: payfastToken || null,
+        activated_at: new Date().toISOString(),
+        deactivated_at: null,
+      })
+      .eq("id", existing.id);
+  } else {
+    await supabaseAdmin
+      .from("subscription_addons")
+      .insert({
+        subscription_id: sub.id,
+        addon_id: addonId,
+        status: "active",
+        payfast_token: payfastToken || null,
+        activated_at: new Date().toISOString(),
+      });
+  }
+
+  // Create invoice for addon payment
+  const amountCents = Math.round(parseFloat(amountGross) * 100);
+  const invoiceNumber = generateInvoiceNumber();
+
+  const { data: addon } = await supabaseAdmin
+    .from("addons")
+    .select("name")
+    .eq("id", addonId)
+    .single();
+
+  await supabaseAdmin.from("invoices").insert({
+    client_id: clientId,
+    subscription_id: sub.id,
+    invoice_number: invoiceNumber,
+    status: "paid",
+    amount_due: amountCents,
+    amount_paid: amountCents,
+    vat_amount: Math.round(amountCents * 15 / 115),
+    currency: "ZAR",
+    payfast_payment_id: pfPaymentId,
+    paid_at: new Date().toISOString(),
+    description: `Add-on: ${addon?.name || addonId}`,
+  });
+
+  // Log activity
+  await supabaseAdmin.from("activity_log").insert({
+    actor_type: "system",
+    actor_id: "payfast",
+    action: "addon_payment_complete",
+    target_type: "addon",
+    target_id: addonId,
+    details: {
+      client_id: clientId,
+      addon_name: addon?.name,
+      amount_gross: amountGross,
+      invoice_number: invoiceNumber,
+    },
+  });
+
+  console.info(`[webhooks/payfast] Addon payment complete: client=${clientId}, addon=${addon?.name}`);
+}
+
+// ---------------------------------------------------------------------------
+// Setup fee payment handler
+// ---------------------------------------------------------------------------
+
+interface SetupFeePaymentCompleteParams {
+  clientId: string;
+  setupFeeId: string;
+  pfPaymentId: string;
+  amountGross: string;
+}
+
+async function handleSetupFeePaymentComplete(params: SetupFeePaymentCompleteParams) {
+  const { clientId, setupFeeId, pfPaymentId, amountGross } = params;
+
+  // Mark setup fee as paid
+  await supabaseAdmin
+    .from("setup_fees")
+    .update({
+      status: "paid",
+      payfast_payment_id: pfPaymentId,
+      paid_at: new Date().toISOString(),
+    })
+    .eq("id", setupFeeId)
+    .eq("client_id", clientId);
+
+  // Create invoice
+  const amountCents = Math.round(parseFloat(amountGross) * 100);
+  const invoiceNumber = generateInvoiceNumber();
+
+  const { data: fee } = await supabaseAdmin
+    .from("setup_fees")
+    .select("service_type, description")
+    .eq("id", setupFeeId)
+    .single();
+
+  await supabaseAdmin.from("invoices").insert({
+    client_id: clientId,
+    invoice_number: invoiceNumber,
+    status: "paid",
+    amount_due: amountCents,
+    amount_paid: amountCents,
+    vat_amount: Math.round(amountCents * 15 / 115),
+    currency: "ZAR",
+    payfast_payment_id: pfPaymentId,
+    paid_at: new Date().toISOString(),
+    description: `Setup fee: ${fee?.description || fee?.service_type || setupFeeId}`,
+  });
+
+  // Log activity
+  await supabaseAdmin.from("activity_log").insert({
+    actor_type: "system",
+    actor_id: "payfast",
+    action: "setup_fee_paid",
+    target_type: "setup_fee",
+    target_id: setupFeeId,
+    details: {
+      client_id: clientId,
+      service_type: fee?.service_type,
+      amount_gross: amountGross,
+      invoice_number: invoiceNumber,
+    },
+  });
+
+  console.info(`[webhooks/payfast] Setup fee paid: client=${clientId}, fee=${setupFeeId}`);
 }

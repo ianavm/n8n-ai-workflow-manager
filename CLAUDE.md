@@ -57,13 +57,13 @@ Local copies of reference repos — read-only, for extracting patterns and docs:
 - `n8n-docs/` — Official n8n documentation source (cloned)
 
 ### MCP Servers (`.mcp.json`)
-GitHub, Supabase, Airtable, Playwright, Context7 (live API docs), n8n (workflow management), Xero (accounting API), Google Workspace (Gmail, Sheets, Slides, Calendar, Drive, Docs)
+GitHub, Supabase, Airtable, Playwright, Context7 (live API docs), n8n (workflow management), QuickBooks (accounting API), Google Workspace (Gmail, Sheets, Slides, Calendar, Drive, Docs)
 
 ## Active Departments
 
 ### Accounting (7 workflows)
 - Full AP/AR: invoicing → collections → payments → supplier bills → month-end → audit → exceptions
-- Integrations: Xero (OAuth), Airtable, Gmail, HTML email templates
+- Integrations: QuickBooks (OAuth), Airtable, Gmail, HTML email templates
 - Context: South African business (ZAR currency, 15% VAT)
 - Auto-approve bills < R10,000; escalate > R50,000
 
@@ -100,7 +100,7 @@ GitHub, Supabase, Airtable, Playwright, Context7 (live API docs), n8n (workflow 
 
 **Core:** n8n Cloud, Python 3, Airtable
 **AI:** OpenRouter (preferred) → Claude Sonnet (`anthropic/claude-sonnet-4-20250514`) for qualification/code, GPT-4o for conversation
-**Integrations:** Xero, Gmail OAuth, Outlook OAuth, Blotato, Google Places API, WhatsApp Business API, Google Slides/Calendar, SerpAPI, Google PageSpeed API
+**Integrations:** QuickBooks, Gmail OAuth, Outlook OAuth, Blotato, Google Places API, WhatsApp Business API, Google Slides/Calendar, SerpAPI, Google PageSpeed API
 **Client Portal:** Next.js 16, React 19, TypeScript, Supabase (PostgreSQL + Auth + RLS), Tailwind v4, Recharts
 **Hosting:** n8n Cloud (workflows), Vercel (client portal), Netlify (landing pages)
 

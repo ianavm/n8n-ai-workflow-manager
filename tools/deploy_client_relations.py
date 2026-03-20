@@ -210,7 +210,7 @@ def build_cr01_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                     {"id": uid(), "name": "portalUrl", "value": PORTAL_BASE_URL, "type": "string"},
                 ]
@@ -288,7 +288,7 @@ def build_cr01_nodes():
                     "Priority": "High",
                     "Description": "={{ $json.summary.at_risk_count }} clients with health score < 40. Avg score: {{ $json.summary.avg_score }}",
                     "Details": "={{ JSON.stringify($json.at_risk_clients.map(c => ({name: c.client_name, email: c.client_email, score: c.composite_score}))) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
                     "Status": "Open",
                 },
                 "schema": [
@@ -321,7 +321,7 @@ def build_cr01_nodes():
             "authentication": "none",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={{ JSON.stringify({agent: 'agent_client_relations', status: 'healthy', last_run: $now.format('yyyy-MM-dd HH:mm:ss'), metrics: {total_clients: $json.summary.total_clients, avg_score: $json.summary.avg_score, at_risk: $json.summary.at_risk_count}}) }}",
+            "jsonBody": "={{ JSON.stringify({agent: 'agent_client_relations', status: 'healthy', last_run: $now.toFormat('yyyy-MM-dd HH:mm:ss'), metrics: {total_clients: $json.summary.total_clients, avg_score: $json.summary.avg_score, at_risk: $json.summary.at_risk_count}}) }}",
             "options": {"timeout": 15000},
         },
         "id": uid(),
@@ -361,7 +361,7 @@ def build_cr01_nodes():
                     "Event Type": "health_score_completed",
                     "Source": "CR-01",
                     "Details": "={{ JSON.stringify($('Score Clients').first().json.summary) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
                 },
                 "schema": [
                     {"id": "Event Type", "type": "string", "display": True, "displayName": "Event Type"},
@@ -561,7 +561,7 @@ def build_cr02_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                 ]
             },
@@ -686,7 +686,7 @@ def build_cr02_nodes():
                     "Priority": "High",
                     "Description": "={{ $json.summary.at_risk_count }} at-risk renewals need personal outreach",
                     "Details": "={{ JSON.stringify($json.at_risk_renewals.map(r => ({name: r.client_name, email: r.client_email, plan: r.plan, days: r.days_until_expiry, health: r.health_score}))) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
                     "Status": "Open",
                 },
                 "schema": [
@@ -740,7 +740,7 @@ def build_cr02_nodes():
                     "Event Type": "renewal_check_completed",
                     "Source": "CR-02",
                     "Details": "={{ JSON.stringify($('Filter Renewals').first().json.summary) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
                 },
                 "schema": [
                     {"id": "Event Type", "type": "string", "display": True, "displayName": "Event Type"},
@@ -951,7 +951,7 @@ def build_cr03_nodes():
                     "Event Type": "client_onboarded",
                     "Source": "CR-03",
                     "Details": "={{ JSON.stringify({email: $('Extract Client Data').first().json.client.email, name: $('Extract Client Data').first().json.client.name, plan: $('Extract Client Data').first().json.client.plan}) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
                 },
                 "schema": [
                     {"id": "Event Type", "type": "string", "display": True, "displayName": "Event Type"},
@@ -1139,7 +1139,7 @@ def build_cr04_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                     {"id": uid(), "name": "aiModel", "value": AI_MODEL, "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                 ]
@@ -1286,7 +1286,7 @@ def build_cr04_nodes():
                     "Event Type": "satisfaction_pulse_sent",
                     "Source": "CR-04",
                     "Details": "={{ JSON.stringify({total_eligible: $('Filter Active Clients').first().json.total_eligible, emails_sent: $input.all().length}) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
                 },
                 "schema": [
                     {"id": "Event Type", "type": "string", "display": True, "displayName": "Event Type"},

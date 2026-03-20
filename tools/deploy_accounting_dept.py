@@ -41,6 +41,18 @@ sys.path.insert(0, str(Path(__file__).parent))
 # ── Airtable IDs (for validation) ───────────────────────────
 AIRTABLE_BASE_ID = os.getenv("ACCOUNTING_AIRTABLE_BASE_ID", "REPLACE_WITH_BASE_ID")
 
+# Validate required environment variables
+_required_vars = {
+    "ACCOUNTING_AIRTABLE_BASE_ID": AIRTABLE_BASE_ID,
+}
+_missing = [k for k, v in _required_vars.items() if isinstance(v, str) and "REPLACE_" in v.upper()]
+if _missing:
+    print(f"ERROR: These environment variables must be set before deploying:")
+    for var in _missing:
+        print(f"  - {var}")
+    print(f"\nCopy .env.template to .env and fill in the values.")
+    sys.exit(1)
+
 # ── Module Imports ───────────────────────────────────────────
 # Each wfXX module exposes build_nodes() and build_connections()
 
@@ -56,7 +68,7 @@ WORKFLOW_REGISTRY = {
         "module": "deploy_accounting_wf01",
         "name": "Accounting Dept - Sales & Invoicing (WF-01)",
         "filename": "wf01_sales_invoicing.json",
-        "description": "Invoice generation, Xero sync, PDF + email delivery",
+        "description": "Invoice generation, QuickBooks sync, PDF + email delivery",
     },
     "wf02": {
         "module": "deploy_accounting_wf02",
@@ -74,7 +86,7 @@ WORKFLOW_REGISTRY = {
         "module": "deploy_accounting_wf04",
         "name": "Accounting Dept - Supplier Bills AP (WF-04)",
         "filename": "wf04_supplier_bills.json",
-        "description": "Email bill intake, AI extraction, approval routing, Xero sync",
+        "description": "Email bill intake, AI extraction, approval routing, QuickBooks sync",
     },
     "wf05": {
         "module": "deploy_accounting_wf05",
@@ -392,10 +404,10 @@ def main():
     print()
     print("Next steps:")
     print("  1. Open each workflow in n8n UI to verify node connections")
-    print("  2. Verify credential bindings (Xero OAuth2, Airtable, Gmail, Stripe)")
+    print("  2. Verify credential bindings (QuickBooks OAuth2, Airtable, Gmail, Stripe)")
     print("  3. Run setup_accounting_airtable.py --seed to populate config + products")
     print("  4. Test WF-06: POST to /accounting/audit-log and /accounting/customer")
-    print("  5. Test WF-01: Create Draft invoice in Airtable -> trigger -> verify Xero + email")
+    print("  5. Test WF-01: Create Draft invoice in Airtable -> trigger -> verify QuickBooks + email")
     print("  6. Test WF-03: Stripe test payment -> verify matching + receipt")
     print("  7. Test WF-02: Seed overdue invoices -> trigger -> verify reminder emails")
     print("  8. Test WF-04: Send bill PDF to accounts inbox -> verify AI extraction")

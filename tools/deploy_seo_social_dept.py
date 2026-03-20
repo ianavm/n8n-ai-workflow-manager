@@ -356,7 +356,7 @@ def build_wf_score_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                 ]
             },
@@ -444,7 +444,7 @@ def build_wf_score_nodes():
                 "    scores: { engagement: engagementScore, reach: reachScore, quality: qualityScore, seo: seoScore },\n"
                 "    composite_score: composite,\n"
                 "    grade: composite >= 80 ? 'A' : composite >= 60 ? 'B' : composite >= 40 ? 'C' : 'D',\n"
-                "    scored_at: $now.format('yyyy-MM-dd HH:mm:ss')\n"
+                "    scored_at: $now.toFormat('yyyy-MM-dd HH:mm:ss')\n"
                 "  }\n"
                 "};"
             ),
@@ -484,7 +484,7 @@ def build_wf_score_nodes():
                 "    scores: { engagement: engagementScore, fit: fitScore, recency: recencyScore, source: sourceScore },\n"
                 "    composite_score: composite,\n"
                 "    grade: composite >= 80 ? 'Hot' : composite >= 50 ? 'Warm' : 'Cold',\n"
-                "    scored_at: $now.format('yyyy-MM-dd HH:mm:ss')\n"
+                "    scored_at: $now.toFormat('yyyy-MM-dd HH:mm:ss')\n"
                 "  }\n"
                 "};"
             ),
@@ -522,7 +522,7 @@ def build_wf_score_nodes():
                 "    scores: { opportunity: opportunityScore, relevance: relevanceScore, difficulty_inv: difficultyInv, trend: trendScore },\n"
                 "    composite_score: composite,\n"
                 "    grade: composite >= 70 ? 'Target' : composite >= 40 ? 'Monitor' : 'Ignore',\n"
-                "    scored_at: $now.format('yyyy-MM-dd HH:mm:ss')\n"
+                "    scored_at: $now.toFormat('yyyy-MM-dd HH:mm:ss')\n"
                 "  }\n"
                 "};"
             ),
@@ -560,7 +560,7 @@ def build_wf_score_nodes():
                 "    scores: { speed: speedScore, seo: seoScore, content: contentScore, links: linkScore },\n"
                 "    composite_score: composite,\n"
                 "    grade: composite >= 80 ? 'Healthy' : composite >= 60 ? 'Needs Work' : composite >= 40 ? 'Poor' : 'Critical',\n"
-                "    scored_at: $now.format('yyyy-MM-dd HH:mm:ss')\n"
+                "    scored_at: $now.toFormat('yyyy-MM-dd HH:mm:ss')\n"
                 "  }\n"
                 "};"
             ),
@@ -739,8 +739,8 @@ def build_wf05_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
-                    {"id": uid(), "name": "weekNumber", "value": "={{ $now.format('yyyy') + '-W' + $now.format('WW') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "weekNumber", "value": "={{ $now.toFormat('yyyy') + '-W' + $now.toFormat('WW') }}", "type": "string"},
                     {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                 ]
@@ -1309,7 +1309,7 @@ def build_wf06_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                     {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                     {"id": uid(), "name": "ownerName", "value": "Ian Immelman", "type": "string"},
@@ -1657,7 +1657,7 @@ def build_wf06_nodes():
                     "Status": "={{ $json.status }}",
                     "Quality Score": "={{ $json.qualityScore }}",
                     "Platform": "={{ $json.platform }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [
                     {"id": "Title", "type": "string", "display": True, "displayName": "Title"},
@@ -1755,7 +1755,7 @@ def build_wf06_nodes():
                     "Status": "Draft",
                     "Quality Score": "={{ $json.qualityScore }}",
                     "Platform": "={{ Array.isArray($json.platform) ? $json.platform.join(', ') : $json.platform || 'all' }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [
                     {"id": "Title", "type": "string", "display": True, "displayName": "Title"},
@@ -1998,7 +1998,7 @@ def build_wf07_nodes():
             "base": {"__rl": True, "mode": "list", "value": AIRTABLE_BASE_ID},
             "table": {"__rl": True, "mode": "list", "value": TABLE_PUBLISH_QUEUE},
             "columns": {
-                "value": {"Status": "Published", "Published At": "={{ $now.format('yyyy-MM-dd') }}", "Platform Results": "={{ $json._successCount + '/' + ($json._successCount + $json._failCount) + ' platforms succeeded' }}"},
+                "value": {"Status": "Published", "Published At": "={{ $now.toFormat('yyyy-MM-dd') }}", "Platform Results": "={{ $json._successCount + '/' + ($json._successCount + $json._failCount) + ' platforms succeeded' }}"},
                 "schema": [{"id": "Status", "type": "string", "display": True, "displayName": "Status"}, {"id": "Published At", "type": "string", "display": True, "displayName": "Published At"}, {"id": "Platform Results", "type": "string", "display": True, "displayName": "Platform Results"}],
                 "mappingMode": "defineBelow", "matchingColumns": ["id"],
             },
@@ -2110,7 +2110,7 @@ def build_wf08_nodes():
         "parameters": {
             "mode": "manual", "duplicateItem": False,
             "assignments": {"assignments": [
-                {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                 {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                 {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
             ]},
@@ -2356,7 +2356,7 @@ def build_wf09_nodes():
         "parameters": {
             "mode": "manual", "duplicateItem": False,
             "assignments": {"assignments": [
-                {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                 {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                 {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
             ]},
@@ -2611,7 +2611,7 @@ def build_wf09_nodes():
                 "mappingMode": "defineBelow",
                 "value": {
                     "Grade": "",
-                    "Last Activity": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Last Activity": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "matchingColumns": [],
                 "schema": [
@@ -2678,7 +2678,7 @@ def build_wf10_nodes():
         "parameters": {
             "mode": "manual", "duplicateItem": False,
             "assignments": {"assignments": [
-                {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                 {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                 {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
             ]},
@@ -2975,10 +2975,10 @@ def build_wf11_nodes():
         "parameters": {
             "mode": "manual", "duplicateItem": False,
             "assignments": {"assignments": [
-                {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
-                {"id": uid(), "name": "weekNumber", "value": "={{ $now.format('yyyy') + '-W' + $now.format('WW') }}", "type": "string"},
-                {"id": uid(), "name": "monthNumber", "value": "={{ $now.format('yyyy-MM') }}", "type": "string"},
-                {"id": uid(), "name": "dayOfMonth", "value": "={{ $now.format('d') }}", "type": "string"},
+                {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
+                {"id": uid(), "name": "weekNumber", "value": "={{ $now.toFormat('yyyy') + '-W' + $now.toFormat('WW') }}", "type": "string"},
+                {"id": uid(), "name": "monthNumber", "value": "={{ $now.toFormat('yyyy-MM') }}", "type": "string"},
+                {"id": uid(), "name": "dayOfMonth", "value": "={{ $now.toFormat('d') }}", "type": "string"},
                 {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                 {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
             ]},

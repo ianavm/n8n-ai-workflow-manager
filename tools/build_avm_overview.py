@@ -236,7 +236,7 @@ def build_nodes_and_connections():
         "Sticky Note - Finance",
         (
             "## FINANCE AGENT\n\n"
-            "7 core workflows (WF 01-07) via Xero integration + 2 new.\n"
+            "7 core workflows (WF 01-07) via QuickBooks integration + 2 new.\n"
             "Full AP/AR: invoicing, collections, payments, reconciliation.\n"
             "Auto-approve bills < R10,000. Escalate > R50,000.\n\n"
             "**Existing:** WF-01 to WF-07 (Invoicing through Exceptions)"
@@ -248,13 +248,13 @@ def build_nodes_and_connections():
 
     n = make_noop("FIN-08: Cash Flow Forecast", fin_x, fin_y + 120,
                   "14-day rolling cash flow projection.\n"
-                  "Pulls from Xero AR/AP aging reports.\n"
+                  "Pulls from QuickBooks AR/AP aging reports.\n"
                   "AI-enhanced prediction model.\n"
                   "Alerts on projected shortfalls.")
     nodes.append(n); fin_nodes.append(n)
 
     n = make_noop("FIN-09: Anomaly Detector", fin_x + NODE_GAP_X, fin_y + 120,
-                  "Flags unusual transactions in Xero.\n"
+                  "Flags unusual transactions in QuickBooks.\n"
                   "Detects: duplicate invoices, unusual amounts,\n"
                   "off-schedule payments, new vendor spikes.\n"
                   "Auto-creates review tasks.")
@@ -544,7 +544,7 @@ def build_nodes_and_connections():
             "| **n8n Cloud** | Workflow orchestration engine |\n"
             "| **Airtable** | CRM, project management, data store |\n"
             "| **Supabase** | Client portal DB, auth, real-time |\n"
-            "| **Xero** | Accounting, invoicing, payments (ZAR) |\n"
+            "| **QuickBooks** | Accounting, invoicing, payments (ZAR) |\n"
             "| **Gmail** | Email delivery, notifications, reports |\n"
             "| **WhatsApp Business** | Client messaging, support channel |\n"
             "| **OpenRouter / Claude** | AI reasoning, content generation |\n"

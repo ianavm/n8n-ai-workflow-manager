@@ -4,7 +4,7 @@ Accounting Department - Sales & Invoicing (WF-01) Builder & Deployer
 Builds the Sales to Invoice workflow that handles:
 - Validating customers and line items
 - VAT/tax calculations (15% SA standard)
-- Invoice creation in Xero
+- Invoice creation in QuickBooks
 - PDF generation and sending via Gmail/WhatsApp
 - Follow-up scheduling
 - Audit logging
@@ -34,7 +34,7 @@ from credentials import CREDENTIALS
 CRED_OPENROUTER = CREDENTIALS["openrouter"]
 CRED_GMAIL = CREDENTIALS["gmail"]
 CRED_AIRTABLE = CREDENTIALS["airtable"]
-CRED_XERO = CREDENTIALS["xero"]
+CRED_QUICKBOOKS = CREDENTIALS["quickbooks"]
 CRED_WHATSAPP_SEND = CREDENTIALS["whatsapp_send"]
 CRED_GOOGLE_SHEETS = CREDENTIALS["google_sheets"]
 
@@ -46,6 +46,24 @@ TABLE_INVOICES = os.getenv("ACCOUNTING_TABLE_INVOICES", "REPLACE_WITH_TABLE_ID")
 TABLE_TASKS = os.getenv("ACCOUNTING_TABLE_TASKS", "REPLACE_WITH_TABLE_ID")
 TABLE_AUDIT_LOG = os.getenv("ACCOUNTING_TABLE_AUDIT_LOG", "REPLACE_WITH_TABLE_ID")
 TABLE_SYSTEM_CONFIG = os.getenv("ACCOUNTING_TABLE_SYSTEM_CONFIG", "REPLACE_WITH_TABLE_ID")
+
+# Validate required environment variables
+_required_vars = {
+    "ACCOUNTING_AIRTABLE_BASE_ID": AIRTABLE_BASE_ID,
+    "ACCOUNTING_TABLE_CUSTOMERS": TABLE_CUSTOMERS,
+    "ACCOUNTING_TABLE_PRODUCTS_SERVICES": TABLE_PRODUCTS,
+    "ACCOUNTING_TABLE_INVOICES": TABLE_INVOICES,
+    "ACCOUNTING_TABLE_TASKS": TABLE_TASKS,
+    "ACCOUNTING_TABLE_AUDIT_LOG": TABLE_AUDIT_LOG,
+    "ACCOUNTING_TABLE_SYSTEM_CONFIG": TABLE_SYSTEM_CONFIG,
+}
+_missing = [k for k, v in _required_vars.items() if isinstance(v, str) and "REPLACE_" in v.upper()]
+if _missing:
+    print(f"ERROR: These environment variables must be set before deploying:")
+    for var in _missing:
+        print(f"  - {var}")
+    print(f"\nCopy .env.template to .env and fill in the values.")
+    sys.exit(1)
 
 
 def uid():
@@ -132,14 +150,14 @@ def build_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                     {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                     {"id": uid(), "name": "vatRate", "value": "0.15", "type": "string"},
                     {"id": uid(), "name": "invoicePrefix", "value": "AVM", "type": "string"},
                     {"id": uid(), "name": "defaultCurrency", "value": "ZAR", "type": "string"},
                     {"id": uid(), "name": "highValueThreshold", "value": "50000", "type": "string"},
-                    {"id": uid(), "name": "xeroTenantId", "value": os.getenv("ACCOUNTING_XERO_TENANT_ID", ""), "type": "string"},
+                    {"id": uid(), "name": "qboCompanyId", "value": os.getenv("ACCOUNTING_QBO_COMPANY_ID", ""), "type": "string"},
                 ]
             },
             "options": {},
@@ -335,7 +353,7 @@ def build_nodes():
                 "    customerEmail: customerData['Email'] || invoice['Email'] || '',\n"
                 "    customerPhone: customerData['Phone'] || invoice['Phone'] || '',\n"
                 "    preferredChannel: customerData['Preferred Channel'] || 'Email',\n"
-                "    xeroContactId: customerData['Xero Contact ID'] || '',\n"
+                "    qboCustomerId: customerData['QuickBooks Customer ID'] || '',\n"
                 "    customerId: customerData['Customer ID'] || invoice['Customer ID'] || '',\n"
                 "    paymentTerms: customerData['Payment Terms'] || '30 days',\n"
                 "  }\n"
@@ -389,7 +407,7 @@ def build_nodes():
                 "let subtotal = 0;\n"
                 "let totalVat = 0;\n"
                 "const processedItems = [];\n"
-                "const xeroLineItems = [];\n"
+                "const qboLineItems = [];\n"
                 "\n"
                 "for (const item of lineItems) {\n"
                 "  const product = products.find(p => p.json['Item Code'] === item.item_code || p.json['Item Code'] === item.code);\n"
@@ -417,7 +435,7 @@ def build_nodes():
                 "    line_total: lineSubtotal + lineVat,\n"
                 "  });\n"
                 "  \n"
-                "  xeroLineItems.push({\n"
+                "  qboLineItems.push({\n"
                 "    ItemCode: item.item_code || item.code || (product ? product.json['Item Code'] : ''),\n"
                 "    Description: item.description || (product ? product.json['Description'] : ''),\n"
                 "    Quantity: qty,\n"
@@ -434,7 +452,7 @@ def build_nodes():
                 "  json: {\n"
                 "    ...invoice,\n"
                 "    processedLineItems: processedItems,\n"
-                "    lineItemsJson: JSON.stringify(xeroLineItems),\n"
+                "    lineItemsJson: JSON.stringify(qboLineItems),\n"
                 "    subtotal: Math.round(subtotal * 100) / 100,\n"
                 "    vatAmount: Math.round(totalVat * 100) / 100,\n"
                 "    total: Math.round(total * 100) / 100,\n"
@@ -518,7 +536,7 @@ def build_nodes():
                     "Related Table": "Invoices",
                     "Owner": "ian@anyvisionmedia.com",
                     "Approval Token": "={{ $json.invoiceNumber }}-{{ Date.now() }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [],
             },
@@ -586,7 +604,7 @@ def build_nodes():
                     "Subtotal": "={{ $json.subtotal }}",
                     "VAT Amount": "={{ $json.vatAmount }}",
                     "Total": "={{ $json.total }}",
-                    "Updated At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                    "Updated At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
                 },
                 "matchingColumns": ["Invoice ID"],
                 "schema": [],
@@ -601,18 +619,18 @@ def build_nodes():
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
-    # ── 20. Create Invoice in Xero (httpRequest) ──
+    # ── 20. Create Invoice in QuickBooks (httpRequest) ──
 
     nodes.append({
         "parameters": {
             "method": "POST",
-            "url": "https://api.xero.com/api.xro/2.0/Invoices",
+            "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Invoices",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": "={{ $('System Config').first().json.xeroTenantId || '' }}"},
+                    {"name": "qbo-company-id", "value": "={{ $('System Config').first().json.qboCompanyId || '' }}"},
                 ],
             },
             "sendBody": True,
@@ -620,8 +638,8 @@ def build_nodes():
             "jsonBody": (
                 '={\n'
                 '  "Type": "ACCREC",\n'
-                '  "Contact": {"ContactID": "{{ $json.xeroContactId || \'\' }}"},\n'
-                '  "Date": "{{ $json.issueDate || $now.format(\'yyyy-MM-dd\') }}",\n'
+                '  "Contact": {"ContactID": "{{ $json.qboCustomerId || \'\' }}"},\n'
+                '  "Date": "{{ $json.issueDate || $now.toFormat(\'yyyy-MM-dd\') }}",\n'
                 '  "DueDate": "{{ $json.dueDate }}",\n'
                 '  "InvoiceNumber": "{{ $json.invoiceNumber }}",\n'
                 '  "Reference": "{{ $json.invoiceNumber }}",\n'
@@ -633,11 +651,11 @@ def build_nodes():
             "options": {"timeout": 30000},
         },
         "id": uid(),
-        "name": "Create Invoice in Xero",
+        "name": "Create Invoice in QuickBooks",
         "type": "n8n-nodes-base.httpRequest",
         "position": [3420, 700],
         "typeVersion": 4.2,
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
         "onError": "continueRegularOutput",
         "retryOnFail": True,
         "maxTries": 3,
@@ -657,12 +675,12 @@ def build_nodes():
                     "Invoice ID": "={{ $json['Invoice ID'] || $json.invoiceId }}",
                     "Status": "Sent",
                     "Invoice Number": "={{ $json.invoiceNumber }}",
-                    "Xero Invoice ID": "={{ $json.Invoices ? $json.Invoices[0].InvoiceID : '' }}",
+                    "QuickBooks Invoice ID": "={{ $json.Invoices ? $json.Invoices[0].InvoiceID : '' }}",
                     "Subtotal": "={{ $json.subtotal }}",
                     "VAT Amount": "={{ $json.vatAmount }}",
                     "Total": "={{ $json.total }}",
-                    "Sent At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
-                    "Issue Date": "={{ $json.issueDate || $now.format('yyyy-MM-dd') }}",
+                    "Sent At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
+                    "Issue Date": "={{ $json.issueDate || $now.toFormat('yyyy-MM-dd') }}",
                     "Due Date": "={{ $json.dueDate || '' }}",
                 },
                 "matchingColumns": ["Invoice ID"],
@@ -977,7 +995,7 @@ def build_nodes():
                     "Result": "Success",
                     "Error Details": "",
                     "Metadata JSON": "={{ JSON.stringify({ customer: $json.customerName || $json['Customer Name'], amount: $json.total, currency: 'ZAR' }) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [],
             },
@@ -1075,11 +1093,11 @@ def build_nodes():
     nodes.append({
         "parameters": {
             "sendTo": "ian@anyvisionmedia.com",
-            "subject": "=ERROR: Accounting WF-01 Sales & Invoicing - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+            "subject": "=ERROR: Accounting WF-01 Sales & Invoicing - {{ $now.toFormat('yyyy-MM-dd HH:mm') }}",
             "emailType": "html",
             "message": (
                 "=<h2 style='color:#FF6D5A;'>Workflow Error: Sales & Invoicing (WF-01)</h2>"
-                "<p><strong>Time:</strong> {{ $now.format('yyyy-MM-dd HH:mm:ss') }}</p>"
+                "<p><strong>Time:</strong> {{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}</p>"
                 "<p><strong>Error:</strong> {{ $json.execution?.error?.message || 'Unknown error' }}</p>"
                 "<p><strong>Node:</strong> {{ $json.execution?.lastNodeExecuted || 'Unknown' }}</p>"
                 "<p><strong>Execution ID:</strong> {{ $json.execution?.id || 'N/A' }}</p>"
@@ -1164,7 +1182,7 @@ def build_connections():
         "Check High Value": {
             "main": [
                 [{"node": "Create Approval Task", "type": "main", "index": 0}],
-                [{"node": "Create Invoice in Xero", "type": "main", "index": 0}],
+                [{"node": "Create Invoice in QuickBooks", "type": "main", "index": 0}],
             ],
         },
         "Create Approval Task": {
@@ -1176,7 +1194,7 @@ def build_connections():
         "Update Status Pending": {
             "main": [[{"node": "Write Audit Log", "type": "main", "index": 0}]],
         },
-        "Create Invoice in Xero": {
+        "Create Invoice in QuickBooks": {
             "main": [[{"node": "Update Invoice Record", "type": "main", "index": 0}]],
         },
         "Update Invoice Record": {
@@ -1339,10 +1357,10 @@ def main():
         print("Continuing build with placeholder IDs (for preview only)...")
         print()
 
-    # Check Xero credential config
-    if "REPLACE" in CRED_XERO["id"]:
-        print("WARNING: Xero credential ID not configured!")
-        print("  Set ACCOUNTING_XERO_CRED_ID in .env")
+    # Check QuickBooks credential config
+    if "REPLACE" in CRED_QUICKBOOKS["id"]:
+        print("WARNING: QuickBooks credential ID not configured!")
+        print("  Set ACCOUNTING_QBO_CRED_ID in .env")
         print()
 
     # Build workflows
@@ -1438,9 +1456,9 @@ def main():
     print()
     print("Next steps:")
     print("  1. Open the workflow in n8n UI to verify node connections")
-    print("  2. Verify credential bindings (Airtable, Gmail, Xero, WhatsApp)")
+    print("  2. Verify credential bindings (Airtable, Gmail, QuickBooks, WhatsApp)")
     print("  3. Set up Airtable tables (Customers, Products/Services, Invoices, Tasks, Audit Log)")
-    print("  4. Configure Xero OAuth2 credentials in n8n")
+    print("  4. Configure QuickBooks OAuth2 credentials in n8n")
     print("  5. Test with Manual Trigger -> check invoice creation flow")
     print("  6. Test webhook endpoint: POST /accounting/create-invoice")
     print("  7. Once verified, activate the hourly schedule trigger")

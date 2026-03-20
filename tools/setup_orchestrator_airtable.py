@@ -299,7 +299,7 @@ SEED_AGENTS = [
             "gwMuSElYqDTRGFKa",  # ACC WF-06
             "EmpOzaaDGqsLvg5j",  # ACC WF-07
         ]),
-        "Description": "Manages invoicing, collections, payments reconciliation, supplier bills, month-end close, master data audit, and exception handling. Xero integrated.",
+        "Description": "Manages invoicing, collections, payments reconciliation, supplier bills, month-end close, master data audit, and exception handling. QuickBooks integrated.",
     },
     {
         "Agent Name": "Client Relations Agent",

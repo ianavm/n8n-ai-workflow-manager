@@ -33,7 +33,7 @@ load_dotenv(env_path)
 CRED_OPENROUTER = {"id": "9ZgHenDBrFuyboov", "name": "OpenRouter 2WC"}
 CRED_GMAIL = {"id": "2IuycrTIgWJZEjBE", "name": "Gmail account AVM Tutorial"}
 CRED_AIRTABLE = {"id": "ZyBrcAO6fps7YB3u", "name": "Airtable account"}
-CRED_XERO = {"id": os.getenv("ACCOUNTING_XERO_CRED_ID", "REPLACE"), "name": "Xero OAuth2 AVM"}
+CRED_QUICKBOOKS = {"id": os.getenv("ACCOUNTING_QBO_CRED_ID", "REPLACE"), "name": "QuickBooks OAuth2 AVM"}
 CRED_GOOGLE_SHEETS = {"id": "OkpDXxwI8WcUJp4P", "name": "Google Sheets account"}
 
 # ── Airtable IDs ──────────────────────────────────────────────
@@ -49,6 +49,27 @@ TABLE_SUPPLIER_BILLS = os.getenv("ACCOUNTING_TABLE_SUPPLIER_BILLS", "REPLACE_WIT
 TABLE_TASKS = os.getenv("ACCOUNTING_TABLE_TASKS", "REPLACE_WITH_TABLE_ID")
 TABLE_AUDIT_LOG = os.getenv("ACCOUNTING_TABLE_AUDIT_LOG", "REPLACE_WITH_TABLE_ID")
 TABLE_SYSTEM_CONFIG = os.getenv("ACCOUNTING_TABLE_SYSTEM_CONFIG", "REPLACE_WITH_TABLE_ID")
+
+# Validate required environment variables
+_required_vars = {
+    "ACCOUNTING_AIRTABLE_BASE_ID": AIRTABLE_BASE_ID,
+    "ACCOUNTING_TABLE_CUSTOMERS": TABLE_CUSTOMERS,
+    "ACCOUNTING_TABLE_SUPPLIERS": TABLE_SUPPLIERS,
+    "ACCOUNTING_TABLE_PRODUCTS_SERVICES": TABLE_PRODUCTS,
+    "ACCOUNTING_TABLE_INVOICES": TABLE_INVOICES,
+    "ACCOUNTING_TABLE_PAYMENTS": TABLE_PAYMENTS,
+    "ACCOUNTING_TABLE_SUPPLIER_BILLS": TABLE_SUPPLIER_BILLS,
+    "ACCOUNTING_TABLE_TASKS": TABLE_TASKS,
+    "ACCOUNTING_TABLE_AUDIT_LOG": TABLE_AUDIT_LOG,
+    "ACCOUNTING_TABLE_SYSTEM_CONFIG": TABLE_SYSTEM_CONFIG,
+}
+_missing = [k for k, v in _required_vars.items() if isinstance(v, str) and "REPLACE_" in v.upper()]
+if _missing:
+    print(f"ERROR: These environment variables must be set before deploying:")
+    for var in _missing:
+        print(f"  - {var}")
+    print(f"\nCopy .env.template to .env and fill in the values.")
+    sys.exit(1)
 
 
 def uid():
@@ -152,7 +173,7 @@ def build_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                     {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                     {"id": uid(), "name": "defaultCurrency", "value": "ZAR", "type": "string"},
@@ -300,7 +321,7 @@ def build_nodes():
                     "Task ID": "={{ $json['Task ID'] }}",
                     "Status": "Escalated",
                     "Priority": "Urgent",
-                    "Resolution Notes": "=Auto-escalated: {{ $json.daysPastDue }} days past due at {{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                    "Resolution Notes": "=Auto-escalated: {{ $json.daysPastDue }} days past due at {{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
                 },
                 "matchingColumns": ["Task ID"],
                 "schema": [],
@@ -690,7 +711,7 @@ def build_nodes():
                     "Bill ID": "={{ $json.relatedRecordId }}",
                     "Approval Status": "={{ $json.newStatus }}",
                     "Approver": "ian@anyvisionmedia.com",
-                    "Approved At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Approved At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "matchingColumns": ["Bill ID"],
                 "schema": [],
@@ -718,7 +739,7 @@ def build_nodes():
                 "value": {
                     "Task ID": "={{ $('Execute Approval').first().json.taskId }}",
                     "Status": "Completed",
-                    "Completed At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Completed At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                     "Resolution Notes": "={{ $('Execute Approval').first().json.action === 'approve' ? 'Approved' : 'Rejected' }} via webhook",
                 },
                 "matchingColumns": ["Task ID"],
@@ -771,7 +792,7 @@ def build_nodes():
                     "Result": "Success",
                     "Error Details": "",
                     "Metadata JSON": "={{ JSON.stringify({ token: $('Execute Approval').first().json.token, action: $('Execute Approval').first().json.action, newStatus: $('Execute Approval').first().json.newStatus, processedAt: $('Execute Approval').first().json.processedAt }) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [],
             },
@@ -801,11 +822,11 @@ def build_nodes():
     nodes.append({
         "parameters": {
             "sendTo": "ian@anyvisionmedia.com",
-            "subject": "=ERROR: Accounting WF-07 Exception Handler - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+            "subject": "=ERROR: Accounting WF-07 Exception Handler - {{ $now.toFormat('yyyy-MM-dd HH:mm') }}",
             "emailType": "html",
             "message": (
                 "=<h2 style='color:#FF6D5A;'>Workflow Error: Exception Handler (WF-07)</h2>"
-                "<p><strong>Time:</strong> {{ $now.format('yyyy-MM-dd HH:mm:ss') }}</p>"
+                "<p><strong>Time:</strong> {{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}</p>"
                 "<p><strong>Error:</strong> {{ $json.execution?.error?.message || 'Unknown error' }}</p>"
                 "<p><strong>Node:</strong> {{ $json.execution?.lastNodeExecuted || 'Unknown' }}</p>"
                 "<p><strong>Execution ID:</strong> {{ $json.execution?.id || 'N/A' }}</p>"
@@ -1073,10 +1094,10 @@ def main():
         print("Continuing build with placeholder IDs (for preview only)...")
         print()
 
-    # Check Xero credential config
-    if "REPLACE" in CRED_XERO["id"]:
-        print("WARNING: Xero credential ID not configured!")
-        print("  Set ACCOUNTING_XERO_CRED_ID in .env")
+    # Check QuickBooks credential config
+    if "REPLACE" in CRED_QUICKBOOKS["id"]:
+        print("WARNING: QuickBooks credential ID not configured!")
+        print("  Set ACCOUNTING_QBO_CRED_ID in .env")
         print()
 
     # Build workflows

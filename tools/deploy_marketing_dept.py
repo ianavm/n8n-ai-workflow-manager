@@ -482,8 +482,8 @@ def build_wf01_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
-                    {"id": uid(), "name": "weekNumber", "value": "={{ $now.format('yyyy') + '-W' + $now.format('WW') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "weekNumber", "value": "={{ $now.toFormat('yyyy') + '-W' + $now.toFormat('WW') }}", "type": "string"},
                     {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                 ]
@@ -1100,10 +1100,10 @@ def build_wf02_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
-                    {"id": uid(), "name": "weekNumber", "value": "={{ $now.format('yyyy') + '-W' + $now.format('WW') }}", "type": "string"},
-                    {"id": uid(), "name": "weekStartDate", "value": "={{ $now.startOf('week').format('yyyy-MM-dd') }}", "type": "string"},
-                    {"id": uid(), "name": "weekEndDate", "value": "={{ $now.endOf('week').format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "weekNumber", "value": "={{ $now.toFormat('yyyy') + '-W' + $now.toFormat('WW') }}", "type": "string"},
+                    {"id": uid(), "name": "weekStartDate", "value": "={{ $now.startOf('week').toFormat('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "weekEndDate", "value": "={{ $now.endOf('week').toFormat('yyyy-MM-dd') }}", "type": "string"},
                     {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                 ]
@@ -1672,7 +1672,7 @@ def build_wf03_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                     {"id": uid(), "name": "ownerName", "value": "Ian Immelman", "type": "string"},
                     {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
@@ -1982,7 +1982,7 @@ def build_wf03_nodes():
                     "Status": "Draft",
                     "Quality Score": "={{ $json.qualityScore }}",
                     "Platform": "={{ $json.platform }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [
                     {"id": "Title", "type": "string", "display": True, "displayName": "Title"},
@@ -2040,10 +2040,10 @@ def build_wf03_nodes():
             "table": {"__rl": True, "mode": "list", "value": TABLE_PUBLISH_QUEUE},
             "columns": {
                 "value": {
-                    "Queue ID": "={{ 'PQ-' + $now.format('yyyyMMdd') + '-' + $json.id }}",
+                    "Queue ID": "={{ 'PQ-' + $now.toFormat('yyyyMMdd') + '-' + $json.id }}",
                     "Content ID": "={{ $json.id }}",
                     "Channel": "blotato_social",
-                    "Scheduled For": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Scheduled For": "={{ $now.toFormat('yyyy-MM-dd') }}",
                     "Status": "Queued",
                 },
                 "schema": [
@@ -2623,7 +2623,7 @@ def build_wf04_nodes():
             "columns": {
                 "value": {
                     "Status": "Published",
-                    "Published At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Published At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                     "Platform Results": "={{ $json._successCount + '/' + ($json._successCount + $json._failCount) + ' platforms succeeded' }}",
                 },
                 "schema": [

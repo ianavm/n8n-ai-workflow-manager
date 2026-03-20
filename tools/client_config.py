@@ -56,7 +56,7 @@ def get_client_config(client_id):
 
     Returns:
         dict with keys: name, airtable_base, airtable_token, webhook_prefix,
-        xero_tenant_id, gmail_credential_id, and any other client-specific settings.
+        qbo_company_id, gmail_credential_id, and any other client-specific settings.
 
     Raises:
         KeyError: If client_id not found in config.json
@@ -111,7 +111,7 @@ def get_default_client():
             "airtable_base": os.getenv("ACCOUNTING_AIRTABLE_BASE_ID", ""),
             "airtable_token": os.getenv("AIRTABLE_API_TOKEN", ""),
             "webhook_prefix": "",
-            "xero_tenant_id": os.getenv("ACCOUNTING_XERO_TENANT_ID", ""),
+            "qbo_company_id": os.getenv("ACCOUNTING_QBO_COMPANY_ID", ""),
             "webhook_token": os.getenv("WEBHOOK_AUTH_TOKEN", ""),
         }
     return get_client_config(clients[0])

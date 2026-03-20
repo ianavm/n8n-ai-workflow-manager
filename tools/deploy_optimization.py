@@ -723,7 +723,7 @@ return [{
     healthyCount: healthy.length,
     churnRisks,
     hasRisks: churnRisks.length > 0,
-    analysisDate: $now.format('yyyy-MM-dd'),
+    analysisDate: $now.toFormat('yyyy-MM-dd'),
   }
 }];"""
         },

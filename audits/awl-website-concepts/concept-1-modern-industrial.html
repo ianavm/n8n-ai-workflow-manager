@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWL Zambia — Modern Industrial Concept</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--green:#86d33b;--green-hover:#81d742;--dark:#242424;--charcoal:#3c3c3c;--blue:#1874c1;--white:#fff;--gray:#727272;--light:#f9f9f9}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--dark);color:var(--white);overflow-x:hidden}
+
+/* Header */
+.header{position:fixed;top:0;left:0;right:0;z-index:1000;padding:20px 60px;display:flex;justify-content:space-between;align-items:center;transition:all .4s}
+.header.scrolled{background:rgba(36,36,36,.95);backdrop-filter:blur(20px);padding:14px 60px;box-shadow:0 2px 40px rgba(0,0,0,.3)}
+.logo{font-size:22px;font-weight:900;letter-spacing:-0.5px;color:var(--white)}
+.logo span{color:var(--green)}
+nav{display:flex;gap:32px;align-items:center}
+nav a{color:rgba(255,255,255,.7);text-decoration:none;font-size:14px;font-weight:500;transition:color .3s}
+nav a:hover{color:var(--green)}
+.nav-cta{background:var(--green);color:var(--dark);padding:10px 24px;border-radius:6px;font-weight:700;font-size:13px;text-decoration:none;transition:all .3s}
+.nav-cta:hover{background:var(--green-hover);transform:translateY(-1px)}
+.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;background:none;border:none}
+.hamburger span{display:block;width:24px;height:2px;background:var(--white);transition:all .3s}
+.mobile-menu{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(24,24,24,.98);z-index:999;flex-direction:column;align-items:center;justify-content:center;gap:30px}
+.mobile-menu.active{display:flex}
+.mobile-menu a{color:var(--white);text-decoration:none;font-size:24px;font-weight:700}
+.mobile-close{position:absolute;top:20px;right:20px;background:none;border:none;color:var(--white);font-size:32px;cursor:pointer}
+
+/* Hero */
+.hero{min-height:100vh;display:flex;align-items:center;position:relative;padding:120px 60px 80px;background:linear-gradient(135deg,#1a1a1a 0%,var(--dark) 40%,#1a2a1a 100%)}
+.hero::before{content:'';position:absolute;top:0;right:0;width:50%;height:100%;background:linear-gradient(180deg,transparent 0%,rgba(134,211,59,.03) 50%,transparent 100%);pointer-events:none}
+.hero::after{content:'';position:absolute;bottom:0;left:0;right:0;height:200px;background:linear-gradient(to top,var(--dark),transparent);pointer-events:none;z-index:1}
+.hero-grid{display:grid;grid-template-columns:1fr;gap:40px;max-width:900px;position:relative;z-index:2}
+.hero-overline{font-size:12px;letter-spacing:4px;text-transform:uppercase;color:var(--green);font-weight:700;margin-bottom:10px}
+.hero h1{font-size:clamp(36px,5.5vw,64px);font-weight:900;line-height:1.05;margin-bottom:24px;letter-spacing:-1px}
+.hero h1 .highlight{color:var(--green);display:inline}
+.hero-sub{font-size:18px;color:rgba(255,255,255,.5);line-height:1.7;max-width:600px;margin-bottom:36px}
+.hero-ctas{display:flex;gap:16px;flex-wrap:wrap}
+.btn-primary{background:var(--green);color:var(--dark);padding:16px 36px;border-radius:6px;font-weight:800;font-size:15px;text-decoration:none;transition:all .3s;display:inline-flex;align-items:center;gap:8px;border:2px solid var(--green)}
+.btn-primary:hover{background:transparent;color:var(--green)}
+.btn-secondary{border:2px solid rgba(255,255,255,.2);color:var(--white);padding:16px 36px;border-radius:6px;font-weight:600;font-size:15px;text-decoration:none;transition:all .3s}
+.btn-secondary:hover{border-color:var(--green);color:var(--green)}
+
+/* Geometric accent */
+.geo-accent{position:absolute;top:15%;right:5%;width:300px;height:300px;border:2px solid rgba(134,211,59,.1);transform:rotate(45deg);pointer-events:none}
+.geo-accent::before{content:'';position:absolute;top:30px;left:30px;right:30px;bottom:30px;border:1px solid rgba(134,211,59,.06)}
+
+/* Trust Bar */
+.trust-bar{background:var(--charcoal);padding:24px 60px;display:flex;justify-content:center;gap:50px;flex-wrap:wrap;position:relative;z-index:2;border-top:3px solid var(--green)}
+.trust-item{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;color:rgba(255,255,255,.8)}
+.trust-icon{width:20px;height:20px;fill:var(--green)}
+.trust-check{color:var(--green);font-size:18px;font-weight:900}
+
+/* Stats */
+.stats{background:var(--dark);padding:80px 60px;position:relative}
+.stats::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--green)}
+.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:30px;max-width:1200px;margin:0 auto}
+.stat-card{text-align:center;padding:30px 20px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:12px;transition:all .3s}
+.stat-card:hover{border-color:var(--green);transform:translateY(-4px);box-shadow:0 20px 40px rgba(134,211,59,.08)}
+.stat-number{font-size:48px;font-weight:900;color:var(--green);line-height:1;margin-bottom:8px}
+.stat-label{font-size:13px;color:rgba(255,255,255,.5);font-weight:500;text-transform:uppercase;letter-spacing:1px}
+
+/* Section Headers */
+.section{padding:100px 60px;max-width:1300px;margin:0 auto}
+.section-overline{font-size:12px;letter-spacing:4px;text-transform:uppercase;color:var(--green);font-weight:700;margin-bottom:12px}
+.section-title{font-size:clamp(28px,3.5vw,44px);font-weight:900;margin-bottom:20px;letter-spacing:-0.5px}
+.section-desc{font-size:16px;color:rgba(255,255,255,.5);max-width:600px;line-height:1.7;margin-bottom:50px}
+
+/* Services */
+.services-bg{background:linear-gradient(180deg,var(--dark) 0%,#1a1a1a 100%)}
+.services-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.service-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:36px;transition:all .4s;position:relative;overflow:hidden}
+.service-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:var(--green);transform:scaleX(0);transition:transform .4s;transform-origin:left}
+.service-card:hover{border-color:rgba(134,211,59,.3);transform:translateY(-6px);box-shadow:0 24px 60px rgba(0,0,0,.3)}
+.service-card:hover::before{transform:scaleX(1)}
+.service-icon{width:56px;height:56px;background:rgba(134,211,59,.1);border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:20px}
+.service-icon svg{width:28px;height:28px;stroke:var(--green);fill:none;stroke-width:2}
+.service-card h3{font-size:18px;font-weight:800;margin-bottom:10px}
+.service-card p{font-size:14px;color:rgba(255,255,255,.45);line-height:1.7}
+
+/* Why AWL */
+.why-bg{background:var(--charcoal)}
+.why-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+.why-card{padding:36px;border-left:3px solid var(--green);background:rgba(255,255,255,.03);border-radius:0 12px 12px 0;transition:all .3s}
+.why-card:hover{background:rgba(134,211,59,.05);transform:translateX(6px)}
+.why-number{font-size:48px;font-weight:900;color:rgba(134,211,59,.15);line-height:1;margin-bottom:10px}
+.why-card h3{font-size:17px;font-weight:800;margin-bottom:8px}
+.why-card p{font-size:14px;color:rgba(255,255,255,.45);line-height:1.7}
+
+/* Consulting */
+.consulting-bg{background:linear-gradient(135deg,#1a2a1a 0%,var(--dark) 100%);position:relative}
+.consulting-bg::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h60v60H0z' fill='none' stroke='rgba(134,211,59,0.03)' stroke-width='1'/%3E%3C/svg%3E");pointer-events:none}
+.consulting-content{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;position:relative;z-index:1}
+.consulting-label{display:inline-block;background:rgba(134,211,59,.1);border:1px solid rgba(134,211,59,.2);color:var(--green);padding:6px 16px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:20px}
+.consulting-content h2{font-size:36px;font-weight:900;margin-bottom:16px;letter-spacing:-0.5px}
+.consulting-content .desc{color:rgba(255,255,255,.5);line-height:1.8;margin-bottom:24px}
+.consulting-list{list-style:none;padding:0}
+.consulting-list li{padding:12px 0;font-size:15px;font-weight:500;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:12px;border-bottom:1px solid rgba(255,255,255,.05)}
+.consulting-list li::before{content:'';width:8px;height:8px;background:var(--green);border-radius:2px;flex-shrink:0}
+.consulting-visual{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:40px;min-height:400px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:20px}
+.consulting-visual .big-text{font-size:80px;font-weight:900;color:rgba(134,211,59,.08);line-height:1}
+.consulting-visual .mid-text{font-size:20px;font-weight:700;color:rgba(255,255,255,.8)}
+.consulting-visual .small-text{font-size:14px;color:rgba(255,255,255,.35)}
+
+/* Sectors */
+.sectors-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.sector-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:40px 30px;text-align:center;transition:all .4s}
+.sector-card:hover{border-color:var(--green);background:rgba(134,211,59,.03)}
+.sector-icon-wrap{width:72px;height:72px;background:rgba(134,211,59,.08);border-radius:16px;margin:0 auto 20px;display:flex;align-items:center;justify-content:center}
+.sector-icon-wrap svg{width:32px;height:32px;stroke:var(--green);fill:none;stroke-width:1.5}
+.sector-card h3{font-size:16px;font-weight:800;margin-bottom:8px}
+.sector-card p{font-size:13px;color:rgba(255,255,255,.4);line-height:1.6}
+
+/* Testimonials */
+.testimonial-bg{background:var(--charcoal)}
+.testimonial-placeholder{background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.1);border-radius:16px;padding:60px;text-align:center}
+.testimonial-placeholder .quote{font-size:60px;color:rgba(134,211,59,.15);font-weight:900;line-height:1;margin-bottom:20px}
+.testimonial-placeholder p{font-size:16px;color:rgba(255,255,255,.4);font-style:italic}
+.testimonial-placeholder .note{font-size:13px;color:rgba(255,255,255,.25);margin-top:12px;font-style:normal}
+
+/* Contact */
+.contact-bg{background:linear-gradient(180deg,var(--dark) 0%,#1a1a1a 100%)}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:start}
+.contact-info{padding-top:20px}
+.contact-info h3{font-size:20px;font-weight:800;margin-bottom:24px}
+.contact-detail{display:flex;gap:16px;align-items:flex-start;margin-bottom:24px}
+.contact-detail .icon{width:44px;height:44px;background:rgba(134,211,59,.1);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.contact-detail .icon svg{width:20px;height:20px;stroke:var(--green);fill:none;stroke-width:2}
+.contact-detail .text{font-size:14px;color:rgba(255,255,255,.6);line-height:1.6}
+.contact-detail .text strong{color:var(--white);display:block;margin-bottom:2px;font-weight:700}
+.form-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:40px}
+.form-card h3{font-size:20px;font-weight:800;margin-bottom:24px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.5);margin-bottom:6px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:14px 16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:var(--white);font-family:'Inter',sans-serif;font-size:14px;transition:border-color .3s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(134,211,59,.1)}
+.form-group select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%23727272' stroke-width='2' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 16px center}
+.form-group select option{background:var(--charcoal);color:var(--white)}
+.form-group textarea{min-height:120px;resize:vertical}
+.form-submit{width:100%;padding:16px;background:var(--green);color:var(--dark);border:2px solid var(--green);border-radius:8px;font-size:15px;font-weight:800;cursor:pointer;transition:all .3s;font-family:'Inter',sans-serif}
+.form-submit:hover{background:transparent;color:var(--green)}
+
+/* Footer */
+footer{background:#1a1a1a;border-top:1px solid rgba(255,255,255,.06)}
+.footer-main{padding:60px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;max-width:1300px;margin:0 auto}
+.footer-brand .logo{font-size:24px;margin-bottom:16px;display:block}
+.footer-brand p{font-size:14px;color:rgba(255,255,255,.4);line-height:1.7;max-width:300px}
+.footer-col h4{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--green);margin-bottom:20px;font-weight:700}
+.footer-col a{display:block;color:rgba(255,255,255,.4);text-decoration:none;font-size:14px;padding:4px 0;transition:color .3s}
+.footer-col a:hover{color:var(--green)}
+.footer-bottom{padding:20px 60px;border-top:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center;max-width:1300px;margin:0 auto}
+.footer-bottom p{font-size:12px;color:rgba(255,255,255,.25)}
+.footer-badges{display:flex;gap:16px;align-items:center}
+.footer-badge{background:rgba(134,211,59,.1);color:var(--green);padding:4px 12px;border-radius:4px;font-size:11px;font-weight:700}
+
+/* Animations */
+.fade-up{opacity:0;transform:translateY(30px);transition:all .7s cubic-bezier(.4,0,.2,1)}
+.fade-up.visible{opacity:1;transform:translateY(0)}
+
+/* Responsive */
+@media(max-width:1024px){
+.stats-grid{grid-template-columns:repeat(3,1fr)}
+.sectors-grid{grid-template-columns:repeat(2,1fr)}
+.consulting-content{grid-template-columns:1fr}
+.footer-main{grid-template-columns:1fr 1fr}
+}
+@media(max-width:768px){
+.header{padding:16px 24px}
+.header.scrolled{padding:12px 24px}
+nav{display:none}
+.hamburger{display:flex}
+.hero{padding:100px 24px 60px}
+.stats{padding:60px 24px}
+.stats-grid{grid-template-columns:repeat(2,1fr)}
+.section{padding:60px 24px}
+.trust-bar{padding:20px 24px;gap:24px}
+.contact-grid{grid-template-columns:1fr}
+.form-row{grid-template-columns:1fr}
+.sectors-grid{grid-template-columns:1fr}
+.footer-main{grid-template-columns:1fr;padding:40px 24px}
+.footer-bottom{flex-direction:column;gap:12px;text-align:center;padding:20px 24px}
+.geo-accent{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header" id="header">
+    <div class="logo">AW<span>L</span></div>
+    <nav>
+        <a href="#services">Services</a>
+        <a href="#why">Why AWL</a>
+        <a href="#consulting">Advisory</a>
+        <a href="#sectors">Sectors</a>
+        <a href="#contact" class="nav-cta">Discuss Your Requirements</a>
+    </nav>
+    <button class="hamburger" onclick="document.querySelector('.mobile-menu').classList.add('active')">
+        <span></span><span></span><span></span>
+    </button>
+</header>
+
+<div class="mobile-menu">
+    <button class="mobile-close" onclick="this.parentElement.classList.remove('active')">&times;</button>
+    <a href="#services" onclick="this.parentElement.classList.remove('active')">Services</a>
+    <a href="#why" onclick="this.parentElement.classList.remove('active')">Why AWL</a>
+    <a href="#consulting" onclick="this.parentElement.classList.remove('active')">Advisory</a>
+    <a href="#sectors" onclick="this.parentElement.classList.remove('active')">Sectors</a>
+    <a href="#contact" onclick="this.parentElement.classList.remove('active')">Contact</a>
+</div>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="geo-accent"></div>
+    <div class="hero-grid">
+        <div>
+            <div class="hero-overline">Explosives. Dangerous Goods. Mining Logistics.</div>
+            <h1>Zambia's <span class="highlight">Specialist Partner</span> for Explosives Storage & Mining Supply Chain Operations</h1>
+            <p class="hero-sub">Licensed facilities. Platinum compliance. 13 years serving the Copperbelt's most demanding operations. From warehousing to advisory — we operate and advise at the highest standard.</p>
+            <div class="hero-ctas">
+                <a href="#contact" class="btn-primary">Discuss Your Requirements <span>&rarr;</span></a>
+                <a href="#services" class="btn-secondary">View Our Capabilities</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Trust Bar -->
+<div class="trust-bar">
+    <div class="trust-item"><span class="trust-check">&#10003;</span> Platinum Compliance Rated</div>
+    <div class="trust-item"><span class="trust-check">&#10003;</span> Zambian Mines Safety Licensed</div>
+    <div class="trust-item"><span class="trust-check">&#10003;</span> SHE Certified Operations</div>
+    <div class="trust-item"><span class="trust-check">&#10003;</span> 24/7 Secured Facilities</div>
+    <div class="trust-item"><span class="trust-check">&#10003;</span> Established 2013</div>
+</div>
+
+<!-- Stats -->
+<section class="stats">
+    <div class="stats-grid">
+        <div class="stat-card fade-up"><div class="stat-number" data-target="13">0</div><div class="stat-label">Years Operating</div></div>
+        <div class="stat-card fade-up"><div class="stat-number" data-target="60">0</div><div class="stat-label">Fleet Vehicles</div></div>
+        <div class="stat-card fade-up"><div class="stat-number" data-target="10000">0</div><div class="stat-label">m&sup2; Warehousing</div></div>
+        <div class="stat-card fade-up"><div class="stat-number" data-target="5">0</div><div class="stat-label">Licensed Magazines</div></div>
+        <div class="stat-card fade-up"><div class="stat-number" data-target="7">0</div><div class="stat-label">Border Offices</div></div>
+    </div>
+</section>
+
+<!-- Services -->
+<section class="services-bg" id="services">
+    <div class="section">
+        <div class="section-overline fade-up">Our Services</div>
+        <div class="section-title fade-up">Integrated Dangerous Goods & Mining Logistics</div>
+        <div class="section-desc fade-up">Every service delivered under our Platinum Compliance framework, with licensed facilities and trained personnel at every step.</div>
+        <div class="services-grid">
+            <div class="service-card fade-up">
+                <div class="service-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/></svg></div>
+                <h3>Explosives Storage & Management</h3>
+                <p>Licensed magazines approved by the Zambian Mines Safety Department for Class 1 Packaged Explosives and Initiating Systems. Earth-mound protected, 24/7 secured.</p>
+            </div>
+            <div class="service-card fade-up">
+                <div class="service-icon"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg></div>
+                <h3>Dangerous Goods Warehousing</h3>
+                <p>10,000m&sup2; of purpose-built warehousing for Class 5.1, 3, 6.1, and 8 dangerous goods. FIFO dispatch, weekly stock counts, full traceability.</p>
+            </div>
+            <div class="service-card fade-up">
+                <div class="service-icon"><svg viewBox="0 0 24 24"><path d="M5 17h14M5 17l-2 4h18l-2-4M7 17V7h10v10"/><circle cx="8" cy="21" r="1"/><circle cx="16" cy="21" r="1"/></svg></div>
+                <h3>Specialist Transport & Delivery</h3>
+                <p>60+ GPS-tracked vehicles including emulsion tankers, inter-links, and tri-axle trailers. Every driver dangerous goods certified.</p>
+            </div>
+            <div class="service-card fade-up">
+                <div class="service-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15h6"/></svg></div>
+                <h3>Customs Clearance & Forwarding</h3>
+                <p>AWL Clearing operates at 7 major border crossings: Chirundu, Kasumbalesa, Vic Falls, Kazangula, Chipata, Katima Mulilo, Nakonde.</p>
+            </div>
+            <div class="service-card fade-up">
+                <div class="service-icon"><svg viewBox="0 0 24 24"><path d="M2 20h20M6 20V8l4-4 4 4v12"/><path d="M14 20V4l4 4"/><path d="M18 8v12"/></svg></div>
+                <h3>Sea Freight & Port Logistics</h3>
+                <p>Containerised and break-bulk dangerous goods via Dar es Salaam, Mombasa, and Beira. GPS-tracked fleet with 30+ years of partner experience.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Why AWL -->
+<section class="why-bg" id="why">
+    <div class="section">
+        <div class="section-overline fade-up">The AWL Difference</div>
+        <div class="section-title fade-up">Why Mining & Industrial Companies Choose AWL</div>
+        <div class="why-grid">
+            <div class="why-card fade-up">
+                <div class="why-number">01</div>
+                <h3>Specialist Focus</h3>
+                <p>We don't do general logistics. We specialise in explosives, dangerous goods, and mining supply chains — the cargo that demands the highest standards.</p>
+            </div>
+            <div class="why-card fade-up">
+                <div class="why-number">02</div>
+                <h3>Platinum Compliance</h3>
+                <p>Our operations are rated Platinum for compliance — the highest standard. We don't just meet regulations; we exceed them.</p>
+            </div>
+            <div class="why-card fade-up">
+                <div class="why-number">03</div>
+                <h3>Licensed Facilities</h3>
+                <p>5 purpose-built explosives magazines licensed by the Zambian Mines Safety Department. Earth-mound protected. 24/7 secured.</p>
+            </div>
+            <div class="why-card fade-up">
+                <div class="why-number">04</div>
+                <h3>Integrated Services</h3>
+                <p>Storage, transport, customs clearing, and sea freight — one partner for your entire supply chain, not five separate vendors.</p>
+            </div>
+            <div class="why-card fade-up">
+                <div class="why-number">05</div>
+                <h3>Cross-Border Reach</h3>
+                <p>Clearing offices at 7 border crossings across Zambia, DRC, Zimbabwe, Botswana, Malawi, Namibia, and Tanzania.</p>
+            </div>
+            <div class="why-card fade-up">
+                <div class="why-number">06</div>
+                <h3>13 Years of Trust</h3>
+                <p>Since 2013, mining and explosives companies have trusted AWL with their most sensitive operations. Our track record speaks.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Consulting -->
+<section class="consulting-bg" id="consulting">
+    <div class="section">
+        <div class="consulting-content">
+            <div>
+                <div class="consulting-label fade-up">Advisory & Consulting</div>
+                <h2 class="fade-up">From Operator to Advisor</h2>
+                <p class="desc fade-up">After 13 years managing the most regulated cargo in Zambia's mining sector, we've built deep expertise in what it takes to operate safely, compliantly, and profitably. Now we're making that expertise available to you.</p>
+                <ul class="consulting-list fade-up">
+                    <li>Compliance & Regulatory Readiness</li>
+                    <li>Storage & Facility Setup Consulting</li>
+                    <li>Mining Supply Chain Advisory</li>
+                    <li>Zambia Market Entry Support</li>
+                    <li>Outsourced Operations & Managed Services</li>
+                </ul>
+                <div style="margin-top:30px" class="fade-up">
+                    <a href="#contact" class="btn-primary">Book a Discovery Call <span>&rarr;</span></a>
+                </div>
+            </div>
+            <div class="consulting-visual fade-up">
+                <div class="big-text">13+</div>
+                <div class="mid-text">Years of Operational Expertise</div>
+                <div class="small-text">Now available as strategic advisory for your business</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Sectors -->
+<section id="sectors">
+    <div class="section">
+        <div class="section-overline fade-up">Sectors We Serve</div>
+        <div class="section-title fade-up">Industries Built on Trust & Precision</div>
+        <div class="sectors-grid">
+            <div class="sector-card fade-up">
+                <div class="sector-icon-wrap"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+                <h3>Mining & Resources</h3>
+                <p>End-to-end logistics for Copperbelt mining operations, from explosives delivery to supply chain management.</p>
+            </div>
+            <div class="sector-card fade-up">
+                <div class="sector-icon-wrap"><svg viewBox="0 0 24 24"><path d="M12 2v8l6 4-6 4v4"/><path d="M12 10l-6 4 6 4"/></svg></div>
+                <h3>Explosives & Initiating Systems</h3>
+                <p>Licensed storage, handling, and distribution of Class 1 packaged explosives and initiating systems.</p>
+            </div>
+            <div class="sector-card fade-up">
+                <div class="sector-icon-wrap"><svg viewBox="0 0 24 24"><path d="M3 21h18M9 21V3h6v18M3 21V11h6M15 21V7h6v14"/></svg></div>
+                <h3>Industrial & Commercial</h3>
+                <p>Warehousing and logistics for hazardous materials, chemicals, and industrial goods across Zambia.</p>
+            </div>
+            <div class="sector-card fade-up">
+                <div class="sector-icon-wrap"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
+                <h3>Cross-Border Operations</h3>
+                <p>Customs clearing, transit, and logistics across 7 border crossings in Southern and Central Africa.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Testimonials -->
+<section class="testimonial-bg">
+    <div class="section">
+        <div class="section-overline fade-up">Client Feedback</div>
+        <div class="section-title fade-up">Trusted by Mining & Industrial Leaders</div>
+        <div class="testimonial-placeholder fade-up">
+            <div class="quote">&ldquo;</div>
+            <p>"Our clients include leading mining and industrial operations across Zambia and the region. Client testimonials and case studies are being collected and will appear here."</p>
+            <div class="note">Contact us for client references</div>
+        </div>
+    </div>
+</section>
+
+<!-- Contact -->
+<section class="contact-bg" id="contact">
+    <div class="section">
+        <div class="section-overline fade-up">Get In Touch</div>
+        <div class="section-title fade-up">Discuss Your Requirements</div>
+        <div class="section-desc fade-up">Whether you need storage, transport, clearing, or advisory services — our team responds within 24 hours.</div>
+        <div class="contact-grid">
+            <div class="form-card fade-up">
+                <h3>Send Us an Enquiry</h3>
+                <form onsubmit="event.preventDefault();alert('Thank you! We will respond within 24 hours.');">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Full Name *</label>
+                            <input type="text" required placeholder="Your name">
+                        </div>
+                        <div class="form-group">
+                            <label>Company *</label>
+                            <input type="text" required placeholder="Company name">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Email *</label>
+                            <input type="email" required placeholder="your@email.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="tel" placeholder="+260...">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Service Interest *</label>
+                        <select required>
+                            <option value="">Select a service...</option>
+                            <option>Explosives Storage & Management</option>
+                            <option>Dangerous Goods Warehousing</option>
+                            <option>Transport & Delivery</option>
+                            <option>Customs Clearance & Forwarding</option>
+                            <option>Sea Freight & Port Logistics</option>
+                            <option>Consulting — Compliance & Regulatory</option>
+                            <option>Consulting — Facility Setup</option>
+                            <option>Consulting — Supply Chain Advisory</option>
+                            <option>Consulting — Market Entry Support</option>
+                            <option>Other / General Enquiry</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Message</label>
+                        <textarea placeholder="Tell us about your requirements..."></textarea>
+                    </div>
+                    <button type="submit" class="form-submit">Submit Enquiry &rarr;</button>
+                </form>
+            </div>
+            <div class="contact-info fade-up">
+                <h3>Contact Details</h3>
+                <div class="contact-detail">
+                    <div class="icon"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+                    <div class="text"><strong>Office Address</strong>Plot 3044, Lilongwe Road<br>Light Industrial Area<br>Kitwe, Copperbelt Province, Zambia</div>
+                </div>
+                <div class="contact-detail">
+                    <div class="icon"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+                    <div class="text"><strong>Phone</strong>+260 96 1325778</div>
+                </div>
+                <div class="contact-detail">
+                    <div class="icon"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg></div>
+                    <div class="text"><strong>Email</strong>admin@awlzambia.com</div>
+                </div>
+                <div style="margin-top:40px;padding:24px;background:rgba(134,211,59,.05);border:1px solid rgba(134,211,59,.15);border-radius:12px">
+                    <p style="font-size:14px;color:rgba(255,255,255,.6);line-height:1.7"><strong style="color:var(--green)">Border Offices:</strong> Chirundu, Kasumbalesa, Vic Falls, Kazangula, Chipata, Katima Mulilo, Nakonde</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <div class="footer-main">
+        <div class="footer-brand">
+            <span class="logo">AW<span>L</span></span>
+            <p>African Warehousing & Logistics Ltd. Zambia's specialist partner for explosives storage, dangerous goods logistics, and mining supply chain operations.</p>
+        </div>
+        <div class="footer-col">
+            <h4>Operations</h4>
+            <a href="#services">Explosives Storage</a>
+            <a href="#services">DG Warehousing</a>
+            <a href="#services">Transport</a>
+            <a href="#services">Customs Clearing</a>
+            <a href="#services">Sea Freight</a>
+        </div>
+        <div class="footer-col">
+            <h4>Advisory</h4>
+            <a href="#consulting">Compliance & Readiness</a>
+            <a href="#consulting">Facility Consulting</a>
+            <a href="#consulting">Supply Chain Advisory</a>
+            <a href="#consulting">Market Entry</a>
+            <a href="#consulting">Outsourced Operations</a>
+        </div>
+        <div class="footer-col">
+            <h4>Company</h4>
+            <a href="#why">Why AWL</a>
+            <a href="#sectors">Sectors</a>
+            <a href="#">Safety & Compliance</a>
+            <a href="#">Our Story</a>
+            <a href="#contact">Contact</a>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <p>&copy; 2026 African Warehousing & Logistics Ltd. All rights reserved.</p>
+        <div class="footer-badges">
+            <span class="footer-badge">Platinum Compliance</span>
+            <span class="footer-badge">Mines Safety Licensed</span>
+        </div>
+    </div>
+</footer>
+
+<script>
+// Sticky header
+const header = document.getElementById('header');
+window.addEventListener('scroll', () => {
+    header.classList.toggle('scrolled', window.scrollY > 50);
+});
+
+// Scroll animations
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+        }
+    });
+}, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+// Counter animation
+const counterObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            const el = entry.target;
+            const target = parseInt(el.dataset.target);
+            let current = 0;
+            const increment = target / 60;
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= target) {
+                    current = target;
+                    clearInterval(timer);
+                }
+                el.textContent = target >= 1000 ? Math.floor(current).toLocaleString() : Math.floor(current);
+                if (target === 13 || target === 5 || target === 7) el.textContent += '+';
+                if (target === 60) el.textContent += '+';
+                if (target === 10000) el.textContent = Math.floor(current).toLocaleString();
+            }, 30);
+            counterObserver.unobserve(el);
+        }
+    });
+}, { threshold: 0.5 });
+
+document.querySelectorAll('.stat-number').forEach(el => counterObserver.observe(el));
+</script>
+</body>
+</html>

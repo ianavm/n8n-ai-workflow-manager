@@ -36,7 +36,7 @@ load_dotenv(env_path)
 CRED_OPENROUTER = {"id": "9ZgHenDBrFuyboov", "name": "OpenRouter 2WC"}
 CRED_GMAIL = {"id": "2IuycrTIgWJZEjBE", "name": "Gmail AVM"}
 CRED_AIRTABLE = {"id": "ZyBrcAO6fps7YB3u", "name": "Airtable PAT"}
-CRED_XERO = {"id": "xeroOAuth2Api", "name": "Xero OAuth2"}
+CRED_QUICKBOOKS = {"id": "quickBooksOAuth2Api", "name": "QuickBooks OAuth2"}
 
 # -- Airtable IDs ---------------------------------------------------------
 
@@ -45,7 +45,7 @@ TABLE_FINANCIAL_INTEL = os.getenv("FINTEL_TABLE_ID", "REPLACE_AFTER_SETUP")
 
 # -- Config ----------------------------------------------------------------
 
-XERO_TENANT_ID = "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+QBO_COMPANY_ID = "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
 AI_MODEL = "anthropic/claude-sonnet-4-20250514"
 ALERT_EMAIL = "ian@anyvisionmedia.com"
 N8N_BASE_URL = os.getenv("N8N_BASE_URL", "https://ianimmelman89.app.n8n.cloud")
@@ -119,17 +119,17 @@ def build_fintel01_nodes():
         "position": [440, 300],
     })
 
-    # -- Fetch Employees from Xero --
+    # -- Fetch Employees from QuickBooks --
     nodes.append({
         "parameters": {
             "method": "GET",
-            "url": "https://api.xero.com/payroll.xro/2.0/Employees",
+            "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks payroll endpoint. Was: api.xero.com/payroll.xro/2.0/Employees",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": XERO_TENANT_ID},
+                    {"name": "qbo-company-id", "value": QBO_COMPANY_ID},
                 ]
             },
             "options": {},
@@ -139,20 +139,20 @@ def build_fintel01_nodes():
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [660, 300],
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
 
     # -- Fetch Payslips --
     nodes.append({
         "parameters": {
             "method": "GET",
-            "url": "=https://api.xero.com/payroll.xro/2.0/Payslip?StartDate={{ $('Set Pay Period').first().json.periodStart }}&EndDate={{ $('Set Pay Period').first().json.periodEnd }}",
+            "url": "=https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks payroll endpoint. Was: api.xero.com/payroll.xro/2.0/Payslip?StartDate={{ $('Set Pay Period').first().json.periodStart }}&EndDate={{ $('Set Pay Period').first().json.periodEnd }}",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": XERO_TENANT_ID},
+                    {"name": "qbo-company-id", "value": QBO_COMPANY_ID},
                 ]
             },
             "options": {},
@@ -162,7 +162,7 @@ def build_fintel01_nodes():
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [880, 300],
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
 
     # -- AI Variance Analysis (OpenRouter) --
@@ -248,7 +248,7 @@ def build_fintel01_nodes():
     # -- Sticky Note --
     nodes.append({
         "parameters": {
-            "content": "## FINTEL-01: Monthly Payroll Run\nRuns 25th of month 08:00 SAST.\nFetches employees & payslips from Xero,\nAI analyzes variances vs last month,\nwrites summary to Airtable, emails alert.",
+            "content": "## FINTEL-01: Monthly Payroll Run\nRuns 25th of month 08:00 SAST.\nFetches employees & payslips from QuickBooks,\nAI analyzes variances vs last month,\nwrites summary to Airtable, emails alert.",
             "width": 420,
             "height": 120,
         },
@@ -353,17 +353,17 @@ def build_fintel02_nodes():
         "position": [440, 300],
     })
 
-    # -- Fetch Trial Balance from Xero --
+    # -- Fetch Trial Balance from QuickBooks --
     nodes.append({
         "parameters": {
             "method": "GET",
-            "url": "=https://api.xero.com/api.xro/2.0/Reports/TrialBalance?date={{ $json.quarterEnd }}",
+            "url": "=https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Reports/TrialBalance?date={{ $json.quarterEnd }}",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": XERO_TENANT_ID},
+                    {"name": "qbo-company-id", "value": QBO_COMPANY_ID},
                 ]
             },
             "options": {},
@@ -373,20 +373,20 @@ def build_fintel02_nodes():
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [660, 300],
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
 
     # -- Fetch Tax Rates --
     nodes.append({
         "parameters": {
             "method": "GET",
-            "url": "https://api.xero.com/api.xro/2.0/TaxRates",
+            "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/TaxRates",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": XERO_TENANT_ID},
+                    {"name": "qbo-company-id", "value": QBO_COMPANY_ID},
                 ]
             },
             "options": {},
@@ -396,7 +396,7 @@ def build_fintel02_nodes():
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [880, 300],
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
 
     # -- Calculate VAT (Code) --
@@ -546,7 +546,7 @@ return [{
     # -- Sticky Note --
     nodes.append({
         "parameters": {
-            "content": "## FINTEL-02: Quarterly VAT Prep\nRuns 1st of Jan/Apr/Jul/Oct 09:00 SAST.\nFetches trial balance + tax rates from Xero,\ncalculates output/input/net VAT (15%),\nAI reviews for anomalies, writes to Airtable.",
+            "content": "## FINTEL-02: Quarterly VAT Prep\nRuns 1st of Jan/Apr/Jul/Oct 09:00 SAST.\nFetches trial balance + tax rates from QuickBooks,\ncalculates output/input/net VAT (15%),\nAI reviews for anomalies, writes to Airtable.",
             "width": 420,
             "height": 120,
         },
@@ -654,17 +654,17 @@ def build_fintel03_nodes():
         "position": [440, 300],
     })
 
-    # -- Fetch Bank Summary from Xero --
+    # -- Fetch Bank Summary from QuickBooks --
     nodes.append({
         "parameters": {
             "method": "GET",
-            "url": "https://api.xero.com/api.xro/2.0/Reports/BankSummary",
+            "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Reports/BankSummary",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": XERO_TENANT_ID},
+                    {"name": "qbo-company-id", "value": QBO_COMPANY_ID},
                 ]
             },
             "options": {},
@@ -674,20 +674,20 @@ def build_fintel03_nodes():
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [660, 200],
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
 
     # -- Fetch Aged Receivables --
     nodes.append({
         "parameters": {
             "method": "GET",
-            "url": "=https://api.xero.com/api.xro/2.0/Reports/AgedReceivablesByContact?date={{ $('Set Forecast Window').first().json.reportDate }}",
+            "url": "=https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Reports/AgedReceivablesByContact?date={{ $('Set Forecast Window').first().json.reportDate }}",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": XERO_TENANT_ID},
+                    {"name": "qbo-company-id", "value": QBO_COMPANY_ID},
                 ]
             },
             "options": {},
@@ -697,20 +697,20 @@ def build_fintel03_nodes():
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [660, 400],
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
 
     # -- Fetch Aged Payables --
     nodes.append({
         "parameters": {
             "method": "GET",
-            "url": "=https://api.xero.com/api.xro/2.0/Reports/AgedPayablesByContact?date={{ $('Set Forecast Window').first().json.reportDate }}",
+            "url": "=https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Reports/AgedPayablesByContact?date={{ $('Set Forecast Window').first().json.reportDate }}",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": XERO_TENANT_ID},
+                    {"name": "qbo-company-id", "value": QBO_COMPANY_ID},
                 ]
             },
             "options": {},
@@ -720,7 +720,7 @@ def build_fintel03_nodes():
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [660, 600],
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
 
     # -- AI Scenario Modeling (OpenRouter) --
@@ -844,7 +844,7 @@ return [{
     # -- Sticky Note --
     nodes.append({
         "parameters": {
-            "content": "## FINTEL-03: Cash Flow Scenarios\nRuns Friday 06:00 SAST.\nFetches bank balance, aged receivables, aged payables\nfrom Xero. AI generates 3 scenarios (best/expected/worst)\nfor next 90 days. Branded HTML report emailed.",
+            "content": "## FINTEL-03: Cash Flow Scenarios\nRuns Friday 06:00 SAST.\nFetches bank balance, aged receivables, aged payables\nfrom QuickBooks. AI generates 3 scenarios (best/expected/worst)\nfor next 90 days. Branded HTML report emailed.",
             "width": 420,
             "height": 120,
         },
@@ -921,17 +921,17 @@ def build_fintel04_nodes():
         "position": [220, 300],
     })
 
-    # -- Fetch Unpaid Bills from Xero --
+    # -- Fetch Unpaid Bills from QuickBooks --
     nodes.append({
         "parameters": {
             "method": "GET",
-            "url": "https://api.xero.com/api.xro/2.0/Invoices?Statuses=AUTHORISED&where=Type%3D%3D%22ACCPAY%22",
+            "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Invoices?Statuses=AUTHORISED&where=Type%3D%3D%22ACCPAY%22",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": XERO_TENANT_ID},
+                    {"name": "qbo-company-id", "value": QBO_COMPANY_ID},
                 ]
             },
             "options": {},
@@ -941,20 +941,20 @@ def build_fintel04_nodes():
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [440, 300],
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
 
     # -- Fetch Bank Balance --
     nodes.append({
         "parameters": {
             "method": "GET",
-            "url": "https://api.xero.com/api.xro/2.0/Reports/BankSummary",
+            "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Reports/BankSummary",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": XERO_TENANT_ID},
+                    {"name": "qbo-company-id", "value": QBO_COMPANY_ID},
                 ]
             },
             "options": {},
@@ -964,7 +964,7 @@ def build_fintel04_nodes():
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [660, 300],
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
 
     # -- AI Payment Strategy (OpenRouter) --
@@ -1087,7 +1087,7 @@ return [{
     # -- Sticky Note --
     nodes.append({
         "parameters": {
-            "content": "## FINTEL-04: Smart Payment Scheduler\nRuns daily 07:00 SAST.\nFetches unpaid bills (ACCPAY/AUTHORISED) + bank balance\nfrom Xero. AI prioritizes: overdue > due today >\n7-day discount > rest. Minimum R50k reserve.",
+            "content": "## FINTEL-04: Smart Payment Scheduler\nRuns daily 07:00 SAST.\nFetches unpaid bills (ACCPAY/AUTHORISED) + bank balance\nfrom QuickBooks. AI prioritizes: overdue > due today >\n7-day discount > rest. Minimum R50k reserve.",
             "width": 420,
             "height": 120,
         },
@@ -1341,7 +1341,7 @@ def main():
     print("Next steps:")
     print("  1. Create Airtable table: Financial_Intel (in Operations Control base)")
     print("  2. Set env var: FINTEL_TABLE_ID in .env")
-    print("  3. Verify Xero OAuth2 credential in n8n has payroll scope")
+    print("  3. Verify QuickBooks OAuth2 credential in n8n has payroll scope")
     print("  4. Open each workflow in n8n UI to verify node connections")
     print("  5. Test FINTEL-04 manually -> check payment recommendations")
     print("  6. Test FINTEL-03 manually -> check cash flow scenarios")

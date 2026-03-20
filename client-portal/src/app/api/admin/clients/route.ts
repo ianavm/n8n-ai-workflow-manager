@@ -21,38 +21,45 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch clients" }, { status: 500 });
   }
 
-  // Fetch stats summary for each client
-  const enriched = await Promise.all(
-    (clients || []).map(async (client) => {
-      const { data: stats } = await supabase
-        .from("stat_events")
-        .select("event_type")
-        .eq("client_id", client.id);
+  // Batch fetch stats and workflows for all clients (avoids N+1)
+  const clientIds = (clients || []).map((c) => c.id);
 
-      const { count: workflowCount } = await supabase
-        .from("workflows")
-        .select("*", { count: "exact", head: true })
-        .eq("client_id", client.id)
-        .eq("status", "active");
+  const [{ data: allStats }, { data: allWorkflows }] = await Promise.all([
+    supabase
+      .from("stat_events")
+      .select("client_id, event_type")
+      .in("client_id", clientIds),
+    supabase
+      .from("workflows")
+      .select("client_id")
+      .in("client_id", clientIds)
+      .eq("status", "active"),
+  ]);
 
-      const eventCounts = (stats || []).reduce(
-        (acc: Record<string, number>, s) => {
-          acc[s.event_type] = (acc[s.event_type] || 0) + 1;
-          return acc;
-        },
-        {}
-      );
+  // Build lookup maps
+  const statsMap = new Map<string, Record<string, number>>();
+  for (const s of allStats || []) {
+    const counts = statsMap.get(s.client_id) || {};
+    counts[s.event_type] = (counts[s.event_type] || 0) + 1;
+    statsMap.set(s.client_id, counts);
+  }
 
-      return {
-        ...client,
-        active_workflows: workflowCount || 0,
-        messages_sent: eventCounts.message_sent || 0,
-        messages_received: eventCounts.message_received || 0,
-        leads_created: eventCounts.lead_created || 0,
-        total_crashes: eventCounts.workflow_crash || 0,
-      };
-    })
-  );
+  const workflowMap = new Map<string, number>();
+  for (const w of allWorkflows || []) {
+    workflowMap.set(w.client_id, (workflowMap.get(w.client_id) || 0) + 1);
+  }
+
+  const enriched = (clients || []).map((client) => {
+    const eventCounts = statsMap.get(client.id) || {};
+    return {
+      ...client,
+      active_workflows: workflowMap.get(client.id) || 0,
+      messages_sent: eventCounts.message_sent || 0,
+      messages_received: eventCounts.message_received || 0,
+      leads_created: eventCounts.lead_created || 0,
+      total_crashes: eventCounts.workflow_crash || 0,
+    };
+  });
 
   return NextResponse.json(enriched);
 }

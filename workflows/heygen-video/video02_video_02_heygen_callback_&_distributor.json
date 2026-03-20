@@ -1,0 +1,737 @@
+{
+  "name": "VIDEO-02: HeyGen Callback & Distributor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "heygen-callback",
+        "options": {}
+      },
+      "id": "b2ced8a6-c1e3-4bd6-9220-c2c962570547",
+      "name": "HeyGen Callback",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        220,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Process HeyGen webhook callback\nconst callback = $input.first().json;\nconst body = callback.body || callback;\n\n// HeyGen webhook payload structure\nconst eventType = body.event_type || body.type || '';\nconst videoId = body.video_id || body.data?.video_id || '';\nconst videoUrl = body.video_url || body.data?.video_url || body.url || '';\nconst thumbnailUrl = body.thumbnail_url || body.data?.thumbnail_url || '';\nconst duration = body.duration || body.data?.duration || 0;\nconst status = body.status || body.data?.status || '';\n\nconst isSuccess = eventType === 'avatar_video.success' || status === 'completed';\nconst isFail = eventType === 'avatar_video.fail' || status === 'failed';\n\nreturn {\n  json: {\n    heygenVideoId: videoId,\n    videoUrl: videoUrl,\n    thumbnailUrl: thumbnailUrl,\n    duration: duration,\n    isSuccess: isSuccess,\n    isFail: isFail,\n    eventType: eventType,\n    rawStatus: status,\n    errorMessage: isFail ? (body.error || body.data?.error || 'Video generation failed') : '',\n  }\n};\n"
+      },
+      "id": "f93e13fa-4c9c-4dcb-8237-b8b45157e870",
+      "name": "Process Callback",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        480,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_AFTER_SETUP"
+        },
+        "filterByFormula": "=({HeyGen Video ID} = '{{ $json.heygenVideoId }}')",
+        "options": {}
+      },
+      "id": "7ed71b9e-ac53-49c7-a55a-90c3f4a6c8e6",
+      "name": "Lookup Video Job",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        740,
+        400
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Process Callback').first().json.isSuccess }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "c2a794c8-e1ba-4932-bc0e-67f45ffffe0b",
+      "name": "Video Success?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1000,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_AFTER_SETUP"
+        },
+        "columns": {
+          "value": {
+            "Status": "Ready",
+            "HeyGen Status": "completed",
+            "Video URL": "={{ $('Process Callback').first().json.videoUrl }}",
+            "Thumbnail URL": "={{ $('Process Callback').first().json.thumbnailUrl }}",
+            "Video Duration Sec": "={{ $('Process Callback').first().json.duration }}",
+            "Completed At": "={{ $now.toISO() }}"
+          },
+          "schema": [
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "HeyGen Status",
+              "type": "string",
+              "display": true,
+              "displayName": "HeyGen Status"
+            },
+            {
+              "id": "Video URL",
+              "type": "string",
+              "display": true,
+              "displayName": "Video URL"
+            },
+            {
+              "id": "Thumbnail URL",
+              "type": "string",
+              "display": true,
+              "displayName": "Thumbnail URL"
+            },
+            {
+              "id": "Video Duration Sec",
+              "type": "number",
+              "display": true,
+              "displayName": "Video Duration Sec"
+            },
+            {
+              "id": "Completed At",
+              "type": "string",
+              "display": true,
+              "displayName": "Completed At"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "de409715-6b98-4451-b3fe-024671488c51",
+      "name": "Mark Ready",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1280,
+        200
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Format video data for Blotato publishing\nconst videoData = $('Process Callback').first().json;\nconst jobData = $('Lookup Video Job').first().json;\n\nconst caption = jobData.Caption || jobData['Property Name'] || 'Check out this property!';\nconst hashtags = jobData.Hashtags || '#realestate #property #southafrica #johannesburg';\nconst postText = caption + '\\n\\n' + hashtags;\n\nreturn {\n  json: {\n    postText: postText,\n    videoUrl: videoData.videoUrl,\n    thumbnailUrl: videoData.thumbnailUrl,\n    jobId: jobData['Job ID'] || '',\n    recordId: jobData.id || '',\n    propertyName: jobData['Property Name'] || '',\n    caption: caption,\n    hashtags: hashtags,\n  }\n};\n"
+      },
+      "id": "7b54df78-0969-4775-8541-76c3c53d7219",
+      "name": "Format for Blotato",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1560,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "platform": "tiktok",
+        "accountId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "27801"
+        },
+        "postContentText": "={{ $json.postText }}",
+        "postContentVideoUrl": "={{ $json.videoUrl }}",
+        "options": {}
+      },
+      "id": "dcfe143e-b0a8-4cda-b3b7-17d3a6bb5992",
+      "name": "TikTok [BLOTATO]",
+      "type": "@blotato/n8n-nodes-blotato.blotato",
+      "position": [
+        1840,
+        60
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "blotatoApi": {
+          "id": "hhRiqZrWNlqvmYZR",
+          "name": "Blotato AVM"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "platform": "instagram",
+        "accountId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "29194"
+        },
+        "postContentText": "={{ $json.postText }}",
+        "postContentVideoUrl": "={{ $json.videoUrl }}",
+        "options": {}
+      },
+      "id": "a4b77417-eeea-4ef1-86ca-d326581418f2",
+      "name": "Instagram [BLOTATO]",
+      "type": "@blotato/n8n-nodes-blotato.blotato",
+      "position": [
+        1840,
+        240
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "blotatoApi": {
+          "id": "hhRiqZrWNlqvmYZR",
+          "name": "Blotato AVM"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "platform": "facebook",
+        "accountId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "369"
+        },
+        "postContentText": "={{ $json.postText }}",
+        "postContentVideoUrl": "={{ $json.videoUrl }}",
+        "options": {},
+        "facebookPageId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "161711670360847"
+        }
+      },
+      "id": "baaff83c-70f1-4a2a-851f-19cf37b94045",
+      "name": "Facebook [BLOTATO]",
+      "type": "@blotato/n8n-nodes-blotato.blotato",
+      "position": [
+        1840,
+        420
+      ],
+      "typeVersion": 2,
+      "credentials": {
+        "blotatoApi": {
+          "id": "hhRiqZrWNlqvmYZR",
+          "name": "Blotato AVM"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "ed3169e4-1b49-4e7e-8b9e-7cf14f8b0161",
+      "name": "Merge Platform Results",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        2120,
+        240
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Aggregate Blotato publish results\nconst items = $input.all();\nconst platforms = ['TikTok', 'Instagram', 'Facebook'];\nconst jobData = $('Format for Blotato').first().json;\nconst now = new Date().toISOString();\n\nlet successCount = 0;\nlet failCount = 0;\nconst publishedPlatforms = [];\n\nconst logEntries = items.map((item, i) => {\n  const platform = platforms[i] || 'Unknown';\n  const hasError = !!(item.json.error || item.json.statusCode >= 400);\n  if (hasError) {\n    failCount++;\n  } else {\n    successCount++;\n    publishedPlatforms.push(platform);\n  }\n  return {\n    json: {\n      'Log ID': `VLOG-${Date.now()}-${platform}`,\n      'Content ID': jobData.jobId,\n      'Platform': platform,\n      'Published At': now,\n      'Status': hasError ? 'Failed' : 'Success',\n      'Response': JSON.stringify(item.json).substring(0, 200),\n      _recordId: jobData.recordId,\n      _successCount: successCount,\n      _failCount: failCount,\n      _publishedPlatforms: publishedPlatforms.join(', '),\n    }\n  };\n});\n\nreturn logEntries;\n"
+      },
+      "id": "ab3b426b-ce17-4a47-973b-13b06c907e5e",
+      "name": "Process Distribution",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2380,
+        240
+      ],
+      "typeVersion": 2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblLI70ZD0DkJKXvI"
+        },
+        "columns": {
+          "value": {
+            "Log ID": "={{ $json['Log ID'] }}",
+            "Content ID": "={{ $json['Content ID'] }}",
+            "Platform": "={{ $json['Platform'] }}",
+            "Published At": "={{ $json['Published At'] }}",
+            "Status": "={{ $json['Status'] }}",
+            "Response": "={{ $json['Response'] }}"
+          },
+          "schema": [
+            {
+              "id": "Log ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Log ID"
+            },
+            {
+              "id": "Content ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Content ID"
+            },
+            {
+              "id": "Platform",
+              "type": "string",
+              "display": true,
+              "displayName": "Platform"
+            },
+            {
+              "id": "Published At",
+              "type": "string",
+              "display": true,
+              "displayName": "Published At"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Response",
+              "type": "string",
+              "display": true,
+              "displayName": "Response"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "70c88b4c-f7b3-47d3-9999-7d2c108ac924",
+      "name": "Store Distribution Log",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2640,
+        240
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_AFTER_SETUP"
+        },
+        "columns": {
+          "value": {
+            "Status": "Published",
+            "Published At": "={{ $now.toISO() }}",
+            "Published Platforms": "={{ $json._publishedPlatforms }}"
+          },
+          "schema": [
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Published At",
+              "type": "string",
+              "display": true,
+              "displayName": "Published At"
+            },
+            {
+              "id": "Published Platforms",
+              "type": "string",
+              "display": true,
+              "displayName": "Published Platforms"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "44b7679d-51ef-4164-a548-2722d273c46f",
+      "name": "Mark Published",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2900,
+        240
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Video Published: {{ $('Lookup Video Job').first().json['Property Name'] || 'Property Video' }}",
+        "emailType": "text",
+        "message": "=Property video has been published!\n\nProperty: {{ $('Lookup Video Job').first().json['Property Name'] }}\nVideo URL: {{ $('Process Callback').first().json.videoUrl }}\nPlatforms: {{ $json._publishedPlatforms }}\nPublished: {{ $now.toFormat('yyyy-MM-dd HH:mm') }}\n\nCheck Airtable Video_Jobs table for full details.",
+        "options": {}
+      },
+      "id": "d838d1b8-8c72-4dac-866e-dc2d1bcfaa6b",
+      "name": "Success Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        3160,
+        240
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_AFTER_SETUP"
+        },
+        "columns": {
+          "value": {
+            "Status": "Failed",
+            "HeyGen Status": "failed",
+            "Error Message": "={{ $('Process Callback').first().json.errorMessage }}"
+          },
+          "schema": [
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "HeyGen Status",
+              "type": "string",
+              "display": true,
+              "displayName": "HeyGen Status"
+            },
+            {
+              "id": "Error Message",
+              "type": "string",
+              "display": true,
+              "displayName": "Error Message"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "8ef6a73c-57c6-4b11-a913-5995aaf52c44",
+      "name": "Mark Failed",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1280,
+        600
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=VIDEO FAILED: {{ $('Lookup Video Job').first().json['Property Name'] || 'Property Video' }}",
+        "emailType": "text",
+        "message": "=HeyGen video generation FAILED.\n\nProperty: {{ $('Lookup Video Job').first().json['Property Name'] }}\nJob ID: {{ $('Lookup Video Job').first().json['Job ID'] }}\nError: {{ $('Process Callback').first().json.errorMessage }}\nEvent: {{ $('Process Callback').first().json.eventType }}\n\nCheck HeyGen dashboard and Airtable Video_Jobs for details.",
+        "options": {}
+      },
+      "id": "48caa206-2d23-46ae-9d07-8ee710c80302",
+      "name": "Failure Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1560,
+        600
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail AVM"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "HeyGen Callback": {
+      "main": [
+        [
+          {
+            "node": "Process Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Callback": {
+      "main": [
+        [
+          {
+            "node": "Lookup Video Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Video Job": {
+      "main": [
+        [
+          {
+            "node": "Video Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Success?": {
+      "main": [
+        [
+          {
+            "node": "Mark Ready",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Ready": {
+      "main": [
+        [
+          {
+            "node": "Format for Blotato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Blotato": {
+      "main": [
+        [
+          {
+            "node": "TikTok [BLOTATO]",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instagram [BLOTATO]",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Facebook [BLOTATO]",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok [BLOTATO]": {
+      "main": [
+        [
+          {
+            "node": "Merge Platform Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram [BLOTATO]": {
+      "main": [
+        [
+          {
+            "node": "Merge Platform Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Facebook [BLOTATO]": {
+      "main": [
+        [
+          {
+            "node": "Merge Platform Results",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Platform Results": {
+      "main": [
+        [
+          {
+            "node": "Process Distribution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Distribution": {
+      "main": [
+        [
+          {
+            "node": "Store Distribution Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Distribution Log": {
+      "main": [
+        [
+          {
+            "node": "Mark Published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Published": {
+      "main": [
+        [
+          {
+            "node": "Success Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Failed": {
+      "main": [
+        [
+          {
+            "node": "Failure Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  }
+}

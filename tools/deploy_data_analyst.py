@@ -398,19 +398,19 @@ def build_data03_nodes():
                    "position": [440, 200], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
-    # 3. Fetch Financial Data (Xero P&L via HTTP)
+    # 3. Fetch Financial Data (QuickBooks P&L via HTTP)
     nodes.append({"parameters": {
         "method": "GET",
-        "url": "https://api.xero.com/api.xro/2.0/Reports/ProfitAndLoss?fromDate={{ $now.minus({months:1}).toFormat('yyyy-MM-dd') }}&toDate={{ $now.toFormat('yyyy-MM-dd') }}",
-        "authentication": "predefinedCredentialType", "nodeCredentialType": "xeroOAuth2Api",
+        "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Reports/ProfitAndLoss?fromDate={{ $now.minus({months:1}).toFormat('yyyy-MM-dd') }}&toDate={{ $now.toFormat('yyyy-MM-dd') }}",
+        "authentication": "predefinedCredentialType", "nodeCredentialType": "quickBooksOAuth2Api",
         "options": {}},
-                   "id": uid(), "name": "Fetch Xero P&L",
+                   "id": uid(), "name": "Fetch QuickBooks P&L",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
                    "position": [440, 420]})
 
     # 4. Aggregate Monthly Data (Code)
     nodes.append({"parameters": {"jsCode": """const kpiItems = $('Fetch KPI Data').all();
-const xeroResp = $('Fetch Xero P&L').first().json;
+const qboResp = $('Fetch QuickBooks P&L').first().json;
 
 // Aggregate KPIs
 const kpis = kpiItems.map(i => i.json);
@@ -419,12 +419,12 @@ const totalExecutions = kpis.reduce((sum, k) => sum + (parseInt(k.execution_coun
 const totalErrors = kpis.reduce((sum, k) => sum + (parseInt(k.error_count) || 0), 0);
 const errorRate = totalExecutions > 0 ? Math.round(totalErrors / totalExecutions * 1000) / 10 : 0;
 
-// Extract Xero P&L summary
+// Extract QuickBooks P&L summary
 let revenue = 'N/A';
 let expenses = 'N/A';
 let netProfit = 'N/A';
 try {
-  const reports = xeroResp.Reports || [];
+  const reports = qboResp.Reports || [];
   if (reports.length > 0) {
     const rows = reports[0].Rows || [];
     for (const section of rows) {
@@ -442,7 +442,7 @@ try {
       }
     }
   }
-} catch(e) { /* Xero parsing failed - use N/A defaults */ }
+} catch(e) { /* QuickBooks parsing failed - use N/A defaults */ }
 
 const reportMonth = new Date();
 reportMonth.setMonth(reportMonth.getMonth() - 1);
@@ -469,7 +469,7 @@ return { json: {
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 2000,
   "messages": [
     {"role": "system", "content": "Generate a comprehensive monthly report for AnyVision Media. Include: Executive Summary, Operations Performance, Financial Overview, Key Achievements, Areas of Concern, Recommendations for Next Month. Use ZAR (R) for all currency. Format as clean HTML for email."},
-    {"role": "user", "content": "Monthly Report for {{ $json.report_month }}:\\n\\nOperations:\\n- Avg Health Score: {{ $json.avg_health_score }}/100\\n- Total Workflow Executions: {{ $json.total_executions }}\\n- Total Errors: {{ $json.total_errors }} ({{ $json.error_rate_pct }}% error rate)\\n- Data Points: {{ $json.kpi_data_points }}\\n\\nFinancials (from Xero):\\n- Revenue: R{{ $json.revenue }}\\n- Expenses: R{{ $json.expenses }}\\n- Net Profit: R{{ $json.net_profit }}"}
+    {"role": "user", "content": "Monthly Report for {{ $json.report_month }}:\\n\\nOperations:\\n- Avg Health Score: {{ $json.avg_health_score }}/100\\n- Total Workflow Executions: {{ $json.total_executions }}\\n- Total Errors: {{ $json.total_errors }} ({{ $json.error_rate_pct }}% error rate)\\n- Data Points: {{ $json.kpi_data_points }}\\n\\nFinancials (from QuickBooks):\\n- Revenue: R{{ $json.revenue }}\\n- Expenses: R{{ $json.expenses }}\\n- Net Profit: R{{ $json.net_profit }}"}
   ]}""",
         "options": {}},
                    "id": uid(), "name": "AI Generate Report",
@@ -540,10 +540,10 @@ def build_data03_connections(nodes):
     return {
         "Schedule Trigger": {"main": [[
             {"node": "Fetch KPI Data", "type": "main", "index": 0},
-            {"node": "Fetch Xero P&L", "type": "main", "index": 0},
+            {"node": "Fetch QuickBooks P&L", "type": "main", "index": 0},
         ]]},
         "Fetch KPI Data": {"main": [[{"node": "Aggregate Monthly Data", "type": "main", "index": 0}]]},
-        "Fetch Xero P&L": {"main": [[{"node": "Aggregate Monthly Data", "type": "main", "index": 0}]]},
+        "Fetch QuickBooks P&L": {"main": [[{"node": "Aggregate Monthly Data", "type": "main", "index": 0}]]},
         "Aggregate Monthly Data": {"main": [[{"node": "AI Generate Report", "type": "main", "index": 0}]]},
         "AI Generate Report": {"main": [[{"node": "Extract Report", "type": "main", "index": 0}]]},
         "Extract Report": {"main": [[{"node": "Write Monthly Report", "type": "main", "index": 0}]]},

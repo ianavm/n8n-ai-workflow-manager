@@ -288,7 +288,7 @@ const credentials = [
   {name: 'Gmail OAuth', type: 'gmailOAuth2', last_rotated: '2026-02-01', rotation_interval_days: 365, warn_days_before: 30},
   {name: 'Airtable PAT', type: 'airtableTokenApi', last_rotated: '2026-01-01', rotation_interval_days: 180, warn_days_before: 14},
   {name: 'n8n API Key', type: 'httpHeaderAuth', last_rotated: '2026-02-15', rotation_interval_days: 90, warn_days_before: 7},
-  {name: 'Xero OAuth', type: 'xeroOAuth2Api', last_rotated: '2026-01-20', rotation_interval_days: 365, warn_days_before: 30},
+  {name: 'QuickBooks OAuth', type: 'quickBooksOAuth2Api', last_rotated: '2026-01-20', rotation_interval_days: 365, warn_days_before: 30},
   {name: 'SerpAPI Key', type: 'httpHeaderAuth', last_rotated: '2026-02-01', rotation_interval_days: 365, warn_days_before: 14},
   {name: 'Tavily API Key', type: 'httpHeaderAuth', last_rotated: '2026-03-01', rotation_interval_days: 365, warn_days_before: 14},
 ];

@@ -790,7 +790,7 @@ return [{{
                     "drive_folder_url": "",
                     "created_at": "={{ $now.toISO() }}",
                     "doc_count": "1",
-                    "last_doc_date": "={{ $now.format('yyyy-MM-dd') }}",
+                    "last_doc_date": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "matchingColumns": [],
                 "schema": [
@@ -849,7 +849,7 @@ return [{{
     categoryFolder: doc.categoryFolder,
     propertiesRootId: '{config["di_properties_folder_id"]}',
     // File rename
-    newFileName: `${{$now.format('yyyy-MM-dd')}}_${{doc.docType}}_${{doc.referenceNumber || 'NOREF'}}_${{doc.fileName}}`,
+    newFileName: `${{$now.toFormat('yyyy-MM-dd')}}_${{doc.docType}}_${{doc.referenceNumber || 'NOREF'}}_${{doc.fileName}}`,
   }}
 }}];
 """

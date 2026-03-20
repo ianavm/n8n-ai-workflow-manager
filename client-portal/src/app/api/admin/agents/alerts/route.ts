@@ -1,12 +1,21 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+async function checkAdminOrApiKey(req: NextRequest): Promise<boolean> {
+  const session = await getSession();
+  if (session && (session.role === "owner" || session.role === "employee")) return true;
+  const apiKey = req.headers.get("x-api-key");
+  if (apiKey && apiKey === process.env.INTERNAL_API_KEY) return true;
+  return false;
+}
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!(await checkAdminOrApiKey(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = await createServiceRoleClient();
   const { data, error } = await supabase
     .from("orchestrator_alerts")
     .select("*")
@@ -20,7 +29,12 @@ export async function GET() {
   return NextResponse.json(data);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  if (!(await checkAdminOrApiKey(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = await createServiceRoleClient();
   const body = await req.json();
 
   const { data, error } = await supabase

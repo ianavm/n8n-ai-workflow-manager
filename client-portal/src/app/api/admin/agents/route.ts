@@ -1,10 +1,6 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
 // Tier mapping for agent grouping
 const AGENT_TIERS: Record<string, number> = {
@@ -17,7 +13,22 @@ const AGENT_TIERS: Record<string, number> = {
   agent_financial_intel: 7, agent_crm_sync: 7, agent_booking: 7, agent_data_curator: 7,
 };
 
-export async function GET() {
+async function checkAdminOrApiKey(req: NextRequest): Promise<boolean> {
+  // Admin session auth
+  const session = await getSession();
+  if (session && (session.role === "owner" || session.role === "employee")) return true;
+  // Internal API key auth (for n8n workflows)
+  const apiKey = req.headers.get("x-api-key");
+  if (apiKey && apiKey === process.env.INTERNAL_API_KEY) return true;
+  return false;
+}
+
+export async function GET(req: NextRequest) {
+  if (!(await checkAdminOrApiKey(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = await createServiceRoleClient();
   const { data, error } = await supabase
     .from("agent_status")
     .select("*")
@@ -49,7 +60,12 @@ export async function GET() {
   return NextResponse.json(mapped);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  if (!(await checkAdminOrApiKey(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = await createServiceRoleClient();
   const body = await req.json();
 
   const { data, error } = await supabase

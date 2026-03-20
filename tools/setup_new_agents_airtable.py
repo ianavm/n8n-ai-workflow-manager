@@ -9,7 +9,7 @@ Tables created:
     2. Knowledge_Graph      - Indexed documents, FAQs, contradictions
     3. QA_Results           - Smoke test, regression, performance results
     4. Financial_Intel      - Payroll summaries, VAT prep, cash flow scenarios
-    5. CRM_Unified          - Unified contacts from Airtable + Xero + Supabase
+    5. CRM_Unified          - Unified contacts from Airtable + QuickBooks + Supabase
     6. CRM_Sync_Log         - Sync operation logs
     7. Data_Analysis        - Query results, trend data, report metadata
     8. Brand_Audit          - Brand compliance scores, content gate results
@@ -79,7 +79,7 @@ SYNC_STATUS_CHOICES = [
 
 SOURCE_CHOICES = [
     {"name": "Airtable", "color": "blueBright"},
-    {"name": "Xero", "color": "purpleBright"},
+    {"name": "QuickBooks", "color": "purpleBright"},
     {"name": "Portal", "color": "greenBright"},
     {"name": "Scraper", "color": "orangeBright"},
     {"name": "Manual", "color": "grayBright"},
@@ -237,7 +237,7 @@ TABLE_DEFINITIONS = {
         ],
     },
     "CRM_Unified": {
-        "description": "Unified contact records from Airtable, Xero, and Supabase",
+        "description": "Unified contact records from Airtable, QuickBooks, and Supabase",
         "primary_field": "contact_id",
         "fields": [
             {"name": "email", "type": "email"},
@@ -259,7 +259,7 @@ TABLE_DEFINITIONS = {
             },
             {"name": "first_seen", "type": "dateTime", "options": DT_OPTIONS},
             {"name": "last_synced", "type": "dateTime", "options": DT_OPTIONS},
-            {"name": "xero_contact_id", "type": "singleLineText"},
+            {"name": "qbo_customer_id", "type": "singleLineText"},
             {"name": "supabase_client_id", "type": "singleLineText"},
             {"name": "airtable_lead_id", "type": "singleLineText"},
             {"name": "enrichment_data", "type": "multilineText"},

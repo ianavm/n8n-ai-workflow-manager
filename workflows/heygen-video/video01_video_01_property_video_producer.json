@@ -1,0 +1,480 @@
+{
+  "name": "VIDEO-01: Property Video Producer",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "06c98f6d-be86-4cf1-9c09-5bc310bd4145",
+      "name": "Daily 11:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        220,
+        300
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "heygen-produce",
+        "options": {
+          "responseMode": "lastNode"
+        }
+      },
+      "id": "3ed475b0-d784-46cc-9c2e-8edb81940e5c",
+      "name": "On-Demand Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        220,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "407a3862-6380-48ea-975e-c9325028fc95",
+      "name": "Merge Triggers",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        460,
+        400
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_AFTER_SETUP"
+        },
+        "filterByFormula": "={Status} = 'Pending'",
+        "options": {
+          "fields": [
+            "Job ID",
+            "Property Name",
+            "Property Type",
+            "Property Address",
+            "Listing Price ZAR",
+            "Key Features",
+            "Property Photos",
+            "Aspect Ratio",
+            "Avatar Type",
+            "Avatar ID",
+            "Script Tone",
+            "Target Platforms",
+            "Source Listing ID"
+          ]
+        }
+      },
+      "id": "858ce7fa-7cbf-4f98-b324-dc2d60136e1c",
+      "name": "Fetch Pending Jobs",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        700,
+        400
+      ],
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "7b6a630f-8284-475c-abea-b94e5593bb30",
+      "name": "Has Pending Jobs?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        940,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {},
+      "id": "e5c5f85a-ff98-4fbf-a31a-f014625b321e",
+      "name": "No Jobs",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        1180,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "d3ca4e8e-da51-43cf-88c8-5e8171d82081",
+      "name": "Loop Over Jobs",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1180,
+        300
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 500, \"temperature\": 0.7, \"messages\": [{\"role\": \"user\", \"content\": \"You are a professional real estate video script writer for AnyVision Media, a digital media agency in South Africa.\\n\\nWrite a compelling, natural-sounding video script for a property walkthrough presentation. The avatar presenter will stand in front of property photos and narrate.\\n\\nPROPERTY DETAILS:\\n- Name: {{ $json['Property Name'] }}\\n- Type: {{ $json['Property Type'] }}\\n- Address: {{ $json['Property Address'] }}\\n- Price: R{{ $json['Listing Price ZAR'] }}\\n- Key Features: {{ $json['Key Features'] }}\\n\\nREQUIREMENTS:\\n1. Script should be 30-60 seconds when spoken (roughly 75-150 words)\\n2. Open with an attention-grabbing hook (first 3 seconds matter for social media)\\n3. Highlight the top 3-4 features naturally\\n4. Include the price and location\\n5. End with a clear call-to-action (DM, call, link in bio)\\n6. Tone: {{ $json['Script Tone'] || 'professional, warm, aspirational' }}\\n7. Use South African English (e.g., \\\"lounge\\\" not \\\"living room\\\", \\\"garden\\\" not \\\"yard\\\")\\n8. Do NOT use emojis in the script\\n9. Do NOT include stage directions or camera cues - just the spoken words\\n\\nOUTPUT FORMAT:\\nReturn ONLY the script text, nothing else. No headers, no labels, just the words the presenter will say.\"}]}",
+        "options": {}
+      },
+      "id": "0096ea38-04bf-44fc-8648-800d6c5f503a",
+      "name": "Generate Script",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1460,
+        300
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 300, \"temperature\": 0.7, \"messages\": [{\"role\": \"user\", \"content\": \"You are a social media expert for AnyVision Media, a real estate-focused digital media agency in South Africa.\\n\\nWrite a short, engaging social media caption for a property video post.\\n\\nPROPERTY: {{ $('Loop Over Jobs').item.json['Property Name'] }} in {{ $('Loop Over Jobs').item.json['Property Address'] }}\\nPRICE: R{{ $('Loop Over Jobs').item.json['Listing Price ZAR'] }}\\nTYPE: {{ $('Loop Over Jobs').item.json['Property Type'] }}\\nFEATURES: {{ $('Loop Over Jobs').item.json['Key Features'] }}\\n\\nREQUIREMENTS:\\n1. Max 150 characters for the caption text (before hashtags)\\n2. Attention-grabbing, create urgency or curiosity\\n3. Include the price\\n4. South African English\\n5. Add 5-8 relevant hashtags on a new line\\n\\nOUTPUT FORMAT:\\nLine 1: Caption text\\nLine 2: Hashtags (space-separated, starting with #)\"}]}",
+        "options": {}
+      },
+      "id": "b7bc6b54-53a0-4f2a-ab07-4aeb23202e30",
+      "name": "Generate Caption",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1740,
+        300
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build HeyGen API v2 video generation payload\nconst job = $input.first().json;\nconst script = $('Generate Script').first().json.message.content || $('Generate Script').first().json.choices[0].message.content;\nconst caption = $('Generate Caption').first().json.message.content || $('Generate Caption').first().json.choices[0].message.content;\n\n// Parse caption into text + hashtags\nconst captionLines = caption.trim().split('\\n').filter(l => l.trim());\nconst captionText = captionLines[0] || '';\nconst hashtags = captionLines.find(l => l.includes('#')) || '';\n\n// Determine dimensions from aspect ratio\nconst aspectRatio = job['Aspect Ratio'] || '9:16';\nconst dimensions = {\n  '9:16': { width: 1080, height: 1920 },\n  '16:9': { width: 1920, height: 1080 },\n  '1:1':  { width: 1080, height: 1080 },\n};\nconst dim = dimensions[aspectRatio] || dimensions['9:16'];\n\n// Get avatar/voice config\nconst avatarId = job['Avatar ID'] || 'REPLACE_WITH_YOUR_AVATAR_ID';\nconst voiceId = job['HeyGen Voice ID'] || 'REPLACE_WITH_YOUR_VOICE_ID';\n\n// Build the HeyGen v2 payload\nconst payload = {\n  video_inputs: [\n    {\n      character: {\n        type: \"avatar\",\n        avatar_id: avatarId,\n        avatar_style: \"normal\",\n      },\n      voice: {\n        type: \"text\",\n        input_text: script.trim(),\n        voice_id: voiceId,\n        speed: 1.0,\n      },\n      background: {\n        type: \"color\",\n        value: \"#FFFFFF\",\n      },\n    },\n  ],\n  dimension: dim,\n  aspect_ratio: null,\n  test: false,\n};\n\n// If property photos exist, use first as background\nconst photos = (job['Property Photos'] || '').split('\\n').filter(u => u.trim().startsWith('http'));\nif (photos.length > 0) {\n  payload.video_inputs[0].background = {\n    type: \"image\",\n    url: photos[0].trim(),\n  };\n}\n\nreturn {\n  json: {\n    heygenPayload: payload,\n    script: script.trim(),\n    caption: captionText.trim(),\n    hashtags: hashtags.trim(),\n    jobId: job['Job ID'] || job.id,\n    recordId: job.id,\n    propertyName: job['Property Name'] || '',\n    aspectRatio: aspectRatio,\n  }\n};\n"
+      },
+      "id": "930b083a-183e-42d5-af88-a13ae91a3b97",
+      "name": "Prepare HeyGen Payload",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2020,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.heygen.com/v2/video/generate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.heygenPayload) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "f50f56f8-2beb-463b-b3df-861d9ed34969",
+      "name": "Create HeyGen Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2300,
+        300
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "HeyGen API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "REPLACE_AFTER_SETUP"
+        },
+        "columns": {
+          "value": {
+            "Status": "={{ $('Create HeyGen Video').first().json.error ? 'Failed' : 'Generating' }}",
+            "HeyGen Video ID": "={{ $('Create HeyGen Video').first().json.data?.video_id || '' }}",
+            "HeyGen Status": "={{ $('Create HeyGen Video').first().json.error ? 'error' : 'processing' }}",
+            "Script": "={{ $json.script }}",
+            "Caption": "={{ $json.caption }}",
+            "Hashtags": "={{ $json.hashtags }}",
+            "Error Message": "={{ $('Create HeyGen Video').first().json.error?.message || '' }}"
+          },
+          "schema": [
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "HeyGen Video ID",
+              "type": "string",
+              "display": true,
+              "displayName": "HeyGen Video ID"
+            },
+            {
+              "id": "HeyGen Status",
+              "type": "string",
+              "display": true,
+              "displayName": "HeyGen Status"
+            },
+            {
+              "id": "Script",
+              "type": "string",
+              "display": true,
+              "displayName": "Script"
+            },
+            {
+              "id": "Caption",
+              "type": "string",
+              "display": true,
+              "displayName": "Caption"
+            },
+            {
+              "id": "Hashtags",
+              "type": "string",
+              "display": true,
+              "displayName": "Hashtags"
+            },
+            {
+              "id": "Error Message",
+              "type": "string",
+              "display": true,
+              "displayName": "Error Message"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "a13ee933-07ab-415b-9dbd-1c010dd4cc93",
+      "name": "Update Job Status",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2580,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Daily 11:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Merge Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On-Demand Trigger": {
+      "main": [
+        [
+          {
+            "node": "Merge Triggers",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Triggers": {
+      "main": [
+        [
+          {
+            "node": "Fetch Pending Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Pending Jobs": {
+      "main": [
+        [
+          {
+            "node": "Has Pending Jobs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Pending Jobs?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Jobs": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Generate Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Script": {
+      "main": [
+        [
+          {
+            "node": "Generate Caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Caption": {
+      "main": [
+        [
+          {
+            "node": "Prepare HeyGen Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare HeyGen Payload": {
+      "main": [
+        [
+          {
+            "node": "Create HeyGen Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create HeyGen Video": {
+      "main": [
+        [
+          {
+            "node": "Update Job Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Job Status": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  }
+}

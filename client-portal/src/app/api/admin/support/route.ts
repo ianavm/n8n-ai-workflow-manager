@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+async function checkAdminOrApiKey(req: NextRequest): Promise<boolean> {
+  const session = await getSession();
+  if (session && (session.role === "owner" || session.role === "employee")) return true;
+  const apiKey = req.headers.get("x-api-key");
+  if (apiKey && apiKey === process.env.INTERNAL_API_KEY) return true;
+  return false;
+}
 
 // Note: Support tickets are stored in Airtable (Support base).
 // This endpoint serves as a proxy/cache. For now, it returns
@@ -12,7 +16,12 @@ const supabase = createClient(
 // In production, n8n workflows will sync Airtable tickets to Supabase
 // for faster portal queries.
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!(await checkAdminOrApiKey(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = await createServiceRoleClient();
   // Try reading from a support_tickets shadow table
   const { data, error } = await supabase
     .from("support_tickets")
@@ -31,7 +40,12 @@ export async function GET() {
   return NextResponse.json(data || []);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  if (!(await checkAdminOrApiKey(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = await createServiceRoleClient();
   const body = await req.json();
 
   // Create or update a support ticket shadow record

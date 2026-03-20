@@ -2,10 +2,10 @@
 CRM Sync - Workflow Builder & Deployer
 
 Builds 3 CRM sync workflows for unified contact management
-across Airtable, Xero, and the client portal.
+across Airtable, QuickBooks, and the client portal.
 
 Workflows:
-    CRM-01: Hourly Sync - Merge Airtable leads + Xero contacts into unified CRM table
+    CRM-01: Hourly Sync - Merge Airtable leads + QuickBooks contacts into unified CRM table
     CRM-02: Nightly Dedup - AI-assisted duplicate detection and merge (daily 01:00 SAST)
     CRM-03: Weekly Enrichment - Tavily + AI enrichment for incomplete records (Sun 03:00 SAST)
 
@@ -35,7 +35,7 @@ load_dotenv(env_path)
 CRED_OPENROUTER = {"id": "9ZgHenDBrFuyboov", "name": "OpenRouter 2WC"}
 CRED_GMAIL = {"id": "2IuycrTIgWJZEjBE", "name": "Gmail AVM"}
 CRED_AIRTABLE = {"id": "ZyBrcAO6fps7YB3u", "name": "Airtable PAT"}
-CRED_XERO = {"id": "xeroOAuth2Api", "name": "Xero OAuth2"}
+CRED_QUICKBOOKS = {"id": "quickBooksOAuth2Api", "name": "QuickBooks OAuth2"}
 
 # -- Airtable IDs ---------------------------------------------------------
 
@@ -47,7 +47,7 @@ TABLE_CRM_SYNC_LOG = os.getenv("CRM_SYNC_LOG_TABLE_ID", "REPLACE_AFTER_SETUP")
 
 # -- Other Constants -------------------------------------------------------
 
-XERO_TENANT_ID = "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
+QBO_COMPANY_ID = "1f5c5e97-8976-4e03-b33c-ba638a7aeb72"
 ALERT_EMAIL = "ian@anyvisionmedia.com"
 N8N_BASE_URL = os.getenv("N8N_BASE_URL", "https://ianimmelman89.app.n8n.cloud")
 AI_MODEL = "anthropic/claude-sonnet-4-20250514"
@@ -140,25 +140,25 @@ def build_crm01_nodes():
         "alwaysOutputData": True,
     })
 
-    # -- Fetch Xero Contacts Modified (HTTP Request) --
+    # -- Fetch QuickBooks Contacts Modified (HTTP Request) --
     nodes.append({
         "parameters": {
-            "url": "https://api.xero.com/api.xro/2.0/Contacts",
+            "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Contacts",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": XERO_TENANT_ID},
+                    {"name": "qbo-company-id", "value": QBO_COMPANY_ID},
                     {"name": "If-Modified-Since", "value": "={{ $('Set Sync Window').first().json.syncSinceDate }}"},
                 ]
             },
             "options": {},
         },
         "id": uid(),
-        "name": "Fetch Xero Contacts",
+        "name": "Fetch QuickBooks Contacts",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [660, 420],
-        "credentials": {"oAuth2Api": CRED_XERO},
+        "credentials": {"oAuth2Api": CRED_QUICKBOOKS},
     })
 
     # -- Merge Data (Code node) --
@@ -166,8 +166,8 @@ def build_crm01_nodes():
         "parameters": {
             "jsCode": """// Normalize both sources into unified format
 const airtableRecords = $('Fetch Airtable Leads').all().map(i => i.json);
-const xeroResponse = $('Fetch Xero Contacts').first().json;
-const xeroContacts = (xeroResponse.Contacts || []);
+const qboResponse = $('Fetch QuickBooks Contacts').first().json;
+const qboContacts = (qboResponse.Contacts || []);
 
 const unified = [];
 
@@ -184,8 +184,8 @@ for (const rec of airtableRecords) {
   });
 }
 
-// Normalize Xero contacts
-for (const contact of xeroContacts) {
+// Normalize QuickBooks contacts
+for (const contact of qboContacts) {
   const email = (contact.EmailAddress || '').toLowerCase().trim();
   const phone = contact.Phones && contact.Phones.length > 0
     ? (contact.Phones.find(p => p.PhoneNumber) || {}).PhoneNumber || ''
@@ -195,7 +195,7 @@ for (const contact of xeroContacts) {
     name: contact.Name || '',
     phone,
     company: contact.Name || '',
-    source: 'Xero',
+    source: 'QuickBooks',
     lastModified: contact.UpdatedDateUTC || '',
     rawId: contact.ContactID || '',
   });
@@ -206,7 +206,7 @@ const valid = unified.filter(r => r.email && r.email.includes('@'));
 
 return [{ json: {
   totalAirtable: airtableRecords.length,
-  totalXero: xeroContacts.length,
+  totalQBO: qboContacts.length,
   totalUnified: valid.length,
   records: valid,
 } }];"""
@@ -384,7 +384,7 @@ return records.map(r => ({ json: r }));"""
     # -- Sticky Note --
     nodes.append({
         "parameters": {
-            "content": "## CRM-01: Hourly Sync\nRuns every hour. Fetches modified Airtable leads + Xero contacts,\nnormalizes into unified format, creates or updates in CRM Unified table.\nLogs sync results to CRM Sync Log.",
+            "content": "## CRM-01: Hourly Sync\nRuns every hour. Fetches modified Airtable leads + QuickBooks contacts,\nnormalizes into unified format, creates or updates in CRM Unified table.\nLogs sync results to CRM Sync Log.",
             "width": 440,
             "height": 120,
         },
@@ -408,14 +408,14 @@ def build_crm01_connections():
             "main": [
                 [
                     {"node": "Fetch Airtable Leads", "type": "main", "index": 0},
-                    {"node": "Fetch Xero Contacts", "type": "main", "index": 0},
+                    {"node": "Fetch QuickBooks Contacts", "type": "main", "index": 0},
                 ]
             ]
         },
         "Fetch Airtable Leads": {
             "main": [[{"node": "Merge Data", "type": "main", "index": 0}]]
         },
-        "Fetch Xero Contacts": {
+        "Fetch QuickBooks Contacts": {
             "main": [[{"node": "Merge Data", "type": "main", "index": 0}]]
         },
         "Merge Data": {

@@ -345,7 +345,7 @@ def build_wa01_nodes():
                     "Priority": "High",
                     "Description": "=WhatsApp metrics below threshold - Sentiment: {{ $('Compute Analytics').first().json.sentiment_score }}/100, Resolution: {{ $('Compute Analytics').first().json.resolution_rate }}%",
                     "Details": "={{ JSON.stringify($('Compute Analytics').first().json) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
                     "Status": "Open",
                 },
                 "schema": [
@@ -551,7 +551,7 @@ def build_wa02_nodes():
             "authentication": "none",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={{ JSON.stringify({agent: 'agent_whatsapp', status: 'healthy', last_run: $now.format('yyyy-MM-dd HH:mm:ss'), metrics: {new_contacts: $json.total_new, sync_at: $json.sync_at}}) }}",
+            "jsonBody": "={{ JSON.stringify({agent: 'agent_whatsapp', status: 'healthy', last_run: $now.toFormat('yyyy-MM-dd HH:mm:ss'), metrics: {new_contacts: $json.total_new, sync_at: $json.sync_at}}) }}",
             "options": {"timeout": 15000},
         },
         "id": uid(),
@@ -872,7 +872,7 @@ def build_wa03_nodes():
                     "Priority": "={{ $('Parse Issue').first().json.classification.severity === 'critical' ? 'Critical' : 'High' }}",
                     "Description": "={{ $('Parse Issue').first().json.classification.summary }}",
                     "Details": "={{ JSON.stringify({contact: $('Parse Issue').first().json.scan.contact, severity: $('Parse Issue').first().json.classification.severity, issue_type: $('Parse Issue').first().json.classification.issue_type, keywords: $('Parse Issue').first().json.scan.found_keywords}) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
                     "Status": "Open",
                 },
                 "schema": [

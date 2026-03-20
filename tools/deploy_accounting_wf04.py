@@ -7,7 +7,7 @@ Handles:
 - Supplier validation and creation
 - Expense categorization
 - Approval routing (auto-approve < R10k, manual > R10k)
-- Bill creation in Xero
+- Bill creation in QuickBooks
 - Payment scheduling
 - Audit logging
 
@@ -33,9 +33,9 @@ load_dotenv(env_path)
 CRED_OPENROUTER = {"id": "9ZgHenDBrFuyboov", "name": "OpenRouter 2WC"}
 CRED_GMAIL = {"id": "2IuycrTIgWJZEjBE", "name": "Gmail account AVM Tutorial"}
 CRED_AIRTABLE = {"id": "ZyBrcAO6fps7YB3u", "name": "Airtable account"}
-CRED_XERO = {"id": os.getenv("ACCOUNTING_XERO_CRED_ID", "REPLACE"), "name": "Xero OAuth2 AVM"}
+CRED_QUICKBOOKS = {"id": os.getenv("ACCOUNTING_QBO_CRED_ID", "REPLACE"), "name": "QuickBooks OAuth2 AVM"}
 
-XERO_TENANT_ID = os.getenv("ACCOUNTING_XERO_TENANT_ID", "REPLACE_WITH_TENANT_ID")
+QBO_COMPANY_ID = os.getenv("ACCOUNTING_QBO_COMPANY_ID", "REPLACE_WITH_TENANT_ID")
 
 # ── Airtable IDs ──────────────────────────────────────────────
 
@@ -44,6 +44,23 @@ TABLE_SUPPLIERS = os.getenv("ACCOUNTING_TABLE_SUPPLIERS", "REPLACE_WITH_TABLE_ID
 TABLE_SUPPLIER_BILLS = os.getenv("ACCOUNTING_TABLE_SUPPLIER_BILLS", "REPLACE_WITH_TABLE_ID")
 TABLE_TASKS = os.getenv("ACCOUNTING_TABLE_TASKS", "REPLACE_WITH_TABLE_ID")
 TABLE_AUDIT_LOG = os.getenv("ACCOUNTING_TABLE_AUDIT_LOG", "REPLACE_WITH_TABLE_ID")
+
+# Validate required environment variables
+_required_vars = {
+    "ACCOUNTING_QBO_COMPANY_ID": QBO_COMPANY_ID,
+    "ACCOUNTING_AIRTABLE_BASE_ID": AIRTABLE_BASE_ID,
+    "ACCOUNTING_TABLE_SUPPLIERS": TABLE_SUPPLIERS,
+    "ACCOUNTING_TABLE_SUPPLIER_BILLS": TABLE_SUPPLIER_BILLS,
+    "ACCOUNTING_TABLE_TASKS": TABLE_TASKS,
+    "ACCOUNTING_TABLE_AUDIT_LOG": TABLE_AUDIT_LOG,
+}
+_missing = [k for k, v in _required_vars.items() if isinstance(v, str) and "REPLACE_" in v.upper()]
+if _missing:
+    print(f"ERROR: These environment variables must be set before deploying:")
+    for var in _missing:
+        print(f"  - {var}")
+    print(f"\nCopy .env.template to .env and fill in the values.")
+    sys.exit(1)
 
 
 def uid():
@@ -138,7 +155,7 @@ def build_nodes():
                     {
                         "id": uid(),
                         "name": "todayDate",
-                        "value": "={{ $now.format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                     {
@@ -161,8 +178,8 @@ def build_nodes():
                     },
                     {
                         "id": uid(),
-                        "name": "xeroTenantId",
-                        "value": XERO_TENANT_ID,
+                        "name": "qboCompanyId",
+                        "value": QBO_COMPANY_ID,
                         "type": "string",
                     },
                 ]
@@ -415,7 +432,7 @@ def build_nodes():
                     "Email": "={{ $('Parse Extraction').first().json.supplier_email || '' }}",
                     "Payment Terms": "30 days",
                     "Active": True,
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [
                     {"id": "Supplier ID", "type": "string", "display": True, "displayName": "Supplier ID"},
@@ -572,7 +589,7 @@ def build_nodes():
                     "Approval Status": "Pending",
                     "Payment Status": "Unpaid",
                     "OCR Raw JSON": "={{ JSON.stringify({ emailId: $json.emailId, confidence: $json.confidence }) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [
                     {"id": "Bill ID", "type": "string", "display": True, "displayName": "Bill ID"},
@@ -646,7 +663,7 @@ def build_nodes():
                 "value": {
                     "Bill ID": "={{ $('Parse Category').first().json.billId }}",
                     "Approval Status": "Auto Approved",
-                    "Approved At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Approved At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                     "Approver": "system (auto-approve < R10k)",
                 },
                 "schema": [
@@ -684,7 +701,7 @@ def build_nodes():
                     "Owner": "ian@anyvisionmedia.com",
                     "Related Record ID": "={{ $('Parse Category').first().json.billId }}",
                     "Related Table": "Supplier Bills",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [
                     {"id": "Task ID", "type": "string", "display": True, "displayName": "Task ID"},
@@ -770,17 +787,17 @@ def build_nodes():
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
-    # ── 22. Create Bill in Xero (httpRequest) ─────────────────
+    # ── 22. Create Bill in QuickBooks (httpRequest) ─────────────────
     nodes.append({
         "parameters": {
             "method": "POST",
-            "url": "https://api.xero.com/api.xro/2.0/Invoices",
+            "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Invoices",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": "={{ $('System Config').first().json.xeroTenantId || '' }}"}
+                    {"name": "qbo-company-id", "value": "={{ $('System Config').first().json.qboCompanyId || '' }}"}
                 ]
             },
             "sendBody": True,
@@ -800,18 +817,18 @@ def build_nodes():
             "options": {"timeout": 30000},
         },
         "id": uid(),
-        "name": "Create Bill in Xero",
+        "name": "Create Bill in QuickBooks",
         "type": "n8n-nodes-base.httpRequest",
         "position": [4280, 300],
         "typeVersion": 4.2,
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
         "onError": "continueRegularOutput",
         "retryOnFail": True,
         "maxTries": 3,
         "waitBetweenTries": 5000,
     })
 
-    # ── 23. Update Bill Xero ID (airtable update) ────────────
+    # ── 23. Update Bill QuickBooks ID (airtable update) ────────────
     nodes.append({
         "parameters": {
             "operation": "update",
@@ -820,15 +837,15 @@ def build_nodes():
             "columns": {
                 "value": {
                     "Bill ID": "={{ $('Parse Category').first().json.billId }}",
-                    "Xero Bill ID": "={{ $json.Invoices ? $json.Invoices[0].InvoiceID : ($json.InvoiceID || '') }}",
-                    "Xero Status": "={{ $json.Invoices ? $json.Invoices[0].Status : ($json.Status || 'ERROR') }}",
-                    "Synced to Xero At": "={{ $now.toISO() }}",
+                    "QuickBooks Bill ID": "={{ $json.Invoices ? $json.Invoices[0].InvoiceID : ($json.InvoiceID || '') }}",
+                    "QuickBooks Status": "={{ $json.Invoices ? $json.Invoices[0].Status : ($json.Status || 'ERROR') }}",
+                    "Synced to QuickBooks At": "={{ $now.toISO() }}",
                 },
                 "schema": [
                     {"id": "Bill ID", "type": "string", "display": True, "displayName": "Bill ID"},
-                    {"id": "Xero Bill ID", "type": "string", "display": True, "displayName": "Xero Bill ID"},
-                    {"id": "Xero Status", "type": "string", "display": True, "displayName": "Xero Status"},
-                    {"id": "Synced to Xero At", "type": "string", "display": True, "displayName": "Synced to Xero At"},
+                    {"id": "QuickBooks Bill ID", "type": "string", "display": True, "displayName": "QuickBooks Bill ID"},
+                    {"id": "QuickBooks Status", "type": "string", "display": True, "displayName": "QuickBooks Status"},
+                    {"id": "Synced to QuickBooks At", "type": "string", "display": True, "displayName": "Synced to QuickBooks At"},
                 ],
                 "mappingMode": "defineBelow",
                 "matchingColumns": ["Bill ID"],
@@ -836,7 +853,7 @@ def build_nodes():
             "options": {},
         },
         "id": uid(),
-        "name": "Update Bill Xero ID",
+        "name": "Update Bill QuickBooks ID",
         "type": "n8n-nodes-base.airtable",
         "position": [4520, 300],
         "typeVersion": 2.1,
@@ -947,7 +964,7 @@ def build_nodes():
                     "Result": "Success",
                     "Error Details": "",
                     "Metadata JSON": "={{ JSON.stringify({ supplier: $('Parse Category').first().json.supplierName, amount: $('Parse Category').first().json.total_amount, category: $('Parse Category').first().json.expenseCategory, confidence: $('Parse Category').first().json.confidence }) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [
                     {"id": "Timestamp", "type": "string", "display": True, "displayName": "Timestamp"},
@@ -1131,7 +1148,7 @@ def build_connections():
             ]
         },
         "Auto Approve Bill": {
-            "main": [[{"node": "Create Bill in Xero", "type": "main", "index": 0}]]
+            "main": [[{"node": "Create Bill in QuickBooks", "type": "main", "index": 0}]]
         },
         "Create Approval Task": {
             "main": [[{"node": "Send Approval Email", "type": "main", "index": 0}]]
@@ -1142,10 +1159,10 @@ def build_connections():
         "Update Bill Awaiting": {
             "main": [[{"node": "Mark Email Processed", "type": "main", "index": 0}]]
         },
-        "Create Bill in Xero": {
-            "main": [[{"node": "Update Bill Xero ID", "type": "main", "index": 0}]]
+        "Create Bill in QuickBooks": {
+            "main": [[{"node": "Update Bill QuickBooks ID", "type": "main", "index": 0}]]
         },
-        "Update Bill Xero ID": {
+        "Update Bill QuickBooks ID": {
             "main": [[{"node": "Schedule Payment", "type": "main", "index": 0}]]
         },
         "Schedule Payment": {
@@ -1387,10 +1404,10 @@ def main():
     print()
     print("Next steps:")
     print("  1. Open the workflow in n8n UI to verify node connections")
-    print("  2. Verify credential bindings (Airtable, Gmail, Xero OAuth2, OpenRouter)")
+    print("  2. Verify credential bindings (Airtable, Gmail, QuickBooks OAuth2, OpenRouter)")
     print("  3. Create Gmail label 'Bills' and 'Processed' if not existing")
     print("  4. Test with Manual Trigger using a sample supplier invoice email")
-    print("  5. Verify Xero bill creation in Xero dashboard")
+    print("  5. Verify QuickBooks bill creation in QuickBooks dashboard")
     print("  6. Check Airtable for bill record, audit log, and supplier entries")
     print("  7. Test approval flow: send an invoice > R10,000 to trigger manual approval")
     print("  8. Once verified, activate schedule trigger for business hours monitoring")

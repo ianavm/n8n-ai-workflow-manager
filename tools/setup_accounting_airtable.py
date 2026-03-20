@@ -80,7 +80,7 @@ TABLE_DEFINITIONS = {
                     ]
                 },
             },
-            {"name": "Xero Contact ID", "type": "singleLineText"},
+            {"name": "QuickBooks Customer ID", "type": "singleLineText"},
             {"name": "Active", "type": "checkbox", "options": {"icon": "check", "color": "greenBright"}},
             {"name": "Created At", "type": "date", "options": {"dateFormat": {"name": "iso"}}},
             {"name": "Updated At", "type": "date", "options": {"dateFormat": {"name": "iso"}}},
@@ -93,7 +93,7 @@ TABLE_DEFINITIONS = {
             {"name": "Email", "type": "email"},
             {"name": "Phone", "type": "phoneNumber"},
             {"name": "Bank Details Hash", "type": "singleLineText"},
-            {"name": "Xero Contact ID", "type": "singleLineText"},
+            {"name": "QuickBooks Customer ID", "type": "singleLineText"},
             {
                 "name": "Default Category",
                 "type": "singleSelect",
@@ -179,7 +179,7 @@ TABLE_DEFINITIONS = {
             {"name": "Currency", "type": "singleLineText"},
             {"name": "Line Items JSON", "type": "multilineText"},
             {"name": "PDF URL", "type": "url"},
-            {"name": "Xero Invoice ID", "type": "singleLineText"},
+            {"name": "QuickBooks Invoice ID", "type": "singleLineText"},
             {
                 "name": "Source",
                 "type": "singleSelect",
@@ -234,7 +234,7 @@ TABLE_DEFINITIONS = {
                     ]
                 },
             },
-            {"name": "Xero Payment ID", "type": "singleLineText"},
+            {"name": "QuickBooks Payment ID", "type": "singleLineText"},
             {"name": "Gateway Transaction ID", "type": "singleLineText"},
             {"name": "Created At", "type": "date", "options": {"dateFormat": {"name": "iso"}}},
         ],
@@ -295,7 +295,7 @@ TABLE_DEFINITIONS = {
                     ]
                 },
             },
-            {"name": "Xero Bill ID", "type": "singleLineText"},
+            {"name": "QuickBooks Bill ID", "type": "singleLineText"},
             {"name": "Created At", "type": "date", "options": {"dateFormat": {"name": "iso"}}},
         ],
     },
@@ -371,7 +371,7 @@ TABLE_DEFINITIONS = {
                         {"name": "REMINDER_SENT", "color": "orangeBright"},
                         {"name": "DISPUTE_OPENED", "color": "redBright"},
                         {"name": "DISPUTE_RESOLVED", "color": "redDark1"},
-                        {"name": "XERO_SYNC", "color": "grayBright"},
+                        {"name": "QBO_SYNC", "color": "grayBright"},
                         {"name": "MONTH_END_CLOSE", "color": "grayDark1"},
                         {"name": "EXCEPTION", "color": "pinkBright"},
                         {"name": "MASTER_DATA_CHANGE", "color": "tealDark1"},

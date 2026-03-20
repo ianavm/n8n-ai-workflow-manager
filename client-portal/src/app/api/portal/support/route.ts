@@ -1,33 +1,20 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-
-const serviceClient = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-async function getAuthUser() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll() } }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
+import { getSession } from "@/lib/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function GET() {
-  const user = await getAuthUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session || session.role !== "client") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const serviceClient = await createServiceRoleClient();
 
   // Get client record
   const { data: client } = await serviceClient
     .from("clients")
     .select("id")
-    .eq("auth_user_id", user.id)
+    .eq("id", session.profileId)
     .single();
 
   if (!client) return NextResponse.json([]);
@@ -48,16 +35,19 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const user = await getAuthUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getSession();
+  if (!session || session.role !== "client") {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
+  const serviceClient = await createServiceRoleClient();
   const body = await req.json();
 
   // Get client record
   const { data: client } = await serviceClient
     .from("clients")
     .select("id, email")
-    .eq("auth_user_id", user.id)
+    .eq("id", session.profileId)
     .single();
 
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });

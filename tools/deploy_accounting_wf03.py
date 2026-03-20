@@ -4,7 +4,7 @@ Accounting Department - Payments & Reconciliation (WF-03) Builder & Deployer
 Handles:
 - Stripe payment webhooks
 - PayFast ITN (Instant Transaction Notification) webhooks
-- Daily bank import from Xero
+- Daily bank import from QuickBooks
 - Payment matching (exact + AI fuzzy)
 - Partial/overpayment handling
 - Receipt sending
@@ -35,10 +35,10 @@ from credentials import CREDENTIALS
 CRED_OPENROUTER = CREDENTIALS["openrouter"]
 CRED_GMAIL = CREDENTIALS["gmail"]
 CRED_AIRTABLE = CREDENTIALS["airtable"]
-CRED_XERO = CREDENTIALS["xero"]
+CRED_QUICKBOOKS = CREDENTIALS["quickbooks"]
 CRED_STRIPE = {"id": os.getenv("ACCOUNTING_STRIPE_CRED_ID", "REPLACE"), "name": "Stripe API AVM"}
 
-XERO_TENANT_ID = os.getenv("ACCOUNTING_XERO_TENANT_ID", "REPLACE_WITH_TENANT_ID")
+QBO_COMPANY_ID = os.getenv("ACCOUNTING_QBO_COMPANY_ID", "REPLACE_WITH_TENANT_ID")
 
 # ── Airtable IDs ──────────────────────────────────────────────
 
@@ -48,6 +48,24 @@ TABLE_PAYMENTS = os.getenv("ACCOUNTING_TABLE_PAYMENTS", "REPLACE_WITH_TABLE_ID")
 TABLE_CUSTOMERS = os.getenv("ACCOUNTING_TABLE_CUSTOMERS", "REPLACE_WITH_TABLE_ID")
 TABLE_TASKS = os.getenv("ACCOUNTING_TABLE_TASKS", "REPLACE_WITH_TABLE_ID")
 TABLE_AUDIT_LOG = os.getenv("ACCOUNTING_TABLE_AUDIT_LOG", "REPLACE_WITH_TABLE_ID")
+
+# Validate required environment variables
+_required_vars = {
+    "ACCOUNTING_QBO_COMPANY_ID": QBO_COMPANY_ID,
+    "ACCOUNTING_AIRTABLE_BASE_ID": AIRTABLE_BASE_ID,
+    "ACCOUNTING_TABLE_INVOICES": TABLE_INVOICES,
+    "ACCOUNTING_TABLE_PAYMENTS": TABLE_PAYMENTS,
+    "ACCOUNTING_TABLE_CUSTOMERS": TABLE_CUSTOMERS,
+    "ACCOUNTING_TABLE_TASKS": TABLE_TASKS,
+    "ACCOUNTING_TABLE_AUDIT_LOG": TABLE_AUDIT_LOG,
+}
+_missing = [k for k, v in _required_vars.items() if isinstance(v, str) and "REPLACE_" in v.upper()]
+if _missing:
+    print(f"ERROR: These environment variables must be set before deploying:")
+    for var in _missing:
+        print(f"  - {var}")
+    print(f"\nCopy .env.template to .env and fill in the values.")
+    sys.exit(1)
 
 
 def uid():
@@ -192,7 +210,7 @@ def build_nodes():
                     {
                         "id": uid(),
                         "name": "todayDate",
-                        "value": "={{ $now.format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                     {
@@ -215,8 +233,8 @@ def build_nodes():
                     },
                     {
                         "id": uid(),
-                        "name": "xeroTenantId",
-                        "value": os.getenv("ACCOUNTING_XERO_TENANT_ID", ""),
+                        "name": "qboCompanyId",
+                        "value": os.getenv("ACCOUNTING_QBO_COMPANY_ID", ""),
                         "type": "string",
                     },
                 ]
@@ -349,7 +367,7 @@ def build_nodes():
                 "    && !body.pf_payment_id && !body.amount_gross && !body.type\n"
                 "    && (body.todayDate || body.companyName)) {\n"
                 "  // No payment data available - this was a scheduled/manual trigger without webhook data\n"
-                "  // TODO: In production, this path should call the Xero Bank Transactions API\n"
+                "  // TODO: In production, this path should call the QuickBooks Banking API\n"
                 "  // to fetch recent bank transactions before normalizing\n"
                 "  return [{json: {_noPayment: true, reason: 'No payment data - bank import not yet configured'}}];\n"
                 "}\n"
@@ -763,18 +781,18 @@ def build_nodes():
         "typeVersion": 2,
     })
 
-    # ── 19. Post Payment to Xero ──────────────────────────────
+    # ── 19. Post Payment to QuickBooks ──────────────────────────────
     nodes.append({
         "parameters": {
             "method": "POST",
-            "url": "https://api.xero.com/api.xro/2.0/Payments",
+            "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Payments",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
                     {"name": "Content-Type", "value": "application/json"},
-                    {"name": "xero-tenant-id", "value": "={{ $('System Config').first().json.xeroTenantId || '' }}"},
+                    {"name": "qbo-company-id", "value": "={{ $('System Config').first().json.qboCompanyId || '' }}"},
                 ],
             },
             "sendBody": True,
@@ -795,11 +813,11 @@ def build_nodes():
             "options": {"timeout": 30000},
         },
         "id": uid(),
-        "name": "Post Payment to Xero",
+        "name": "Post Payment to QuickBooks",
         "type": "n8n-nodes-base.httpRequest",
         "position": [2500, 250],
         "typeVersion": 4.2,
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
         "onError": "continueRegularOutput",
         "retryOnFail": True,
         "maxTries": 2,
@@ -848,7 +866,7 @@ def build_nodes():
                     "Matched Invoice": "={{ $json.matchedInvoiceNumber }}",
                     "Match Type": "={{ $json.matchType }}",
                     "Payment Type": "={{ $json.paymentType }}",
-                    "Xero Payment ID": "={{ $json.xeroPaymentId || '' }}",
+                    "QuickBooks Payment ID": "={{ $json.qboPaymentId || '' }}",
                     "Reconciled Date": "={{ $now.toISO() }}",
                 },
                 "matchingColumns": ["Payment ID"],
@@ -1082,9 +1100,9 @@ def build_connections():
             ],
         },
         "Handle Partial/Over": {
-            "main": [[{"node": "Post Payment to Xero", "type": "main", "index": 0}]],
+            "main": [[{"node": "Post Payment to QuickBooks", "type": "main", "index": 0}]],
         },
-        "Post Payment to Xero": {
+        "Post Payment to QuickBooks": {
             "main": [[{"node": "Update Invoice Status", "type": "main", "index": 0}]],
         },
         "Update Invoice Status": {
@@ -1310,7 +1328,7 @@ def main():
     print()
     print("Next steps:")
     print("  1. Open the workflow in n8n UI to verify node connections")
-    print("  2. Verify credential bindings (OpenRouter, Airtable, Gmail, Xero)")
+    print("  2. Verify credential bindings (OpenRouter, Airtable, Gmail, QuickBooks)")
     print("  3. Configure Stripe webhook to point to /accounting/stripe-webhook")
     print("  4. Configure PayFast ITN URL to point to /accounting/payfast-itn")
     print("  5. Test with Manual Trigger -> check Airtable for payment records")

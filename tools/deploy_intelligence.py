@@ -91,13 +91,13 @@ def build_intel01_nodes():
                     {
                         "id": uid(),
                         "name": "cutoffDate",
-                        "value": "={{ $now.minus({days: 28}).format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.minus({days: 28}).toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                     {
                         "id": uid(),
                         "name": "reportDate",
-                        "value": "={{ $now.format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                 ]
@@ -425,19 +425,19 @@ def build_intel02_nodes():
                     {
                         "id": uid(),
                         "name": "periodStart",
-                        "value": "={{ $now.minus({days: 30}).format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.minus({days: 30}).toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                     {
                         "id": uid(),
                         "name": "periodEnd",
-                        "value": "={{ $now.format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                     {
                         "id": uid(),
                         "name": "monthLabel",
-                        "value": "={{ $now.minus({days: 1}).format('MMMM yyyy') }}",
+                        "value": "={{ $now.minus({days: 1}).toFormat('MMMM yyyy') }}",
                         "type": "string",
                     },
                 ]
@@ -806,7 +806,7 @@ def build_intel03_nodes():
                     {
                         "id": uid(),
                         "name": "reportDate",
-                        "value": "={{ $now.format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                 ]

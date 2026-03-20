@@ -375,7 +375,7 @@ class KPIEngine:
                 })
             elif agent_id == "agent_finance":
                 snapshot.update({
-                    "Revenue ZAR": 0,  # Populated from Xero via workflow
+                    "Revenue ZAR": 0,  # Populated from QuickBooks via workflow
                 })
             elif agent_id == "agent_support":
                 snapshot.update({

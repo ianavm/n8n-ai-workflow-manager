@@ -36,7 +36,7 @@ load_dotenv(env_path)
 CRED_OPENROUTER = {"id": "9ZgHenDBrFuyboov", "name": "OpenRouter 2WC"}
 CRED_GMAIL = {"id": "2IuycrTIgWJZEjBE", "name": "Gmail account AVM Tutorial"}
 CRED_AIRTABLE = {"id": "ZyBrcAO6fps7YB3u", "name": "Airtable account"}
-CRED_XERO = {"id": os.getenv("ACCOUNTING_XERO_CRED_ID", "REPLACE"), "name": "Xero OAuth2 AVM"}
+CRED_QUICKBOOKS = {"id": os.getenv("ACCOUNTING_QBO_CRED_ID", "REPLACE"), "name": "QuickBooks OAuth2 AVM"}
 CRED_GOOGLE_SHEETS = {"id": "OkpDXxwI8WcUJp4P", "name": "Google Sheets account"}
 
 # ── Google Sheets IDs ────────────────────────────────────────
@@ -56,6 +56,28 @@ TABLE_SUPPLIER_BILLS = os.getenv("ACCOUNTING_TABLE_SUPPLIER_BILLS", "REPLACE_WIT
 TABLE_TASKS = os.getenv("ACCOUNTING_TABLE_TASKS", "REPLACE_WITH_TABLE_ID")
 TABLE_AUDIT_LOG = os.getenv("ACCOUNTING_TABLE_AUDIT_LOG", "REPLACE_WITH_TABLE_ID")
 TABLE_SYSTEM_CONFIG = os.getenv("ACCOUNTING_TABLE_SYSTEM_CONFIG", "REPLACE_WITH_TABLE_ID")
+
+# Validate required environment variables
+_required_vars = {
+    "ACCOUNTING_GOOGLE_SHEETS_DASHBOARD_ID": GOOGLE_SHEETS_DASHBOARD_ID,
+    "ACCOUNTING_AIRTABLE_BASE_ID": AIRTABLE_BASE_ID,
+    "ACCOUNTING_TABLE_CUSTOMERS": TABLE_CUSTOMERS,
+    "ACCOUNTING_TABLE_SUPPLIERS": TABLE_SUPPLIERS,
+    "ACCOUNTING_TABLE_PRODUCTS_SERVICES": TABLE_PRODUCTS,
+    "ACCOUNTING_TABLE_INVOICES": TABLE_INVOICES,
+    "ACCOUNTING_TABLE_PAYMENTS": TABLE_PAYMENTS,
+    "ACCOUNTING_TABLE_SUPPLIER_BILLS": TABLE_SUPPLIER_BILLS,
+    "ACCOUNTING_TABLE_TASKS": TABLE_TASKS,
+    "ACCOUNTING_TABLE_AUDIT_LOG": TABLE_AUDIT_LOG,
+    "ACCOUNTING_TABLE_SYSTEM_CONFIG": TABLE_SYSTEM_CONFIG,
+}
+_missing = [k for k, v in _required_vars.items() if isinstance(v, str) and "REPLACE_" in v.upper()]
+if _missing:
+    print(f"ERROR: These environment variables must be set before deploying:")
+    for var in _missing:
+        print(f"  - {var}")
+    print(f"\nCopy .env.template to .env and fill in the values.")
+    sys.exit(1)
 
 
 def uid():
@@ -107,7 +129,7 @@ def build_nodes():
             "duplicateItem": False,
             "assignments": {
                 "assignments": [
-                    {"id": uid(), "name": "todayDate", "value": "={{ $now.format('yyyy-MM-dd') }}", "type": "string"},
+                    {"id": uid(), "name": "todayDate", "value": "={{ $now.toFormat('yyyy-MM-dd') }}", "type": "string"},
                     {"id": uid(), "name": "companyName", "value": "AnyVision Media", "type": "string"},
                     {"id": uid(), "name": "aiModel", "value": "anthropic/claude-sonnet-4-20250514", "type": "string"},
                     {"id": uid(), "name": "defaultCurrency", "value": "ZAR", "type": "string"},
@@ -484,8 +506,8 @@ def build_nodes():
                     "Status": "Open",
                     "Description": "=Month-End Reconciliation: {{ $json.discrepancyCount }} discrepancies found. Issues: {{ $json.discrepancies.map(d => d.type + ': ' + d.description).join(' | ') }}",
                     "Owner": "ian@anyvisionmedia.com",
-                    "Due At": "={{ $now.plus(2, 'days').format('yyyy-MM-dd') }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Due At": "={{ $now.plus(2, 'days').toFormat('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [],
             },
@@ -828,7 +850,7 @@ def build_nodes():
                 "value": {
                     "Key": "last_month_end_close",
                     "Value": "={{ JSON.stringify({ date: $('Parse AI Summary').first().json.todayDate, month: $('Parse AI Summary').first().json.monthName, totalAR: $('Parse AI Summary').first().json.totalAR, totalAP: $('Parse AI Summary').first().json.totalAP, netPosition: $('Parse AI Summary').first().json.netPosition, discrepancies: $('Parse AI Summary').first().json.discrepancyCount }) }}",
-                    "Updated At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Updated At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [],
             },
@@ -862,7 +884,7 @@ def build_nodes():
                     "Result": "Success",
                     "Error Details": "",
                     "Metadata JSON": "={{ JSON.stringify({ month: $('Parse AI Summary').first().json.monthName, totalAR: $('Parse AI Summary').first().json.totalAR, totalAP: $('Parse AI Summary').first().json.totalAP, netPosition: $('Parse AI Summary').first().json.netPosition, discrepancies: $('Parse AI Summary').first().json.discrepancyCount }) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [],
             },
@@ -937,11 +959,11 @@ def build_nodes():
     nodes.append({
         "parameters": {
             "sendTo": "ian@anyvisionmedia.com",
-            "subject": "=ERROR: Accounting WF-05 Month-End Close - {{ $now.format('yyyy-MM-dd HH:mm') }}",
+            "subject": "=ERROR: Accounting WF-05 Month-End Close - {{ $now.toFormat('yyyy-MM-dd HH:mm') }}",
             "emailType": "html",
             "message": (
                 "=<h2 style='color:#FF6D5A;'>Workflow Error: Month-End Close (WF-05)</h2>"
-                "<p><strong>Time:</strong> {{ $now.format('yyyy-MM-dd HH:mm:ss') }}</p>"
+                "<p><strong>Time:</strong> {{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}</p>"
                 "<p><strong>Error:</strong> {{ $json.execution?.error?.message || 'Unknown error' }}</p>"
                 "<p><strong>Node:</strong> {{ $json.execution?.lastNodeExecuted || 'Unknown' }}</p>"
                 "<p><strong>Execution ID:</strong> {{ $json.execution?.id || 'N/A' }}</p>"
@@ -1170,10 +1192,10 @@ def main():
         print("Continuing build with placeholder IDs (for preview only)...")
         print()
 
-    # Check Xero credential config
-    if "REPLACE" in CRED_XERO["id"]:
-        print("WARNING: Xero credential ID not configured!")
-        print("  Set ACCOUNTING_XERO_CRED_ID in .env")
+    # Check QuickBooks credential config
+    if "REPLACE" in CRED_QUICKBOOKS["id"]:
+        print("WARNING: QuickBooks credential ID not configured!")
+        print("  Set ACCOUNTING_QBO_CRED_ID in .env")
         print()
 
     # Build workflows

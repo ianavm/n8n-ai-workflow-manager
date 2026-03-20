@@ -1,12 +1,18 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export async function GET(req: NextRequest) {
+  const session = await getSession();
+  if (!session || (session.role !== "owner" && session.role !== "employee")) {
+    // Also allow internal API key for n8n
+    const apiKey = req.headers.get("x-api-key");
+    if (!apiKey || apiKey !== process.env.INTERNAL_API_KEY) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
 
-export async function GET() {
+  const supabase = await createServiceRoleClient();
   const [healthRes, renewalRes, clientsRes] = await Promise.all([
     supabase
       .from("client_health_scores")

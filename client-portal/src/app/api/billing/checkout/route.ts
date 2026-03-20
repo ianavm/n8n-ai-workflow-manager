@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       .from("plans")
       .select("*")
       .eq("slug", planSlug)
-      .eq("active", true)
+      .eq("is_active", true)
       .single();
 
     if (planError || !plan) {

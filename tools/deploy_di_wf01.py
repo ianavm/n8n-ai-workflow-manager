@@ -385,7 +385,7 @@ return [{
     nodes.append({
         "parameters": {
             "operation": "upload",
-            "name": "={{ $now.format('yyyyMMdd_HHmmss') + '_' + $json.fileName }}",
+            "name": "={{ $now.toFormat('yyyyMMdd_HHmmss') + '_' + $json.fileName }}",
             "folderId": {
                 "__rl": True,
                 "value": config["di_incoming_folder_id"],

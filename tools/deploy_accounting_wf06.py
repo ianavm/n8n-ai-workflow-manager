@@ -34,7 +34,7 @@ load_dotenv(env_path)
 CRED_OPENROUTER = {"id": "9ZgHenDBrFuyboov", "name": "OpenRouter 2WC"}
 CRED_GMAIL = {"id": "2IuycrTIgWJZEjBE", "name": "Gmail account AVM Tutorial"}
 CRED_AIRTABLE = {"id": "ZyBrcAO6fps7YB3u", "name": "Airtable account"}
-CRED_XERO = {"id": os.getenv("ACCOUNTING_XERO_CRED_ID", "REPLACE"), "name": "Xero OAuth2 AVM"}
+CRED_QUICKBOOKS = {"id": os.getenv("ACCOUNTING_QBO_CRED_ID", "REPLACE"), "name": "QuickBooks OAuth2 AVM"}
 CRED_WHATSAPP_SEND = {"id": "dCAz6MBXpOXvMJrq", "name": "WhatsApp account AVM Multi Agent"}
 
 # ── Airtable IDs ──────────────────────────────────────────────
@@ -50,6 +50,27 @@ TABLE_SUPPLIER_BILLS = os.getenv("ACCOUNTING_TABLE_SUPPLIER_BILLS", "REPLACE_WIT
 TABLE_TASKS = os.getenv("ACCOUNTING_TABLE_TASKS", "REPLACE_WITH_TABLE_ID")
 TABLE_AUDIT_LOG = os.getenv("ACCOUNTING_TABLE_AUDIT_LOG", "REPLACE_WITH_TABLE_ID")
 TABLE_SYSTEM_CONFIG = os.getenv("ACCOUNTING_TABLE_SYSTEM_CONFIG", "REPLACE_WITH_TABLE_ID")
+
+# Validate required environment variables
+_required_vars = {
+    "ACCOUNTING_AIRTABLE_BASE_ID": AIRTABLE_BASE_ID,
+    "ACCOUNTING_TABLE_CUSTOMERS": TABLE_CUSTOMERS,
+    "ACCOUNTING_TABLE_SUPPLIERS": TABLE_SUPPLIERS,
+    "ACCOUNTING_TABLE_PRODUCTS_SERVICES": TABLE_PRODUCTS,
+    "ACCOUNTING_TABLE_INVOICES": TABLE_INVOICES,
+    "ACCOUNTING_TABLE_PAYMENTS": TABLE_PAYMENTS,
+    "ACCOUNTING_TABLE_SUPPLIER_BILLS": TABLE_SUPPLIER_BILLS,
+    "ACCOUNTING_TABLE_TASKS": TABLE_TASKS,
+    "ACCOUNTING_TABLE_AUDIT_LOG": TABLE_AUDIT_LOG,
+    "ACCOUNTING_TABLE_SYSTEM_CONFIG": TABLE_SYSTEM_CONFIG,
+}
+_missing = [k for k, v in _required_vars.items() if isinstance(v, str) and "REPLACE_" in v.upper()]
+if _missing:
+    print(f"ERROR: These environment variables must be set before deploying:")
+    for var in _missing:
+        print(f"  - {var}")
+    print(f"\nCopy .env.template to .env and fill in the values.")
+    sys.exit(1)
 
 
 def uid():
@@ -106,7 +127,7 @@ def build_nodes():
                     {
                         "id": uid(),
                         "name": "todayDate",
-                        "value": "={{ $now.format('yyyy-MM-dd') }}",
+                        "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
                         "type": "string",
                     },
                     {
@@ -135,8 +156,8 @@ def build_nodes():
                     },
                     {
                         "id": uid(),
-                        "name": "xeroTenantId",
-                        "value": os.getenv("ACCOUNTING_XERO_TENANT_ID", ""),
+                        "name": "qboCompanyId",
+                        "value": os.getenv("ACCOUNTING_QBO_COMPANY_ID", ""),
                         "type": "string",
                     },
                 ]
@@ -227,7 +248,7 @@ def build_nodes():
                     "Result": "Success",
                     "Error Details": "",
                     "Metadata JSON": "={{ JSON.stringify({ cachedAt: $json['cachedAt'], configCount: $json['configCount'] }) }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [],
             },
@@ -318,7 +339,7 @@ def build_nodes():
                     "Result": "={{ $json['result'] }}",
                     "Error Details": "={{ $json['error'] }}",
                     "Metadata JSON": "={{ $json['metadata'] }}",
-                    "Created At": "={{ $now.format('yyyy-MM-dd') }}",
+                    "Created At": "={{ $now.toFormat('yyyy-MM-dd') }}",
                 },
                 "schema": [],
             },
@@ -484,7 +505,7 @@ def build_nodes():
                 "    'Active': true,\n"
                 "    'Created At': new Date().toISOString().split('T')[0],\n"
                 "    'Updated At': new Date().toISOString().split('T')[0],\n"
-                "    // Pass through for Xero sync\n"
+                "    // Pass through for QuickBooks sync\n"
                 "    legal_name: body.legal_name || body['Legal Name'] || '',\n"
                 "    email: email,\n"
                 "    vat_number: vat,\n"
@@ -552,17 +573,17 @@ def build_nodes():
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
-    # 14. Sync Customer to Xero (httpRequest)
+    # 14. Sync Customer to QuickBooks (httpRequest)
     nodes.append({
         "parameters": {
             "method": "POST",
-            "url": "https://api.xero.com/api.xro/2.0/Contacts",
+            "url": "https://quickbooks.api.intuit.com/v3/company/  # TODO: Update to QuickBooks endpoint. Was: api.xero.com/api.xro/2.0/Contacts",
             "authentication": "predefinedCredentialType",
-            "nodeCredentialType": "xeroOAuth2Api",
+            "nodeCredentialType": "quickBooksOAuth2Api",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "xero-tenant-id", "value": "={{ $('System Config').first().json.xeroTenantId || '' }}"},
+                    {"name": "qbo-company-id", "value": "={{ $('System Config').first().json.qboCompanyId || '' }}"},
                 ],
             },
             "sendBody": True,
@@ -579,11 +600,11 @@ def build_nodes():
             "options": {"timeout": 30000},
         },
         "id": uid(),
-        "name": "Sync Customer to Xero",
+        "name": "Sync Customer to QuickBooks",
         "type": "n8n-nodes-base.httpRequest",
         "position": [1160, 1200],
         "typeVersion": 4.2,
-        "credentials": {"xeroOAuth2Api": CRED_XERO},
+        "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
         "onError": "continueRegularOutput",
         "retryOnFail": True,
         "maxTries": 3,
@@ -594,7 +615,7 @@ def build_nodes():
     nodes.append({
         "parameters": {
             "respondWith": "json",
-            "responseBody": "={{ JSON.stringify({ status: 'success', customer_id: $json['Customer ID'] || $json['id'], synced_to_xero: true }) }}",
+            "responseBody": "={{ JSON.stringify({ status: 'success', customer_id: $json['Customer ID'] || $json['id'], synced_to_quickbooks: true }) }}",
             "options": {},
         },
         "id": uid(),
@@ -689,7 +710,7 @@ def build_nodes():
                 "## Customer CRUD Webhook\n\n"
                 "POST /accounting/customer\n\n"
                 "Accepts: {action: 'create'|'update', customer data}\n\n"
-                "Validates email/VAT, upserts to Airtable Customers table, syncs to Xero Contacts API."
+                "Validates email/VAT, upserts to Airtable Customers table, syncs to QuickBooks Contacts API."
             ),
             "width": 1300,
             "height": 200,
@@ -767,9 +788,9 @@ def build_connections():
             "main": [[{"node": "Upsert Customer", "type": "main", "index": 0}]]
         },
         "Upsert Customer": {
-            "main": [[{"node": "Sync Customer to Xero", "type": "main", "index": 0}]]
+            "main": [[{"node": "Sync Customer to QuickBooks", "type": "main", "index": 0}]]
         },
-        "Sync Customer to Xero": {
+        "Sync Customer to QuickBooks": {
             "main": [[{"node": "Respond Customer", "type": "main", "index": 0}]]
         },
         "Error Trigger": {
@@ -995,7 +1016,7 @@ def main():
     print()
     print("Next steps:")
     print("  1. Open the workflow in n8n UI to verify node connections")
-    print("  2. Verify credential bindings (Airtable, Gmail, Xero OAuth2)")
+    print("  2. Verify credential bindings (Airtable, Gmail, QuickBooks OAuth2)")
     print("  3. Seed System Config table with config key-value pairs")
     print("  4. Test config refresh with Manual Trigger")
     print("  5. Test audit log webhook: POST /accounting/audit-log")
