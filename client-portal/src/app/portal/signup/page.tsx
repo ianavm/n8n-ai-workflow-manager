@@ -87,9 +87,9 @@ export default function SignupPage() {
   const strengthPercent = (passedCount / PASSWORD_RULES.length) * 100;
 
   return (
-    <div className="min-h-screen flex">
+    <div className="h-screen flex overflow-hidden">
       {/* Left panel - branding (hidden on mobile) */}
-      <div className="hidden lg:flex lg:w-[480px] xl:w-[520px] flex-col justify-between p-12 relative overflow-hidden"
+      <div className="hidden lg:flex lg:w-[440px] xl:w-[480px] flex-col justify-between p-8 xl:p-10 relative overflow-hidden"
         style={{ background: "linear-gradient(135deg, #0D1326 0%, #131B36 50%, #0A0F1C 100%)" }}>
         {/* Decorative gradient orbs */}
         <div className="absolute top-20 -left-20 w-80 h-80 rounded-full opacity-20 blur-3xl pointer-events-none"
@@ -126,19 +126,19 @@ export default function SignupPage() {
 
         {/* Value prop */}
         <div className="relative z-10">
-          <h2 className="text-3xl font-bold text-white leading-tight mb-4">
+          <h2 className="text-2xl xl:text-3xl font-bold text-white leading-tight mb-3">
             Automate your business with <span style={{ background: "linear-gradient(135deg, #6C63FF, #00D4AA)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>intelligent AI agents</span>
           </h2>
-          <p className="text-[#8B95A9] text-base leading-relaxed mb-10">
+          <p className="text-[#8B95A9] text-sm leading-relaxed mb-6">
             Join forward-thinking South African businesses using AI to streamline operations, boost revenue, and reduce manual work.
           </p>
 
-          <div className="space-y-5">
+          <div className="space-y-3">
             {FEATURES.map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              <div key={text} className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                   style={{ background: "rgba(108, 99, 255, 0.1)", border: "1px solid rgba(108, 99, 255, 0.2)" }}>
-                  <Icon size={18} className="text-[#6C63FF]" />
+                  <Icon size={16} className="text-[#6C63FF]" />
                 </div>
                 <span className="text-[#B0B8C8] text-sm">{text}</span>
               </div>
@@ -166,7 +166,7 @@ export default function SignupPage() {
       </div>
 
       {/* Right panel - form */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 sm:px-12 relative">
+      <div className="flex-1 flex items-center justify-center px-6 py-6 sm:px-12 relative overflow-y-auto">
         {/* Subtle background texture */}
         <div className="absolute inset-0 opacity-[0.02] pointer-events-none"
           style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "32px 32px" }} />
@@ -200,15 +200,15 @@ export default function SignupPage() {
           </div>
 
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-white mb-2">Create your account</h1>
+          <div className="mb-5">
+            <h1 className="text-2xl font-bold text-white mb-1">Create your account</h1>
             <p className="text-sm text-[#8B95A9]">
               Start your 30-day free trial. No credit card required.
             </p>
           </div>
 
           {/* Card */}
-          <div className="glass-card-static p-8 sm:p-10">
+          <div className="glass-card-static p-6 sm:p-8">
             {success ? (
               <div className="text-center py-6 space-y-5">
                 <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center"
@@ -235,11 +235,11 @@ export default function SignupPage() {
                 </div>
               </div>
             ) : (
-              <form onSubmit={handleSignup} className="space-y-5">
+              <form onSubmit={handleSignup} className="space-y-3.5">
                 {/* Name row */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="firstName" className="block text-xs font-medium text-[#8B95A9] mb-1.5 uppercase tracking-wider">
+                    <label htmlFor="firstName" className="block text-xs font-medium text-[#8B95A9] mb-1 uppercase tracking-wider">
                       First Name
                     </label>
                     <input
@@ -254,7 +254,7 @@ export default function SignupPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="lastName" className="block text-xs font-medium text-[#8B95A9] mb-1.5 uppercase tracking-wider">
+                    <label htmlFor="lastName" className="block text-xs font-medium text-[#8B95A9] mb-1 uppercase tracking-wider">
                       Last Name
                     </label>
                     <input
@@ -272,7 +272,7 @@ export default function SignupPage() {
 
                 {/* Email */}
                 <div>
-                  <label htmlFor="email" className="block text-xs font-medium text-[#8B95A9] mb-1.5 uppercase tracking-wider">
+                  <label htmlFor="email" className="block text-xs font-medium text-[#8B95A9] mb-1 uppercase tracking-wider">
                     Work Email
                   </label>
                   <input
@@ -289,7 +289,7 @@ export default function SignupPage() {
 
                 {/* Password */}
                 <div>
-                  <label htmlFor="password" className="block text-xs font-medium text-[#8B95A9] mb-1.5 uppercase tracking-wider">
+                  <label htmlFor="password" className="block text-xs font-medium text-[#8B95A9] mb-1 uppercase tracking-wider">
                     Password
                   </label>
                   <div className="relative">
@@ -349,7 +349,7 @@ export default function SignupPage() {
 
                 {/* Confirm Password */}
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-xs font-medium text-[#8B95A9] mb-1.5 uppercase tracking-wider">
+                  <label htmlFor="confirmPassword" className="block text-xs font-medium text-[#8B95A9] mb-1 uppercase tracking-wider">
                     Confirm Password
                   </label>
                   <div className="relative">
@@ -380,7 +380,7 @@ export default function SignupPage() {
                 {/* Optional fields — collapsible row */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="companyName" className="block text-xs font-medium text-[#8B95A9] mb-1.5 uppercase tracking-wider">
+                    <label htmlFor="companyName" className="block text-xs font-medium text-[#8B95A9] mb-1 uppercase tracking-wider">
                       Company <span className="text-[#4B5563] normal-case tracking-normal">(optional)</span>
                     </label>
                     <input
@@ -394,7 +394,7 @@ export default function SignupPage() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="phoneNumber" className="block text-xs font-medium text-[#8B95A9] mb-1.5 uppercase tracking-wider">
+                    <label htmlFor="phoneNumber" className="block text-xs font-medium text-[#8B95A9] mb-1 uppercase tracking-wider">
                       Phone <span className="text-[#4B5563] normal-case tracking-normal">(optional)</span>
                     </label>
                     <input
@@ -439,7 +439,7 @@ export default function SignupPage() {
           </div>
 
           {/* Footer links */}
-          <div className="flex items-center justify-between mt-6 px-1">
+          <div className="flex items-center justify-between mt-4 px-1">
             <a
               href="/portal/login"
               className="text-sm text-[#6C63FF] hover:text-[#00D4AA] transition-colors font-medium"
