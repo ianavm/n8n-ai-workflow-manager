@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { validatePassword, extractClientIp } from "@/lib/validation";
 
+// Trial duration in days
+const TRIAL_DAYS = 30;
+
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const { email, password, first_name, last_name, company_name, phone_number } =
@@ -31,13 +34,15 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createServiceRoleClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://portal.anyvisionmedia.com";
 
-  // Create auth user via signUp (sends verification email)
+  // Create auth user with email_confirm: true so they can log in immediately
+  // Then send a separate welcome/verification email via inviteUserByEmail
   const { data: authData, error: authError } =
     await supabase.auth.admin.createUser({
       email,
       password,
-      email_confirm: false,
+      email_confirm: true,
     });
 
   if (authError) {
@@ -65,6 +70,7 @@ export async function POST(request: NextRequest) {
       full_name: fullName,
       company_name: company_name?.trim() || null,
       phone_number: phone_number?.trim() || null,
+      email_verified: true,
       created_by: null,
     })
     .select()
@@ -79,14 +85,35 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Send verification email
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://portal.anyvisionmedia.com";
+  // Auto-create 30-day trial subscription on Starter plan
+  const { data: starterPlan } = await supabase
+    .from("plans")
+    .select("id")
+    .eq("slug", "starter")
+    .single();
+
+  if (starterPlan) {
+    const now = new Date();
+    const trialEnd = new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+
+    await supabase.from("subscriptions").insert({
+      client_id: client.id,
+      plan_id: starterPlan.id,
+      status: "trialing",
+      billing_interval: "monthly",
+      trial_start: now.toISOString(),
+      trial_end: trialEnd.toISOString(),
+      current_period_start: now.toISOString(),
+      current_period_end: trialEnd.toISOString(),
+    });
+  }
+
+  // Send welcome email via Supabase magic link (acts as email verification + welcome)
   await supabase.auth.admin.generateLink({
-    type: "signup",
+    type: "magiclink",
     email,
-    password,
     options: {
-      redirectTo: `${appUrl}/portal/auth/callback`,
+      redirectTo: `${appUrl}/portal`,
     },
   });
 
@@ -98,7 +125,7 @@ export async function POST(request: NextRequest) {
     action: "client_self_signup",
     target_type: "client",
     target_id: client.id,
-    details: { email, full_name: fullName },
+    details: { email, full_name: fullName, trial_days: TRIAL_DAYS },
     ip_address: ip,
   });
 

@@ -134,13 +134,17 @@ export default function SignupPage() {
               <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 mx-auto flex items-center justify-center text-[#00D4AA]">
                 <Check size={24} />
               </div>
-              <p className="text-white font-medium">Account created!</p>
+              <p className="text-white font-medium">Welcome aboard!</p>
               <p className="text-sm text-[#6B7280]">
-                Check your email at <span className="text-[#B0B8C8]">{email}</span> to verify your account, then sign in.
+                Your account is ready. We&apos;ve sent a welcome email to <span className="text-[#B0B8C8]">{email}</span>.
+                You can sign in now with your password.
+              </p>
+              <p className="text-xs text-[#6B7280]">
+                Your 30-day free trial has started — no credit card required.
               </p>
               <a href="/portal/login">
                 <Button variant="coral" className="w-full mt-2">
-                  Go to Login
+                  Sign In Now
                 </Button>
               </a>
             </div>

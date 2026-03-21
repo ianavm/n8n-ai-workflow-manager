@@ -1,0 +1,274 @@
+{
+  "name": "Pilot Support - WhatsApp Connection Sync (PILOT-02)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "200d8739-2890-44df-9b09-cfb5f31ed0a3",
+      "name": "Every 15min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "73b7638b-7df3-4168-9eeb-98694a6a7791",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "/rest/v1/whatsapp_connections?status=eq.connected&select=*",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": ""
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "ad76b146-9bac-4048-b92a-86ad645b6aa4",
+      "name": "Fetch Connections",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 4.2,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sync whatsapp_connections from Supabase to Airtable Agents table\n// Input: Supabase whatsapp_connections rows with status='connected'\nconst connections = $input.all();\nconst results = [];\n\nfor (const conn of connections) {\n  const data = conn.json;\n  if (data.status !== 'connected' || !data.phone_number_id) continue;\n\n  results.push({\n    json: {\n      phone_number_id: data.phone_number_id,\n      display_phone: data.display_phone_number || '',\n      business_name: data.business_name || '',\n      client_id: data.client_id,\n      waba_id: data.waba_id || '',\n    }\n  });\n}\n\nif (results.length === 0) {\n  return [{ json: { skip: true, message: 'No new connections to sync' } }];\n}\n\nreturn results;"
+      },
+      "id": "7fc76912-8ecf-4293-8e74-1a815561fb14",
+      "name": "Parse Connections",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "cf0b8986-4132-4fb1-bfda-3d1cd31abda6",
+      "name": "Has Connections?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblHCkr9weKQAHZoB",
+          "mode": "id"
+        },
+        "filterByFormula": "=OR({whatsapp_number}='{{ $json.display_phone }}', {whatsapp_number}='{{ $json.phone_number_id }}')"
+      },
+      "id": "bfe24bdf-2df9-4677-b59f-948cfa0b12f4",
+      "name": "Find Agent",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1160,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "CTVAhYlNsJFMX2lE",
+          "name": "Whatsapp Multi Agent"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblHCkr9weKQAHZoB",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Find Agent').first().json.id }}",
+            "whatsapp_phone_number_id": "={{ $('Parse Connections').first().json.phone_number_id }}",
+            "waba_id": "={{ $('Parse Connections').first().json.waba_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "a318edb3-9b60-4f21-9a6a-7fea33c9770a",
+      "name": "Update Agent",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1400,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "CTVAhYlNsJFMX2lE",
+          "name": "Whatsapp Multi Agent"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "content": "## PILOT-02: WhatsApp Connection Sync\n\n**Schedule:** Every 15 min\n**Purpose:** Sync Supabase whatsapp_connections (from portal Embedded Signup) to Airtable Agents table so the Multi-Agent workflow picks up new agents.",
+        "height": 180,
+        "width": 440
+      },
+      "id": "pilot02-note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note"
+    }
+  ],
+  "connections": {
+    "Every 15min": {
+      "main": [
+        [
+          {
+            "node": "Fetch Connections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Connections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Connections": {
+      "main": [
+        [
+          {
+            "node": "Parse Connections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Connections": {
+      "main": [
+        [
+          {
+            "node": "Has Connections?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Connections?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Find Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Agent": {
+      "main": [
+        [
+          {
+            "node": "Update Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

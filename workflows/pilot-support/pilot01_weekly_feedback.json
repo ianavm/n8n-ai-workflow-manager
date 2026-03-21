@@ -1,0 +1,240 @@
+{
+  "name": "Pilot Support - Weekly Feedback Survey (PILOT-01)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 12 * * 5"
+            }
+          ]
+        }
+      },
+      "id": "4558f292-7d3e-4443-9724-46f1823066d6",
+      "name": "Friday 14:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "dacf7fa9-79b1-4eaa-955c-368c799e05fc",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appzcZpiIZ6QPtJXT",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblHCkr9weKQAHZoB",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({is_active}, {bot_type}='real_estate')"
+      },
+      "id": "c0dac9fb-bbe3-4571-9959-aaaa7e3999a6",
+      "name": "Get Active Agents",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "CTVAhYlNsJFMX2lE",
+          "name": "Whatsapp Multi Agent"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "id": "e11fcaaf-d9a3-4bb7-8079-827c360b8a60",
+      "name": "Split Agents",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.fields.notification_email || $json.fields.email }}",
+        "subject": "=WhatsApp AI Pilot - Weekly Feedback (Week {{ Math.ceil(($now.diff($now.startOf('month'), 'days').days) / 7) }})",
+        "emailType": "html",
+        "message": "=<h2>Hi {{ $json.fields.agent_name }},</h2><p>Thanks for being part of the WhatsApp AI pilot! We'd love your feedback to help us improve the experience.</p><p>This quick survey takes less than 2 minutes:</p><table cellpadding='0' cellspacing='0' style='margin:20px 0;'><tr><td style='background-color:#FF6D5A;border-radius:6px;padding:12px 28px;'><a href='https://forms.gle/REPLACE_WITH_REAL_FORM' style='color:#fff;text-decoration:none;font-size:15px;font-weight:600;'>Take the Survey</a></td></tr></table><p style='color:#888;font-size:13px;'>Your feedback directly shapes how we build this product. Thank you!</p><p>Best,<br>Ian Immelman<br>AnyVision Media</p>",
+        "options": {}
+      },
+      "id": "0ab90e10-7bad-4b36-bb36-ff5bdb679555",
+      "name": "Send Feedback Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const agent = $('Split Agents').first().json.fields || {};\nreturn {\n  json: {\n    status: 'feedback_sent',\n    agent_name: agent.agent_name || 'unknown',\n    email: agent.notification_email || agent.email || 'unknown',\n    sent_at: new Date().toISOString(),\n  }\n};"
+      },
+      "id": "c4cfda6b-00ff-4fd1-aaf6-38d8d1a97cce",
+      "name": "Log Send",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Pilot Feedback Survey Sent - {{ $('Get Active Agents').all().length }} agents",
+        "emailType": "text",
+        "message": "=Weekly feedback survey sent to all active pilot agents.\n\nAgents contacted: {{ $('Get Active Agents').all().length }}\nForm URL: https://forms.gle/REPLACE_WITH_REAL_FORM\n\nCheck Google Sheets for responses by Monday.",
+        "options": {}
+      },
+      "id": "6b6acd2e-c064-4a98-bf45-4f8918bd956f",
+      "name": "Notify Ian",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1160,
+        600
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "content": "## PILOT-01: Weekly Feedback Survey\n\n**Schedule:** Friday 14:00 SAST\n**Purpose:** Send feedback form to all active pilot agents. Summary email to Ian.",
+        "height": 160,
+        "width": 420
+      },
+      "id": "pilot01-note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        220
+      ],
+      "typeVersion": 1,
+      "name": "Note"
+    }
+  ],
+  "connections": {
+    "Friday 14:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Get Active Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Active Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Agents": {
+      "main": [
+        [
+          {
+            "node": "Split Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Agents": {
+      "main": [
+        [
+          {
+            "node": "Send Feedback Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Ian",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Feedback Email": {
+      "main": [
+        [
+          {
+            "node": "Log Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Send": {
+      "main": [
+        [
+          {
+            "node": "Split Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

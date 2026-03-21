@@ -102,6 +102,31 @@ AGENT_FIELDS = [
         "options": {"precision": 0},
         "description": "Per-contact rate limit per hour (default 30)",
     },
+    # --- Pilot: Real estate fields ---
+    {
+        "name": "custom_area_info",
+        "type": "multilineText",
+        "description": "Agent's area knowledge injected into AI context (suburbs, schools, amenities, market trends)",
+    },
+    {
+        "name": "listing_url",
+        "type": "url",
+        "description": "Link to agent's property listings (Property24, Private Property, website)",
+    },
+    {
+        "name": "specialization",
+        "type": "singleSelect",
+        "options": {
+            "choices": [
+                {"name": "residential", "color": "blueBright"},
+                {"name": "commercial", "color": "greenBright"},
+                {"name": "both", "color": "yellowBright"},
+                {"name": "luxury", "color": "purpleBright"},
+                {"name": "rental", "color": "tealBright"},
+            ]
+        },
+        "description": "Agent's property specialization",
+    },
     # --- Language support ---
     {
         "name": "default_language",

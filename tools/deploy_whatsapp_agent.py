@@ -184,6 +184,51 @@ return {
 };"""
 
 
+PER_AGENT_ANALYTICS_CODE = """// Break down analytics by agent_id for daily report
+const messages = $('Read Message Log').all();
+const now = new Date();
+const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000);
+const agents = {};
+
+for (const item of messages) {
+  const f = item.json.fields || item.json;
+  const createdAt = new Date(f['Created At'] || f.created_at || now);
+  if (createdAt < twentyFourHoursAgo) continue;
+
+  const agentId = f.agent_id || f['Agent ID'] || 'unknown';
+  if (!agents[agentId]) {
+    agents[agentId] = { total: 0, inbound: 0, outbound: 0, handoffs: 0, errors: 0, leads: 0 };
+  }
+  agents[agentId].total++;
+
+  const dir = (f.direction || f['Direction'] || '').toLowerCase();
+  if (dir === 'inbound') agents[agentId].inbound++;
+  if (dir === 'outbound') agents[agentId].outbound++;
+
+  if (f.handoff_triggered || f['Handoff Triggered']) agents[agentId].handoffs++;
+  if ((f.response_type || f['Response Type'] || '') === 'handoff') agents[agentId].handoffs++;
+}
+
+// Build text report
+let report = '';
+for (const [id, stats] of Object.entries(agents)) {
+  const responseRate = stats.inbound > 0 ? Math.round((stats.outbound / stats.inbound) * 100) : 0;
+  const handoffRate = stats.total > 0 ? Math.round((stats.handoffs / stats.total) * 100) : 0;
+  report += id + ':\\n';
+  report += '  Messages: ' + stats.total + ' (in: ' + stats.inbound + ', out: ' + stats.outbound + ')\\n';
+  report += '  Response rate: ' + responseRate + '%\\n';
+  report += '  Handoff rate: ' + handoffRate + '%\\n\\n';
+}
+
+if (!report) report = 'No messages in last 24 hours.';
+
+// Compute Johannesburg hour for daily email check
+const joburg = new Date(new Date().toLocaleString('en-US', {timeZone: 'Africa/Johannesburg'}));
+const hourJoburg = joburg.getHours();
+
+return { json: { agents, report, agent_count: Object.keys(agents).length, hour_joburg: hourJoburg } };"""
+
+
 def build_wa01_nodes():
     """Build all nodes for the Conversation Analyzer workflow."""
     nodes = []
@@ -395,11 +440,74 @@ def build_wa01_nodes():
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
+    # -- Per-Agent Breakdown (Code node) --
+    nodes.append({
+        "parameters": {
+            "jsCode": PER_AGENT_ANALYTICS_CODE,
+        },
+        "id": uid(),
+        "name": "Per-Agent Breakdown",
+        "type": "n8n-nodes-base.code",
+        "position": [1640, 600],
+        "typeVersion": 2,
+    })
+
+    # -- Check If Daily Email Time (07:00 SAST = only run email at 7am) --
+    nodes.append({
+        "parameters": {
+            "conditions": {
+                "options": {"caseSensitive": True, "typeValidation": "strict"},
+                "conditions": [
+                    {
+                        "leftValue": "={{ $json.hour_joburg }}",
+                        "rightValue": 7,
+                        "operator": {"type": "number", "operation": "equals"},
+                    }
+                ],
+            },
+        },
+        "id": uid(),
+        "name": "Is 7AM?",
+        "type": "n8n-nodes-base.if",
+        "position": [1880, 600],
+        "typeVersion": 2.2,
+    })
+
+    # -- Daily Email Summary --
+    nodes.append({
+        "parameters": {
+            "sendTo": ALERT_EMAIL,
+            "subject": "=WhatsApp AI Pilot - Daily Report ({{ $now.setZone('Africa/Johannesburg').toFormat('dd MMM yyyy') }})",
+            "emailType": "html",
+            "message": (
+                "=<h2>WhatsApp AI Pilot - Daily Summary</h2>"
+                "<p><strong>Period:</strong> Last 24 hours</p>"
+                "<p><strong>Total Messages:</strong> {{ $('Compute Analytics').first().json.total_messages }}</p>"
+                "<p><strong>Unique Contacts:</strong> {{ $('Compute Analytics').first().json.unique_contacts }}</p>"
+                "<p><strong>Sentiment Score:</strong> {{ $('Compute Analytics').first().json.sentiment_score }}/100</p>"
+                "<p><strong>Resolution Rate:</strong> {{ $('Compute Analytics').first().json.resolution_rate }}%</p>"
+                "<hr>"
+                "<h3>Per-Agent Breakdown</h3>"
+                "<pre>{{ $('Per-Agent Breakdown').first().json.report }}</pre>"
+                "<hr>"
+                "<p><a href=\"https://portal.anyvisionmedia.com/admin/agents\">View Agent Dashboard</a></p>"
+            ),
+            "options": {},
+        },
+        "id": uid(),
+        "name": "Daily Email Summary",
+        "type": "n8n-nodes-base.gmail",
+        "position": [2120, 500],
+        "typeVersion": 2.1,
+        "credentials": {"gmailOAuth2": CRED_GMAIL},
+        "continueOnFail": True,
+    })
+
     # -- Sticky Note --
     nodes.append({
         "parameters": {
-            "content": "## WA-01: Conversation Analyzer\n\n**Schedule:** Hourly\n**Purpose:** Compute WhatsApp analytics (messages, response time, sentiment, resolution rate, topics). Escalate if metrics drop.",
-            "height": 160, "width": 420,
+            "content": "## WA-01: Conversation Analyzer\n\n**Schedule:** Hourly\n**Purpose:** Compute WhatsApp analytics (messages, response time, sentiment, resolution rate, topics). Escalate if metrics drop.\n\n**Pilot addition:** Daily 07:00 email with per-agent breakdown.",
+            "height": 180, "width": 420,
         },
         "id": "wa01-note-1",
         "type": "n8n-nodes-base.stickyNote",
@@ -430,11 +538,23 @@ def build_wa01_connections():
             "main": [[{"node": "Save Analytics", "type": "main", "index": 0}]],
         },
         "Save Analytics": {
-            "main": [[{"node": "Poor Metrics?", "type": "main", "index": 0}]],
+            "main": [[
+                {"node": "Poor Metrics?", "type": "main", "index": 0},
+                {"node": "Per-Agent Breakdown", "type": "main", "index": 0},
+            ]],
         },
         "Poor Metrics?": {
             "main": [
                 [{"node": "Escalate Poor Metrics", "type": "main", "index": 0}],
+                [],
+            ],
+        },
+        "Per-Agent Breakdown": {
+            "main": [[{"node": "Is 7AM?", "type": "main", "index": 0}]],
+        },
+        "Is 7AM?": {
+            "main": [
+                [{"node": "Daily Email Summary", "type": "main", "index": 0}],
                 [],
             ],
         },
