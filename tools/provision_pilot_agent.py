@@ -69,6 +69,24 @@ DEFAULTS = {
 }
 
 
+def validate_agent_config(data):
+    """Validate agent config fields. Returns list of error strings (empty = valid)."""
+    errors = []
+    # name: must be a non-empty string
+    name = data.get("name")
+    if not isinstance(name, str) or not name.strip():
+        errors.append("'name' must be a non-empty string")
+    # email: basic email regex
+    email = data.get("email", "")
+    if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email):
+        errors.append(f"'email' is invalid: {email!r}")
+    # phone: +27XXXXXXXXX or empty
+    phone = data.get("phone", "")
+    if phone and not re.fullmatch(r'\+27\d{9}', phone):
+        errors.append(f"'phone' must match +27XXXXXXXXX format or be empty, got: {phone!r}")
+    return errors
+
+
 def generate_temp_password(length=16):
     """Generate a secure temporary password."""
     alphabet = string.ascii_letters + string.digits + "!@#$%"
@@ -322,9 +340,16 @@ def provision_agent(agent_data):
     # Step 2: Supabase client
     supabase_result = create_supabase_client(agent_data)
     if not supabase_result:
-        print("\nWARNING: Supabase client creation failed. Agent can still use WhatsApp AI but won't have portal access.")
-        print("  -> Manually create account at portal or fix Supabase credentials in .env")
-        temp_password = "N/A"
+        print("\nFAILED: Supabase client creation failed. Rolling back Airtable record...")
+        rollback = airtable_request(
+            "DELETE",
+            f"{TABLE_AGENTS}/{airtable_result['airtable_record_id']}"
+        )
+        if rollback is not None:
+            print(f"  Rolled back Airtable record: {airtable_result['airtable_record_id']}")
+        else:
+            print(f"  WARNING: Could not delete Airtable record {airtable_result['airtable_record_id']}. Remove manually.")
+        sys.exit(1)
     else:
         temp_password = supabase_result["temp_password"]
 
@@ -409,8 +434,9 @@ def main():
 
     if not args.list and not args.deactivate:
         if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-            print("WARNING: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not found in .env")
-            print("  -> Supabase provisioning will be skipped (Airtable-only mode)")
+            print("ERROR: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in .env for provisioning")
+            print("  -> Cannot provision agents without Supabase credentials")
+            sys.exit(1)
 
     if args.list:
         list_agents()
@@ -458,6 +484,13 @@ def main():
             print(f"ERROR: Invalid JSON in config file: {e}")
             sys.exit(1)
         agent_data = {k: v for k, v in raw_data.items() if k in ALLOWED_FIELDS}
+        # Validate config fields
+        config_errors = validate_agent_config(agent_data)
+        if config_errors:
+            print("ERROR: Config validation failed:")
+            for err in config_errors:
+                print(f"  - {err}")
+            sys.exit(1)
     elif args.name and args.email and args.phone:
         agent_data = {
             "name": args.name,

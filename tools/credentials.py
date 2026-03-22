@@ -140,3 +140,18 @@ CRED_OUTLOOK = CREDENTIALS["outlook"]
 # Infrastructure
 CRED_HTTP_HEADER_AUTH = CREDENTIALS["http_header_auth"]
 CRED_N8N_API = CREDENTIALS["n8n_api"]
+
+
+def validate_credentials():
+    """Check all credential entries for placeholder IDs.
+
+    Returns True if every credential has a real ID,
+    False if any contain 'PLACEHOLDER' or 'REPLACE'.
+    """
+    all_valid = True
+    for key, cred in CREDENTIALS.items():
+        cred_id = cred.get("id", "")
+        if "PLACEHOLDER" in cred_id.upper() or "REPLACE" in cred_id.upper():
+            print(f"WARNING: Credential '{key}' has placeholder ID: {cred_id}")
+            all_valid = False
+    return all_valid

@@ -477,7 +477,7 @@ def build_wa01_nodes():
     nodes.append({
         "parameters": {
             "sendTo": ALERT_EMAIL,
-            "subject": "=WhatsApp AI Pilot - Daily Report ({{ $now.setZone('Africa/Johannesburg').toFormat('dd MMM yyyy') }})",
+            "subject": "=WhatsApp AI Pilot - Daily Report ({{ $now.toFormat('dd MMM yyyy') }})",
             "emailType": "html",
             "message": (
                 "=<h2>WhatsApp AI Pilot - Daily Summary</h2>"
