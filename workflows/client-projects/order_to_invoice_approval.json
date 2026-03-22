@@ -1,0 +1,1194 @@
+{
+  "name": "ORD-02: Approval Handler",
+  "nodes": [
+    {
+      "id": "f8bf5df9-9892-4181-9887-9ded7bcadeb0",
+      "name": "WhatsApp Trigger Mgmt",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "259f5990-10b5-4c46-8b9c-ce481dcb5914",
+      "parameters": {
+        "updates": [
+          "messages"
+        ]
+      },
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "rUyqIX1gaBs3ae6Q",
+          "name": "WhatsApp Trigger"
+        }
+      }
+    },
+    {
+      "id": "616f1b10-11c1-4c1c-8484-18499ca25030",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "5fb043a4-f2f7-4993-aea8-bf4b58af605c",
+      "name": "Parse Mgmt Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse incoming WhatsApp message\nconst body = $input.first().json.body || $input.first().json;\nconst entry = body.entry?.[0];\nconst changes = entry?.changes?.[0];\nconst value = changes?.value;\nconst message = value?.messages?.[0];\nconst contact = value?.contacts?.[0];\n\nif (!message) {\n  return { json: { parseSuccess: false, reason: 'No message in payload' } };\n}\n\nconst from = message.from;\nconst profileName = contact?.profile?.name || 'Unknown';\nconst phoneNumberId = value?.metadata?.phone_number_id || '';\nconst timestamp = message.timestamp;\n\nlet messageBody = '';\nlet messageType = message.type || 'text';\nlet interactiveReply = null;\n\nif (messageType === 'text') {\n  messageBody = message.text?.body || '';\n} else if (messageType === 'interactive') {\n  const interactive = message.interactive;\n  if (interactive?.type === 'list_reply') {\n    interactiveReply = { type: 'list_reply', id: interactive.list_reply.id, title: interactive.list_reply.title };\n    messageBody = interactive.list_reply.title;\n  } else if (interactive?.type === 'button_reply') {\n    interactiveReply = { type: 'button_reply', id: interactive.button_reply.id, title: interactive.button_reply.title };\n    messageBody = interactive.button_reply.title;\n  }\n}\n\nreturn {\n  json: {\n    parseSuccess: true,\n    from,\n    profileName,\n    phoneNumberId,\n    timestamp,\n    messageBody,\n    messageType,\n    interactiveReply,\n    rawMessageId: message.id\n  }\n};\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "af7a594c-c978-4a8e-817f-98d0440daa9f",
+      "name": "Is Mgmt Number?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        500
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.from }}",
+              "rightValue": "REPLACE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "629d604f-f965-46ac-ad92-b14a7620e446",
+      "name": "Find Pending Session",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        940,
+        400
+      ],
+      "parameters": {
+        "operation": "search",
+        "application": "app2ALQUP7CKEkHOz",
+        "table": "REPLACE_AFTER_SETUP",
+        "filterByFormula": "=AND({State}='PENDING_APPROVAL', {Approval_Status}='Pending')",
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "569b85f5-f3b2-4f6a-a62a-0fdaa0994700",
+      "name": "Has Pending Quote?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1180,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.Session_ID }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b83b0347-b650-4b27-b921-4d8df176714d",
+      "name": "Parse Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\nconst input = $input.first().json;\nconst text = (input.messageBody || '').trim().toUpperCase();\n\nlet decision = 'vague';\nlet feedback = '';\n\nif (text === 'APPROVE' || text === 'YES' || text === 'APPROVED' || text.startsWith('APPROVE')) {\n  decision = 'approve';\n} else if (text.startsWith('REJECT') || text.startsWith('NO ') || text === 'NO') {\n  decision = 'reject';\n  feedback = text.replace(/^(REJECT|NO)\\s*/i, '').trim();\n  if (!feedback) decision = 'vague';\n}\n\nreturn { json: { ...input, decision, feedback } };\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "4a47aeb7-925c-4f6b-b1c9-b1ab42f94e40",
+      "name": "Decision Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1660,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.decision }}",
+                    "rightValue": "approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.decision }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 2
+        }
+      }
+    },
+    {
+      "id": "becae0d1-7897-4ac9-bb3c-4939a9de9a14",
+      "name": "No Pending Quote Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        700
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/956186580917374/messages",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"messaging_product\": \"whatsapp\", \"to\": \"REPLACE\", \"type\": \"text\", \"text\": {\"body\": \"No pending quotes found for approval at this time.\"}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "695093a7-37c2-4098-b12f-4b1c2df0c474",
+      "name": "Fresh Xero Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1900,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Quotes/={{ $('Find Pending Session').first().json.Xero_Quote_ID }}",
+        "options": {
+          "timeout": 30000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $credentials.xeroOAuth2Api.accessToken }}"
+            },
+            {
+              "name": "xero-tenant-id",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "id": "38cd5ec3-0d43-4894-a3a9-12c4ccec1808",
+      "name": "Quote Still Draft?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2140,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.Quotes[0].Status }}",
+              "rightValue": "DRAFT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "8c953372-e4f3-43df-916d-4adf813fb4ce",
+      "name": "Convert to Invoice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2380,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.xero.com/api.xro/2.0/Invoices",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"Invoices\": [{\"Type\": \"ACCREC\", \"Contact\": {\"ContactID\": \"={{ $('Fresh Xero Check').first().json.Quotes[0].Contact.ContactID }}\"}, \"LineItems\": \"={{ $('Fresh Xero Check').first().json.Quotes[0].LineItems }}\", \"Status\": \"AUTHORISED\", \"Reference\": \"=From Quote {{ $('Find Pending Session').first().json.Xero_Quote_Number }}\", \"DueDate\": \"={{ DateTime.now().plus({days: 30}).toFormat('yyyy-MM-dd') }}\"}]}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $credentials.xeroOAuth2Api.accessToken }}"
+            },
+            {
+              "name": "xero-tenant-id",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "id": "c1414406-85e9-4146-b766-ad68e4e78df6",
+      "name": "Parse Invoice Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2620,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\nconst input = $input.first().json;\nconst invoices = input.Invoices || [input];\nconst invoice = invoices[0] || input;\nreturn {\n  json: {\n    invoiceId: invoice.InvoiceID || '',\n    invoiceNumber: invoice.InvoiceNumber || '',\n    total: invoice.Total || 0,\n    status: invoice.Status || '',\n    contactName: invoice.Contact?.Name || ''\n  }\n};\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "057c2df6-b500-417e-b863-9e6abcd5f600",
+      "name": "Fetch Invoice PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2860,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Invoices/={{ $json.invoiceId }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $credentials.xeroOAuth2Api.accessToken }}"
+            },
+            {
+              "name": "xero-tenant-id",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/pdf"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "id": "fcef0dea-fa7f-4d55-a0c4-982c73b0ca1a",
+      "name": "Rename Invoice PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\nconst input = $input.first();\nconst invoiceNumber = $('Parse Invoice Response').first().json.invoiceNumber || 'Unknown';\nif (input.binary && input.binary.data) {\n  input.binary.data.fileName = 'Invoice_' + invoiceNumber + '.pdf';\n}\nreturn input;\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "fe06a582-b7ef-4d55-8cf3-50344a6814cc",
+      "name": "Send Invoice to Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3340,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/956186580917374/messages",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"messaging_product\": \"whatsapp\", \"to\": \"{{ $('Find Pending Session').first().json.Customer_Phone }}\", \"type\": \"text\", \"text\": {\"body\": \"Hi {{ $('Find Pending Session').first().json.Customer_Name }}! Your invoice {{ $('Parse Invoice Response').first().json.invoiceNumber }} for R{{ $('Parse Invoice Response').first().json.total.toFixed(2) }} is ready. Payment details will follow shortly. Thank you for your order!\"}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "824ff226-0918-49a9-8d2e-625471505ef2",
+      "name": "Update Session Approved",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3580,
+        200
+      ],
+      "parameters": {
+        "operation": "update",
+        "application": "app2ALQUP7CKEkHOz",
+        "table": "REPLACE_AFTER_SETUP",
+        "columns": {
+          "value": "{\"Session_ID\": \"={{ $('Find Pending Session').first().json.Session_ID }}\", \"State\": \"INVOICE_SENT\", \"Approval_Status\": \"Approved\", \"Xero_Invoice_ID\": \"={{ $('Parse Invoice Response').first().json.invoiceId }}\", \"Xero_Invoice_Number\": \"={{ $('Parse Invoice Response').first().json.invoiceNumber }}\"}"
+        },
+        "matchingColumns": [
+          "Session_ID"
+        ],
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "id": "b5c2c4d8-e9aa-4956-8ce5-c4a239d874a2",
+      "name": "Notify Mgmt Approved",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3580,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/956186580917374/messages",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"messaging_product\": \"whatsapp\", \"to\": \"REPLACE\", \"type\": \"text\", \"text\": {\"body\": \"Invoice {{ $('Parse Invoice Response').first().json.invoiceNumber }} (R{{ $('Parse Invoice Response').first().json.total.toFixed(2) }}) has been sent to {{ $('Find Pending Session').first().json.Customer_Name }}.\"}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "4405bee5-24a1-4c70-b02b-33a18237e647",
+      "name": "Check Rejection Count",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1900,
+        500
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Find Pending Session').first().json.Rejection_Count || 0 }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b4deea0a-0a8a-449c-8d09-e81b7da2ed06",
+      "name": "AI Parse Feedback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2140,
+        500
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"messages\": [{\"role\": \"system\", \"content\": \"You are an order management assistant. A manager has rejected a quote with feedback. Parse the feedback and determine what changes to make. Respond ONLY with valid JSON:\\n{\\\"action\\\": \\\"revise_quantity|revise_price|revise_item|unclear\\\", \\\"new_quantity\\\": null, \\\"new_price\\\": null, \\\"new_item_code\\\": null, \\\"explanation\\\": \\\"...\\\"}\\nSet the appropriate field based on the feedback.\"}, {\"role\": \"user\", \"content\": \"Rejection feedback: {{ $('Parse Decision').first().json.feedback }}\\nCurrent quote: {{ $('Find Pending Session').first().json.Xero_Quote_Number }}\\nCategory: {{ $('Find Pending Session').first().json.Selected_Category }}\\nSize: {{ $('Find Pending Session').first().json.Selected_Size }}\\nQuantity: {{ $('Find Pending Session').first().json.Selected_Quantity }}\\nTotal: R{{ $('Find Pending Session').first().json.Quote_Total }}\"}], \"temperature\": 0.2, \"max_tokens\": 1000}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "1f47085c-0a04-4810-88c5-e7a30e6cfcdc",
+      "name": "Parse AI Feedback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2380,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\nconst input = $input.first().json;\nconst aiResponse = input.choices?.[0]?.message?.content || '';\nlet parsed;\ntry {\n  const cleaned = aiResponse.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  return { json: { action: 'unclear', errorMsg: 'Could not parse AI feedback: ' + e.message } };\n}\nreturn {\n  json: {\n    action: parsed.action || 'unclear',\n    newQuantity: parsed.new_quantity || null,\n    newPrice: parsed.new_price || null,\n    newItemCode: parsed.new_item_code || null,\n    explanation: parsed.explanation || 'Changes applied based on feedback'\n  }\n};\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "4575e448-c50c-4a6d-bbdb-0160dee336c4",
+      "name": "Update Xero Quote",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2620,
+        500
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.xero.com/api.xro/2.0/Quotes",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"Quotes\": [{\"QuoteID\": \"={{ $('Find Pending Session').first().json.Xero_Quote_ID }}\", \"LineItems\": [{\"ItemCode\": \"={{ $json.newItemCode || $('Find Pending Session').first().json.Xero_Item_Code || '' }}\", \"Quantity\": \"={{ $json.newQuantity || $('Find Pending Session').first().json.Selected_Quantity }}\", \"UnitAmount\": \"={{ $json.newPrice || '' }}\"}], \"Status\": \"DRAFT\"}]}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $credentials.xeroOAuth2Api.accessToken }}"
+            },
+            {
+              "name": "xero-tenant-id",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "id": "18f9a6f9-66dd-414e-b117-43a4b96f054c",
+      "name": "Fetch Updated PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2860,
+        500
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.xero.com/api.xro/2.0/Quotes/={{ $('Find Pending Session').first().json.Xero_Quote_ID }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $credentials.xeroOAuth2Api.accessToken }}"
+            },
+            {
+              "name": "xero-tenant-id",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/pdf"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "xeroOAuth2Api": {
+          "id": "REPLACE_AFTER_SETUP",
+          "name": "Xero OAuth2"
+        }
+      }
+    },
+    {
+      "id": "2d2b6416-9c05-4e78-aa68-15e44f7737b2",
+      "name": "Re-send to Management",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3100,
+        500
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/956186580917374/messages",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"messaging_product\": \"whatsapp\", \"to\": \"REPLACE\", \"type\": \"text\", \"text\": {\"body\": \"Updated quote {{ $('Find Pending Session').first().json.Xero_Quote_Number }} based on your feedback: {{ $('Parse AI Feedback').first().json.explanation }}\\n\\nReply APPROVE or REJECT [reason]\"}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "65ba9230-df36-47e5-91b3-e0d168baf5ce",
+      "name": "Update Session Feedback",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3340,
+        500
+      ],
+      "parameters": {
+        "operation": "update",
+        "application": "app2ALQUP7CKEkHOz",
+        "table": "REPLACE_AFTER_SETUP",
+        "columns": {
+          "value": "{\"Session_ID\": \"={{ $('Find Pending Session').first().json.Session_ID }}\", \"Rejection_Count\": \"={{ ($('Find Pending Session').first().json.Rejection_Count || 0) + 1 }}\", \"Approval_Status\": \"Pending\", \"Last_Feedback\": \"={{ $('Parse Decision').first().json.feedback }}\"}"
+        },
+        "matchingColumns": [
+          "Session_ID"
+        ],
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "id": "5a6c00ff-a097-4daf-a302-072526fe7648",
+      "name": "Alert Staff Manual",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1900,
+        700
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/956186580917374/messages",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"messaging_product\": \"whatsapp\", \"to\": \"REPLACE\", \"type\": \"text\", \"text\": {\"body\": \"Unclear response received. Please reply with:\\n- *APPROVE* to convert the quote to an invoice\\n- *REJECT [reason]* to request changes (e.g. REJECT reduce quantity to 200)\"}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "5f340278-7f68-442c-b330-74ae0605ea34",
+      "name": "Send Alert Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2140,
+        700
+      ],
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=Order Quote Escalation - {{ $('Find Pending Session').first().json.Xero_Quote_Number }}",
+        "emailType": "html",
+        "message": "=<h2>Quote Requires Manual Attention</h2><p>Quote <strong>{{ $('Find Pending Session').first().json.Xero_Quote_Number }}</strong> has been rejected {{ $('Find Pending Session').first().json.Rejection_Count || 0 }} times.</p><p>Customer: {{ $('Find Pending Session').first().json.Customer_Name }}</p><p>Phone: {{ $('Find Pending Session').first().json.Customer_Phone }}</p><p>Last feedback: {{ $('Parse Decision').first().json.feedback }}</p><p>Please handle this order manually in Xero.</p>",
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "8d8725cd-3fab-4f9e-a5f8-02ac6e762078",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        900
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "5c2fa4ad-5052-44c8-b9dc-271c14255828",
+      "name": "Handle Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        900
+      ],
+      "parameters": {
+        "jsCode": "\n// Global error handler\nconst error = $input.first().json;\nreturn {\n  json: {\n    errorHandled: true,\n    workflow: error.workflow?.name || 'Unknown',\n    node: error.execution?.lastNodeExecuted || 'Unknown',\n    message: error.execution?.error?.message || 'Unknown error',\n    timestamp: new Date().toISOString()\n  }\n};\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "8a3134d9-83a4-4608-aa15-2da3ecdfe8ec",
+      "name": "Note: Approval Handler",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        150,
+        300
+      ],
+      "parameters": {
+        "content": "## Approval Handler\nManagement approves/rejects quotes via WhatsApp.\n- APPROVE -> Convert to invoice, send to customer\n- REJECT [reason] -> AI parses feedback, revises quote\n- Max 3 rejections before email escalation",
+        "width": 300,
+        "height": 220
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Trigger Mgmt": {
+      "main": [
+        [
+          {
+            "node": "Parse Mgmt Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Mgmt Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Mgmt Message": {
+      "main": [
+        [
+          {
+            "node": "Is Mgmt Number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Mgmt Number?": {
+      "main": [
+        [
+          {
+            "node": "Find Pending Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Pending Session": {
+      "main": [
+        [
+          {
+            "node": "Has Pending Quote?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Pending Quote?": {
+      "main": [
+        [
+          {
+            "node": "Parse Decision",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Pending Quote Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Decision": {
+      "main": [
+        [
+          {
+            "node": "Decision Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision Router": {
+      "main": [
+        [
+          {
+            "node": "Fresh Xero Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Rejection Count",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert Staff Manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fresh Xero Check": {
+      "main": [
+        [
+          {
+            "node": "Quote Still Draft?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quote Still Draft?": {
+      "main": [
+        [
+          {
+            "node": "Convert to Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Invoice": {
+      "main": [
+        [
+          {
+            "node": "Parse Invoice Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Invoice Response": {
+      "main": [
+        [
+          {
+            "node": "Fetch Invoice PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Invoice PDF": {
+      "main": [
+        [
+          {
+            "node": "Rename Invoice PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rename Invoice PDF": {
+      "main": [
+        [
+          {
+            "node": "Send Invoice to Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Invoice to Customer": {
+      "main": [
+        [
+          {
+            "node": "Update Session Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Session Approved": {
+      "main": [
+        [
+          {
+            "node": "Notify Mgmt Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Rejection Count": {
+      "main": [
+        [
+          {
+            "node": "AI Parse Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Parse Feedback": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Feedback": {
+      "main": [
+        [
+          {
+            "node": "Update Xero Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Xero Quote": {
+      "main": [
+        [
+          {
+            "node": "Fetch Updated PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Updated PDF": {
+      "main": [
+        [
+          {
+            "node": "Re-send to Management",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-send to Management": {
+      "main": [
+        [
+          {
+            "node": "Update Session Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "client-project"
+    },
+    {
+      "name": "order-to-invoice"
+    }
+  ]
+}

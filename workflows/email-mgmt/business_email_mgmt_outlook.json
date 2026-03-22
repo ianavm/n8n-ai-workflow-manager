@@ -1,0 +1,1977 @@
+{
+  "name": "Business Email Management - Outlook",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "2243eb84-b166-4341-8f46-6a0356c8b323",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "id": "6934efa5-4414-4e73-b2ee-afc0432c6901",
+      "name": "Outlook Trigger",
+      "type": "n8n-nodes-base.microsoftOutlookTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        432
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "dnt-category-check",
+              "leftValue": "={{ ($json.categories || []).includes('DNT') }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0865909e-86b5-45bf-a6e1-2e4e7f94270a",
+      "name": "Has DNT Category?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        340,
+        432
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "4c010548-0e44-4244-bf91-e3cae2ab4dd0",
+      "name": "Skip - DNT",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        340,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "mode": "id",
+          "value": "1G2P9gYuPKtqhDkkJaTVLbuA_yxj_IqTI7vuCfhFLklM"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Leads"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "email",
+              "lookupValue": "={{ $json.sender?.emailAddress?.address || $json.from?.emailAddress?.address || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f7313a12-db2f-465c-bd82-95783ba4d8b2",
+      "name": "Check Sender DNT",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        420,
+        520
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "sender-dnt-check",
+              "leftValue": "={{ ($json.status || '').toLowerCase().includes('do not') || ($json.status || '').toLowerCase().includes('converted') }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6382b640-f0d9-410d-8386-f0363a18e49f",
+      "name": "Is Sender DNT?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        560,
+        520
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "20786548-b79b-44d5-8323-16eb903576d6",
+      "name": "Skip - Sender Blocked",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        560,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // Extract sender info from Outlook's Microsoft Graph API structure\n  const senderAddress = item.json.sender?.emailAddress?.address\n    || item.json.from?.emailAddress?.address || '';\n  const senderName = item.json.sender?.emailAddress?.name\n    || item.json.from?.emailAddress?.name || '';\n\n  const emailData = {\n    from: senderName ? `${senderName} <${senderAddress}>` : senderAddress,\n    to: (item.json.toRecipients || [])\n      .map(r => r.emailAddress?.address || '').join(', '),\n    subject: item.json.subject || '',\n    date: item.json.receivedDateTime || item.json.createdDateTime\n      || new Date().toISOString(),\n    body: (item.json.bodyPreview\n      || (item.json.body?.content || '').replace(/<[^>]*>/g, '')\n      || '').substring(0, 3000),\n    hasAttachments: item.json.hasAttachments || false,\n    attachmentCount: item.json.hasAttachments ? 1 : 0,\n    messageId: item.json.id || '',\n    threadId: item.json.conversationId || ''\n  };\n\n  const classificationPrompt = `Analyze this business email. Return ONLY valid JSON, no markdown, no backticks.\n\nFrom: ${emailData.from}\nSubject: ${emailData.subject}\nDate: ${emailData.date}\nBody:\n${emailData.body}\nHas Attachments: ${emailData.hasAttachments ? 'Yes (' + emailData.attachmentCount + ')' : 'No'}`;\n\n  results.push({\n    json: {\n      ...emailData,\n      classificationPrompt\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "13971782-d73e-470f-ac14-f5d8e69a679e",
+      "name": "Prepare Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.classificationPrompt }}",
+        "options": {
+          "systemMessage": "You are the AI Email Manager for AnyVision Media, a digital media and technology agency. Your job is to analyze incoming business emails and return a structured JSON classification.\n\n## Your Task\nFor every email you receive, analyze it and return ONLY a valid JSON object. No markdown formatting, no backticks, no explanation text -- just the raw JSON.\n\n## Company Context\n- Company: AnyVision Media (digital media, AI solutions, web development)\n- Owner: Ian Immelman (ian@anyvisionmedia.com)\n- Services: AI workflow automation, web development, social media management, real estate tech solutions\n- Tone: Professional but approachable, tech-savvy\n\n## JSON Output Format\nReturn exactly this structure:\n{\n  \"sender\": \"<sender email address>\",\n  \"sender_name\": \"<sender display name>\",\n  \"subject\": \"<email subject line>\",\n  \"intent\": \"<1 sentence: what the sender wants or needs>\",\n  \"tone\": \"<one of: formal, informal, urgent, angry, friendly, neutral>\",\n  \"urgency\": \"<one of: high, medium, low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance, Customer_Support, Sales, Management, Spam_Irrelevant>\",\n  \"tags\": [\"<applicable tags from the list below>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<a professional draft reply if action_required is true, otherwise null>\",\n  \"summary\": \"<1-2 sentence summary of the email>\",\n  \"escalation_needed\": true or false,\n  \"is_interested_reply\": true or false,\n  \"is_opt_out\": true or false\n}\n\n## Department Classification Rules\n- **Accounting_Finance**: Invoices, payments, billing inquiries, refund requests, financial statements, tax documents\n- **Customer_Support**: Service complaints, technical issues, bug reports, account help, feature requests\n- **Sales**: New business enquiries, pricing requests, partnership proposals, lead generation, RFP responses\n- **Management**: Strategic decisions, legal matters, contracts, legal threats, regulatory matters, NDAs, high-level partnerships, media/PR, executive communications, escalated complaints, documentation, compliance, vendor setup, office operations, admin tasks, team communications, internal updates, HR matters\n- **Spam_Irrelevant**: Unsolicited marketing, phishing attempts, suspicious links, irrelevant promotions, newsletters not subscribed to\n\n## Available Tags\nInvoice, Payment, Refund, Complaint, New_Lead, Contract, Meeting_Request, Follow_Up, Escalation, Urgent\n\n## Urgency Rules\nMark as HIGH if any of these apply:\n- Subject contains \"urgent\", \"ASAP\", \"immediate\", \"critical\"\n- Legal threats or regulatory deadlines\n- Payment disputes or overdue invoices\n- Escalated customer complaints\n- Time-sensitive business opportunities\n\n## Interested Reply Detection Rules\nSet is_interested_reply to TRUE if ALL of these apply:\n- The email appears to be a REPLY to a previous outreach/cold email from AnyVision Media\n- The sender expresses positive interest (wants to learn more, schedule a call, get pricing, says 'interested', 'sounds good', 'tell me more', 'let's chat', etc.)\n- The sender is NOT from AnyVision Media itself\n\nSet is_interested_reply to FALSE for:\n- First-time inbound emails (not replies to our outreach)\n- Negative responses ('not interested', 'unsubscribe', 'remove me')\n- Automated responses / out-of-office replies\n- Spam or irrelevant emails\n\n## Opt-Out / Unsubscribe Detection Rules\nSet is_opt_out to TRUE if ANY of these apply:\n- Sender explicitly says \"unsubscribe\", \"remove me\", \"stop emailing\", \"not interested please stop\", \"take me off your list\", \"cease communication\"\n- Email is a bounce/delivery failure: \"address not found\", \"delivery failed\", \"mailbox full\", \"user unknown\", \"mailer-daemon\", \"postmaster\"\n\nWhen is_opt_out is TRUE, you MUST also set:\n- action_required: false\n- suggested_response: null\n- is_interested_reply: false\n\n## Response Writing Rules (for suggested_response)\nWhen action_required is true, write a professional, well-structured reply:\n\n**FORMATTING REQUIREMENTS:**\n- Use proper line breaks (\\n\\n between paragraphs)\n- Start with a personalized greeting: \"Hi [name],\" or \"Dear [name],\"\n- Keep paragraphs short (2-3 sentences max)\n- End with a professional signature block\n\n**STRUCTURE:**\n1. Greeting - Personalized with sender's name\n2. Acknowledgment - Thank them and acknowledge their specific concern\n3. Response - Address their question or request (1-2 paragraphs)\n4. Next Steps - What happens next (if applicable)\n5. Closing - Professional sign-off\n6. Signature - AnyVision Media Team contact info\n\n**CONTENT GUIDELINES:**\n- Acknowledge receipt of their email\n- Address their specific concern or question\n- Be professional, warm, and concise\n- Never promise specific timelines without verification\n- Never confirm financial or legal decisions\n- Never reveal that this is an automated system\n- Match their tone (formal vs casual) appropriately\n\nWhen action_required is false or the email is spam, set suggested_response to null.\n\nCRITICAL: Return ONLY the JSON object. No other text.",
+          "maxIterations": 1,
+          "returnIntermediateSteps": false,
+          "maxTokens": 2000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        912,
+        432
+      ],
+      "id": "480ebee5-2e6b-48a5-88b7-ee5eedcbea33",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4-20250514",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        816,
+        720
+      ],
+      "id": "d0a87fb2-27b3-4647-89d1-cdec0eb88a67",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Outlook Trigger')?.item?.json?.id ?? 'manual-test-' + Date.now() }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        928,
+        720
+      ],
+      "id": "6490790f-184d-4d92-b6ed-d37f71b7bfe0",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const emailData = $('Prepare Email Data').first().json;\n\n  let parsed;\n  try {\n    let aiContent = item.json.output || '';\n    if (!aiContent && item.json.choices) {\n      aiContent = item.json.choices[0].message.content;\n    }\n    const cleaned = aiContent\n      .replace(/```json\\n?/g, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n    parsed = JSON.parse(cleaned);\n  } catch (e) {\n    parsed = {\n      sender: emailData.from || 'unknown',\n      sender_name: 'Unknown',\n      subject: emailData.subject || 'No Subject',\n      intent: 'Classification failed - manual review required',\n      tone: 'neutral',\n      urgency: 'medium',\n      action_required: true,\n      department: 'Management',\n      tags: ['Escalation'],\n      is_spam: false,\n      suggested_response: null,\n      summary: 'Email could not be auto-classified. Manual review required.',\n      escalation_needed: true,\n      is_interested_reply: false,\n      is_opt_out: false\n    };\n  }\n\n  results.push({\n    json: {\n      original_from: emailData.from || '',\n      original_to: emailData.to || '',\n      original_subject: emailData.subject || '',\n      original_date: emailData.date || '',\n      original_body: emailData.body || '',\n      original_message_id: emailData.messageId || '',\n      original_thread_id: emailData.threadId || '',\n      has_original_attachments: emailData.hasAttachments || false,\n      sender: parsed.sender || emailData.from || '',\n      sender_name: parsed.sender_name || 'Unknown',\n      subject: parsed.subject || emailData.subject || '',\n      intent: parsed.intent || '',\n      tone: parsed.tone || 'neutral',\n      urgency: parsed.urgency || 'medium',\n      action_required: parsed.action_required || false,\n      department: parsed.department || 'Management',\n      tags: parsed.tags || [],\n      tags_string: (parsed.tags || []).join(', '),\n      is_spam: parsed.is_spam || false,\n      suggested_response: parsed.suggested_response || '',\n      html_response: (() => {\n        const text = parsed.suggested_response || '';\n        if (!text) return '';\n        const paragraphs = text.split(/\\n\\n+/);\n        const htmlParagraphs = paragraphs\n          .map(p => p.replace(/\\n/g, '<br>'))\n          .map(p => '<p style=\"margin:0 0 12px 0;font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;font-size:14px;line-height:1.5;color:#333333;\">' + p + '</p>')\n          .join('');\n        const signature = `<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table>`;\n        return '<div style=\"font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;\">' + htmlParagraphs + '<br>' + signature + '</div>';\n      })(),\n      summary: parsed.summary || '',\n      escalation_needed: parsed.escalation_needed || false,\n      is_interested_reply: parsed.is_interested_reply || false,\n      is_opt_out: parsed.is_opt_out || false,\n      processed_at: new Date().toISOString(),\n      ticket_number: 'TKT-' + Date.now()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "6b26b6b2-5712-4466-9445-10fdd7fcf205",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst TICKET_PATTERNS = [\n  /\\bTKT[-#]?\\s*\\d+/i,\n  /\\bTICKET\\s*[#:]?\\s*\\d+/i,\n  /\\bTICKET\\s+NUMBER\\s*:?\\s*\\w+/i,\n  /\\bREF\\s*[-:]\\s*#?\\s*[A-Z0-9]{3,}/i,\n  /\\bREFERENCE\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bENQ[-#]?\\s*\\d+/i,\n  /\\bENQUIRY\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*\\w+/i,\n  /\\bCASE\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bINCIDENT\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bSR[-#]\\s*\\d+/i,\n  /\\bINC[-#]\\s*\\d+/i,\n  /\\b[A-Z]{2,4}-\\d{4,}\\b/,\n];\n\nreturn items.map(item => {\n  const subject = (item.json.original_subject || '').toUpperCase();\n  const body = (item.json.original_body || '').substring(0, 2000).toUpperCase();\n  const textToCheck = subject + ' ' + body;\n\n  let has_reference_number = false;\n  let matched_pattern = '';\n\n  for (const pattern of TICKET_PATTERNS) {\n    const match = textToCheck.match(pattern);\n    if (match) {\n      has_reference_number = true;\n      matched_pattern = match[0];\n      break;\n    }\n  }\n\n  return {\n    json: {\n      ...item.json,\n      has_reference_number,\n      matched_reference_pattern: matched_pattern\n    }\n  };\n});"
+      },
+      "id": "a711b239-8f8d-43c3-a606-accf7b6188da",
+      "name": "Check Reference Number",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dept-Spam_Irrelevant",
+                    "leftValue": "={{ $json.department }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Spam_Irrelevant"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dept-Accounting_Finance",
+                    "leftValue": "={{ $json.department }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Accounting_Finance"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dept-Customer_Support",
+                    "leftValue": "={{ $json.department }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Customer_Support"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dept-Sales",
+                    "leftValue": "={{ $json.department }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Sales"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "dept-Management",
+                    "leftValue": "={{ $json.department }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Management"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "6641b22c-e122-4f32-8a41-e087a40f7224",
+      "name": "Route by Department",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1500,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Junk"
+          ]
+        }
+      },
+      "id": "d39b4c30-d411-421b-ad9a-ea9e63cc971d",
+      "name": "Categorize Junk",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        112
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Accounting_Finance"
+          ]
+        }
+      },
+      "id": "7f6854b6-d8cf-4613-800d-f66663872ce5",
+      "name": "Categorize Finance",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        288
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Customer_Support"
+          ]
+        }
+      },
+      "id": "5b8cc2a0-cc34-4dd1-8473-8bf51b313cca",
+      "name": "Categorize Support",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        464
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Sales"
+          ]
+        }
+      },
+      "id": "0f11ca06-efc6-4b18-9202-368ddcbae157",
+      "name": "Categorize Sales",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        640
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Management"
+          ]
+        }
+      },
+      "id": "001af759-2b80-46dd-988b-944cffd909b5",
+      "name": "Categorize Management",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        816
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "General"
+          ]
+        }
+      },
+      "id": "50a53b44-2386-484a-ace7-822e5b8ab6e5",
+      "name": "Categorize General",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        992
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $('Check Reference Number').first().json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "b8cf3187-1a00-4665-b4e2-d3974b7727af",
+      "name": "Mark Spam Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        112
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "8101d239-110a-4034-b087-2e713392092e",
+              "leftValue": "={{ $json.urgency }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "high"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "624840ba-700d-42c9-aaae-5920a556b23a",
+      "name": "Is Urgent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Urgent"
+          ]
+        }
+      },
+      "id": "3d34f3ab-1ed5-412b-b22b-7fbfa2c41501",
+      "name": "Categorize Urgent",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        1152
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {},
+      "id": "10cde5a9-ab61-4ccd-bded-9a624da19635",
+      "name": "Not Urgent",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "ff0f9144-bd5b-4d1b-9580-b20e0a85a51c",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "rightValue": "noreply"
+            },
+            {
+              "id": "0ce5c816-cdf0-470d-927b-4feae414d144",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "rightValue": "no-reply"
+            },
+            {
+              "id": "b98a9a47-2576-4f8c-8227-d403ea05fd16",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "rightValue": "donotreply"
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "a2746012-ef43-43a2-bc68-1c2111f980c5",
+      "name": "Is No-Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "dabd3725-125d-4ad2-b0de-123fb71141db",
+      "name": "Mark No-Reply Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        1744
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {},
+      "id": "1f3101e6-55e4-4c7b-93a5-4310426ca2e8",
+      "name": "Not No-Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        1904
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "rn-action",
+              "leftValue": "={{ $json.action_required }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            },
+            {
+              "id": "rn-response",
+              "leftValue": "={{ $json.suggested_response }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "rn-not-spam",
+              "leftValue": "={{ $json.is_spam }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              },
+              "rightValue": false
+            },
+            {
+              "id": "rn-no-noreply",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "rightValue": "noreply"
+            },
+            {
+              "id": "rn-no-noreply2",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "rightValue": "no-reply"
+            },
+            {
+              "id": "rn-no-donotreply",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "rightValue": "donotreply"
+            },
+            {
+              "id": "rn-no-eftcorp",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "rightValue": "@eftcorp.atlassian.net"
+            },
+            {
+              "id": "rn-no-ticket",
+              "leftValue": "={{ $json.has_reference_number }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              },
+              "rightValue": false
+            },
+            {
+              "id": "rn-not-interested",
+              "leftValue": "={{ $json.is_interested_reply }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              },
+              "rightValue": false
+            },
+            {
+              "id": "rn-not-optout",
+              "leftValue": "={{ $json.is_opt_out }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              },
+              "rightValue": false
+            },
+            {
+              "id": "rn-no-sig1",
+              "leftValue": "={{ $json.original_body }}",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "rightValue": "AnyVision Media Team"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "67d7fbda-770f-4fa9-a753-d6d0d151c0ac",
+      "name": "Reply Needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "additionalFields": {
+          "subject": "=Re: {{ $json.original_subject }}",
+          "bodyContent": "={{ $json.html_response }}",
+          "bodyContentType": "HTML",
+          "toRecipients": "={{ $json.sender }}"
+        }
+      },
+      "id": "d178647a-15ce-47ea-95c2-e0cc8f786902",
+      "name": "Create Draft Reply",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        1472
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $('Check Reference Number').first().json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "49a5ab74-b739-4a6b-8d2d-2e3001bc2d39",
+      "name": "Mark Replied Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        1472
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {},
+      "id": "e2957037-c3c3-482b-a945-3e550a0ea4c5",
+      "name": "No Reply Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "a12c1cdd-c5c6-4c89-8c7a-673587853e1e",
+              "leftValue": "={{ $json.has_reference_number }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cfb8d4aa-d1b8-4cca-83bc-bc0f5ab05bd3",
+      "name": "Has Reference Number?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        1680
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "app2ALQUP7CKEkHOz",
+          "cachedResultName": "Lead Scraper - Johannesburg CRM"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblOsuh298hB9WWrA",
+          "cachedResultName": "Leads"
+        },
+        "columns": {
+          "value": {
+            "Email": "={{ $json.sender }}",
+            "Follow Up Stage": 0,
+            "Status": "Ticket Reply - Do Not Follow Up"
+          },
+          "schema": [
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email"
+            },
+            {
+              "id": "Follow Up Stage",
+              "type": "number",
+              "display": true,
+              "displayName": "Follow Up Stage"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Email"
+          ]
+        },
+        "options": {}
+      },
+      "id": "f6c079cd-803a-4ce1-8240-95bc187e4bf8",
+      "name": "Update Lead - Stop Follow Up",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        1648
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "3317efc0-3ec9-462a-82bd-c6062a7a8dab",
+      "name": "Skip - Not Ticket Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        1780
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "1Adp3x0ler5H69Cih5tbMLqWEgZMziebhnOEWbMPTvaA"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Email Log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "7f1a0f30-bc39-4992-b43b-5f0c8cd1cd67",
+      "name": "Log to Email Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1500,
+        1960
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst d = item.json;\n\nif (d.department === 'Sales' && d.tags_string && d.tags_string.includes('New_Lead')) {\n  return [{\n    json: {\n      date: d.processed_at,\n      lead_name: d.sender_name,\n      email: d.sender,\n      subject: d.original_subject,\n      interest: d.intent,\n      summary: d.summary,\n      urgency: d.urgency,\n      status: 'New',\n      follow_up_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)\n        .toISOString().split('T')[0],\n      is_lead: true\n    }\n  }];\n}\n\nreturn [{ json: { is_lead: false } }];"
+      },
+      "id": "dda93b6a-be0e-48eb-a35f-adf44c4fddde",
+      "name": "Check If Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        2160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "71ea58cb-632a-4499-8a8a-303cf08dc34c",
+              "leftValue": "={{ $json.is_lead }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3e9628ed-2240-475f-9c35-98f1ddb0b0b9",
+      "name": "Is New Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        2160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "1G2P9gYuPKtqhDkkJaTVLbuA_yxj_IqTI7vuCfhFLklM"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "lead_name": "={{ $json.lead_name }}",
+            "email": "={{ $json.email }}",
+            "subject": "={{ $json.subject }}",
+            "interest": "={{ $json.interest }}",
+            "summary": "={{ $json.summary }}",
+            "urgency": "={{ $json.urgency }}",
+            "status": "={{ $json.status }}",
+            "follow_up_date": "={{ $json.follow_up_date }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "e00861bf-f1bb-4255-8d49-7c2d6ada740d",
+      "name": "Log New Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2016,
+        2112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": "primary",
+        "start": "={{ $json.follow_up_date + 'T09:00:00' }}",
+        "end": "={{ $json.follow_up_date + 'T09:30:00' }}",
+        "additionalFields": {
+          "description": "=Auto-generated sales lead follow-up.\n\nLead: {{ $json.lead_name }} ({{ $json.email }})\nInterest: {{ $json.interest }}\nSummary: {{ $json.summary }}",
+          "summary": "=Follow up: {{ $json.lead_name }}"
+        }
+      },
+      "id": "c66b0cfc-4084-4ac3-8a6a-dec03c70a612",
+      "name": "Create Follow-Up",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        2272,
+        2112
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "I5zIYf0UxlkUt3KG",
+          "name": "Google Calendar AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "25d1d50b-9dce-4429-80ce-d3af2ca758fb",
+      "name": "Not a Lead",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2016,
+        2240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "b0081b48-6428-4a28-810f-47d029d4e722",
+              "leftValue": "={{ $json.is_interested_reply }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            },
+            {
+              "id": "block-eftcorp-interested",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "rightValue": "@eftcorp.atlassian.net"
+            },
+            {
+              "id": "guard-optout-interested",
+              "leftValue": "={{ $json.is_opt_out }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              },
+              "rightValue": false
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "674d0113-a570-42a8-a463-774804737946",
+      "name": "Is Interested Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        2400
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "reply",
+        "messageId": "={{ $json.original_message_id }}",
+        "additionalFields": {
+          "bodyContent": "<div style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.5;color:#333333;\"><p style=\"margin:0 0 12px 0;\">Hi {{ $json.sender_name }},</p><p style=\"margin:0 0 12px 0;\">Thank you so much for getting back to us! We really appreciate your interest.</p><p style=\"margin:0 0 12px 0;\">I'll be in touch shortly to discuss how AnyVision Media can help you further. In the meantime, if you have any questions, feel free to reply to this email.</p><p style=\"margin:0 0 12px 0;\">Looking forward to connecting!</p><br><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table></div>",
+          "bodyContentType": "HTML"
+        }
+      },
+      "id": "ab769062-4a71-4e2f-b58f-ad203bab0e44",
+      "name": "Send Thank You",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        2352
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $('Check Reference Number').first().json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "DNT"
+          ]
+        }
+      },
+      "id": "a1e82d5a-4c36-42a4-b6e8-78a02c4b81d2",
+      "name": "Apply DNT Category",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        2352
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "mode": "id",
+          "value": "1G2P9gYuPKtqhDkkJaTVLbuA_yxj_IqTI7vuCfhFLklM"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email": "={{ $('Check Reference Number').first().json.sender }}",
+            "status": "Converted - Do Not Follow Up"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED",
+          "handlingExtraData": "ignoreIt"
+        },
+        "dataMode": "autoMapInputData"
+      },
+      "id": "040c52f7-4d60-4512-9bb2-511dbdd4ac33",
+      "name": "Update Lead Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2272,
+        2352
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "65109cf5-0460-4d0e-b480-55de33d0a8c4",
+      "name": "Not Interested Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        2496
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "51294fce-f645-4bd6-9d81-b4a6b2188f12",
+              "leftValue": "={{ $json.is_opt_out }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f5cd27cc-481c-4f6f-a8e3-d042e29d4743",
+      "name": "Is Opt-Out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        2640
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "DNT"
+          ]
+        }
+      },
+      "id": "0182b295-75fc-47b4-b823-1e8d7b1e843d",
+      "name": "Apply Opt-Out DNT",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        2592
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "07703ef7-6698-4833-8782-a8c60591dfe8",
+      "name": "Mark Opt-Out Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        2592
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Microsoft Outlook OAuth2"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {},
+      "id": "8ad6f524-0047-4f30-aa4d-7fe539d68d77",
+      "name": "Not Opt-Out",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        2720
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "0bbde363-5e7b-402e-ab04-d197c60267c3",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\n\nconst errorReport = {\n  workflow_name: error.workflow?.name || 'Business Email Management - Outlook',\n  workflow_id: error.workflow?.id || 'unknown',\n  node_name: error.execution?.error?.node?.name || 'unknown',\n  error_message: error.execution?.error?.message || 'Unknown error',\n  timestamp: new Date().toISOString(),\n  execution_id: error.execution?.id || 'unknown',\n  severity: 'high',\n};\n\nreturn [{ json: errorReport }];"
+      },
+      "id": "ebae2836-e5a9-4a4a-b9cd-65861279031b",
+      "name": "Format Error Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "1Adp3x0ler5H69Cih5tbMLqWEgZMziebhnOEWbMPTvaA"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Error Log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "2af1b6b1-7e18-4ff5-b418-a5581bb41b7d",
+      "name": "Log Error to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        720,
+        -200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Business Email Management - Outlook Edition\n\n**Full feature parity with Gmail version.**\n\n**Flow:**\n1. Outlook Trigger polls every minute\n2. DNT category check + sender-level DNT\n3. AI classifies via Claude Sonnet (OpenRouter)\n4. Department routing with Outlook categories\n5. Draft replies with branded HTML signature\n6. Lead detection + Google Calendar follow-ups\n7. Interested reply -> thank-you + DNT\n8. Opt-out / bounce -> DNT + mark read\n9. Ticket references -> Airtable update\n10. All emails logged to Google Sheets\n\n**Outlook Categories Required:**\nJunk, Accounting_Finance, Customer_Support,\nSales, Management, General, Urgent, DNT",
+        "height": 520,
+        "width": 380
+      },
+      "id": "9d5bde94-ace0-44a4-afe8-8bfb69f86bee",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        112
+      ]
+    }
+  ],
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outlook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Has DNT Category?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has DNT Category?": {
+      "main": [
+        [
+          {
+            "node": "Skip - DNT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Sender DNT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Sender DNT": {
+      "main": [
+        [
+          {
+            "node": "Is Sender DNT?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Sender DNT?": {
+      "main": [
+        [
+          {
+            "node": "Skip - Sender Blocked",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Check Reference Number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Reference Number": {
+      "main": [
+        [
+          {
+            "node": "Route by Department",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Urgent?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is No-Reply?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reply Needed?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Has Reference Number?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Email Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check If Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Interested Reply?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Opt-Out?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Department": {
+      "main": [
+        [
+          {
+            "node": "Categorize Junk",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Finance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Support",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Sales",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Management",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize General",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Categorize Junk": {
+      "main": [
+        [
+          {
+            "node": "Mark Spam Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Urgent?": {
+      "main": [
+        [
+          {
+            "node": "Categorize Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is No-Reply?": {
+      "main": [
+        [
+          {
+            "node": "Mark No-Reply Read",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not No-Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Needed?": {
+      "main": [
+        [
+          {
+            "node": "Create Draft Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Reply Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Draft Reply": {
+      "main": [
+        [
+          {
+            "node": "Mark Replied Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Reference Number?": {
+      "main": [
+        [
+          {
+            "node": "Update Lead - Stop Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip - Not Ticket Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Lead": {
+      "main": [
+        [
+          {
+            "node": "Is New Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Lead?": {
+      "main": [
+        [
+          {
+            "node": "Log New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not a Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log New Lead": {
+      "main": [
+        [
+          {
+            "node": "Create Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Interested Reply?": {
+      "main": [
+        [
+          {
+            "node": "Send Thank You",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Interested Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Thank You": {
+      "main": [
+        [
+          {
+            "node": "Apply DNT Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply DNT Category": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Opt-Out?": {
+      "main": [
+        [
+          {
+            "node": "Apply Opt-Out DNT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Opt-Out DNT": {
+      "main": [
+        [
+          {
+            "node": "Mark Opt-Out Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error Alert": {
+      "main": [
+        [
+          {
+            "node": "Log Error to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": []
+}

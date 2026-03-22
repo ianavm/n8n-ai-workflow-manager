@@ -1,0 +1,1576 @@
+{
+  "name": "RE/MAX Email Agent - AGENT_NAME_HERE",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b3744ac1-550f-4561-b2da-7040a9dfca08",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {},
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "id": "96c3304d-8405-4139-a9db-e2b426957722",
+      "name": "Outlook Trigger",
+      "type": "n8n-nodes-base.microsoftOutlookTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        432
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "dnt-check",
+              "leftValue": "={{ ($json.categories || []).includes('DNT') }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c0eb0b12-f8ed-4b56-81dd-9d56942cd57c",
+      "name": "Has DNT Category?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        380,
+        432
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "91eed355-effc-4bbf-9381-844a290dcd1a",
+      "name": "Skip - DNT",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        380,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- CUSTOMIZE THESE PER AGENT ----\nconst AGENT_NAME = 'AGENT_NAME_HERE';\nconst AGENT_EMAIL = 'AGENT_EMAIL_HERE';\n// ------------------------------------\n\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const senderAddress = item.json.sender?.emailAddress?.address\n    || item.json.from?.emailAddress?.address || '';\n  const senderName = item.json.sender?.emailAddress?.name\n    || item.json.from?.emailAddress?.name || '';\n\n  // Extract attachment info for AI prompt\n  const attachmentNames = [];\n  if (item.json.hasAttachments && item.binary) {\n    for (const key of Object.keys(item.binary)) {\n      attachmentNames.push(item.binary[key].fileName || key);\n    }\n  }\n\n  const emailData = {\n    from: senderName ? `${senderName} <${senderAddress}>` : senderAddress,\n    to: (item.json.toRecipients || [])\n      .map(r => r.emailAddress?.address || '').join(', '),\n    subject: item.json.subject || '',\n    date: item.json.receivedDateTime || item.json.createdDateTime\n      || new Date().toISOString(),\n    body: (item.json.bodyPreview\n      || (item.json.body?.content || '').replace(/<[^>]*>/g, '')\n      || '').substring(0, 3000),\n    hasAttachments: item.json.hasAttachments || false,\n    attachmentNames: attachmentNames.join(', '),\n    messageId: item.json.id || '',\n    threadId: item.json.conversationId || '',\n    agentName: AGENT_NAME,\n    agentEmail: AGENT_EMAIL\n  };\n\n  const classificationPrompt = `Analyze this email for a RE/MAX admin office. Return ONLY valid JSON.\n\nFrom: ${emailData.from}\nSubject: ${emailData.subject}\nDate: ${emailData.date}\nBody:\n${emailData.body}\nAttachments: ${emailData.hasAttachments ? emailData.attachmentNames || 'Yes (names unknown)' : 'None'}`;\n\n  results.push({\n    json: {\n      ...emailData,\n      classificationPrompt\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "a5a365f4-1317-4707-b959-11ac73738c29",
+      "name": "Prepare Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": "REPLACE_AFTER_DEPLOY"
+      },
+      "id": "519d3c64-1ca4-4b39-84fc-204a849339ba",
+      "name": "Classify Email (Sub-Workflow)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [
+        780,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "cat-Spam",
+                    "leftValue": "={{ $json.category }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Spam"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "cat-Agent_Compliance",
+                    "leftValue": "={{ $json.category }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Agent_Compliance"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "cat-Listing_Admin",
+                    "leftValue": "={{ $json.category }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Listing_Admin"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "cat-Commission",
+                    "leftValue": "={{ $json.category }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Commission"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "cat-Training",
+                    "leftValue": "={{ $json.category }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Training"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "cat-General_Inquiry",
+                    "leftValue": "={{ $json.category }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "General_Inquiry"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "cat-Internal",
+                    "leftValue": "={{ $json.category }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "Internal"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "8912a2dd-7913-4de4-96f2-09aa327f023e",
+      "name": "Route by Category",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1000,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Spam"
+          ]
+        }
+      },
+      "id": "97bc28da-da37-46e5-ae98-9c6d90b55c1e",
+      "name": "Categorize Spam",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        80
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Agent_Compliance"
+          ]
+        }
+      },
+      "id": "41614c36-9dcc-44ce-a103-85182e8c4bb9",
+      "name": "Categorize Compliance",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        240
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Listing_Admin"
+          ]
+        }
+      },
+      "id": "63910206-b235-47a2-90a9-e781415869cf",
+      "name": "Categorize Listing",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        400
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Commission"
+          ]
+        }
+      },
+      "id": "870e11a5-e399-4d2c-86d3-b6a03b94c68d",
+      "name": "Categorize Commission",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        560
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Training"
+          ]
+        }
+      },
+      "id": "98886240-91ef-446f-b4ae-951859c2f68b",
+      "name": "Categorize Training",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        720
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "General_Inquiry"
+          ]
+        }
+      },
+      "id": "5cebcc23-7516-412a-9814-dff8ce048475",
+      "name": "Categorize General",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        880
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Internal"
+          ]
+        }
+      },
+      "id": "1a355e6a-0244-4345-8133-3aac34baa041",
+      "name": "Categorize Internal",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        1040
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "General_Inquiry"
+          ]
+        }
+      },
+      "id": "26e27ba8-b3a3-4f34-a207-28b931f7ac0c",
+      "name": "Categorize General Fallback",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        1160
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $('Classify Email (Sub-Workflow)').first().json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "64c8784d-9351-4653-94d5-abed96606739",
+      "name": "Mark Spam Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        80
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1d8a0163-c597-4bba-b9e7-45c8c1099b54",
+              "leftValue": "={{ $json.urgency }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "high"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "74449034-6038-4dc4-b835-55477b76faff",
+      "name": "Is Urgent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        1400
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "categories": [
+            "Urgent"
+          ]
+        }
+      },
+      "id": "f4a96ced-c420-4cc6-a326-afc6ee9403be",
+      "name": "Categorize Urgent",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        1360
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {},
+      "id": "e399bb79-c8d9-4bb3-86a1-15cf03eacd54",
+      "name": "Not Urgent",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        1480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "730e8a47-313e-417f-9a7b-e11636c74473",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "rightValue": "noreply"
+            },
+            {
+              "id": "8f95288a-2430-4e72-90a0-7bf3e058dae3",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "rightValue": "no-reply"
+            },
+            {
+              "id": "e9f62077-df99-46c0-a20d-0929f9677e02",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "rightValue": "donotreply"
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "72ac7fac-6108-4a10-97cb-edce45f4c91e",
+      "name": "Is No-Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        1640
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "ca5b686a-0d23-4324-ac02-491d8566f29c",
+      "name": "Mark No-Reply Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        1600
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {},
+      "id": "1cd548e2-35bb-430c-95f0-70a480820d00",
+      "name": "Not No-Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        1720
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "rn-action",
+              "leftValue": "={{ $json.action_required }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            },
+            {
+              "id": "rn-resp",
+              "leftValue": "={{ $json.suggested_response }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "rn-notspam",
+              "leftValue": "={{ $json.is_spam }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              },
+              "rightValue": false
+            },
+            {
+              "id": "rn-nr1",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "rightValue": "noreply"
+            },
+            {
+              "id": "rn-nr2",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "rightValue": "no-reply"
+            },
+            {
+              "id": "rn-nr3",
+              "leftValue": "={{ $json.sender }}",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              },
+              "rightValue": "donotreply"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "13662eb5-dc78-4037-8c7d-c5dc0d94feb6",
+      "name": "Reply Needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        1900
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "additionalFields": {
+          "subject": "=Re: {{ $json.original_subject }}",
+          "bodyContent": "={{ $json.html_response }}",
+          "bodyContentType": "HTML",
+          "toRecipients": "={{ $json.sender }}"
+        }
+      },
+      "id": "8191401f-772a-46c2-a56a-6eef15caa833",
+      "name": "Create Draft Reply",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        1860
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "update",
+        "messageId": "={{ $('Classify Email (Sub-Workflow)').first().json.original_message_id }}",
+        "updateFields": {
+          "isRead": true
+        }
+      },
+      "id": "8241eff6-86af-4386-bf26-404a01082e86",
+      "name": "Mark Replied Read",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        1860
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {},
+      "id": "f5f1a35c-644a-46ce-b159-c0419bf01f7e",
+      "name": "No Reply Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        1980
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "doc-flag",
+              "leftValue": "={{ $json.has_document }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            },
+            {
+              "id": "doc-attach",
+              "leftValue": "={{ $json.has_original_attachments }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "55974494-b34d-4ef1-a63d-6adb4ff5c5f4",
+      "name": "Has Document?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        2200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "messageAttachment",
+        "operation": "getAll",
+        "messageId": "={{ $json.original_message_id }}",
+        "output": "binary",
+        "options": {}
+      },
+      "id": "b3a60b64-d81b-4962-8aa2-d441c62c48f8",
+      "name": "Fetch Attachments",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        2160
+      ],
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "YOUR_OUTLOOK_CREDENTIAL_ID",
+          "name": "Outlook - AGENT_NAME_HERE"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\n// Document type -> Google Drive folder ID mapping\n// These are populated at deploy time from config/env\nconst FOLDER_MAP = {\n  \"FICA\": \"REPLACE\",\n  \"Offer_to_Purchase\": \"REPLACE\",\n  \"Mandate\": \"REPLACE\",\n  \"Title_Deed\": \"REPLACE\",\n  \"Municipal\": \"REPLACE\",\n  \"Bond_Finance\": \"REPLACE\",\n  \"Compliance_Cert\": \"REPLACE\",\n  \"Sectional_Scheme\": \"REPLACE\",\n  \"Entity_Docs\": \"REPLACE\",\n  \"Other\": \"REPLACE\"\n};\n\nconst DEFAULT_FOLDER = FOLDER_MAP['Other'] || 'REPLACE_AFTER_SETUP';\n\nreturn items.map(item => {\n  const docType = item.json.document_type || 'Other';\n  const folderId = FOLDER_MAP[docType] || DEFAULT_FOLDER;\n\n  return {\n    json: {\n      ...item.json,\n      target_folder_id: folderId,\n      target_folder_name: docType\n    }\n  };\n});"
+      },
+      "id": "d688b605-d29e-405c-83a6-b4cafab5c710",
+      "name": "Determine Drive Folder",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        2160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "name": "={{ $now.format('yyyyMMdd_HHmmss') + '_' + ($json.name || $json.fileName || 'attachment') }}",
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.target_folder_id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "2bd46fdf-9cdf-4ea3-a1f5-b126ce9e98a6",
+      "name": "Upload to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1760,
+        2160
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "h1nJlw5vhziBMlh8",
+          "name": "Google Drive AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst classified = $('Classify Email (Sub-Workflow)').first().json;\n\nreturn items.map(item => {\n  return {\n    json: {\n      date: new Date().toISOString(),\n      admin_name: classified.agent_name || 'Admin',\n      sender: classified.sender || '',\n      sender_name: classified.sender_name || '',\n      document_type: classified.document_type || 'Other',\n      filename: item.json.name || item.json.fileName || 'unknown',\n      drive_link: item.json.webViewLink || item.json.webContentLink || '',\n      drive_file_id: item.json.id || '',\n      property_reference: '',\n      email_subject: classified.original_subject || ''\n    }\n  };\n});"
+      },
+      "id": "ce18a55b-8b4f-4957-aec3-d01db29ec852",
+      "name": "Build Doc Log Entry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        2160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "REPLACE_AFTER_SETUP"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Document_Log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "0d5edb23-0f00-4330-bb72-deda0f48054f",
+      "name": "Log Document to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2240,
+        2160
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "93eca8ce-5608-44c5-a084-01dfccc95d31",
+      "name": "No Documents",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        2300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "5bc36388-ac21-4fd3-a709-dacc5a80c3a2",
+              "leftValue": "={{ $json.follow_up_required }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ebd1ab50-cd38-4ea0-8cbe-a7a5f74fbd6a",
+      "name": "Follow-Up Required?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        2500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nconst fuId = 'FU-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);\n\nreturn [{\n  json: {\n    id: fuId,\n    created_date: new Date().toISOString(),\n    admin_name: item.agent_name || 'Admin',\n    agent_name: item.sender_name || 'Unknown',\n    agent_email: item.sender || '',\n    subject: item.original_subject || item.subject || '',\n    category: item.category || '',\n    follow_up_reason: item.follow_up_reason || 'Follow-up required',\n    follow_up_date: item.follow_up_date || '',\n    status: 'Open',\n    notes: '',\n    completed_date: ''\n  }\n}];"
+      },
+      "id": "ddeee86b-b06f-4c26-9889-bbf0ef53dbaf",
+      "name": "Build Follow-Up Entry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        2460
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "REPLACE_AFTER_SETUP"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Follow_Up_Tracker"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "f2ed1008-d272-4092-b13a-36f01d070b3f",
+      "name": "Log Follow-Up to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1520,
+        2420
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": "primary",
+        "start": "={{ $json.follow_up_date + 'T09:00:00' }}",
+        "end": "={{ $json.follow_up_date + 'T09:30:00' }}",
+        "additionalFields": {
+          "description": "=Follow-up reminder (auto-generated)\n\nAgent: {{ $json.agent_name }} ({{ $json.agent_email }})\nCategory: {{ $json.category }}\nReason: {{ $json.follow_up_reason }}\nSubject: {{ $json.subject }}",
+          "summary": "=Follow up: {{ $json.agent_name }} - {{ $json.follow_up_reason }}"
+        }
+      },
+      "id": "990a4a49-eb89-411b-8ab8-1daf0a3e4955",
+      "name": "Create Calendar Reminder",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        2540
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "I5zIYf0UxlkUt3KG",
+          "name": "Google Calendar AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "2f622e78-c0ce-406c-ba69-12d80216d82d",
+      "name": "No Follow-Up",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        2600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "REPLACE_AFTER_SETUP"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Email_Log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "6dc8b202-31e3-4011-9cc0-829d3583eb45",
+      "name": "Log to Email Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1000,
+        2760
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "de37da4b-8a1b-4b02-a1f7-a29bc55c7777",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nreturn [{ json: {\n  timestamp: new Date().toISOString(),\n  workflow_name: error.workflow?.name || 'RE/MAX Email Agent',\n  node_name: error.execution?.error?.node?.name || 'unknown',\n  error_message: error.execution?.error?.message || 'Unknown error',\n  execution_id: error.execution?.id || 'unknown'\n}}];"
+      },
+      "id": "80dead35-df9a-436f-9a53-eac022fbc847",
+      "name": "Format Error Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "REPLACE_AFTER_SETUP"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Error_Log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "ed9cce24-8546-4c65-af0e-b7637f543fed",
+      "name": "Log Error to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        720,
+        -200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## RE/MAX Email Agent: AGENT_NAME_HERE\n\n**Outlook Categories Required:**\nAgent_Compliance (green), Listing_Admin (blue),\nCommission (orange), Training (purple),\nGeneral_Inquiry (gray), Internal (yellow),\nSpam (red), Urgent (red)\n\n**Customization:**\n- AGENT_NAME / AGENT_EMAIL in Prepare Email Data\n- Outlook credential on all Outlook nodes\n- Master workflow ID in Classify Email node",
+        "height": 380,
+        "width": 350
+      },
+      "id": "c5b993b6-b1f2-48e3-a091-2155bd9ae6fb",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outlook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Has DNT Category?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has DNT Category?": {
+      "main": [
+        [
+          {
+            "node": "Skip - DNT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          {
+            "node": "Classify Email (Sub-Workflow)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Email (Sub-Workflow)": {
+      "main": [
+        [
+          {
+            "node": "Route by Category",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Urgent?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is No-Reply?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reply Needed?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Has Document?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Follow-Up Required?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Email Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Category": {
+      "main": [
+        [
+          {
+            "node": "Categorize Spam",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Listing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Commission",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Training",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize General",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize Internal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Categorize General Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Categorize Spam": {
+      "main": [
+        [
+          {
+            "node": "Mark Spam Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Urgent?": {
+      "main": [
+        [
+          {
+            "node": "Categorize Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is No-Reply?": {
+      "main": [
+        [
+          {
+            "node": "Mark No-Reply Read",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not No-Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Needed?": {
+      "main": [
+        [
+          {
+            "node": "Create Draft Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Reply Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Draft Reply": {
+      "main": [
+        [
+          {
+            "node": "Mark Replied Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Document?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Attachments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Attachments": {
+      "main": [
+        [
+          {
+            "node": "Determine Drive Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Drive Folder": {
+      "main": [
+        [
+          {
+            "node": "Upload to Google Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Google Drive": {
+      "main": [
+        [
+          {
+            "node": "Build Doc Log Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Doc Log Entry": {
+      "main": [
+        [
+          {
+            "node": "Log Document to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Follow-Up Required?": {
+      "main": [
+        [
+          {
+            "node": "Build Follow-Up Entry",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Follow-Up Entry": {
+      "main": [
+        [
+          {
+            "node": "Log Follow-Up to Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Calendar Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Error Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Error Alert": {
+      "main": [
+        [
+          {
+            "node": "Log Error to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": []
+}

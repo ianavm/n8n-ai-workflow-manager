@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en-ZA">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Automation Services | AnyVision Media</title>
+    <meta name="description" content="AnyVision Media builds AI-powered automation systems: WhatsApp bots, CRM pipelines, accounting integration, and custom AI agents. Based in South Africa, serving global clients.">
+    <meta name="author" content="AnyVision Media">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        coral: { DEFAULT: '#FF6D5A', light: '#FF8F7A', dark: '#E55A48' },
+                        navy: { DEFAULT: '#0A0F1C', light: '#131A2E', lighter: '#1C2540' },
+                        teal: '#00D4AA',
+                        purple: '#6C63FF',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        html { scroll-behavior: smooth; }
+
+        .dot-bg {
+            background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #FF6D5A, #6C63FF);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .glow-coral {
+            box-shadow: 0 0 40px rgba(255, 109, 90, 0.15), 0 0 80px rgba(255, 109, 90, 0.05);
+        }
+
+        .card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(255, 109, 90, 0.12);
+        }
+
+        .pricing-popular {
+            border: 2px solid #FF6D5A;
+            position: relative;
+        }
+        .pricing-popular::before {
+            content: 'MOST POPULAR';
+            position: absolute;
+            top: -14px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #FF6D5A, #FF8F7A);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            padding: 4px 16px;
+            border-radius: 20px;
+        }
+
+        /* Scroll reveal */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.7s ease, transform 0.7s ease;
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Step connector line */
+        .step-connector {
+            position: absolute;
+            top: 40px;
+            left: calc(50% + 40px);
+            width: calc(100% - 80px);
+            height: 2px;
+            background: linear-gradient(90deg, #FF6D5A, #6C63FF);
+            opacity: 0.3;
+        }
+
+        @media (max-width: 768px) {
+            .step-connector { display: none; }
+        }
+    </style>
+</head>
+<body class="bg-navy font-sans text-gray-400 antialiased overflow-x-hidden">
+
+    <!-- Dot matrix background -->
+    <div class="fixed inset-0 dot-bg pointer-events-none z-0"></div>
+
+    <!-- ========== NAV ========== -->
+    <nav id="nav" class="fixed top-0 left-0 w-full z-50 border-b border-white/[0.08] transition-all duration-300" style="background: rgba(10, 15, 28, 0.7); backdrop-filter: blur(20px);">
+        <div class="max-w-6xl mx-auto px-6 h-[72px] flex items-center justify-between">
+            <a href="https://www.anyvisionmedia.com" class="flex items-center gap-3 text-white font-bold text-xl no-underline">
+                <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
+                    <rect width="40" height="40" rx="10" fill="url(#logoGrad)"/>
+                    <path d="M12 28L20 12L28 28" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="20" cy="22" r="3" fill="white" opacity="0.9"/>
+                    <defs><linearGradient id="logoGrad" x1="0" y1="0" x2="40" y2="40"><stop stop-color="#FF6D5A"/><stop offset="1" stop-color="#6C63FF"/></linearGradient></defs>
+                </svg>
+                AnyVision Media
+            </a>
+            <div class="hidden md:flex items-center gap-8">
+                <a href="#services" class="text-gray-400 hover:text-white text-sm transition-colors">Services</a>
+                <a href="#how-it-works" class="text-gray-400 hover:text-white text-sm transition-colors">How It Works</a>
+                <a href="#pricing" class="text-gray-400 hover:text-white text-sm transition-colors">Pricing</a>
+                <a href="mailto:ian@anyvisionmedia.com?subject=Strategy%20Call%20Request" class="bg-coral hover:bg-coral-dark text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors">
+                    Book a Free Call
+                </a>
+            </div>
+            <!-- Mobile menu button -->
+            <button id="mobileMenuBtn" class="md:hidden text-white text-xl" aria-label="Toggle menu">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+        <!-- Mobile menu -->
+        <div id="mobileMenu" class="hidden md:hidden border-t border-white/[0.08] px-6 py-4 space-y-3" style="background: rgba(10, 15, 28, 0.95);">
+            <a href="#services" class="block text-gray-400 hover:text-white text-sm py-2">Services</a>
+            <a href="#how-it-works" class="block text-gray-400 hover:text-white text-sm py-2">How It Works</a>
+            <a href="#pricing" class="block text-gray-400 hover:text-white text-sm py-2">Pricing</a>
+            <a href="mailto:ian@anyvisionmedia.com?subject=Strategy%20Call%20Request" class="block bg-coral text-white text-sm font-semibold px-5 py-2.5 rounded-lg text-center mt-2">
+                Book a Free Call
+            </a>
+        </div>
+    </nav>
+
+    <!-- ========== HERO ========== -->
+    <section class="relative z-10 pt-40 pb-24 md:pt-48 md:pb-32">
+        <div class="max-w-6xl mx-auto px-6 text-center">
+            <div class="reveal">
+                <div class="inline-flex items-center gap-2 text-xs font-semibold tracking-[2px] uppercase text-teal mb-6">
+                    <span class="w-6 h-0.5 bg-teal rounded"></span>
+                    AI Automation Services
+                </div>
+                <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight mb-6">
+                    Stop Doing Manually What<br class="hidden md:block">
+                    <span class="gradient-text">AI Can Do in Seconds</span>
+                </h1>
+                <p class="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+                    We build intelligent automation systems that connect your WhatsApp, CRM, accounting,
+                    and marketing tools -- so your business runs itself while you focus on growth.
+                </p>
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <a href="mailto:ian@anyvisionmedia.com?subject=Strategy%20Call%20Request" class="bg-coral hover:bg-coral-dark text-white font-semibold px-8 py-4 rounded-lg text-base transition-colors inline-flex items-center gap-2">
+                        <i class="fas fa-calendar-check"></i>
+                        Book a Free Strategy Call
+                    </a>
+                    <a href="#services" class="border border-white/20 hover:border-white/40 text-white font-medium px-8 py-4 rounded-lg text-base transition-colors inline-flex items-center gap-2">
+                        <i class="fas fa-arrow-down"></i>
+                        View Services
+                    </a>
+                </div>
+            </div>
+
+            <!-- Stats bar -->
+            <div class="reveal mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+                <div class="bg-white/[0.05] border border-white/[0.08] rounded-xl p-5">
+                    <div class="text-2xl font-bold text-white">40+</div>
+                    <div class="text-sm text-gray-500 mt-1">Production Workflows</div>
+                </div>
+                <div class="bg-white/[0.05] border border-white/[0.08] rounded-xl p-5">
+                    <div class="text-2xl font-bold text-white">Full Stack</div>
+                    <div class="text-sm text-gray-500 mt-1">AI + CRM + Accounting</div>
+                </div>
+                <div class="bg-white/[0.05] border border-white/[0.08] rounded-xl p-5">
+                    <div class="text-2xl font-bold text-white">Free PoC</div>
+                    <div class="text-sm text-gray-500 mt-1">Before You Pay</div>
+                </div>
+                <div class="bg-white/[0.05] border border-white/[0.08] rounded-xl p-5">
+                    <div class="text-2xl font-bold text-white">Global</div>
+                    <div class="text-sm text-gray-500 mt-1">Remote Delivery</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== SERVICES ========== -->
+    <section id="services" class="relative z-10 py-24 md:py-32">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center mb-16 reveal">
+                <div class="inline-flex items-center gap-2 text-xs font-semibold tracking-[2px] uppercase text-teal mb-4">
+                    <span class="w-6 h-0.5 bg-teal rounded"></span>
+                    What We Build
+                </div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">End-to-End AI Automation</h2>
+                <p class="text-gray-400 max-w-xl mx-auto">From WhatsApp bots to full accounting pipelines, we connect your tools with AI so nothing falls through the cracks.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Service 1 -->
+                <div class="reveal card-hover bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7">
+                    <div class="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center mb-5">
+                        <i class="fab fa-whatsapp text-green-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white mb-3">WhatsApp Business Automation</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed mb-4">
+                        Automated order processing, customer support bots, and lead qualification -- all through WhatsApp, the channel your customers already use.
+                    </p>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Order intake and confirmation</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> 24/7 customer support bots</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Lead qualification flows</li>
+                    </ul>
+                </div>
+
+                <!-- Service 2 -->
+                <div class="reveal card-hover bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7">
+                    <div class="w-12 h-12 rounded-xl bg-purple/10 flex items-center justify-center mb-5">
+                        <i class="fas fa-project-diagram text-purple text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white mb-3">AI Workflow Development</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed mb-4">
+                        n8n-powered automation pipelines that connect AI models to your business systems. No more copy-pasting between tools.
+                    </p>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> n8n, Airtable, Supabase integration</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Claude AI and GPT pipelines</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Error handling and monitoring</li>
+                    </ul>
+                </div>
+
+                <!-- Service 3 -->
+                <div class="reveal card-hover bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7">
+                    <div class="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center mb-5">
+                        <i class="fas fa-chart-line text-blue-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white mb-3">CRM & Sales Automation</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed mb-4">
+                        AI-driven lead scoring, automated pipeline management, and follow-up sequences that never let a deal go cold.
+                    </p>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Intelligent lead scoring</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Automated follow-up cadences</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Pipeline visibility dashboards</li>
+                    </ul>
+                </div>
+
+                <!-- Service 4 -->
+                <div class="reveal card-hover bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7">
+                    <div class="w-12 h-12 rounded-xl bg-coral/10 flex items-center justify-center mb-5">
+                        <i class="fas fa-envelope-open-text text-coral text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white mb-3">Email & Marketing Automation</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed mb-4">
+                        Personalized email sequences, marketing funnel automation, and campaign management that runs on autopilot.
+                    </p>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> AI-written email sequences</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Funnel and drip automation</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Campaign performance tracking</li>
+                    </ul>
+                </div>
+
+                <!-- Service 5 -->
+                <div class="reveal card-hover bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7">
+                    <div class="w-12 h-12 rounded-xl bg-yellow-500/10 flex items-center justify-center mb-5">
+                        <i class="fas fa-calculator text-yellow-400 text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white mb-3">Accounting Integration</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed mb-4">
+                        Connect QuickBooks or Xero to your workflow. Automated invoicing, bill processing, payment reconciliation, and AP/AR management.
+                    </p>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> QuickBooks / Xero sync</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Invoice and bill automation</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Month-end reconciliation</li>
+                    </ul>
+                </div>
+
+                <!-- Service 6 -->
+                <div class="reveal card-hover bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7">
+                    <div class="w-12 h-12 rounded-xl bg-teal/10 flex items-center justify-center mb-5">
+                        <i class="fas fa-robot text-teal text-xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-white mb-3">Custom AI Agents</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed mb-4">
+                        Purpose-built AI agents: voice assistants, chatbots, and RAG-powered knowledge bases trained on your company data.
+                    </p>
+                    <ul class="space-y-2 text-sm text-gray-500">
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Voice and chat agents</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> RAG knowledge bases</li>
+                        <li class="flex items-center gap-2"><i class="fas fa-check text-teal text-xs"></i> Multi-agent orchestration</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== TECH STACK ========== -->
+    <section class="relative z-10 py-16">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="reveal bg-white/[0.03] border border-white/[0.08] rounded-2xl py-10 px-8">
+                <p class="text-center text-xs font-semibold tracking-[2px] uppercase text-gray-500 mb-8">Built With Production-Grade Tools</p>
+                <div class="flex flex-wrap items-center justify-center gap-x-10 gap-y-5 text-gray-500">
+                    <div class="flex items-center gap-2 text-sm font-medium"><i class="fas fa-cogs text-coral"></i> n8n</div>
+                    <div class="flex items-center gap-2 text-sm font-medium"><i class="fas fa-table text-coral"></i> Airtable</div>
+                    <div class="flex items-center gap-2 text-sm font-medium"><i class="fas fa-database text-coral"></i> Supabase</div>
+                    <div class="flex items-center gap-2 text-sm font-medium"><i class="fas fa-brain text-coral"></i> Claude AI</div>
+                    <div class="flex items-center gap-2 text-sm font-medium"><i class="fas fa-file-invoice-dollar text-coral"></i> QuickBooks</div>
+                    <div class="flex items-center gap-2 text-sm font-medium"><i class="fab fa-whatsapp text-coral"></i> WhatsApp API</div>
+                    <div class="flex items-center gap-2 text-sm font-medium"><i class="fab fa-google text-coral"></i> Google Workspace</div>
+                    <div class="flex items-center gap-2 text-sm font-medium"><i class="fas fa-envelope text-coral"></i> Gmail / Outlook</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== HOW IT WORKS ========== -->
+    <section id="how-it-works" class="relative z-10 py-24 md:py-32">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center mb-16 reveal">
+                <div class="inline-flex items-center gap-2 text-xs font-semibold tracking-[2px] uppercase text-teal mb-4">
+                    <span class="w-6 h-0.5 bg-teal rounded"></span>
+                    The Process
+                </div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Three Steps to Automation</h2>
+                <p class="text-gray-400 max-w-xl mx-auto">We keep the process simple and transparent. No jargon, no mystery, no surprises.</p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8 relative">
+                <!-- Connector line (desktop only) -->
+                <div class="step-connector hidden md:block"></div>
+
+                <!-- Step 1 -->
+                <div class="reveal text-center">
+                    <div class="w-20 h-20 rounded-full bg-coral/10 border-2 border-coral/30 flex items-center justify-center mx-auto mb-6">
+                        <span class="text-2xl font-bold text-coral">1</span>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-3">Discovery Call</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed">
+                        We audit your current processes, identify bottlenecks, and map out exactly which tasks AI can take off your plate. This call is free.
+                    </p>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="reveal text-center">
+                    <div class="w-20 h-20 rounded-full bg-purple/10 border-2 border-purple/30 flex items-center justify-center mx-auto mb-6">
+                        <span class="text-2xl font-bold text-purple">2</span>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-3">Build & Test</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed">
+                        We build a working proof-of-concept you can see and test before committing. No risk, no upfront cost on the PoC. You only pay when you are satisfied.
+                    </p>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="reveal text-center">
+                    <div class="w-20 h-20 rounded-full bg-teal/10 border-2 border-teal/30 flex items-center justify-center mx-auto mb-6">
+                        <span class="text-2xl font-bold text-teal">3</span>
+                    </div>
+                    <h3 class="text-xl font-semibold text-white mb-3">Deploy & Maintain</h3>
+                    <p class="text-sm text-gray-400 leading-relaxed">
+                        We deploy to production, monitor for issues, and continuously improve. You get a system that works reliably, with ongoing support.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== PRICING ========== -->
+    <section id="pricing" class="relative z-10 py-24 md:py-32">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center mb-16 reveal">
+                <div class="inline-flex items-center gap-2 text-xs font-semibold tracking-[2px] uppercase text-teal mb-4">
+                    <span class="w-6 h-0.5 bg-teal rounded"></span>
+                    Pricing
+                </div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Transparent, Honest Pricing</h2>
+                <p class="text-gray-400 max-w-xl mx-auto">No hidden fees. Every engagement starts with a free strategy call and proof-of-concept.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Tier 1 -->
+                <div class="reveal card-hover bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7 flex flex-col">
+                    <div class="mb-6">
+                        <div class="w-10 h-10 rounded-lg bg-gray-500/10 flex items-center justify-center mb-4">
+                            <i class="fas fa-search text-gray-400"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-white mb-1">Workflow Audit & Fix</h3>
+                        <p class="text-xs text-gray-500">Existing system health check</p>
+                    </div>
+                    <div class="mb-6">
+                        <div class="text-3xl font-bold text-white">R5,000</div>
+                        <div class="text-sm text-gray-500">one-time</div>
+                        <div class="text-sm text-coral font-medium mt-1">+ R2,000/mo maintenance</div>
+                    </div>
+                    <ul class="space-y-3 text-sm text-gray-400 mb-8 flex-grow">
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Full workflow audit report</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Bug fixes and optimization</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Error monitoring setup</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Monthly health check</li>
+                    </ul>
+                    <a href="mailto:ian@anyvisionmedia.com?subject=Workflow%20Audit%20Enquiry" class="block text-center border border-white/20 hover:border-coral text-white font-medium py-3 rounded-lg transition-colors text-sm">
+                        Get Started
+                    </a>
+                </div>
+
+                <!-- Tier 2 -->
+                <div class="reveal card-hover bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7 flex flex-col">
+                    <div class="mb-6">
+                        <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center mb-4">
+                            <i class="fas fa-bolt text-blue-400"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-white mb-1">Single Automation</h3>
+                        <p class="text-xs text-gray-500">One focused automation build</p>
+                    </div>
+                    <div class="mb-6">
+                        <div class="text-3xl font-bold text-white">R8,000</div>
+                        <div class="text-sm text-gray-500">one-time</div>
+                        <div class="text-sm text-coral font-medium mt-1">+ R2,500/mo maintenance</div>
+                    </div>
+                    <ul class="space-y-3 text-sm text-gray-400 mb-8 flex-grow">
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Single workflow or integration</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Free proof-of-concept</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Testing and deployment</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> 30-day support included</li>
+                    </ul>
+                    <a href="mailto:ian@anyvisionmedia.com?subject=Single%20Automation%20Enquiry" class="block text-center border border-white/20 hover:border-coral text-white font-medium py-3 rounded-lg transition-colors text-sm">
+                        Get Started
+                    </a>
+                </div>
+
+                <!-- Tier 3 (Popular) -->
+                <div class="reveal card-hover pricing-popular bg-white/[0.06] rounded-2xl p-7 flex flex-col">
+                    <div class="mb-6">
+                        <div class="w-10 h-10 rounded-lg bg-coral/10 flex items-center justify-center mb-4">
+                            <i class="fas fa-layer-group text-coral"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-white mb-1">Full System Build</h3>
+                        <p class="text-xs text-gray-500">Complete automation suite</p>
+                    </div>
+                    <div class="mb-6">
+                        <div class="text-3xl font-bold text-white">R15,000</div>
+                        <div class="text-sm text-gray-500">one-time</div>
+                        <div class="text-sm text-coral font-medium mt-1">+ R4,000/mo maintenance</div>
+                    </div>
+                    <ul class="space-y-3 text-sm text-gray-400 mb-8 flex-grow">
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Multi-workflow system</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> CRM + accounting + AI</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Custom dashboards</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Priority ongoing support</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Free PoC before commitment</li>
+                    </ul>
+                    <a href="mailto:ian@anyvisionmedia.com?subject=Full%20System%20Build%20Enquiry" class="block text-center bg-coral hover:bg-coral-dark text-white font-semibold py-3 rounded-lg transition-colors text-sm">
+                        Book a Free Call
+                    </a>
+                </div>
+
+                <!-- Tier 4 -->
+                <div class="reveal card-hover bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7 flex flex-col">
+                    <div class="mb-6">
+                        <div class="w-10 h-10 rounded-lg bg-teal/10 flex items-center justify-center mb-4">
+                            <i class="fas fa-user-cog text-teal"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-white mb-1">Fractional Engineer</h3>
+                        <p class="text-xs text-gray-500">Dedicated automation partner</p>
+                    </div>
+                    <div class="mb-6">
+                        <div class="text-3xl font-bold text-white">R8,000</div>
+                        <div class="text-sm text-gray-500">per month retainer</div>
+                        <div class="text-sm text-teal font-medium mt-1">Ongoing partnership</div>
+                    </div>
+                    <ul class="space-y-3 text-sm text-gray-400 mb-8 flex-grow">
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Dedicated automation engineer</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Continuous improvement</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> New workflows each month</li>
+                        <li class="flex items-start gap-2"><i class="fas fa-check text-teal text-xs mt-1"></i> Priority response SLA</li>
+                    </ul>
+                    <a href="mailto:ian@anyvisionmedia.com?subject=Fractional%20Engineer%20Enquiry" class="block text-center border border-white/20 hover:border-coral text-white font-medium py-3 rounded-lg transition-colors text-sm">
+                        Get Started
+                    </a>
+                </div>
+            </div>
+
+            <p class="text-center text-sm text-gray-500 mt-8">All prices in South African Rand (ZAR). "From" pricing -- final quote based on scope.</p>
+        </div>
+    </section>
+
+    <!-- ========== TESTIMONIALS ========== -->
+    <section class="relative z-10 py-24 md:py-32">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center mb-16 reveal">
+                <div class="inline-flex items-center gap-2 text-xs font-semibold tracking-[2px] uppercase text-teal mb-4">
+                    <span class="w-6 h-0.5 bg-teal rounded"></span>
+                    Client Results
+                </div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">What Clients Say</h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="reveal bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7">
+                    <div class="flex gap-1 mb-4">
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                    </div>
+                    <p class="text-sm text-gray-400 leading-relaxed mb-5">
+                        "Our invoice processing went from 3 hours a day to fully automated. The WhatsApp integration alone saved us a full-time hire."
+                    </p>
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-coral/20 flex items-center justify-center">
+                            <span class="text-coral font-semibold text-sm">JM</span>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-white">James M.</div>
+                            <div class="text-xs text-gray-500">Operations Director</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="reveal bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7">
+                    <div class="flex gap-1 mb-4">
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                    </div>
+                    <p class="text-sm text-gray-400 leading-relaxed mb-5">
+                        "Ian built our entire lead-to-close pipeline in two weeks. Leads are scored automatically and our sales team only works qualified prospects now."
+                    </p>
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-purple/20 flex items-center justify-center">
+                            <span class="text-purple font-semibold text-sm">SN</span>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-white">Sarah N.</div>
+                            <div class="text-xs text-gray-500">Founder, SaaS Startup</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="reveal bg-white/[0.04] border border-white/[0.08] rounded-2xl p-7">
+                    <div class="flex gap-1 mb-4">
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                        <i class="fas fa-star text-yellow-400 text-sm"></i>
+                    </div>
+                    <p class="text-sm text-gray-400 leading-relaxed mb-5">
+                        "The free proof-of-concept convinced us immediately. We went from manual reporting to AI-generated insights delivered every Monday morning."
+                    </p>
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-teal/20 flex items-center justify-center">
+                            <span class="text-teal font-semibold text-sm">DK</span>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-white">David K.</div>
+                            <div class="text-xs text-gray-500">Marketing Manager</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FINAL CTA ========== -->
+    <section class="relative z-10 py-24 md:py-32">
+        <div class="max-w-4xl mx-auto px-6">
+            <div class="reveal glow-coral bg-gradient-to-br from-coral/10 to-purple/10 border border-coral/20 rounded-3xl p-10 md:p-16 text-center">
+                <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Ready to Automate?</h2>
+                <p class="text-gray-400 max-w-lg mx-auto mb-8 leading-relaxed">
+                    Book a free 30-minute strategy call. We will identify your highest-impact automation opportunities and show you a working proof-of-concept -- before you spend a cent.
+                </p>
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <a href="mailto:ian@anyvisionmedia.com?subject=Strategy%20Call%20Request&body=Hi%20Ian%2C%0A%0AI%27d%20like%20to%20book%20a%20free%20strategy%20call%20to%20discuss%20automation%20for%20my%20business.%0A%0ACompany%3A%20%0AMain%20challenge%3A%20%0APreferred%20time%3A%20%0A%0AThanks" class="bg-coral hover:bg-coral-dark text-white font-semibold px-8 py-4 rounded-lg text-base transition-colors inline-flex items-center gap-2">
+                        <i class="fas fa-calendar-check"></i>
+                        Book a Free Strategy Call
+                    </a>
+                    <a href="https://www.anyvisionmedia.com" class="text-gray-400 hover:text-white font-medium text-sm transition-colors inline-flex items-center gap-2">
+                        Visit our website <i class="fas fa-arrow-right text-xs"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="relative z-10 border-t border-white/[0.08] py-12">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div class="flex items-center gap-3">
+                    <svg width="24" height="24" viewBox="0 0 40 40" fill="none">
+                        <rect width="40" height="40" rx="10" fill="url(#logoGrad2)"/>
+                        <path d="M12 28L20 12L28 28" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="20" cy="22" r="3" fill="white" opacity="0.9"/>
+                        <defs><linearGradient id="logoGrad2" x1="0" y1="0" x2="40" y2="40"><stop stop-color="#FF6D5A"/><stop offset="1" stop-color="#6C63FF"/></linearGradient></defs>
+                    </svg>
+                    <span class="text-white font-semibold text-sm">AnyVision Media</span>
+                </div>
+                <div class="flex items-center gap-6 text-sm text-gray-500">
+                    <a href="mailto:ian@anyvisionmedia.com" class="hover:text-white transition-colors">
+                        <i class="fas fa-envelope mr-1"></i> ian@anyvisionmedia.com
+                    </a>
+                    <a href="https://www.anyvisionmedia.com" class="hover:text-white transition-colors">
+                        <i class="fas fa-globe mr-1"></i> anyvisionmedia.com
+                    </a>
+                </div>
+                <div class="text-xs text-gray-600">
+                    South Africa | Serving clients globally
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ========== SCRIPTS ========== -->
+    <script>
+        // Scroll reveal
+        const revealElements = document.querySelectorAll('.reveal');
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, { threshold: 0.1 });
+        revealElements.forEach(el => revealObserver.observe(el));
+
+        // Nav scroll effect
+        const nav = document.getElementById('nav');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                nav.style.background = 'rgba(10, 15, 28, 0.95)';
+            } else {
+                nav.style.background = 'rgba(10, 15, 28, 0.7)';
+            }
+        });
+
+        // Mobile menu toggle
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const mobileMenu = document.getElementById('mobileMenu');
+        mobileMenuBtn.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+            const icon = mobileMenuBtn.querySelector('i');
+            icon.classList.toggle('fa-bars');
+            icon.classList.toggle('fa-times');
+        });
+
+        // Close mobile menu on link click
+        mobileMenu.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                mobileMenu.classList.add('hidden');
+                const icon = mobileMenuBtn.querySelector('i');
+                icon.classList.add('fa-bars');
+                icon.classList.remove('fa-times');
+            });
+        });
+    </script>
+</body>
+</html>

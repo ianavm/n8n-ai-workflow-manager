@@ -1,0 +1,199 @@
+{
+  "name": "RE/MAX Email Master - AI Classification",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "57b61669-0060-4dbe-b392-5bfb9bca4917",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.classificationPrompt }}",
+        "options": {
+          "systemMessage": "You are the AI Email Assistant for a RE/MAX real estate franchise office in South Africa. You help admin staff manage their email communications with real estate agents, clients, and internal staff.\n\n## Your Task\nAnalyze each incoming email and return ONLY a valid JSON object. No markdown, no backticks, no explanation.\n\n## Office Context\n- Company: RE/MAX (real estate franchise)\n- Staff: Admin team supporting 30+ real estate agents\n- Location: South Africa\n- Common workflows: agent compliance (FICA), listing administration, commission processing, training coordination\n\n## JSON Output Format\n{\n  \"sender\": \"<email address>\",\n  \"sender_name\": \"<display name>\",\n  \"subject\": \"<subject line>\",\n  \"intent\": \"<1 sentence: what the sender wants>\",\n  \"tone\": \"<formal|informal|urgent|angry|friendly|neutral>\",\n  \"urgency\": \"<high|medium|low>\",\n  \"action_required\": true or false,\n  \"category\": \"<ONE of: Agent_Compliance, Listing_Admin, Commission, Training, General_Inquiry, Internal, Spam>\",\n  \"document_type\": \"<ONE of: FICA, Offer_to_Purchase, Mandate, Title_Deed, Municipal, Bond_Finance, Compliance_Cert, Sectional_Scheme, Entity_Docs, None>\",\n  \"has_document\": true or false,\n  \"tags\": [\"<from tag list below>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<professional draft reply if action_required, else null>\",\n  \"summary\": \"<1-2 sentence summary>\",\n  \"escalation_needed\": true or false,\n  \"follow_up_required\": true or false,\n  \"follow_up_date\": \"<YYYY-MM-DD or null>\",\n  \"follow_up_reason\": \"<why follow-up is needed, or null>\"\n}\n\n## Category Classification Rules\n- **Agent_Compliance**: FICA document submissions, compliance certificates, agent registration, license renewals, FFC (Fidelity Fund Certificates), regulatory requirements\n- **Listing_Admin**: New mandates, sole/open mandate agreements, listing details, property photos, marketing requests, price changes, listing withdrawals\n- **Commission**: Commission queries, commission statements, commission disputes, payment schedules, commission splits, referral fees\n- **Training**: Training schedules, CPD (Continuing Professional Development) points, onboarding materials, exam registrations, workshop invitations\n- **General_Inquiry**: Office matters, IT support, general questions, stationery requests, maintenance issues\n- **Internal**: Inter-office communications, management directives, policy updates, meeting minutes, announcements\n- **Spam**: Irrelevant external marketing, phishing, newsletters not subscribed to\n\n## Document Type Detection Rules\nSet has_document=true and document_type if the email:\n- Has attachments AND mentions document-related keywords\n- Explicitly states \"attached is my FICA\" / \"please find the mandate\" / etc.\n- References a document type even without attachment (set has_document based on attachment info)\n\nDocument types:\n- **FICA**: ID copies, proof of address, bank statements (for FICA compliance)\n- **Offer_to_Purchase**: OTP, purchase agreements, sale agreements\n- **Mandate**: Sole mandate, open mandate, listing agreement, agency agreement\n- **Title_Deed**: Title deed copies, deed of transfer\n- **Municipal**: Rates clearance, municipal accounts, zoning certificates\n- **Bond_Finance**: Bond approvals, pre-qualification letters, finance documents\n- **Compliance_Cert**: Compliance certificates, electrical COC, plumbing COC, beetle certificates\n- **Sectional_Scheme**: Body corporate rules, levy statements, sectional title plans\n- **Entity_Docs**: Trust deeds, company registration (CIPC), partnership agreements, resolutions\n- **None**: No document detected\n\n## Available Tags\nFollow_Up, Deadline, Missing_Docs, New_Listing, Commission_Query, Compliance, Urgent, Agent_Onboarding, Price_Change, Withdrawal, Referral\n\n## Urgency Rules\nHIGH if:\n- Deadline mentioned within 48 hours\n- Compliance deadline approaching\n- Commission dispute or payment issue\n- Legal matter or regulatory requirement\n- Words: \"urgent\", \"ASAP\", \"immediately\", \"deadline\"\n\n## Follow-Up Detection Rules\nSet follow_up_required=true if:\n- Email mentions a deadline -> extract the date into follow_up_date (YYYY-MM-DD)\n- Email requests documents that are not yet submitted -> follow_up_reason = \"Waiting for [document type]\"\n- Email asks a question that needs a response -> follow_up_reason = \"Response needed: [topic]\"\n- Agent promises to submit something -> follow_up_reason = \"Agent to submit [item]\"\nIf no specific date mentioned, set follow_up_date to null (the system will default to +2 business days).\n\n## Response Writing Rules\nWhen action_required is true, draft a professional reply:\n- Address the agent/sender by name\n- Be direct and professional (admin-to-agent tone)\n- Reference specific documents or deadlines when relevant\n- Include clear next steps or action items\n- Keep it concise (3-4 paragraphs max)\n- Use proper line breaks (\\n\\n between paragraphs)\n- End with the admin's name (will be inserted by system)\n\nWhen action_required is false or is_spam is true, set suggested_response to null.\n\nCRITICAL: Return ONLY the JSON object. No other text.",
+          "maxIterations": 1,
+          "returnIntermediateSteps": false,
+          "maxTokens": 2000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        480,
+        400
+      ],
+      "id": "7f8edf6b-cc1e-4938-9679-0587cc2f3289",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4-20250514",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        400,
+        680
+      ],
+      "id": "d183e836-a9ca-4963-b147-446104fc203c",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Execute Workflow Trigger').item.json.messageId }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        520,
+        680
+      ],
+      "id": "22821867-0356-4173-9b44-5f91dc1541d0",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const emailData = $('Execute Workflow Trigger').first().json;\n\n  let parsed;\n  try {\n    let aiContent = item.json.output || '';\n    if (!aiContent && item.json.choices) {\n      aiContent = item.json.choices[0].message.content;\n    }\n    const cleaned = aiContent\n      .replace(/```json\\n?/g, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n    parsed = JSON.parse(cleaned);\n  } catch (e) {\n    parsed = {\n      sender: emailData.from || 'unknown',\n      sender_name: 'Unknown',\n      subject: emailData.subject || 'No Subject',\n      intent: 'Classification failed - manual review required',\n      tone: 'neutral',\n      urgency: 'medium',\n      action_required: true,\n      category: 'General_Inquiry',\n      document_type: 'None',\n      has_document: false,\n      tags: ['Follow_Up'],\n      is_spam: false,\n      suggested_response: null,\n      summary: 'Email could not be auto-classified. Manual review required.',\n      escalation_needed: true,\n      follow_up_required: true,\n      follow_up_date: null,\n      follow_up_reason: 'Classification failed - needs manual review'\n    };\n  }\n\n  results.push({\n    json: {\n      original_from: emailData.from || '',\n      original_to: emailData.to || '',\n      original_subject: emailData.subject || '',\n      original_date: emailData.date || '',\n      original_body: emailData.body || '',\n      original_message_id: emailData.messageId || '',\n      original_thread_id: emailData.threadId || '',\n      has_original_attachments: emailData.hasAttachments || false,\n      attachment_names: emailData.attachmentNames || '',\n      agent_name: emailData.agentName || 'Admin',\n      agent_email: emailData.agentEmail || '',\n      sender: parsed.sender || emailData.from || '',\n      sender_name: parsed.sender_name || 'Unknown',\n      subject: parsed.subject || emailData.subject || '',\n      intent: parsed.intent || '',\n      tone: parsed.tone || 'neutral',\n      urgency: parsed.urgency || 'medium',\n      action_required: parsed.action_required || false,\n      category: parsed.category || 'General_Inquiry',\n      document_type: parsed.document_type || 'None',\n      has_document: parsed.has_document || false,\n      tags: parsed.tags || [],\n      tags_string: (parsed.tags || []).join(', '),\n      is_spam: parsed.is_spam || false,\n      suggested_response: parsed.suggested_response || '',\n      summary: parsed.summary || '',\n      escalation_needed: parsed.escalation_needed || false,\n      follow_up_required: parsed.follow_up_required || false,\n      follow_up_date: parsed.follow_up_date || null,\n      follow_up_reason: parsed.follow_up_reason || null,\n      processed_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "23394476-26e3-4fcd-915d-893fa77ef978",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const d = item.json;\n  let follow_up_date = d.follow_up_date;\n\n  // If follow-up required but no date, compute +2 business days\n  if (d.follow_up_required && !follow_up_date) {\n    const now = new Date();\n    let daysAdded = 0;\n    const target = new Date(now);\n    while (daysAdded < 2) {\n      target.setDate(target.getDate() + 1);\n      const dow = target.getDay();\n      if (dow !== 0 && dow !== 6) daysAdded++;\n    }\n    follow_up_date = target.toISOString().split('T')[0];\n  }\n\n  return {\n    json: {\n      ...d,\n      follow_up_date\n    }\n  };\n});"
+      },
+      "id": "71b5d246-7d09-4b61-aa7b-abc9b964f2f1",
+      "name": "Compute Follow-Up Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const d = item.json;\n  const text = d.suggested_response || '';\n\n  let html_response = '';\n  if (text) {\n    const paragraphs = text.split(/\\n\\n+/);\n    const htmlParagraphs = paragraphs\n      .map(p => p.replace(/\\n/g, '<br>'))\n      .map(p => '<p style=\"margin:0 0 12px 0;font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;font-size:14px;line-height:1.5;color:#333333;\">' + p + '</p>')\n      .join('');\n    const signature = `<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><img src=\"https://upload.wikimedia.org/wikipedia/en/thumb/a/a5/RE/MAX_logo.svg/200px-RE/MAX_logo.svg.png\" alt=\"RE/MAX\" width=\"80\" style=\"display:block;border:0;width:80px;\" /></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #DC3545;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:18px;font-weight:700;color:#003DA5;padding-bottom:2px;\">{{ $json.agent_name || \"Admin\" }}</td></tr><tr><td style=\"font-size:13px;color:#6B7280;padding-bottom:8px;\">Administration&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#DC3545;font-weight:600;\">RE/MAX</span></td></tr><tr><td style=\"padding-bottom:8px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"160\"><tr><td width=\"80\" style=\"height:2px;background-color:#DC3545;font-size:0;line-height:0;\">&nbsp;</td><td width=\"80\" style=\"height:2px;background-color:#003DA5;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:2px;\"><a href=\"mailto:{{ $json.agent_email || 'admin@remax.co.za' }}\" style=\"color:#003DA5;text-decoration:none;font-weight:500;\">{{ $json.agent_email || \"admin@remax.co.za\" }}</a></td></tr></table></td></tr></table>`;\n    html_response = '<div style=\"font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;\">' + htmlParagraphs + '<br>' + signature + '</div>';\n  }\n\n  return {\n    json: {\n      ...d,\n      html_response\n    }\n  };\n});"
+      },
+      "id": "2f923fed-20a5-45d7-a1ea-e580f064ae74",
+      "name": "Build HTML Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## RE/MAX Email Master - AI Classification Brain\n\n**Called by:** Per-agent template workflows via Execute Sub-Workflow\n\n**Input:** Email data (from, subject, body, attachments, agentName)\n**Output:** Classification JSON with category, document_type,\nfollow_up fields, suggested_response as HTML\n\n**AI Model:** Claude Sonnet via OpenRouter\n**Categories:** Agent_Compliance, Listing_Admin, Commission,\nTraining, General_Inquiry, Internal, Spam\n\nUpdate classification logic HERE and ALL agents get the fix.",
+        "height": 380,
+        "width": 350
+      },
+      "id": "0f66c945-d809-49fa-829a-f8002914f428",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Compute Follow-Up Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Follow-Up Date": {
+      "main": [
+        [
+          {
+            "node": "Build HTML Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": []
+}
