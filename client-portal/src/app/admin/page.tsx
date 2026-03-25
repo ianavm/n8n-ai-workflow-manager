@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { format } from "date-fns";
@@ -91,7 +93,10 @@ function BentoStat({
 }
 
 export default function AdminDashboard() {
+  const router = useRouter();
+  const supabase = createClient();
   const [clients, setClients] = useState<ClientSummary[]>([]);
+  const [adminName, setAdminName] = useState<string>("");
   const [stats, setStats] = useState<GlobalStats>({
     totalClients: 0,
     activeClients: 0,
@@ -103,6 +108,21 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     async function fetchData() {
+      // Fetch admin name from session
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: adminUser } = await supabase
+          .from("admin_users")
+          .select("full_name")
+          .eq("auth_user_id", user.id)
+          .single();
+        if (adminUser?.full_name) {
+          setAdminName(adminUser.full_name.split(" ")[0]);
+        } else {
+          setAdminName(user.email?.split("@")[0] || "Admin");
+        }
+      }
+
       const res = await fetch("/api/admin/clients");
       if (res.ok) {
         const data: ClientSummary[] = await res.json();
@@ -123,7 +143,7 @@ export default function AdminDashboard() {
       setLoading(false);
     }
     fetchData();
-  }, []);
+  }, [supabase]);
 
   const flaggedClients = clients
     .filter((c) => c.total_crashes > 0)
@@ -176,7 +196,7 @@ export default function AdminDashboard() {
               <div className="welcome-blob b2" />
               <div className="relative z-10">
                 <h1 className="text-2xl font-bold text-white mb-1">
-                  {greeting}, Ian
+                  {greeting}, {adminName || "Admin"}
                 </h1>
                 <p className="text-sm text-[#B0B8C8]">
                   {format(today, "EEEE, d MMMM yyyy")}
@@ -439,7 +459,7 @@ export default function AdminDashboard() {
                   <tr
                     key={client.id}
                     className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.02)] transition-colors cursor-pointer"
-                    onClick={() => window.location.href = `/admin/clients/${client.id}`}
+                    onClick={() => router.push(`/admin/clients/${client.id}`)}
                   >
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-white">{client.full_name}</p>

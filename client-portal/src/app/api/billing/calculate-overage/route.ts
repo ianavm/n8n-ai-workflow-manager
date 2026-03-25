@@ -18,7 +18,10 @@ export async function POST(request: NextRequest) {
 
     // Allow admin access or API key for n8n automation
     const apiKey = request.headers.get("x-api-key");
-    const isApiAuth = apiKey === process.env.INTERNAL_API_KEY;
+    if (apiKey && !process.env.INTERNAL_API_KEY) {
+      return NextResponse.json({ error: "API key not configured" }, { status: 401 });
+    }
+    const isApiAuth = !!process.env.INTERNAL_API_KEY && apiKey === process.env.INTERNAL_API_KEY;
 
     if (!isApiAuth && (!session || session.role !== "owner")) {
       return NextResponse.json({ error: "Owner or API key required" }, { status: 403 });

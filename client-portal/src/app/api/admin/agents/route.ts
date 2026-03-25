@@ -13,19 +13,21 @@ const AGENT_TIERS: Record<string, number> = {
   agent_financial_intel: 7, agent_crm_sync: 7, agent_booking: 7, agent_data_curator: 7,
 };
 
-async function checkAdminOrApiKey(req: NextRequest): Promise<boolean> {
+async function checkAdminOrApiKey(req: NextRequest): Promise<{ authorized: boolean; reason?: string }> {
   // Admin session auth
   const session = await getSession();
-  if (session && (session.role === "owner" || session.role === "employee")) return true;
+  if (session && (session.role === "owner" || session.role === "employee")) return { authorized: true };
   // Internal API key auth (for n8n workflows)
+  if (!process.env.INTERNAL_API_KEY) return { authorized: false, reason: "API key not configured" };
   const apiKey = req.headers.get("x-api-key");
-  if (apiKey && apiKey === process.env.INTERNAL_API_KEY) return true;
-  return false;
+  if (apiKey && apiKey === process.env.INTERNAL_API_KEY) return { authorized: true };
+  return { authorized: false };
 }
 
 export async function GET(req: NextRequest) {
-  if (!(await checkAdminOrApiKey(req))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await checkAdminOrApiKey(req);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.reason || "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createServiceRoleClient();
@@ -36,7 +38,8 @@ export async function GET(req: NextRequest) {
     .order("agent_id");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[admin/agents] GET error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Map DB columns to frontend-expected shape
@@ -61,8 +64,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await checkAdminOrApiKey(req))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await checkAdminOrApiKey(req);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.reason || "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createServiceRoleClient();
@@ -89,7 +93,8 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[admin/agents] POST error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json(data);

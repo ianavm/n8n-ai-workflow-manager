@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import {
   LayoutDashboard,
   Zap,
@@ -13,6 +14,10 @@ import {
   LogOut,
   Menu,
   X,
+  Bell,
+  FileBarChart,
+  MessageCircle,
+  HeadphonesIcon,
 } from "lucide-react";
 
 const navItems = [
@@ -20,6 +25,10 @@ const navItems = [
   { label: "Automations", href: "/portal/workflows", icon: Zap },
   { label: "AI Agents", href: "/portal/ai-agents", icon: Bot },
   { label: "Documents", href: "/portal/documents", icon: FileText },
+  { label: "Notifications", href: "/portal/notifications", icon: Bell },
+  { label: "Reports", href: "/portal/reports", icon: FileBarChart },
+  { label: "WhatsApp", href: "/portal/whatsapp", icon: MessageCircle },
+  { label: "Support", href: "/portal/support", icon: HeadphonesIcon },
   { label: "Billing", href: "/portal/billing", icon: CreditCard },
   { label: "Settings", href: "/portal/settings", icon: Settings },
 ];
@@ -139,7 +148,7 @@ export function PortalNav() {
             const isActive = pathname === item.href;
             const Icon = item.icon;
             return (
-              <a
+              <Link
                 key={item.href}
                 href={item.href}
                 style={{
@@ -171,7 +180,7 @@ export function PortalNav() {
               >
                 <Icon size={20} style={{ flexShrink: 0 }} />
                 {item.label}
-              </a>
+              </Link>
             );
           })}
         </nav>
@@ -316,7 +325,7 @@ export function PortalNav() {
               const isActive = pathname === item.href;
               const Icon = item.icon;
               return (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
@@ -336,7 +345,7 @@ export function PortalNav() {
                 >
                   <Icon size={20} />
                   {item.label}
-                </a>
+                </Link>
               );
             })}
 

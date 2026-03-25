@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
@@ -299,73 +300,7 @@ export default function PortalLoginPage() {
               {loading ? "Signing in..." : resetMode ? "Send Reset Link" : "Sign In"}
             </button>
 
-            {/* Divider + social login */}
-            {!resetMode && (
-              <>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "16px",
-                    margin: "28px 0",
-                    fontSize: "13px",
-                    color: "#6B7280",
-                  }}
-                >
-                  <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
-                  or continue with
-                  <span style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }} />
-                </div>
-                <div style={{ display: "flex", gap: "16px" }}>
-                  <button
-                    type="button"
-                    style={{
-                      flex: 1,
-                      padding: "12px",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.03)",
-                      color: "#B0B8C8",
-                      fontFamily: "inherit",
-                      fontSize: "13px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "8px",
-                      transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-                    GitHub
-                  </button>
-                  <button
-                    type="button"
-                    style={{
-                      flex: 1,
-                      padding: "12px",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.03)",
-                      color: "#B0B8C8",
-                      fontFamily: "inherit",
-                      fontSize: "13px",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "8px",
-                      transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M15.68 8.18c0-.57-.05-1.12-.15-1.64H8v3.1h4.3a3.68 3.68 0 01-1.6 2.41v2h2.58c1.51-1.39 2.38-3.44 2.38-5.87z" fill="#4285F4"/><path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.58-2a4.82 4.82 0 01-7.19-2.53H.9v2.06A8 8 0 008 16z" fill="#34A853"/><path d="M3.52 9.52a4.8 4.8 0 010-3.04V4.42H.9a8 8 0 000 7.16l2.62-2.06z" fill="#FBBC05"/><path d="M8 3.18a4.33 4.33 0 013.07 1.2l2.3-2.3A7.72 7.72 0 008 0 8 8 0 00.9 4.42l2.62 2.06A4.77 4.77 0 018 3.18z" fill="#EA4335"/></svg>
-                    Google
-                  </button>
-                </div>
-              </>
-            )}
+            {/* Social login removed -- no OAuth providers configured */}
 
             {resetMode && (
               <div style={{ textAlign: "center", marginTop: "16px" }}>
@@ -389,12 +324,12 @@ export default function PortalLoginPage() {
             {/* Create account link */}
             {!resetMode && (
               <div style={{ textAlign: "center", marginTop: "16px" }}>
-                <a
+                <Link
                   href="/portal/signup"
                   style={{ fontSize: "13px", color: "#6B7280", textDecoration: "none" }}
                 >
                   Don&apos;t have an account? <span style={{ color: "#6C63FF" }}>Sign up</span>
-                </a>
+                </Link>
               </div>
             )}
           </form>

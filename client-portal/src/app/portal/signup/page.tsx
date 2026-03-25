@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Check, Eye, EyeOff, ArrowRight, Shield, Zap, BarChart3 } from "lucide-react";
 
@@ -223,12 +224,12 @@ export default function SignupPage() {
                   </p>
                 </div>
                 <div className="pt-2 space-y-3">
-                  <a href="/portal/login" className="block">
+                  <Link href="/portal/login" className="block">
                     <Button variant="coral" className="w-full" size="lg">
                       Sign In to Your Portal
                       <ArrowRight size={16} className="ml-1" />
                     </Button>
-                  </a>
+                  </Link>
                   <p className="text-xs text-[#6B7280]">
                     Your 30-day free trial is active
                   </p>
@@ -440,12 +441,12 @@ export default function SignupPage() {
 
           {/* Footer links */}
           <div className="flex items-center justify-between mt-4 px-1">
-            <a
+            <Link
               href="/portal/login"
               className="text-sm text-[#6C63FF] hover:text-[#00D4AA] transition-colors font-medium"
             >
               Already have an account? Sign in
-            </a>
+            </Link>
             <a
               href="https://www.anyvisionmedia.com"
               className="text-sm text-[#6B7280] hover:text-[#B0B8C8] transition-colors"

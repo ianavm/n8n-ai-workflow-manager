@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { PricingCard } from "@/components/billing/PricingCard";
 import { BillingToggle } from "@/components/billing/BillingToggle";
@@ -34,6 +36,7 @@ interface Addon {
 }
 
 export default function PricingPage() {
+  const router = useRouter();
   const supabase = createClient();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
@@ -66,7 +69,7 @@ export default function PricingPage() {
   }, [supabase]);
 
   function handleSelectPlan(slug: string) {
-    window.location.href = `/portal/signup?plan=${slug}&currency=${currency}`;
+    router.push(`/portal/signup?plan=${slug}&currency=${currency}`);
   }
 
   // Filter plans and addons by selected currency
@@ -99,7 +102,7 @@ export default function PricingPage() {
           margin: "0 auto",
         }}
       >
-        <a
+        <Link
           href="/"
           style={{
             fontSize: "20px",
@@ -127,9 +130,9 @@ export default function PricingPage() {
             A
           </span>
           AnyVision
-        </a>
+        </Link>
         <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <a
+          <Link
             href="/portal/login"
             style={{
               color: "#B0B8C8",
@@ -139,8 +142,8 @@ export default function PricingPage() {
             }}
           >
             Log In
-          </a>
-          <a
+          </Link>
+          <Link
             href="/portal/signup"
             style={{
               background: "linear-gradient(135deg, #6C63FF, #00D4AA)",
@@ -153,7 +156,7 @@ export default function PricingPage() {
             }}
           >
             Get Started
-          </a>
+          </Link>
         </div>
       </nav>
 
@@ -270,7 +273,7 @@ export default function PricingPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: `repeat(${Math.min(filteredPlans.length || 1, 4)}, 1fr)`,
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
                 gap: "20px",
                 maxWidth: "1200px",
                 margin: "0 auto",
@@ -340,7 +343,7 @@ export default function PricingPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
+              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
               gap: "20px",
               maxWidth: "1000px",
               margin: "0 auto",
@@ -417,7 +420,7 @@ export default function PricingPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
                 gap: "16px",
               }}
             >
@@ -431,7 +434,7 @@ export default function PricingPage() {
                   features={addon.features}
                   category={addon.category}
                   onAction={(slug) =>
-                    (window.location.href = `/portal/signup?addon=${slug}&currency=${currency}`)
+                    router.push(`/portal/signup?addon=${slug}&currency=${currency}`)
                   }
                 />
               ))}

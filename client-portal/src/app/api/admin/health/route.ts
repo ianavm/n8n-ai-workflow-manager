@@ -6,6 +6,9 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session || (session.role !== "owner" && session.role !== "employee")) {
     // Also allow internal API key for n8n
+    if (!process.env.INTERNAL_API_KEY) {
+      return NextResponse.json({ error: "API key not configured" }, { status: 401 });
+    }
     const apiKey = req.headers.get("x-api-key");
     if (!apiKey || apiKey !== process.env.INTERNAL_API_KEY) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

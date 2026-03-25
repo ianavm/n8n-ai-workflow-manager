@@ -1,7 +1,5 @@
 import { PortalNav } from "@/components/portal/PortalNav";
 
-export const dynamic = "force-dynamic";
-
 export default function PortalLayout({
   children,
 }: {

@@ -70,7 +70,7 @@ export default function ReportsPage() {
     const filename = `anyvision-report-${format(new Date(), "yyyy-MM-dd")}`;
 
     if (type === "csv") {
-      exportToCSV(rows, filename);
+      await exportToCSV(rows, filename);
       toast.success("CSV exported successfully");
     } else {
       await exportToPDF(rows, filename, "AnyVision Media — Workflow Report");

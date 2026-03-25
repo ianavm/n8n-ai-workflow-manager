@@ -10,12 +10,19 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function generateInvoiceNumber(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const seq = String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0");
-  return `AVM-${year}${month}-${seq}`;
+async function generateInvoiceNumber(): Promise<string> {
+  try {
+    const { data, error } = await supabaseAdmin.rpc("generate_invoice_number");
+    if (error) throw error;
+    return data as string;
+  } catch (err) {
+    console.error("[webhooks/stripe] generate_invoice_number RPC failed, using fallback:", err);
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const ts = now.getTime().toString(36).toUpperCase();
+    return `AVM-${year}${month}-${ts}`;
+  }
 }
 
 // POST /api/webhooks/stripe — Stripe webhook handler
@@ -223,7 +230,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   // Create invoice (only if amount > 0 — trial may be $0)
   const amountTotal = fullSession.amount_total ?? 0;
   if (amountTotal > 0) {
-    const invoiceNumber = generateInvoiceNumber();
+    const invoiceNumber = await generateInvoiceNumber();
 
     await supabaseAdmin.from("invoices").insert({
       client_id: clientId,
@@ -421,7 +428,7 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   const amountPaid = (invoiceData.amount_paid as number) ?? 0;
   if (amountPaid <= 0) return;
 
-  const invoiceNumber = generateInvoiceNumber();
+  const invoiceNumber = await generateInvoiceNumber();
   const currency = ((invoiceData.currency as string) ?? "usd").toUpperCase();
   const rawPI = invoiceData.payment_intent;
   const paymentIntentId =
@@ -502,7 +509,7 @@ async function handleInvoiceFailed(invoice: Stripe.Invoice) {
   await supabaseAdmin.from("invoices").insert({
     client_id: sub.client_id,
     subscription_id: sub.id,
-    invoice_number: generateInvoiceNumber(),
+    invoice_number: await generateInvoiceNumber(),
     status: "open",
     amount_due: amountDue,
     amount_paid: 0,
@@ -591,7 +598,7 @@ async function handleAddonCheckoutComplete(params: {
   // Create invoice
   const amountTotal = session.amount_total ?? 0;
   if (amountTotal > 0) {
-    const invoiceNumber = generateInvoiceNumber();
+    const invoiceNumber = await generateInvoiceNumber();
     const currency = (session.currency ?? "usd").toUpperCase();
 
     const { data: addon } = await supabaseAdmin
@@ -655,7 +662,7 @@ async function handleSetupFeeCheckoutComplete(params: {
 
   // Create invoice
   const amountTotal = session.amount_total ?? 0;
-  const invoiceNumber = generateInvoiceNumber();
+  const invoiceNumber = await generateInvoiceNumber();
   const currency = (session.currency ?? "usd").toUpperCase();
 
   const { data: fee } = await supabaseAdmin

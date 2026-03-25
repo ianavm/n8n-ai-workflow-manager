@@ -28,7 +28,8 @@ export async function GET() {
 
   if (error) {
     if (error.code === "42P01") return NextResponse.json([]);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[portal/support] GET error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json(data || []);
@@ -42,6 +43,20 @@ export async function POST(req: Request) {
 
   const serviceClient = await createServiceRoleClient();
   const body = await req.json();
+
+  // Validate input
+  if (!body.subject || typeof body.subject !== "string" || body.subject.trim().length === 0) {
+    return NextResponse.json({ error: "Subject is required and must be a string" }, { status: 400 });
+  }
+  if (body.subject.length > 200) {
+    return NextResponse.json({ error: "Subject must be 200 characters or fewer" }, { status: 400 });
+  }
+  if (!body.body || typeof body.body !== "string" || body.body.trim().length === 0) {
+    return NextResponse.json({ error: "Body is required and must be a string" }, { status: 400 });
+  }
+  if (body.body.length > 10000) {
+    return NextResponse.json({ error: "Body must be 10,000 characters or fewer" }, { status: 400 });
+  }
 
   // Get client record
   const { data: client } = await serviceClient
@@ -80,7 +95,8 @@ export async function POST(req: Request) {
         message: "Ticket created (support system initializing)",
       }, { status: 201 });
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[portal/support] POST error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Forward to self-healing webhook for triage + email alert

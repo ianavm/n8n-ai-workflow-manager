@@ -3,12 +3,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { StatCard } from "@/components/charts/StatCard";
-import { TrendChart } from "@/components/charts/TrendChart";
+import dynamic from "next/dynamic";
 import { UptimeGauge } from "@/components/charts/UptimeGauge";
 import { DateRangePicker, type DateRange } from "@/components/ui/DateRangePicker";
 import { Badge } from "@/components/ui/Badge";
 import { subDays, format } from "date-fns";
 import { MessageSquare, Send, UserPlus, AlertTriangle, Search, FileBarChart, Settings } from "lucide-react";
+import Link from "next/link";
+
+const TrendChart = dynamic(() => import("@/components/charts/TrendChart").then(mod => ({ default: mod.TrendChart })), { ssr: false });
 
 interface ClientProfile {
   id: string;
@@ -133,26 +136,34 @@ export default function PortalDashboard() {
     });
     setStats(counts);
 
-    const trends: Record<string, TrendData[]> = {};
-    for (const eventType of [
+    const eventTypes = [
       "message_received",
       "message_sent",
       "lead_created",
       "workflow_crash",
-    ]) {
-      const { data: dailyData } = await supabase.rpc("get_daily_stats", {
-        p_client_id: clientId,
-        p_event_type: eventType,
-        p_start_date: start,
-        p_end_date: end,
-      });
+    ] as const;
+
+    const trendResults = await Promise.all(
+      eventTypes.map((eventType) =>
+        supabase.rpc("get_daily_stats", {
+          p_client_id: clientId,
+          p_event_type: eventType,
+          p_start_date: start,
+          p_end_date: end,
+        })
+      )
+    );
+
+    const trends: Record<string, TrendData[]> = {};
+    eventTypes.forEach((eventType, index) => {
+      const { data: dailyData } = trendResults[index];
       trends[eventType] = (dailyData || []).map(
         (d: { day: string; count: number }) => ({
           date: format(new Date(d.day), "MMM d"),
           value: d.count,
         })
       );
-    }
+    });
     setTrendData(trends);
 
     const { data: wfs } = await supabase
@@ -308,18 +319,18 @@ export default function PortalDashboard() {
               : "No new leads today."}
           </p>
           <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-            <a href="/portal/workflows" className="btn-gradient">
+            <Link href="/portal/workflows" className="btn-gradient">
               <Search size={16} />
               Review Leads
-            </a>
-            <a href="/portal/reports" className="btn-outline">
+            </Link>
+            <Link href="/portal/reports" className="btn-outline">
               <FileBarChart size={16} />
               View Reports
-            </a>
-            <a href="/portal/settings" className="btn-outline">
+            </Link>
+            <Link href="/portal/settings" className="btn-outline">
               <Settings size={16} />
               Settings
-            </a>
+            </Link>
           </div>
         </div>
       </div>

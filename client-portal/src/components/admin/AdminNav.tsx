@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useState } from "react";
+import Link from "next/link";
 import {
   LayoutDashboard,
   Users,
@@ -68,7 +69,7 @@ export function AdminNav() {
                 : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
-              <a
+              <Link
                 key={item.href}
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
@@ -79,7 +80,7 @@ export function AdminNav() {
               >
                 <Icon size={18} />
                 {item.label}
-              </a>
+              </Link>
             );
           })}
         </nav>
@@ -119,7 +120,7 @@ export function AdminNav() {
                   : pathname.startsWith(item.href);
               const Icon = item.icon;
               return (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
@@ -132,7 +133,7 @@ export function AdminNav() {
                 >
                   <Icon size={18} />
                   {item.label}
-                </a>
+                </Link>
               );
             })}
             <button

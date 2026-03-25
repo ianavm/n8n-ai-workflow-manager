@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
-async function checkAdminOrApiKey(req: NextRequest): Promise<boolean> {
+async function checkAdminOrApiKey(req: NextRequest): Promise<{ authorized: boolean; reason?: string }> {
   const session = await getSession();
-  if (session && (session.role === "owner" || session.role === "employee")) return true;
+  if (session && (session.role === "owner" || session.role === "employee")) return { authorized: true };
+  if (!process.env.INTERNAL_API_KEY) return { authorized: false, reason: "API key not configured" };
   const apiKey = req.headers.get("x-api-key");
-  if (apiKey && apiKey === process.env.INTERNAL_API_KEY) return true;
-  return false;
+  if (apiKey && apiKey === process.env.INTERNAL_API_KEY) return { authorized: true };
+  return { authorized: false };
 }
 
 // Note: Support tickets are stored in Airtable (Support base).
@@ -17,8 +18,9 @@ async function checkAdminOrApiKey(req: NextRequest): Promise<boolean> {
 // for faster portal queries.
 
 export async function GET(req: NextRequest) {
-  if (!(await checkAdminOrApiKey(req))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await checkAdminOrApiKey(req);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.reason || "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createServiceRoleClient();
@@ -34,15 +36,17 @@ export async function GET(req: NextRequest) {
     if (error.code === "42P01") {
       return NextResponse.json([]);
     }
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[admin/support] GET error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json(data || []);
 }
 
 export async function POST(req: NextRequest) {
-  if (!(await checkAdminOrApiKey(req))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await checkAdminOrApiKey(req);
+  if (!auth.authorized) {
+    return NextResponse.json({ error: auth.reason || "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createServiceRoleClient();
@@ -71,7 +75,8 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[admin/support] POST error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   return NextResponse.json(data, { status: 201 });

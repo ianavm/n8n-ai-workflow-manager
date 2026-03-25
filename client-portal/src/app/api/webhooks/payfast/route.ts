@@ -9,12 +9,19 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function generateInvoiceNumber(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const seq = String(Math.floor(Math.random() * 9999) + 1).padStart(4, "0");
-  return `AVM-${year}${month}-${seq}`;
+async function generateInvoiceNumber(): Promise<string> {
+  try {
+    const { data, error } = await supabaseAdmin.rpc("generate_invoice_number");
+    if (error) throw error;
+    return data as string;
+  } catch (err) {
+    console.error("[webhooks/payfast] generate_invoice_number RPC failed, using fallback:", err);
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const ts = now.getTime().toString(36).toUpperCase();
+    return `AVM-${year}${month}-${ts}`;
+  }
 }
 
 // POST /api/webhooks/payfast — PayFast ITN handler
@@ -115,7 +122,7 @@ export async function POST(request: NextRequest) {
         amountGross,
       });
     } else if (paymentStatus === "CANCELLED") {
-      await handlePaymentCancelled({ clientId });
+      await handlePaymentCancelled({ clientId, pfPaymentId });
     } else {
       console.info(`[webhooks/payfast] Unhandled payment_status: ${paymentStatus}`);
     }
@@ -230,7 +237,7 @@ async function handlePaymentComplete(params: PaymentCompleteParams) {
   }
 
   // Create invoice (status = paid)
-  const invoiceNumber = generateInvoiceNumber();
+  const invoiceNumber = await generateInvoiceNumber();
   const amountCents = Math.round(parseFloat(amountGross) * 100);
   const vatCents = Math.round(amountCents * 15 / 115); // Extract 15% VAT from gross
 
@@ -287,6 +294,18 @@ interface PaymentFailedParams {
 async function handlePaymentFailed(params: PaymentFailedParams) {
   const { clientId, planId, pfPaymentId, mPaymentId, amountGross } = params;
 
+  // Idempotency: skip if this payment was already recorded
+  const { data: existingInvoice } = await supabaseAdmin
+    .from("invoices")
+    .select("id")
+    .eq("payfast_payment_id", pfPaymentId)
+    .maybeSingle();
+
+  if (existingInvoice) {
+    console.info(`[webhooks/payfast] Duplicate payment_failed skipped: pf_payment_id=${pfPaymentId}`);
+    return;
+  }
+
   // Set subscription to past_due
   const { data: existingSub } = await supabaseAdmin
     .from("subscriptions")
@@ -313,7 +332,7 @@ async function handlePaymentFailed(params: PaymentFailedParams) {
   await supabaseAdmin.from("invoices").insert({
     client_id: clientId,
     subscription_id: existingSub?.id || null,
-    invoice_number: generateInvoiceNumber(),
+    invoice_number: await generateInvoiceNumber(),
     status: "open",
     amount_due: amountCents,
     amount_paid: 0,
@@ -343,10 +362,26 @@ async function handlePaymentFailed(params: PaymentFailedParams) {
 
 interface PaymentCancelledParams {
   clientId: string;
+  pfPaymentId: string;
 }
 
 async function handlePaymentCancelled(params: PaymentCancelledParams) {
-  const { clientId } = params;
+  const { clientId, pfPaymentId } = params;
+
+  // Idempotency: skip if this cancellation was already processed
+  if (pfPaymentId) {
+    const { data: existingLog } = await supabaseAdmin
+      .from("activity_log")
+      .select("id")
+      .eq("action", "payment_cancelled")
+      .contains("details", { pf_payment_id: pfPaymentId })
+      .maybeSingle();
+
+    if (existingLog) {
+      console.info(`[webhooks/payfast] Duplicate payment_cancelled skipped: pf_payment_id=${pfPaymentId}`);
+      return;
+    }
+  }
 
   // Set subscription to canceled
   const { data: existingSub } = await supabaseAdmin
@@ -376,7 +411,7 @@ async function handlePaymentCancelled(params: PaymentCancelledParams) {
     action: "payment_cancelled",
     target_type: "subscription",
     target_id: existingSub?.id || clientId,
-    details: { client_id: clientId },
+    details: { client_id: clientId, pf_payment_id: pfPaymentId },
   });
 
   console.info(`[webhooks/payfast] Payment cancelled: client=${clientId}`);
@@ -396,6 +431,18 @@ interface AddonPaymentCompleteParams {
 
 async function handleAddonPaymentComplete(params: AddonPaymentCompleteParams) {
   const { clientId, addonId, pfPaymentId, amountGross, payfastToken } = params;
+
+  // Idempotency: skip if this payment was already recorded
+  const { data: existingInvoice } = await supabaseAdmin
+    .from("invoices")
+    .select("id")
+    .eq("payfast_payment_id", pfPaymentId)
+    .maybeSingle();
+
+  if (existingInvoice) {
+    console.info(`[webhooks/payfast] Duplicate addon payment skipped: pf_payment_id=${pfPaymentId}`);
+    return;
+  }
 
   // Get current subscription
   const { data: sub } = await supabaseAdmin
@@ -444,7 +491,7 @@ async function handleAddonPaymentComplete(params: AddonPaymentCompleteParams) {
 
   // Create invoice for addon payment
   const amountCents = Math.round(parseFloat(amountGross) * 100);
-  const invoiceNumber = generateInvoiceNumber();
+  const invoiceNumber = await generateInvoiceNumber();
 
   const { data: addon } = await supabaseAdmin
     .from("addons")
@@ -498,6 +545,18 @@ interface SetupFeePaymentCompleteParams {
 async function handleSetupFeePaymentComplete(params: SetupFeePaymentCompleteParams) {
   const { clientId, setupFeeId, pfPaymentId, amountGross } = params;
 
+  // Idempotency: skip if this payment was already recorded
+  const { data: existingInvoice } = await supabaseAdmin
+    .from("invoices")
+    .select("id")
+    .eq("payfast_payment_id", pfPaymentId)
+    .maybeSingle();
+
+  if (existingInvoice) {
+    console.info(`[webhooks/payfast] Duplicate setup_fee payment skipped: pf_payment_id=${pfPaymentId}`);
+    return;
+  }
+
   // Mark setup fee as paid
   await supabaseAdmin
     .from("setup_fees")
@@ -511,7 +570,7 @@ async function handleSetupFeePaymentComplete(params: SetupFeePaymentCompletePara
 
   // Create invoice
   const amountCents = Math.round(parseFloat(amountGross) * 100);
-  const invoiceNumber = generateInvoiceNumber();
+  const invoiceNumber = await generateInvoiceNumber();
 
   const { data: fee } = await supabaseAdmin
     .from("setup_fees")
