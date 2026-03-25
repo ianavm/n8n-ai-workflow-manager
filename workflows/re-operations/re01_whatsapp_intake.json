@@ -1,0 +1,714 @@
+{
+  "name": "RE-01 WhatsApp Intake",
+  "nodes": [
+    {
+      "id": "035eba95-6114-4cf6-844a-57d45431b1b5",
+      "name": "Note RE-01",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-01: WhatsApp Intake\n\nWhatsApp Cloud API trigger -> parse -> dedup ->\nblock groups -> find agent -> working hours check ->\nlog message -> fetch history -> rate limit ->\ncall RE-02 Lead Router + RE-03 WA AI Comms.",
+        "width": 320,
+        "height": 200,
+        "color": 6
+      }
+    },
+    {
+      "id": "6cf036ca-0626-4d69-a013-0cf951b7ddf7",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "a8ddb6f4-5f45-4615-a353-93ef01180f67",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "rUyqIX1gaBs3ae6Q",
+          "name": "WhatsApp OAuth AVM Multi Agent"
+        }
+      },
+      "parameters": {
+        "updates": [
+          "messages"
+        ]
+      }
+    },
+    {
+      "id": "44b5d015-d475-4e11-b543-4b6dea6654da",
+      "name": "Parse Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse incoming WhatsApp message\nconst items = $input.all();\nconst msg = items[0].json;\n\n// WhatsApp Cloud API webhook structure\nconst entry = msg.entry && msg.entry[0] ? msg.entry[0] : {};\nconst changes = entry.changes && entry.changes[0] ? entry.changes[0] : {};\nconst value = changes.value || {};\nconst metadata = value.metadata || {};\nconst messages = value.messages || [];\nconst contacts = value.contacts || [];\n\nif (messages.length === 0) {\n  return { json: { skip: true, reason: 'No messages in payload' } };\n}\n\nconst message = messages[0];\nconst contact = contacts[0] || {};\n\nreturn {\n  json: {\n    skip: false,\n    message_id: message.id || '',\n    from: message.from || '',\n    timestamp: message.timestamp || '',\n    type: message.type || 'text',\n    body: (message.text && message.text.body) || '',\n    phone_number_id: metadata.phone_number_id || '',\n    display_phone: metadata.display_phone_number || '',\n    profile_name: (contact.profile && contact.profile.name) || '',\n    is_group: !!(message.group_id),\n    has_media: message.type !== 'text',\n    media_id: (message.image || message.document || message.audio || {}).id || '',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "206dc7f5-5e41-41b2-b367-ff3d735b7dec",
+      "name": "Has Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !$json.skip }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "5d4b1fc5-83cf-41c5-920a-1434fbb4bf1d",
+      "name": "Dedup Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Dedup check - skip if same message_id seen in last 60 seconds\nconst data = $input.first().json;\nconst msgId = data.message_id;\n\n// Use staticData for dedup window\nconst seen = $getWorkflowStaticData('global');\nconst now = Date.now();\n\n// Clean old entries (> 60s)\nfor (const key of Object.keys(seen)) {\n  if (seen[key] < now - 60000) {\n    delete seen[key];\n  }\n}\n\nif (seen[msgId]) {\n  return { json: { ...data, is_duplicate: true } };\n}\n\nseen[msgId] = now;\nreturn { json: { ...data, is_duplicate: false } };\n"
+      }
+    },
+    {
+      "id": "e121b7a3-95e8-4777-b2d1-06c4798817f1",
+      "name": "Not Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !$json.is_duplicate }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "eab18870-8e87-4345-ba00-4d09f46d9cde",
+      "name": "Not Group?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !$json.is_group }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "32d10522-45ed-4c3e-881e-94ff219d95f9",
+      "name": "Find Agent",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOIksmbzg44M514",
+          "mode": "id"
+        },
+        "filterByFormula": "=({phone_number_id} = '{{ $json.phone_number_id }}')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "5a925eb0-abc1-4749-ad62-329abd12c69d",
+      "name": "Agent Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $input.all().length > 0 && !!$input.first().json.agent_name }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0b89463f-ed82-45c9-882a-4d79c597936b",
+      "name": "Check Working Hours",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Check if current SAST time is within agent working hours\nconst data = $input.first().json;\nconst agentData = $('Find Agent').all();\n\nconst agent = agentData.length > 0 ? agentData[0].json : {};\nconst workingHours = agent.working_hours || '08:00-17:00';\nconst parts = workingHours.split('-');\nconst startHour = parseInt(parts[0].split(':')[0]);\nconst endHour = parseInt(parts[1] ? parts[1].split(':')[0] : '17');\n\n// Current SAST = UTC + 2\nconst now = new Date();\nconst sastHour = (now.getUTCHours() + 2) % 24;\n\nconst isWithinHours = sastHour >= startHour && sastHour < endHour;\nconst dayOfWeek = now.getUTCDay();\nconst isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;\n\nreturn {\n  json: {\n    ...data,\n    agent_id: agent.agent_id || agent.id || '',\n    agent_name: agent.agent_name || agent.Name || '',\n    agent_email: agent.email || '',\n    agent_chat_id: agent.telegram_chat_id || '',\n    agent_areas: agent.areas_covered || '',\n    agent_specialization: agent.specialization || '',\n    company_name: agent.company_name || 'AnyVision Media',\n    phone_number_id_agent: agent.phone_number_id || data.phone_number_id || '',\n    is_within_hours: isWithinHours && isWeekday,\n    current_sast_hour: sastHour,\n    working_hours: workingHours,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "305e20ce-592d-4c99-820e-7359fa9cd052",
+      "name": "Within Hours?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_within_hours }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "1bc578fc-b4eb-4708-a47f-8e23e0b729d4",
+      "name": "Log Incoming Message",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblgp46QN1C9JcOlt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "message_id": "={{ $('Check Working Hours').first().json.message_id }}",
+            "conversation_id": "={{ $('Check Working Hours').first().json.from }}",
+            "direction": "inbound",
+            "channel": "whatsapp",
+            "body": "={{ $('Check Working Hours').first().json.body }}",
+            "sender": "={{ $('Check Working Hours').first().json.from }}",
+            "recipient": "={{ $('Check Working Hours').first().json.agent_name }}",
+            "timestamp": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "ab9534a6-4e89-431d-9352-52f62a26788a",
+      "name": "Fetch History",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2640,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblgp46QN1C9JcOlt",
+          "mode": "id"
+        },
+        "filterByFormula": "=({conversation_id} = '{{ $('Check Working Hours').first().json.from }}')",
+        "options": {},
+        "sort": {
+          "property": [
+            {
+              "field": "timestamp",
+              "direction": "desc"
+            }
+          ]
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "db1b1c9d-7e62-4844-8b90-085f45a0054d",
+      "name": "Rate Limit Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\n// Rate limit check - max 10 messages per 5 minutes per sender\nconst data = $input.first().json;\nconst messages = $input.all();\n\n// Simple rate limit using message count from history\nconst historyItems = $('Fetch History').all();\nconst fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();\nlet recentCount = 0;\n\nfor (const item of historyItems) {\n  if (item.json.timestamp > fiveMinAgo && item.json.direction === 'inbound') {\n    recentCount++;\n  }\n}\n\nreturn {\n  json: {\n    ...data,\n    rate_limited: recentCount >= 10,\n    recent_message_count: recentCount,\n    conversation_history: historyItems.map(h => h.json),\n  }\n};\n"
+      }
+    },
+    {
+      "id": "525d7c9d-b711-4200-acf4-59681b451c44",
+      "name": "Not Rate Limited?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !$json.rate_limited }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0c0b3513-b7b2-43d4-b4d4-1f7a60902963",
+      "name": "Call RE-02 Lead Router",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3300,
+        100
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE02_ID || '' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "330b4e4e-7b96-4309-900d-f799b42410cf",
+      "name": "Call RE-03 WA AI Comms",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3520,
+        100
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE03_ID || '' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "41b2594a-354d-4c2a-a0f4-914f627ec74d",
+      "name": "Build After Hours Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Build after-hours auto-reply message\nconst data = $input.first().json;\nconst agentName = data.agent_name || 'our team';\nconst workingHours = data.working_hours || '08:00-17:00';\n\nconst message = `Thank you for your message! ${agentName} is currently outside working hours (${workingHours} SAST, Mon-Fri). We will get back to you first thing in the morning. For urgent enquiries, please email us.`;\n\nreturn {\n  json: {\n    ...data,\n    after_hours_message: message,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "b08825f0-9476-47e2-8b83-051afb9725a4",
+      "name": "Send After Hours WA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        500
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $json.phone_number_id }}/messages",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{ $json.from }}\",\"type\":\"text\",\"text\":{\"body\":\"{{ $json.after_hours_message }}\"}}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dCAz6MBXpOXvMJrq",
+          "name": "WhatsApp account AVM Multi Agent"
+        }
+      }
+    },
+    {
+      "id": "ff55660c-390b-4004-be14-0beb1db6b6e6",
+      "name": "Log After Hours",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2860,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "After Hours Message",
+            "entity_type": "Message",
+            "entity_id": "={{ $json.message_id }}",
+            "description": "=After hours auto-reply sent to {{ $json.from }}",
+            "performed_by": "System",
+            "timestamp": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Message": {
+      "main": [
+        [
+          {
+            "node": "Has Message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Message?": {
+      "main": [
+        [
+          {
+            "node": "Dedup Check",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Dedup Check": {
+      "main": [
+        [
+          {
+            "node": "Not Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Not Group?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Not Group?": {
+      "main": [
+        [
+          {
+            "node": "Find Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Find Agent": {
+      "main": [
+        [
+          {
+            "node": "Agent Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent Found?": {
+      "main": [
+        [
+          {
+            "node": "Check Working Hours",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Check Working Hours": {
+      "main": [
+        [
+          {
+            "node": "Within Hours?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Within Hours?": {
+      "main": [
+        [
+          {
+            "node": "Log Incoming Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build After Hours Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "Fetch History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch History": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Check": {
+      "main": [
+        [
+          {
+            "node": "Not Rate Limited?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Rate Limited?": {
+      "main": [
+        [
+          {
+            "node": "Call RE-02 Lead Router",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Call RE-02 Lead Router": {
+      "main": [
+        [
+          {
+            "node": "Call RE-03 WA AI Comms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build After Hours Reply": {
+      "main": [
+        [
+          {
+            "node": "Send After Hours WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send After Hours WA": {
+      "main": [
+        [
+          {
+            "node": "Log After Hours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "whatsapp",
+    "intake",
+    "trigger"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:12.938733"
+  }
+}

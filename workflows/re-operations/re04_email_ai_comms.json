@@ -1,0 +1,455 @@
+{
+  "name": "RE-04 Email AI Comms",
+  "nodes": [
+    {
+      "id": "45302485-1354-4162-9b2a-980208e46b89",
+      "name": "Note RE-04",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-04: Email AI Comms\n\nClassifies emails + generates draft replies.\nRoutes by confidence:\n  >= 0.75: auto-send\n  0.50-0.74: save as draft\n  < 0.50: admin review",
+        "width": 300,
+        "height": 200,
+        "color": 3
+      }
+    },
+    {
+      "id": "a7a582d2-01b7-4b80-aa38-69fcd158bb94",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "9205771a-5b76-4276-a9ab-8d804d37d942",
+      "name": "Build Email Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Build email classification + reply generation prompt\nconst input = $input.first().json;\nconst subject = input.email_subject || '(no subject)';\nconst body = (input.email_body || '').substring(0, 6000);\nconst sender = input.sender || 'Unknown';\nconst threadHistory = input.thread_history || [];\n\nlet historyText = '';\nif (threadHistory.length > 0) {\n  historyText = '\\n\\nPREVIOUS THREAD:\\n' + threadHistory\n    .slice(-5)\n    .map(t => `[${t.direction || ''}] ${t.subject || ''}: ${(t.body || '').substring(0, 500)}`)\n    .join('\\n\\n');\n}\n\nreturn {\n  json: {\n    prompt_text: `From: ${sender}\\nSubject: ${subject}\\n\\nBody:\\n${body}${historyText}`,\n    email_subject: subject,\n    email_body: body,\n    sender: sender,\n    has_attachments: !!(input.attachments && input.attachments.length > 0),\n    attachments: input.attachments || [],\n    agent_context: input.agent_context || {},\n  }\n};\n"
+      }
+    },
+    {
+      "id": "d0b64a02-6541-48ed-839a-b3dca0cd1bb9",
+      "name": "AI Classify Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1200, \"temperature\": 0.3, \"messages\": [{\"role\": \"system\", \"content\": \"You are an email assistant for a South African real estate agency.\\\\n\\\\nGiven an incoming email, you must:\\\\n1. Classify the email (enquiry, viewing_request, offer, document, feedback, complaint, spam, other)\\\\n2. Determine urgency (critical, high, medium, low)\\\\n3. Draft a professional reply\\\\n\\\\nRESPONSE FORMAT (JSON only, no markdown fences):\\\\n{\\\\n  \\\\\\\"classification\\\\\\\": \\\\\\\"enquiry|viewing_request|offer|document|feedback|complaint|spam|other\\\\\\\",\\\\n  \\\\\\\"urgency\\\\\\\": \\\\\\\"critical|high|medium|low\\\\\\\",\\\\n  \\\\\\\"summary\\\\\\\": \\\\\\\"One-line summary\\\\\\\",\\\\n  \\\\\\\"draft_reply\\\\\\\": \\\\\\\"Professional email reply text\\\\\\\",\\\\n  \\\\\\\"confidence\\\\\\\": 0.0-1.0,\\\\n  \\\\\\\"action_items\\\\\\\": [\\\\\\\"List of follow-up actions\\\\\\\"],\\\\n  \\\\\\\"has_attachment_needs\\\\\\\": true/false\\\\n}\"}, {\"role\": \"user\", \"content\": \"={{$json.prompt_text}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "c7b46928-e6c9-4f33-b66c-04555234fe36",
+      "name": "Parse Email AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse AI email classification response\nconst aiResp = $input.first().json;\nconst content = (aiResp.choices && aiResp.choices[0])\n  ? aiResp.choices[0].message.content\n  : '{}';\n\nconst promptData = $('Build Email Prompt').first().json;\n\nlet parsed = {};\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = {\n    classification: 'other',\n    urgency: 'medium',\n    summary: 'Could not classify email',\n    draft_reply: '',\n    confidence: 0.0,\n    action_items: [],\n  };\n}\n\nconst confidence = parseFloat(parsed.confidence || 0);\n\n// Route: >= 0.75 auto-send, 0.5-0.74 draft, < 0.5 admin review\nlet route = 'admin_review';\nif (confidence >= 0.75) route = 'auto_send';\nelse if (confidence >= 0.5) route = 'draft';\n\nreturn {\n  json: {\n    classification: parsed.classification || 'other',\n    urgency: parsed.urgency || 'medium',\n    summary: parsed.summary || '',\n    draft_reply: parsed.draft_reply || '',\n    confidence: confidence,\n    action_items: parsed.action_items || [],\n    has_attachment_needs: parsed.has_attachment_needs || false,\n    route: route,\n    email_subject: promptData.email_subject,\n    email_body: promptData.email_body,\n    sender: promptData.sender,\n    has_attachments: promptData.has_attachments,\n    attachments: promptData.attachments,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "e814490c-b068-4c56-ad49-d6c4e1d3ae65",
+      "name": "Route by Confidence",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "auto_send",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "draft",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "admin_review",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "71a67610-4cb2-45ff-bd43-cf908f9e0c86",
+      "name": "Auto Send Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        100
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $('Parse Email AI').first().json.sender }}",
+        "subject": "=Re: {{ $('Parse Email AI').first().json.email_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Parse Email AI').first().json.draft_reply }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "aedbfa6f-c361-43a3-83ed-4decd6139a14",
+      "name": "Save Draft",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "createDraft",
+        "sendTo": "={{ $('Parse Email AI').first().json.sender }}",
+        "subject": "=Re: {{ $('Parse Email AI').first().json.email_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Parse Email AI').first().json.draft_reply }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "0c91418a-72de-421c-9d1b-ee0b9a45700d",
+      "name": "Notify Draft Ready",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE18_ID || '' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "5ba4c970-2ddc-41c5-8322-dc4d3d67c20a",
+      "name": "Notify Admin Review",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        500
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE18_ID || '' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "439decc1-c7d3-40a0-a4bb-47b3bf509e04",
+      "name": "Log Email Thread",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblCvYpUGqXiSYVRv",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "sender": "={{ $('Parse Email AI').first().json.sender }}",
+            "subject": "={{ $('Parse Email AI').first().json.email_subject }}",
+            "classification": "={{ $('Parse Email AI').first().json.classification }}",
+            "urgency": "={{ $('Parse Email AI').first().json.urgency }}",
+            "summary": "={{ $('Parse Email AI').first().json.summary }}",
+            "confidence": "={{ $('Parse Email AI').first().json.confidence }}",
+            "route": "={{ $('Parse Email AI').first().json.route }}",
+            "timestamp": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "02819060-a96f-4e35-8708-e099eb7b4acd",
+      "name": "Log Email Message",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblgp46QN1C9JcOlt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "message_id": "=EMAIL-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "conversation_id": "={{ $('Parse Email AI').first().json.sender }}",
+            "direction": "inbound",
+            "channel": "email",
+            "body": "={{ $('Parse Email AI').first().json.email_body }}",
+            "sender": "={{ $('Parse Email AI').first().json.sender }}",
+            "intent": "={{ $('Parse Email AI').first().json.classification }}",
+            "confidence": "={{ $('Parse Email AI').first().json.confidence }}",
+            "timestamp": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Email Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify Email": {
+      "main": [
+        [
+          {
+            "node": "Parse Email AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email AI": {
+      "main": [
+        [
+          {
+            "node": "Route by Confidence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Confidence": {
+      "main": [
+        [
+          {
+            "node": "Auto Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Draft",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Admin Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Auto Send Reply": {
+      "main": [
+        [
+          {
+            "node": "Log Email Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Draft": {
+      "main": [
+        [
+          {
+            "node": "Notify Draft Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Draft Ready": {
+      "main": [
+        [
+          {
+            "node": "Log Email Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Admin Review": {
+      "main": [
+        [
+          {
+            "node": "Log Email Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Email Thread": {
+      "main": [
+        [
+          {
+            "node": "Log Email Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "email",
+    "ai",
+    "sub-workflow"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:14.535512"
+  }
+}

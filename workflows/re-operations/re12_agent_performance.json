@@ -1,0 +1,272 @@
+{
+  "name": "RE-12 Agent Performance",
+  "nodes": [
+    {
+      "id": "a69fe47d-4c96-4b88-a910-6eb1ac966230",
+      "name": "Note RE-12",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-12: Agent Performance\n\nRuns Mondays at 06:00 SAST (04:00 UTC).\nCalculates per-agent metrics:\nleads, appointments, conversions, workload.\nSends weekly report via Telegram.",
+        "width": 300,
+        "height": 200,
+        "color": 4
+      }
+    },
+    {
+      "id": "c76ba047-aa23-4326-8e79-e8ee46257717",
+      "name": "Monday 06:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "9c7b215e-15de-43af-98d6-d88a9a9a4ffb",
+      "name": "Fetch Performance Agents",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOIksmbzg44M514",
+          "mode": "id"
+        },
+        "filterByFormula": "=({Is Active} = TRUE())",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "83c5ba19-9e4c-4abc-944e-fd2a5940bde3",
+      "name": "Fetch All Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=NOT({status} = 'Deleted')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "7e4eeb8e-c94d-401b-9fd9-1bb8f3ac6638",
+      "name": "Fetch All Appointments",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQ72B5XSgRLdKIc",
+          "mode": "id"
+        },
+        "filterByFormula": "=NOT({status} = 'Cancelled')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "ca43d784-656d-4837-9333-842990b40fed",
+      "name": "Calculate Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Calculate performance metrics for each agent\nconst agents = $('Fetch Performance Agents').all();\nconst leads = $('Fetch All Leads').all();\nconst appointments = $('Fetch All Appointments').all();\n\nconst now = new Date();\nconst weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);\n\nconst agentMetrics = [];\nfor (const agentItem of agents) {\n  const agent = agentItem.json;\n  const agentId = agent.agent_id || agent.id || '';\n  const agentName = agent.agent_name || agent.Name || 'Unknown';\n\n  // Count leads assigned to this agent in the past week\n  const agentLeads = leads.filter(l =>\n    l.json.assigned_agent === agentId || l.json.assigned_agent === agentName\n  );\n  const weekLeads = agentLeads.filter(l =>\n    new Date(l.json.created_at || 0) > weekAgo\n  );\n\n  // Count appointments\n  const agentAppts = appointments.filter(a =>\n    a.json.agent_name === agentName || a.json.agent_id === agentId\n  );\n  const weekAppts = agentAppts.filter(a =>\n    new Date(a.json.event_start || 0) > weekAgo\n  );\n\n  // Conversions (leads with status Converted)\n  const conversions = agentLeads.filter(l => l.json.status === 'Converted').length;\n\n  // Response time (mock - would need message timestamps)\n  const conversionRate = agentLeads.length > 0\n    ? ((conversions / agentLeads.length) * 100).toFixed(1)\n    : '0.0';\n\n  agentMetrics.push({\n    json: {\n      agent_name: agentName,\n      agent_id: agentId,\n      total_leads: agentLeads.length,\n      week_leads: weekLeads.length,\n      total_appointments: agentAppts.length,\n      week_appointments: weekAppts.length,\n      conversions: conversions,\n      conversion_rate: conversionRate,\n      active_deals: parseInt(agent.active_deals || 0),\n      max_deals: parseInt(agent.max_deals || 10),\n    }\n  });\n}\n\nreturn agentMetrics.length > 0\n  ? agentMetrics\n  : [{ json: { agent_name: 'No agents', total_leads: 0, week_leads: 0, conversions: 0 } }];\n"
+      }
+    },
+    {
+      "id": "6a177f8c-f979-45c1-8ded-e82bde5796ac",
+      "name": "Build Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Build performance report for Telegram\nconst metrics = $input.all();\n\nlet report = '<b>Weekly Agent Performance Report</b>\\n';\nreport += '<i>' + new Date().toISOString().split('T')[0] + '</i>\\n\\n';\n\nfor (const item of metrics) {\n  const m = item.json;\n  if (m.agent_name === 'No agents') {\n    report += 'No agents registered in the system.';\n    break;\n  }\n\n  report += `<b>${m.agent_name}</b>\\n`;\n  report += `  Leads (week): ${m.week_leads} | Total: ${m.total_leads}\\n`;\n  report += `  Appts (week): ${m.week_appointments} | Total: ${m.total_appointments}\\n`;\n  report += `  Conversions: ${m.conversions} (${m.conversion_rate}%)\\n`;\n  report += `  Workload: ${m.active_deals}/${m.max_deals}\\n\\n`;\n}\n\nreturn { json: { report_text: report } };\n"
+      }
+    },
+    {
+      "id": "95dbe5d4-35d5-48f9-bd91-fd2ba77d992f",
+      "name": "Send Performance Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.report_text }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Monday 06:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Fetch Performance Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Performance Agents": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Leads": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Appointments": {
+      "main": [
+        [
+          {
+            "node": "Calculate Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Metrics": {
+      "main": [
+        [
+          {
+            "node": "Build Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Report": {
+      "main": [
+        [
+          {
+            "node": "Send Performance Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "performance",
+    "scheduled",
+    "weekly"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:16.668221"
+  }
+}

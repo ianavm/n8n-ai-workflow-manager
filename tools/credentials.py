@@ -93,6 +93,11 @@ CREDENTIALS = {
         "N8N_CRED_OUTLOOK", "PLACEHOLDER_OUTLOOK", "Microsoft Outlook OAuth2"
     ),
 
+    # ── Telegram ───────────────────────────────────────────
+    "telegram": _cred(
+        "N8N_CRED_TELEGRAM", "37DtsPS5RQYxY2i1", "Telegram RE Operations Bot"
+    ),
+
     # ── Infrastructure ──────────────────────────────────────
     "http_header_auth": _cred(
         "N8N_CRED_HTTP_HEADER_AUTH", "xymp9Nho08mRW2Wz", "Header Auth account 2"
@@ -136,6 +141,9 @@ CRED_BLOTATO = CREDENTIALS["blotato"]
 
 # Microsoft
 CRED_OUTLOOK = CREDENTIALS["outlook"]
+
+# Telegram
+CRED_TELEGRAM = CREDENTIALS["telegram"]
 
 # Infrastructure
 CRED_HTTP_HEADER_AUTH = CREDENTIALS["http_header_auth"]

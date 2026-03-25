@@ -1,0 +1,355 @@
+{
+  "name": "RE-10 Team Notifications",
+  "nodes": [
+    {
+      "id": "1ae7b220-98a1-4c7a-b25d-1170c3759ad0",
+      "name": "Note RE-10",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-10: Team Notifications\n\nSends Telegram notifications with urgency prefixes.\nFalls back to email if Telegram fails.\nLogs all notifications to Activity_Log.",
+        "width": 300,
+        "height": 180,
+        "color": 2
+      }
+    },
+    {
+      "id": "8deb5052-7518-4c6d-8ae0-2b35d404b97f",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "e3515495-7a3a-45f7-bc46-9c04f71a4f22",
+      "name": "Build Notification Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Build Telegram message with urgency prefix\nconst input = $input.first().json;\nconst urgency = (input.urgency || 'medium').toLowerCase();\n\nconst prefixMap = {\n  critical: '\\u26A0\\uFE0F CRITICAL',\n  high: '\\u2757 HIGH',\n  medium: '\\u2139\\uFE0F',\n  low: '\\u2022',\n};\n\nconst prefix = prefixMap[urgency] || prefixMap.medium;\nconst notificationType = input.notification_type || 'General';\nconst message = input.message || 'No message provided';\nconst chatId = input.recipient_chat_id || '';\nconst timestamp = new Date().toISOString();\n\nconst telegramMessage = `${prefix} <b>${notificationType}</b>\\n\\n${message}\\n\\n<i>${timestamp}</i>`;\n\nreturn {\n  json: {\n    chat_id: chatId,\n    telegram_message: telegramMessage,\n    notification_type: notificationType,\n    urgency: urgency,\n    original_message: message,\n    timestamp: timestamp,\n    recipient_chat_id: chatId,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "7c666cea-a41b-4761-970b-f82d44d09004",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    },
+    {
+      "id": "88736b7f-6c78-44e5-b151-4df9f943e55a",
+      "name": "Telegram OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok || !!$json.message_id || !!$json.result }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "51e04307-48bd-4988-8135-f8d769a8ec75",
+      "name": "Prepare Log Entry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\n// Prepare Activity_Log record\nconst data = $('Build Notification Message').first().json;\nconst deliveryMethod = $input.first().json.telegram_error ? 'email_fallback' : 'telegram';\n\nreturn {\n  json: {\n    activity_type: 'Notification Sent',\n    entity_type: 'Notification',\n    entity_id: `NOTIF-${Date.now().toString(36).toUpperCase()}`,\n    description: `${data.urgency.toUpperCase()} ${data.notification_type}: ${data.original_message.substring(0, 200)}`,\n    performed_by: 'System',\n    delivery_method: deliveryMethod,\n    recipient_chat_id: data.chat_id,\n    timestamp: data.timestamp,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "08b436b9-9034-4b98-b8ec-0d547e9b7e97",
+      "name": "Build Email Fallback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Build email fallback when Telegram fails\nconst data = $('Build Notification Message').first().json;\nconst errorInfo = $input.first().json;\n\nreturn {\n  json: {\n    subject: `[RE-OPS ${data.urgency.toUpperCase()}] ${data.notification_type}`,\n    body: `<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:#FF6D5A;padding:15px\"><h2 style=\"color:white;margin:0\">${data.notification_type}</h2></div>\n<div style=\"padding:20px\">\n<p><b>Urgency:</b> ${data.urgency.toUpperCase()}</p>\n<p>${data.original_message}</p>\n<p style=\"color:#999;font-size:12px\">Telegram delivery failed. This is an email fallback.<br>${data.timestamp}</p>\n</div></div>`,\n    telegram_error: JSON.stringify(errorInfo).substring(0, 500),\n    chat_id: data.chat_id,\n    notification_type: data.notification_type,\n    urgency: data.urgency,\n    timestamp: data.timestamp,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "ce9cc8b2-9e97-46f3-8db1-a60796455cf6",
+      "name": "Send Fallback Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        500
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "85a771f2-8a55-4f6d-b481-fb47f497b1f0",
+      "name": "Prepare Fallback Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Prepare Activity_Log record\nconst data = $('Build Notification Message').first().json;\nconst deliveryMethod = $input.first().json.telegram_error ? 'email_fallback' : 'telegram';\n\nreturn {\n  json: {\n    activity_type: 'Notification Sent',\n    entity_type: 'Notification',\n    entity_id: `NOTIF-${Date.now().toString(36).toUpperCase()}`,\n    description: `${data.urgency.toUpperCase()} ${data.notification_type}: ${data.original_message.substring(0, 200)}`,\n    performed_by: 'System',\n    delivery_method: deliveryMethod,\n    recipient_chat_id: data.chat_id,\n    timestamp: data.timestamp,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "fa7e0580-fce9-4d57-916d-3b7a6ca35179",
+      "name": "Log Notification",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "={{ $json.activity_type }}",
+            "entity_type": "={{ $json.entity_type }}",
+            "entity_id": "={{ $json.entity_id }}",
+            "description": "={{ $json.description }}",
+            "performed_by": "={{ $json.performed_by }}",
+            "timestamp": "={{ $json.timestamp }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "b02f4288-82fc-4502-9787-70e0f42fb169",
+      "name": "Log Fallback Notification",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "={{ $json.activity_type }}",
+            "entity_type": "={{ $json.entity_type }}",
+            "entity_id": "={{ $json.entity_id }}",
+            "description": "={{ $json.description }}",
+            "performed_by": "={{ $json.performed_by }}",
+            "timestamp": "={{ $json.timestamp }}"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Notification Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Notification Message": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram": {
+      "main": [
+        [
+          {
+            "node": "Telegram OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram OK?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Log Entry",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Email Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Log Entry": {
+      "main": [
+        [
+          {
+            "node": "Log Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email Fallback": {
+      "main": [
+        [
+          {
+            "node": "Send Fallback Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Fallback Email": {
+      "main": [
+        [
+          {
+            "node": "Prepare Fallback Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Fallback Log": {
+      "main": [
+        [
+          {
+            "node": "Log Fallback Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "notifications",
+    "telegram",
+    "sub-workflow"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:09.046997"
+  }
+}

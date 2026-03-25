@@ -1,0 +1,136 @@
+{
+  "name": "RE-15 Scoring Engine",
+  "nodes": [
+    {
+      "id": "b1669cdb-7eed-4474-bf7c-ea4dc4f0f535",
+      "name": "Note RE-15",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-15: Scoring Engine\n\nWeighted lead scoring (0-100):\nBudget 20, Timeline 15, Preapproval 15,\nArea 10, Requirements 10, Engagement 10,\nResponsiveness 10, Source 10\n\nTiers: Hot>=80, Warm>=60, Cool>=40, Cold<40",
+        "width": 300,
+        "height": 220,
+        "color": 4
+      }
+    },
+    {
+      "id": "a7f9bab7-1691-40b8-a4bc-6075b3b3977d",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "f17f606d-1745-4bac-8489-7dd1a898dfa6",
+      "name": "Calculate Lead Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Calculate lead score using weighted scoring model\n// Weights: budget=20, area=10, requirements=10, timeline=15,\n//          preapproval=15, engagement=10, responsiveness=10, source=10\nconst lead = $input.first().json;\n\nconst WEIGHTS = {\n  budget: 20,\n  area: 10,\n  requirements: 10,\n  timeline: 15,\n  preapproval: 15,\n  engagement: 10,\n  responsiveness: 10,\n  source: 10,\n};\n\n// Budget score: based on whether budget is provided and realistic\nlet budgetScore = 0;\nconst budget = parseFloat(lead.budget || 0);\nif (budget > 5000000) budgetScore = 1.0;       // R5M+\nelse if (budget > 2000000) budgetScore = 0.8;   // R2M-5M\nelse if (budget > 1000000) budgetScore = 0.6;   // R1M-2M\nelse if (budget > 500000) budgetScore = 0.4;    // R500K-1M\nelse if (budget > 0) budgetScore = 0.2;          // Below R500K\n// else 0 = no budget provided\n\n// Area score: specific area = higher intent\nlet areaScore = 0;\nconst area = (lead.area || '').trim();\nif (area.length > 3) areaScore = 1.0;           // Specific area\nelse if (area.length > 0) areaScore = 0.5;       // Vague area\n\n// Requirements score: detailed requirements = higher intent\nlet reqScore = 0;\nconst reqs = (lead.requirements || '').trim();\nif (reqs.length > 100) reqScore = 1.0;           // Detailed\nelse if (reqs.length > 30) reqScore = 0.7;        // Some detail\nelse if (reqs.length > 0) reqScore = 0.3;         // Minimal\n\n// Timeline score: urgency mapping\nlet timelineScore = 0;\nconst timeline = (lead.timeline || '').toLowerCase();\nif (timeline.includes('immediate') || timeline.includes('asap') || timeline.includes('urgent')) {\n  timelineScore = 1.0;\n} else if (timeline.includes('1 month') || timeline.includes('30 day') || timeline.includes('this month')) {\n  timelineScore = 0.8;\n} else if (timeline.includes('3 month') || timeline.includes('quarter')) {\n  timelineScore = 0.6;\n} else if (timeline.includes('6 month') || timeline.includes('half year')) {\n  timelineScore = 0.4;\n} else if (timeline.includes('year') || timeline.includes('12 month')) {\n  timelineScore = 0.2;\n}\n\n// Pre-approval score: binary\nlet preapprovalScore = 0;\nconst preapproval = lead.preapproval || lead.pre_approval || lead.bond_preapproval || '';\nif (preapproval === true || preapproval === 'true' || preapproval === 'yes' || preapproval === 'Yes') {\n  preapprovalScore = 1.0;\n} else if (preapproval === 'in_progress' || preapproval === 'applied') {\n  preapprovalScore = 0.5;\n}\n\n// Engagement score: 0-10 normalized\nconst engagementRaw = parseFloat(lead.engagement_score || 0);\nconst engagementScore = Math.min(1.0, engagementRaw / 10);\n\n// Responsiveness score: 0-10 normalized\nconst responsivenessRaw = parseFloat(lead.responsiveness_score || 0);\nconst responsivenessScore = Math.min(1.0, responsivenessRaw / 10);\n\n// Source score: quality of lead source\nlet sourceScore = 0;\nconst source = (lead.source || '').toLowerCase();\nif (source.includes('referral') || source.includes('repeat')) sourceScore = 1.0;\nelse if (source.includes('website') || source.includes('portal')) sourceScore = 0.8;\nelse if (source.includes('property24') || source.includes('private property')) sourceScore = 0.7;\nelse if (source.includes('social') || source.includes('facebook') || source.includes('instagram')) sourceScore = 0.5;\nelse if (source.includes('cold') || source.includes('walk-in')) sourceScore = 0.3;\nelse if (source.length > 0) sourceScore = 0.4;\n\n// Calculate total weighted score (0-100)\nconst totalScore = Math.round(\n  budgetScore * WEIGHTS.budget +\n  areaScore * WEIGHTS.area +\n  reqScore * WEIGHTS.requirements +\n  timelineScore * WEIGHTS.timeline +\n  preapprovalScore * WEIGHTS.preapproval +\n  engagementScore * WEIGHTS.engagement +\n  responsivenessScore * WEIGHTS.responsiveness +\n  sourceScore * WEIGHTS.source\n);\n\n// Determine tier\nlet tier = 'Cold';\nif (totalScore >= 80) tier = 'Hot';\nelse if (totalScore >= 60) tier = 'Warm';\nelse if (totalScore >= 40) tier = 'Cool';\n\nreturn {\n  json: {\n    lead_id: lead.lead_id || lead.id || 'unknown',\n    lead_name: lead.client_name || lead.name || 'Unknown',\n    lead_score: totalScore,\n    tier: tier,\n    breakdown: {\n      budget: { raw: budget, score: budgetScore, weighted: parseFloat((budgetScore * WEIGHTS.budget).toFixed(1)) },\n      area: { raw: area, score: areaScore, weighted: parseFloat((areaScore * WEIGHTS.area).toFixed(1)) },\n      requirements: { raw_length: reqs.length, score: reqScore, weighted: parseFloat((reqScore * WEIGHTS.requirements).toFixed(1)) },\n      timeline: { raw: timeline, score: timelineScore, weighted: parseFloat((timelineScore * WEIGHTS.timeline).toFixed(1)) },\n      preapproval: { raw: preapproval, score: preapprovalScore, weighted: parseFloat((preapprovalScore * WEIGHTS.preapproval).toFixed(1)) },\n      engagement: { raw: engagementRaw, score: engagementScore, weighted: parseFloat((engagementScore * WEIGHTS.engagement).toFixed(1)) },\n      responsiveness: { raw: responsivenessRaw, score: responsivenessScore, weighted: parseFloat((responsivenessScore * WEIGHTS.responsiveness).toFixed(1)) },\n      source: { raw: source, score: sourceScore, weighted: parseFloat((sourceScore * WEIGHTS.source).toFixed(1)) },\n    },\n    scored_at: new Date().toISOString(),\n  }\n};\n"
+      }
+    },
+    {
+      "id": "70d715a4-ca3b-47db-bf15-4ed21afbc908",
+      "name": "Return Score",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "33b3e541-3f11-4720-8527-71988c61fe94",
+              "name": "lead_id",
+              "value": "={{ $json.lead_id }}",
+              "type": "string"
+            },
+            {
+              "id": "e0529462-1fdb-43b0-9476-8c22c28d5b35",
+              "name": "lead_score",
+              "value": "={{ $json.lead_score }}",
+              "type": "number"
+            },
+            {
+              "id": "e9639e22-648f-47f5-9be3-8881760d7152",
+              "name": "tier",
+              "value": "={{ $json.tier }}",
+              "type": "string"
+            },
+            {
+              "id": "5a69f214-7c9d-483c-bead-014124de3c92",
+              "name": "breakdown",
+              "value": "={{ JSON.stringify($json.breakdown) }}",
+              "type": "string"
+            },
+            {
+              "id": "4e4edce7-b9ed-4b47-ac4e-d9e7f45450a0",
+              "name": "scored_at",
+              "value": "={{ $json.scored_at }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Calculate Lead Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Lead Score": {
+      "main": [
+        [
+          {
+            "node": "Return Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "scoring",
+    "lead-management",
+    "sub-workflow"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:10.249494"
+  }
+}

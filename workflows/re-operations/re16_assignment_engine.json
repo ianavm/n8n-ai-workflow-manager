@@ -1,0 +1,409 @@
+{
+  "name": "RE-16 Assignment Engine",
+  "nodes": [
+    {
+      "id": "c16ef372-a0b2-4e33-a72d-bf277473b8fa",
+      "name": "Note RE-16",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-16: Assignment Engine\n\nScores agents by area match, specialization, workload & round-robin.\nCreates assignment record and updates agent last_assigned_at.",
+        "width": 300,
+        "height": 180,
+        "color": 4
+      }
+    },
+    {
+      "id": "0dd701ba-0c12-452b-83ba-d87bb9d6d1f2",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "3724b014-2976-438e-bd62-c209e63f66de",
+      "name": "Fetch Available Agents",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOIksmbzg44M514",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Is Active} = TRUE(), {Is Available} = TRUE())",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "63972b6e-1e89-437d-8af2-3096ea6d6b38",
+      "name": "Score Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Score candidate agents for lead assignment\n// Weights: area_match=0.35, specialization=0.25, workload_inverse=0.25, round_robin=0.15\nconst agents = $input.all();\nconst lead = $('Trigger').first().json;\n\nconst WEIGHTS = {\n  area_match: 0.35,\n  specialization: 0.25,\n  workload_inverse: 0.25,\n  round_robin: 0.15,\n};\n\nconst leadArea = (lead.area || '').toLowerCase().trim();\nconst leadType = (lead.property_type || '').toLowerCase().trim();\nconst now = new Date();\n\nconst scored = [];\nfor (const agentItem of agents) {\n  const agent = agentItem.json;\n  const agentAreas = (agent.areas_covered || '').toLowerCase();\n  const agentSpec = (agent.specialization || '').toLowerCase();\n  const activeDeals = parseInt(agent.active_deals || 0);\n  const maxDeals = parseInt(agent.max_deals || 10);\n  const lastAssigned = agent.last_assigned_at ? new Date(agent.last_assigned_at) : new Date(0);\n\n  // Area match score (0 or 1)\n  const areaScore = agentAreas.includes(leadArea) ? 1.0 : 0.0;\n\n  // Specialization score\n  let specScore = 0.0;\n  if (leadType && agentSpec.includes(leadType)) {\n    specScore = 1.0;\n  } else if (agentSpec.includes('general') || agentSpec.includes('all')) {\n    specScore = 0.5;\n  }\n\n  // Workload inverse (fewer active deals = higher score)\n  const workloadScore = maxDeals > 0 ? Math.max(0, 1.0 - (activeDeals / maxDeals)) : 0.0;\n\n  // Round robin (longer since last assignment = higher score)\n  const hoursSinceAssignment = (now - lastAssigned) / (1000 * 60 * 60);\n  const roundRobinScore = Math.min(1.0, hoursSinceAssignment / 168); // 168 = 1 week\n\n  const totalScore = (\n    areaScore * WEIGHTS.area_match +\n    specScore * WEIGHTS.specialization +\n    workloadScore * WEIGHTS.workload_inverse +\n    roundRobinScore * WEIGHTS.round_robin\n  );\n\n  scored.push({\n    json: {\n      agent_id: agent.agent_id || agent.id,\n      agent_name: agent.agent_name || agent.Name || 'Unknown',\n      chat_id: agent.telegram_chat_id || agent.chat_id || '',\n      email: agent.email || '',\n      phone: agent.phone || '',\n      area_score: parseFloat(areaScore.toFixed(3)),\n      spec_score: parseFloat(specScore.toFixed(3)),\n      workload_score: parseFloat(workloadScore.toFixed(3)),\n      round_robin_score: parseFloat(roundRobinScore.toFixed(3)),\n      total_score: parseFloat(totalScore.toFixed(3)),\n      active_deals: activeDeals,\n      max_deals: maxDeals,\n      areas_covered: agent.areas_covered || '',\n      specialization: agent.specialization || '',\n    }\n  });\n}\n\n// Sort by total score descending\nscored.sort((a, b) => b.json.total_score - a.json.total_score);\n\nreturn scored.length > 0\n  ? scored\n  : [{ json: { error: 'No candidates available', total_score: 0 } }];\n"
+      }
+    },
+    {
+      "id": "8ff2c8ae-1eff-4e18-8a8b-1a791eb3371c",
+      "name": "Select Top Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Select the top-scoring agent\nconst candidates = $input.all();\nconst lead = $('Trigger').first().json;\nconst topAgent = candidates[0].json;\n\nif (topAgent.error) {\n  return { json: {\n    assignment_success: false,\n    error: topAgent.error,\n    lead_id: lead.lead_id || 'unknown',\n  }};\n}\n\nconst assignmentId = 'ASSIGN-' + Date.now().toString(36).toUpperCase();\n\nreturn { json: {\n  assignment_id: assignmentId,\n  assignment_success: true,\n  lead_id: lead.lead_id || lead.id || 'unknown',\n  lead_name: lead.client_name || lead.name || 'Unknown Lead',\n  lead_area: lead.area || '',\n  lead_property_type: lead.property_type || '',\n  agent_id: topAgent.agent_id,\n  agent_name: topAgent.agent_name,\n  agent_chat_id: topAgent.chat_id,\n  agent_email: topAgent.email,\n  total_score: topAgent.total_score,\n  area_score: topAgent.area_score,\n  spec_score: topAgent.spec_score,\n  workload_score: topAgent.workload_score,\n  round_robin_score: topAgent.round_robin_score,\n  assigned_at: new Date().toISOString(),\n  runner_up: candidates.length > 1 ? candidates[1].json.agent_name : 'N/A',\n  runner_up_score: candidates.length > 1 ? candidates[1].json.total_score : 0,\n  candidates_evaluated: candidates.length,\n}};\n"
+      }
+    },
+    {
+      "id": "72973782-2240-4e9c-9c8c-878206b0feb9",
+      "name": "Assignment OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.assignment_success }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "1ede8e43-317c-4e96-aa49-1e501ef73c84",
+      "name": "Update Agent Last Assigned",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOIksmbzg44M514",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "agent_id"
+        ],
+        "options": {},
+        "columns": {
+          "value": {
+            "agent_id": "={{ $('Select Top Agent').first().json.agent_id }}",
+            "last_assigned_at": "={{ $('Select Top Agent').first().json.assigned_at }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "76f3ffc2-94bf-4457-be2a-4a15d7016306",
+      "name": "Create Assignment",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOYMZ0FnO96pSIA",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "assignment_id": "={{ $('Select Top Agent').first().json.assignment_id }}",
+            "lead_id": "={{ $('Select Top Agent').first().json.lead_id }}",
+            "agent_id": "={{ $('Select Top Agent').first().json.agent_id }}",
+            "agent_name": "={{ $('Select Top Agent').first().json.agent_name }}",
+            "total_score": "={{ $('Select Top Agent').first().json.total_score }}",
+            "area_score": "={{ $('Select Top Agent').first().json.area_score }}",
+            "spec_score": "={{ $('Select Top Agent').first().json.spec_score }}",
+            "workload_score": "={{ $('Select Top Agent').first().json.workload_score }}",
+            "round_robin_score": "={{ $('Select Top Agent').first().json.round_robin_score }}",
+            "assigned_at": "={{ $('Select Top Agent').first().json.assigned_at }}",
+            "status": "Assigned"
+          }
+        }
+      }
+    },
+    {
+      "id": "b54458d9-6941-4cb3-9187-36e334b608e1",
+      "name": "Log Assignment",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "Lead Assigned",
+            "entity_type": "Assignment",
+            "entity_id": "={{ $('Select Top Agent').first().json.assignment_id }}",
+            "description": "=Lead {{ $('Select Top Agent').first().json.lead_name }} assigned to {{ $('Select Top Agent').first().json.agent_name }} (score: {{ $('Select Top Agent').first().json.total_score }})",
+            "performed_by": "System",
+            "timestamp": "={{ $('Select Top Agent').first().json.assigned_at }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "d934376f-f8ea-4311-818c-1fda2b9fa6ef",
+      "name": "No Agent Available",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        500
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "b32338a6-e5f6-4659-9147-0d9cdd5bd8de",
+      "name": "Log Assignment Failure",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "Assignment Failed",
+            "entity_type": "Assignment",
+            "entity_id": "=FAIL-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "description": "=No available agent for lead {{ $('Select Top Agent').first().json.lead_id }}",
+            "performed_by": "System",
+            "timestamp": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Available Agents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Available Agents": {
+      "main": [
+        [
+          {
+            "node": "Score Candidates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Candidates": {
+      "main": [
+        [
+          {
+            "node": "Select Top Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Top Agent": {
+      "main": [
+        [
+          {
+            "node": "Assignment OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assignment OK?": {
+      "main": [
+        [
+          {
+            "node": "Update Agent Last Assigned",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Agent Available",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Agent Last Assigned": {
+      "main": [
+        [
+          {
+            "node": "Create Assignment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Assignment": {
+      "main": [
+        [
+          {
+            "node": "Log Assignment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Agent Available": {
+      "main": [
+        [
+          {
+            "node": "Log Assignment Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "assignment",
+    "scoring",
+    "sub-workflow"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:09.688406"
+  }
+}

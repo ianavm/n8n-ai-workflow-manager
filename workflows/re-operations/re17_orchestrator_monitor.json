@@ -1,0 +1,335 @@
+{
+  "name": "RE-17 Orchestrator Monitor",
+  "nodes": [
+    {
+      "id": "bb31ab37-762d-42bf-8a7f-381459c4101d",
+      "name": "Note RE-17",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-17: Orchestrator Monitor\n\nRuns every 15 min. Checks n8n API health\nand recent execution failures.\nAlerts via RE-18 if errors found.",
+        "width": 300,
+        "height": 180,
+        "color": 7
+      }
+    },
+    {
+      "id": "9d646528-89fd-4689-8652-e43e62fb1d84",
+      "name": "Every 15 Min Monitor",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d27c09a4-d140-4c5a-8359-ceaa700cb053",
+      "name": "Check n8n Health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://ianimmelman89.app.n8n.cloud/api/v1/workflows?limit=1",
+        "options": {
+          "timeout": 30000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "={{ $env.N8N_API_KEY }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7d27f94f-17bd-4fe6-a3b9-2141152cf750",
+      "name": "Check Recent Failures",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://ianimmelman89.app.n8n.cloud/api/v1/executions?status=error&limit=10",
+        "options": {
+          "timeout": 30000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "={{ $env.N8N_API_KEY }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "595eb2e1-94ca-4d84-abd2-9b2b1dcb82ea",
+      "name": "Analyze Failures",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Analyze recent execution failures\nconst healthData = $('Check n8n Health').first().json;\nconst execData = $('Check Recent Failures').first().json;\n\nconst executions = execData.data || [];\nconst failedExecs = executions.filter(e =>\n  e.status === 'error' || e.status === 'failed' || e.finished === false\n);\n\nconst now = new Date();\nconst hasErrors = failedExecs.length > 0;\n\nlet errorSummary = '';\nif (hasErrors) {\n  errorSummary = failedExecs.slice(0, 5).map(e => {\n    const wfName = e.workflowData ? e.workflowData.name : (e.workflowId || 'Unknown');\n    const errMsg = e.data && e.data.resultData && e.data.resultData.error\n      ? e.data.resultData.error.message || 'Unknown error'\n      : 'Execution failed';\n    return `- ${wfName}: ${errMsg.substring(0, 200)}`;\n  }).join('\\n');\n}\n\nreturn {\n  json: {\n    has_errors: hasErrors,\n    failed_count: failedExecs.length,\n    total_checked: executions.length,\n    error_summary: errorSummary,\n    health_status: healthData.status || 'unknown',\n    checked_at: now.toISOString(),\n    alert_type: 'System Health',\n    severity: failedExecs.length >= 3 ? 'critical' : failedExecs.length > 0 ? 'high' : 'low',\n    message: hasErrors\n      ? `${failedExecs.length} workflow execution(s) failed in the last 15 min:\\n${errorSummary}`\n      : 'All workflows executing normally.',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "e4684112-7213-452d-9bbc-e9f442741bc4",
+      "name": "Has Errors?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_errors }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "00ca2a92-e495-4f5d-9dc6-de8bc51f99f0",
+      "name": "Create Health Exception",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblDunXJFQr0elXon",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "exception_id": "=HEALTH-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "exception_type": "System Health",
+            "severity": "={{ $json.severity }}",
+            "entity_type": "System",
+            "entity_id": "=n8n-health-{{ $now.toFormat('yyyyMMddHHmm') }}",
+            "description": "={{ $json.message }}",
+            "status": "Open",
+            "created_at": "={{ $json.checked_at }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "6c26c758-7eb9-47df-b5c7-4bff749ec05c",
+      "name": "Call RE-18 Health Alert",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE18_ID || '' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "1c0ca335-ef57-4077-babd-07c80052795b",
+      "name": "Log Health Check",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "Health Check",
+            "entity_type": "System",
+            "entity_id": "=HEALTH-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "description": "={{ $json.message }}",
+            "performed_by": "System",
+            "timestamp": "={{ $json.checked_at }}"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 15 Min Monitor": {
+      "main": [
+        [
+          {
+            "node": "Check n8n Health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check n8n Health": {
+      "main": [
+        [
+          {
+            "node": "Check Recent Failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Recent Failures": {
+      "main": [
+        [
+          {
+            "node": "Analyze Failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Failures": {
+      "main": [
+        [
+          {
+            "node": "Has Errors?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Errors?": {
+      "main": [
+        [
+          {
+            "node": "Create Health Exception",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Health Exception": {
+      "main": [
+        [
+          {
+            "node": "Call RE-18 Health Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call RE-18 Health Alert": {
+      "main": [
+        [
+          {
+            "node": "Log Health Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "monitoring",
+    "health",
+    "scheduled"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:18.227648"
+  }
+}

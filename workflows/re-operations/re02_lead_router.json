@@ -1,0 +1,471 @@
+{
+  "name": "RE-02 Lead Router",
+  "nodes": [
+    {
+      "id": "c16e00f1-e50b-4cec-944c-f1efc0bae0d2",
+      "name": "Note RE-02",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-02: Lead Router\n\nNormalizes phone (+27), searches existing leads,\ncreates new client/lead if needed, calls RE-15\nScoring + RE-16 Assignment engines.",
+        "width": 300,
+        "height": 180,
+        "color": 4
+      }
+    },
+    {
+      "id": "4a6c25e6-f699-4c4c-a843-ffcaa44dc739",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "73455fd6-0b91-432e-a0a0-5fbd8da60061",
+      "name": "Normalize Phone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Normalize phone to +27 format for South Africa\nconst input = $input.first().json;\nconst rawPhone = (input.sender_phone || '').replace(/[\\s\\-()]/g, '');\n\nlet normalized = rawPhone;\nif (rawPhone.startsWith('0') && rawPhone.length === 10) {\n  normalized = '+27' + rawPhone.substring(1);\n} else if (rawPhone.startsWith('27') && rawPhone.length === 11) {\n  normalized = '+' + rawPhone;\n} else if (!rawPhone.startsWith('+') && rawPhone.length > 0) {\n  normalized = '+' + rawPhone;\n}\n\nreturn {\n  json: {\n    sender_phone: input.sender_phone || '',\n    phone_normalized: normalized,\n    sender_email: input.sender_email || '',\n    channel: input.channel || 'unknown',\n    message_text: input.message_text || '',\n    received_at: new Date().toISOString(),\n  }\n};\n"
+      }
+    },
+    {
+      "id": "4544fb33-d9e0-419d-9a86-94023aa4ff96",
+      "name": "Search Existing Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=({phone_normalized} = '{{ $json.phone_normalized }}')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "f00e6cc1-4b15-487b-a911-235358e2ef4c",
+      "name": "Check Existing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Determine if lead already exists from Airtable search results\nconst results = $input.all();\nconst inputData = $('Normalize Phone').first().json;\n\nconst hasExisting = results.length > 0\n  && results[0].json\n  && results[0].json.id;\n\nif (hasExisting) {\n  const existing = results[0].json;\n  return {\n    json: {\n      is_existing: true,\n      lead_id: existing.lead_id || existing.id || '',\n      client_id: existing.client_id || '',\n      client_name: existing.client_name || existing.Name || 'Unknown',\n      phone_normalized: inputData.phone_normalized,\n      email: existing.email || inputData.sender_email || '',\n      channel: inputData.channel,\n      message_text: inputData.message_text,\n      area: existing.area || '',\n      property_type: existing.property_type || '',\n      budget: existing.budget || '',\n      status: existing.status || 'Active',\n      tier: existing.tier || '',\n      assigned_agent: existing.assigned_agent || '',\n    }\n  };\n}\n\nreturn {\n  json: {\n    is_existing: false,\n    lead_id: '',\n    client_id: '',\n    client_name: '',\n    phone_normalized: inputData.phone_normalized,\n    email: inputData.sender_email || '',\n    channel: inputData.channel,\n    message_text: inputData.message_text,\n    area: '',\n    property_type: '',\n    budget: '',\n    status: 'New',\n    tier: '',\n    assigned_agent: '',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "aa400400-fdb7-4f67-9c46-26d1b2ccbb66",
+      "name": "Existing Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_existing }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6e7f86bf-e541-4106-aae2-054ff5aa8616",
+      "name": "Update Last Contact",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "lead_id"
+        ],
+        "options": {},
+        "columns": {
+          "value": {
+            "lead_id": "={{ $('Check Existing').first().json.lead_id }}",
+            "last_contact": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "4fff002e-4a54-4e0d-9a49-c145459b85a4",
+      "name": "Prepare New Client",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Prepare new client and lead records\nconst data = $input.first().json;\n\nconst clientId = 'CLI-' + Date.now().toString(36).toUpperCase();\nconst leadId = 'LEAD-' + Date.now().toString(36).toUpperCase();\n\nreturn {\n  json: {\n    client_id: clientId,\n    lead_id: leadId,\n    client_name: data.client_name || 'Unknown',\n    phone_normalized: data.phone_normalized,\n    email: data.email || '',\n    channel: data.channel,\n    message_text: data.message_text,\n    status: 'New',\n    source: data.channel,\n    created_at: new Date().toISOString(),\n  }\n};\n"
+      }
+    },
+    {
+      "id": "64929d84-6b45-4bc6-8f91-91b53fd6f106",
+      "name": "Create Client",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblkVpovpQDC5EJaT",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "client_id": "={{ $json.client_id }}",
+            "client_name": "={{ $json.client_name }}",
+            "phone": "={{ $json.phone_normalized }}",
+            "email": "={{ $json.email }}",
+            "source": "={{ $json.channel }}",
+            "created_at": "={{ $json.created_at }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "9426f31c-02ee-4170-b00b-2a0047b6e4d7",
+      "name": "Create Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "lead_id": "={{ $('Prepare New Client').first().json.lead_id }}",
+            "client_id": "={{ $('Prepare New Client').first().json.client_id }}",
+            "client_name": "={{ $('Prepare New Client').first().json.client_name }}",
+            "phone_normalized": "={{ $('Prepare New Client').first().json.phone_normalized }}",
+            "email": "={{ $('Prepare New Client').first().json.email }}",
+            "channel": "={{ $('Prepare New Client').first().json.channel }}",
+            "source": "={{ $('Prepare New Client').first().json.source }}",
+            "status": "New",
+            "last_contact": "={{ $now.toISO() }}",
+            "created_at": "={{ $('Prepare New Client').first().json.created_at }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "7126d51b-6ffc-4db7-9326-c1df4542cc57",
+      "name": "Call RE-15 Scoring",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        300
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE15_ID || '' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "b1a2e1d4-705b-4f1e-8c95-bb49d807a389",
+      "name": "Call RE-16 Assignment",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2200,
+        300
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE16_ID || '' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "bb1a3fee-fd83-478e-8bb9-03f773a63ca3",
+      "name": "Log Lead Routed",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "Lead Routed",
+            "entity_type": "Lead",
+            "entity_id": "={{ $('Check Existing').first().json.lead_id || $('Prepare New Client').first().json.lead_id || 'unknown' }}",
+            "description": "=Lead routed via {{ $('Normalize Phone').first().json.channel }}: {{ $('Normalize Phone').first().json.phone_normalized }}",
+            "performed_by": "System",
+            "timestamp": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Phone": {
+      "main": [
+        [
+          {
+            "node": "Search Existing Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Existing Lead": {
+      "main": [
+        [
+          {
+            "node": "Check Existing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing": {
+      "main": [
+        [
+          {
+            "node": "Existing Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Existing Lead?": {
+      "main": [
+        [
+          {
+            "node": "Update Last Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare New Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Last Contact": {
+      "main": [
+        [
+          {
+            "node": "Call RE-15 Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare New Client": {
+      "main": [
+        [
+          {
+            "node": "Create Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Client": {
+      "main": [
+        [
+          {
+            "node": "Create Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead": {
+      "main": [
+        [
+          {
+            "node": "Call RE-15 Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call RE-15 Scoring": {
+      "main": [
+        [
+          {
+            "node": "Call RE-16 Assignment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call RE-16 Assignment": {
+      "main": [
+        [
+          {
+            "node": "Log Lead Routed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "lead-management",
+    "routing",
+    "sub-workflow"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:13.487049"
+  }
+}

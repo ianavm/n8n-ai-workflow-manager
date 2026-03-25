@@ -1,0 +1,361 @@
+{
+  "name": "RE-11 Daily Summary",
+  "nodes": [
+    {
+      "id": "87df1f26-3cbe-4c51-861e-c14f60885a2e",
+      "name": "Note RE-11",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-11: Daily Summary\n\nRuns daily at 07:00 SAST (05:00 UTC).\nFetches leads, appointments, deals, exceptions.\nAI formats summary, sends via Telegram.",
+        "width": 300,
+        "height": 180,
+        "color": 2
+      }
+    },
+    {
+      "id": "189f7c99-6e4e-4cfa-81e6-ed6138c90a0e",
+      "name": "Daily 07:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "8cea86f2-32db-4a9f-b29a-dc1871c2b947",
+      "name": "Fetch Today Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({created_at}, DATEADD(NOW(), -24, 'hours'))",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "7ece7869-2956-4eed-8eee-e07f94712523",
+      "name": "Fetch Today Appointments",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQ72B5XSgRLdKIc",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_SAME({event_start}, TODAY(), 'day')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "99efd897-0a3a-4531-9c04-7901d4413e03",
+      "name": "Fetch Active Deals",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblx5NiAfu3Py5ha8",
+          "mode": "id"
+        },
+        "filterByFormula": "=OR({status} = 'Active', {status} = 'In Progress', {status} = 'Pending')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "248f0ce5-e738-4d71-8111-bd6ec278f96b",
+      "name": "Fetch Open Exceptions",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblDunXJFQr0elXon",
+          "mode": "id"
+        },
+        "filterByFormula": "=({status} = 'Open')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "7ff416c1-193b-44a6-8787-c03ea4af18ec",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Build daily summary from all data sources\nconst leads = $('Fetch Today Leads').all();\nconst appointments = $('Fetch Today Appointments').all();\nconst deals = $('Fetch Active Deals').all();\nconst exceptions = $('Fetch Open Exceptions').all();\n\nconst now = new Date();\nconst dateStr = now.toISOString().split('T')[0];\nconst dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];\nconst dayName = dayNames[now.getUTCDay()];\n\nlet summary = `Daily Summary for ${dayName}, ${dateStr}:\\n\\n`;\nsummary += `NEW LEADS (last 24h): ${leads.length}\\n`;\nfor (const l of leads.slice(0, 5)) {\n  summary += `- ${l.json.client_name || 'Unknown'} (${l.json.tier || 'Unscored'}) via ${l.json.channel || '?'}\\n`;\n}\n\nsummary += `\\nAPPOINTMENTS TODAY: ${appointments.length}\\n`;\nfor (const a of appointments.slice(0, 5)) {\n  summary += `- ${a.json.client_name || 'Unknown'} with ${a.json.agent_name || '?'} at ${a.json.event_start || 'TBD'}\\n`;\n}\n\nsummary += `\\nACTIVE DEALS: ${deals.length}\\n`;\nsummary += `OPEN EXCEPTIONS: ${exceptions.length}\\n`;\n\nif (exceptions.length > 0) {\n  const critical = exceptions.filter(e => e.json.severity === 'critical').length;\n  if (critical > 0) summary += `  WARNING: ${critical} CRITICAL exception(s) require immediate attention!\\n`;\n}\n\nreturn {\n  json: {\n    prompt_text: summary,\n    leads_count: leads.length,\n    appointments_count: appointments.length,\n    deals_count: deals.length,\n    exceptions_count: exceptions.length,\n    date_str: dateStr,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "4ace9471-4e6f-4b72-8b15-80da433d731b",
+      "name": "AI Format Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 800, \"temperature\": 0.3, \"messages\": [{\"role\": \"system\", \"content\": \"You are a daily briefing assistant for a South African real estate agency. Format the provided summary data into a clean, concise Telegram message using HTML tags. Use <b>bold</b> for headers. Add relevant emoji sparingly. Keep it under 2000 characters.\"}, {\"role\": \"user\", \"content\": \"={{$json.prompt_text}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "d025cb5c-a4df-41d7-918d-5c98c2d5142a",
+      "name": "Parse AI Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\nconst aiResp = $input.first().json;\nconst content = (aiResp.choices && aiResp.choices[0])\n  ? aiResp.choices[0].message.content\n  : $('Build Summary').first().json.prompt_text;\n\nreturn { json: { summary_text: content } };\n"
+      }
+    },
+    {
+      "id": "04bab8da-9692-4ed0-8f3c-ec94ce0bb1c5",
+      "name": "Send Daily Summary",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.summary_text }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 07:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Fetch Today Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Today Leads": {
+      "main": [
+        [
+          {
+            "node": "Fetch Today Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Today Appointments": {
+      "main": [
+        [
+          {
+            "node": "Fetch Active Deals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Active Deals": {
+      "main": [
+        [
+          {
+            "node": "Fetch Open Exceptions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Open Exceptions": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary": {
+      "main": [
+        [
+          {
+            "node": "AI Format Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Format Summary": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "summary",
+    "scheduled",
+    "telegram"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:16.155464"
+  }
+}

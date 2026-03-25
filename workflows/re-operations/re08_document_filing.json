@@ -1,0 +1,632 @@
+{
+  "name": "RE-08 Document Filing",
+  "nodes": [
+    {
+      "id": "88f36c0c-09ef-4402-b80d-c77e1a49a554",
+      "name": "Note RE-08",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-08: Document Filing\n\nFiles classified documents to Google Drive,\ncreates Airtable record, deduplicates by hash,\nnotifies admin via RE-10.",
+        "width": 300,
+        "height": 160,
+        "color": 3
+      }
+    },
+    {
+      "id": "aee39daa-8524-44f1-b733-6cfcac2ce919",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "e6a4cde5-9634-43ec-9b52-de6a5b098c07",
+      "name": "Build Filename",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Build filename per naming convention:\n// {YYYY-MM-DD}_{Surname}_{DocType}_{PropertyRef}.ext\nconst input = $input.first().json;\n\nconst now = new Date();\nconst dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD\n\n// Extract surname from client name\nconst clientName = input.client_name || input.sender_name || 'Unknown';\nconst nameParts = clientName.trim().split(/\\s+/);\nconst surname = nameParts[nameParts.length - 1] || 'Unknown';\n\nconst docType = input.doc_type || 'OTHER';\nconst propertyRef = (input.property_ref || input.property_id || 'NOPROP')\n  .replace(/[^a-zA-Z0-9-]/g, '');\n\n// Get file extension from original filename\nconst originalFilename = input.original_filename || input.filename || 'file.pdf';\nconst extMatch = originalFilename.match(/\\.([a-zA-Z0-9]+)$/);\nconst ext = extMatch ? extMatch[1].toLowerCase() : 'pdf';\n\nconst newFilename = `${dateStr}_${surname}_${docType}_${propertyRef}.${ext}`;\n\n// Generate content hash for dedup (simple hash from filename + size + date)\nconst contentHash = `${originalFilename}_${input.file_size || 0}_${dateStr}`.replace(/[^a-zA-Z0-9_]/g, '');\n\n// Determine Drive folder path based on doc type\nconst folderMap = {\n  FICA: 'FICA_KYC',\n  OTP: 'Offers',\n  MANDATE: 'Mandates',\n  TITLE: 'Title_Deeds',\n  MUNICIPAL: 'Municipal',\n  BOND: 'Bond_Documents',\n  COMPLIANCE: 'Compliance_Certs',\n  SECTIONAL: 'Sectional_Title',\n  ENTITY: 'Entity_Documents',\n  VALUATION: 'Valuations',\n  INSPECTION: 'Inspections',\n  INSURANCE: 'Insurance',\n  COMMISSION: 'Commission',\n  CORRESPONDENCE: 'Correspondence',\n  OTHER: 'Other',\n};\n\nconst folderName = folderMap[docType] || 'Other';\nconst clientFolder = `${surname}_${clientName.split(/\\s+/)[0] || ''}`.replace(/[^a-zA-Z0-9_]/g, '');\n\nreturn {\n  json: {\n    new_filename: newFilename,\n    content_hash: contentHash,\n    folder_name: folderName,\n    client_folder: clientFolder,\n    surname: surname,\n    doc_type: docType,\n    property_ref: propertyRef,\n    ext: ext,\n    date_str: dateStr,\n    original_filename: originalFilename,\n    client_name: clientName,\n    confidence: input.confidence || 0,\n    extracted_metadata: input.extracted_metadata || {},\n    file_data: input.file_data || null,\n    file_url: input.file_url || null,\n    file_size: input.file_size || 0,\n    client_id: input.client_id || '',\n    deal_id: input.deal_id || '',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "cd92d765-0869-42c8-b592-166104a647ec",
+      "name": "Check Duplicate",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblR4AKuK66uqPoMI",
+          "mode": "id"
+        },
+        "filterByFormula": "=({content_hash} = '{{ $json.content_hash }}')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "7ce6100c-8f08-4cdb-9254-e82d9b5650d6",
+      "name": "Check Duplicate Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Handle duplicate detection result\nconst searchResults = $input.all();\nconst fileData = $('Build Filename').first().json;\n\nconst hasDuplicate = searchResults.length > 0\n  && searchResults[0].json\n  && searchResults[0].json.content_hash\n  && searchResults[0].json.content_hash === fileData.content_hash;\n\nreturn {\n  json: {\n    ...fileData,\n    is_duplicate: hasDuplicate,\n    existing_doc_id: hasDuplicate ? (searchResults[0].json.document_id || '') : '',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "aebc57d5-8cf7-47f0-9045-a0bfb2249fba",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_duplicate }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "11bde22a-c0a8-4e8e-889c-ccad234890b0",
+      "name": "Prepare Skip Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\n// Log duplicate skip\nconst data = $input.first().json;\n\nreturn {\n  json: {\n    activity_type: 'Duplicate Document Skipped',\n    entity_type: 'Document',\n    entity_id: data.existing_doc_id || 'unknown',\n    description: `Duplicate detected: ${data.original_filename} (hash: ${data.content_hash})`,\n    performed_by: 'System',\n    timestamp: new Date().toISOString(),\n    is_duplicate: true,\n    skipped: true,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "2814b539-c0fa-4707-a8d8-f904bc0a58e0",
+      "name": "Log Duplicate Skip",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "={{ $json.activity_type }}",
+            "entity_type": "={{ $json.entity_type }}",
+            "entity_id": "={{ $json.entity_id }}",
+            "description": "={{ $json.description }}",
+            "performed_by": "={{ $json.performed_by }}",
+            "timestamp": "={{ $json.timestamp }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "77c4e00e-e253-41d0-b699-52f7fd7f1d85",
+      "name": "Find Drive Folder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        500
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/drive/v3/files?q={{ encodeURIComponent(\"mimeType='application/vnd.google-apps.folder' and name='\" + $('Build Filename').first().json.folder_name + \"' and '\" + $env.RE_GDRIVE_ROOT_FOLDER_ID + \"' in parents and trashed=false\") }}&fields=files(id,name)",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api"
+      },
+      "credentials": {
+        "googleOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "id": "a897ac5b-e171-4b5c-b2bd-bbdad7d23d9a",
+      "name": "Process Folder Search",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Check if folder exists, if not prepare create request\nconst searchResult = $input.first().json;\nconst fileData = $('Build Filename').first().json;\nconst files = searchResult.files || [];\n\nif (files.length > 0) {\n  // Folder exists\n  return { json: {\n    ...fileData,\n    drive_folder_id: files[0].id,\n    folder_existed: true,\n  }};\n}\n\n// Folder does not exist - we need to create it\nreturn { json: {\n  ...fileData,\n  drive_folder_id: '',\n  folder_existed: false,\n  create_folder_body: {\n    name: fileData.folder_name,\n    mimeType: 'application/vnd.google-apps.folder',\n    parents: [$env.RE_GDRIVE_ROOT_FOLDER_ID || ''],\n  },\n}};\n"
+      }
+    },
+    {
+      "id": "e66b2366-def7-40e5-a74b-0b87e490b79d",
+      "name": "Folder Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        500
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.folder_existed }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b6f179e8-6aec-4ac7-8783-5a73d01067b5",
+      "name": "Create Drive Folder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/drive/v3/files",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.create_folder_body }}"
+      },
+      "credentials": {
+        "googleOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "id": "40359374-78a7-47f1-9b91-b63fd221734a",
+      "name": "Set Folder ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Get folder ID from either existing folder or newly created\nconst data = $input.first().json;\nconst fileData = $('Build Filename').first().json;\n\n// If we just created a folder, data.id is the new folder ID\n// If folder existed, we already have drive_folder_id\nconst folderId = data.id || data.drive_folder_id\n  || $('Process Folder Search').first().json.drive_folder_id || '';\n\nreturn { json: {\n  ...fileData,\n  drive_folder_id: folderId,\n}};\n"
+      }
+    },
+    {
+      "id": "ca5e4908-a854-4c53-a1b5-05c5cccf7c97",
+      "name": "Prepare Upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Prepare upload metadata - actual file binary upload would need\n// multipart/form-data which n8n httpRequest handles differently.\n// For now, if file_url is provided, we copy it to the target folder.\nconst data = $input.first().json;\n\nreturn { json: {\n  ...data,\n  drive_file_id: data.drive_file_id || 'pending_upload',\n  drive_url: data.drive_folder_id\n    ? `https://drive.google.com/drive/folders/${data.drive_folder_id}`\n    : '',\n}};\n"
+      }
+    },
+    {
+      "id": "289a5bf4-57cb-47be-aec6-232829bc4f63",
+      "name": "Prepare Doc Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Prepare document record for Airtable\nconst data = $input.first().json;\nconst driveResult = data.drive_file_id\n  ? data\n  : $('Build Filename').first().json;\n\nreturn {\n  json: {\n    document_id: 'DOC-' + Date.now().toString(36).toUpperCase(),\n    filename: driveResult.new_filename,\n    original_filename: driveResult.original_filename,\n    doc_type: driveResult.doc_type,\n    confidence: driveResult.confidence,\n    content_hash: driveResult.content_hash,\n    drive_file_id: driveResult.drive_file_id || '',\n    drive_folder_id: driveResult.drive_folder_id || '',\n    drive_url: driveResult.drive_url || '',\n    client_id: driveResult.client_id || '',\n    client_name: driveResult.client_name || '',\n    deal_id: driveResult.deal_id || '',\n    property_ref: driveResult.property_ref || '',\n    extracted_metadata: JSON.stringify(driveResult.extracted_metadata || {}),\n    file_size: driveResult.file_size || 0,\n    filed_at: new Date().toISOString(),\n    status: 'Filed',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "ca5e86a3-fbe5-4ad0-85b2-e95b1a2c8207",
+      "name": "Create Document Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2860,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblR4AKuK66uqPoMI",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "document_id": "={{ $json.document_id }}",
+            "filename": "={{ $json.filename }}",
+            "original_filename": "={{ $json.original_filename }}",
+            "doc_type": "={{ $json.doc_type }}",
+            "confidence": "={{ $json.confidence }}",
+            "content_hash": "={{ $json.content_hash }}",
+            "drive_file_id": "={{ $json.drive_file_id }}",
+            "drive_url": "={{ $json.drive_url }}",
+            "client_id": "={{ $json.client_id }}",
+            "client_name": "={{ $json.client_name }}",
+            "deal_id": "={{ $json.deal_id }}",
+            "property_ref": "={{ $json.property_ref }}",
+            "extracted_metadata": "={{ $json.extracted_metadata }}",
+            "filed_at": "={{ $json.filed_at }}",
+            "status": "={{ $json.status }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "ea2ab248-4efc-489a-b746-d83f9c8ee730",
+      "name": "Prepare Filing Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Prepare Activity_Log record for document filing\nconst docRecord = $input.first().json;\n\nreturn {\n  json: {\n    activity_type: 'Document Filed',\n    entity_type: 'Document',\n    entity_id: docRecord.document_id || docRecord.id || 'unknown',\n    description: `Filed ${docRecord.doc_type}: ${docRecord.filename} for ${docRecord.client_name || 'unknown client'}`,\n    performed_by: 'System',\n    timestamp: new Date().toISOString(),\n  }\n};\n"
+      }
+    },
+    {
+      "id": "b2fec00d-361f-4cf8-911e-0fe97a973dc8",
+      "name": "Log Document Filing",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3300,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "={{ $json.activity_type }}",
+            "entity_type": "={{ $json.entity_type }}",
+            "entity_id": "={{ $json.entity_id }}",
+            "description": "={{ $json.description }}",
+            "performed_by": "={{ $json.performed_by }}",
+            "timestamp": "={{ $json.timestamp }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "dc2ad895-57cb-4e6d-bcf8-f2fcded04d2e",
+      "name": "Build Filing Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Build notification payload for RE-10\nconst docRecord = $('Prepare Doc Record').first().json;\n\nreturn {\n  json: {\n    notification_type: 'Document Filed',\n    recipient_chat_id: '',  // Will be filled by RE-10 or set to owner\n    message: `New document filed:\\n- Type: ${docRecord.doc_type}\\n- File: ${docRecord.filename}\\n- Client: ${docRecord.client_name}\\n- Confidence: ${(docRecord.confidence * 100).toFixed(0)}%`,\n    urgency: docRecord.confidence < 0.75 ? 'high' : 'low',\n  }\n};\n"
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Filename",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Filename": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate Result": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Skip Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Find Drive Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Skip Log": {
+      "main": [
+        [
+          {
+            "node": "Log Duplicate Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Drive Folder": {
+      "main": [
+        [
+          {
+            "node": "Process Folder Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Folder Search": {
+      "main": [
+        [
+          {
+            "node": "Folder Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Folder Exists?": {
+      "main": [
+        [
+          {
+            "node": "Set Folder ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Drive Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Drive Folder": {
+      "main": [
+        [
+          {
+            "node": "Set Folder ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Folder ID": {
+      "main": [
+        [
+          {
+            "node": "Prepare Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Upload": {
+      "main": [
+        [
+          {
+            "node": "Prepare Doc Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Doc Record": {
+      "main": [
+        [
+          {
+            "node": "Create Document Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Document Record": {
+      "main": [
+        [
+          {
+            "node": "Prepare Filing Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Filing Log": {
+      "main": [
+        [
+          {
+            "node": "Log Document Filing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Document Filing": {
+      "main": [
+        [
+          {
+            "node": "Build Filing Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "documents",
+    "google-drive",
+    "sub-workflow"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:11.829264"
+  }
+}

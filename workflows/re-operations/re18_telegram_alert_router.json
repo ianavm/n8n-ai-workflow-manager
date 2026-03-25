@@ -1,0 +1,247 @@
+{
+  "name": "RE-18 Telegram Alert Router",
+  "nodes": [
+    {
+      "id": "f40146dc-870e-471d-bb22-a7e0921555a4",
+      "name": "Note RE-18",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-18: Telegram Alert Router\n\nRoutes alerts to owner Telegram with severity prefixes:\nRED=Critical, ORANGE=High, YELLOW=Medium, BLUE=Low\nFalls back to email on Telegram failure.",
+        "width": 300,
+        "height": 180,
+        "color": 6
+      }
+    },
+    {
+      "id": "0d543a9c-2734-49b7-88e3-54dfe0c0afb6",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "d3bd43cc-3245-4d7c-baeb-48bc988d6504",
+      "name": "Format Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Format alert with severity prefix for Telegram\nconst input = $input.first().json;\nconst severity = (input.severity || 'medium').toLowerCase();\n\nconst severityMap = {\n  critical: { prefix: '\\u{1F534}', label: 'CRITICAL' },\n  high:     { prefix: '\\u{1F7E0}', label: 'HIGH' },\n  medium:   { prefix: '\\u{1F7E1}', label: 'MEDIUM' },\n  low:      { prefix: '\\u{1F535}', label: 'LOW' },\n};\n\nconst sev = severityMap[severity] || severityMap.medium;\nconst alertType = input.alert_type || 'System Alert';\nconst message = input.message || 'No details provided';\nconst entityDetails = input.entity_details || {};\nconst timestamp = new Date().toISOString();\n\nlet entityInfo = '';\nif (Object.keys(entityDetails).length > 0) {\n  entityInfo = '\\n\\n<b>Details:</b>';\n  for (const [key, value] of Object.entries(entityDetails)) {\n    entityInfo += `\\n  ${key}: ${value}`;\n  }\n}\n\nconst telegramMessage = `${sev.prefix} <b>${sev.label}: ${alertType}</b>\\n\\n${message}${entityInfo}\\n\\n<i>${timestamp}</i>`;\n\nreturn {\n  json: {\n    telegram_message: telegramMessage,\n    alert_type: alertType,\n    severity: severity,\n    severity_label: sev.label,\n    original_message: message,\n    entity_details: entityDetails,\n    timestamp: timestamp,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "8a768342-4cb2-40d8-9ecc-0e01edd7dc00",
+      "name": "Set Owner Chat ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ab7cedb3-c077-4773-8854-666a4ddcc8ba",
+              "name": "owner_chat_id",
+              "value": "REPLACE_AFTER_SETUP",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "753c5fc2-94d6-4fd7-961a-43d6b54a935e",
+      "name": "Send Alert Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $json.owner_chat_id }}",
+        "text": "={{ $('Format Alert').first().json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    },
+    {
+      "id": "ad3130f5-af85-4d3d-b596-ecbaeb8f69f3",
+      "name": "Telegram Sent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok || !!$json.message_id || !!$json.result }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3eb7a013-0038-402b-8c81-8d01e8ba632e",
+      "name": "Build Alert Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Build email fallback content when Telegram fails\nconst data = $('Format Alert').first().json;\n\nreturn {\n  json: {\n    subject: `[RE-OPS ALERT - ${data.severity_label}] ${data.alert_type}`,\n    body: `<div style=\"font-family:Arial,sans-serif;max-width:600px\">\n<div style=\"background:${data.severity === 'critical' ? '#dc3545' : data.severity === 'high' ? '#fd7e14' : data.severity === 'medium' ? '#ffc107' : '#0d6efd'};padding:15px\">\n<h2 style=\"color:white;margin:0\">${data.severity_label}: ${data.alert_type}</h2>\n</div>\n<div style=\"padding:20px\">\n<p>${data.original_message}</p>\n<p style=\"color:#666;font-size:12px\">Telegram delivery failed. This is an email fallback.</p>\n<p style=\"color:#999;font-size:11px\">${data.timestamp}</p>\n</div></div>`,\n    alert_type: data.alert_type,\n    severity: data.severity,\n    timestamp: data.timestamp,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "957ba679-7186-401e-890e-d19aaf7ae8de",
+      "name": "Send Alert Email Fallback",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        500
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Alert": {
+      "main": [
+        [
+          {
+            "node": "Set Owner Chat ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Owner Chat ID": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Alert Telegram": {
+      "main": [
+        [
+          {
+            "node": "Telegram Sent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Sent?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Send Alert Email Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "alerts",
+    "telegram",
+    "sub-workflow"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:11.308017"
+  }
+}

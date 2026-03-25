@@ -1,0 +1,316 @@
+{
+  "name": "RE-07 Email Intake",
+  "nodes": [
+    {
+      "id": "27478c55-6179-4bfe-a984-ced025671da3",
+      "name": "Note RE-07",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-07: Email Intake\n\nPolls Gmail every 1 min for unread emails.\nDeduplicates by message_id, extracts metadata,\ncalls RE-04 Email AI Comms for each.",
+        "width": 300,
+        "height": 180,
+        "color": 2
+      }
+    },
+    {
+      "id": "0164bcc8-2c0b-43ff-a1e9-a91773a068e5",
+      "name": "Poll Gmail",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7d80b086-fb97-4e5a-b41e-c5916ae36917",
+      "name": "Fetch Unread Emails",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": false,
+        "limit": 10,
+        "filters": {
+          "q": "is:unread -category:promotions -category:social",
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "19382fee-418d-4a21-bca6-4463f610f545",
+      "name": "Has Emails?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ad5630dc-6631-4a6d-85b5-3282accabffb",
+      "name": "Extract Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Extract email metadata for processing\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const email = item.json;\n  const messageId = email.id || email.messageId || '';\n  const from = email.from || email.sender || '';\n  const subject = email.subject || '(no subject)';\n  const body = email.text || email.snippet || email.body || '';\n  const html = email.html || '';\n\n  // Extract sender email from \"Name <email>\" format\n  const emailMatch = from.match(/<([^>]+)>/);\n  const senderEmail = emailMatch ? emailMatch[1] : from;\n\n  // Check for attachments\n  const attachments = email.attachments || [];\n  const hasAttachments = attachments.length > 0;\n\n  results.push({\n    json: {\n      gmail_message_id: messageId,\n      sender: senderEmail,\n      sender_display: from,\n      email_subject: subject,\n      email_body: body || html,\n      has_attachments: hasAttachments,\n      attachment_count: attachments.length,\n      attachments: attachments.map(a => ({\n        filename: a.filename || '',\n        mimeType: a.mimeType || '',\n        size: a.size || 0,\n      })),\n      received_at: email.date || new Date().toISOString(),\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{ json: { skip: true } }];\n"
+      }
+    },
+    {
+      "id": "7efde130-490b-4913-a2d1-c86a6a4d0613",
+      "name": "Not Skip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !$json.skip }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b8b6fd16-5b29-49a8-9667-21b558a99aba",
+      "name": "Check Email Dedup",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblCvYpUGqXiSYVRv",
+          "mode": "id"
+        },
+        "filterByFormula": "=({gmail_message_id} = '{{ $json.gmail_message_id }}')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "9ec99f18-e827-4d13-a670-40adcc420728",
+      "name": "Is New Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "db0b22fd-fb9e-46b7-b137-6e3d376e4963",
+      "name": "Call RE-04 Email AI",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE04_ID || '' }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Poll Gmail": {
+      "main": [
+        [
+          {
+            "node": "Fetch Unread Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Unread Emails": {
+      "main": [
+        [
+          {
+            "node": "Has Emails?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Emails?": {
+      "main": [
+        [
+          {
+            "node": "Extract Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Extract Email Data": {
+      "main": [
+        [
+          {
+            "node": "Not Skip?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Skip?": {
+      "main": [
+        [
+          {
+            "node": "Check Email Dedup",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Check Email Dedup": {
+      "main": [
+        [
+          {
+            "node": "Is New Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Email?": {
+      "main": [
+        [
+          {
+            "node": "Call RE-04 Email AI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "email",
+    "intake",
+    "trigger"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:15.063729"
+  }
+}

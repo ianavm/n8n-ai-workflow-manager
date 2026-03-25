@@ -1,0 +1,592 @@
+{
+  "name": "RE-05 Booking Coordinator",
+  "nodes": [
+    {
+      "id": "a72f476f-f05b-45dc-8cfd-341dc64c6108",
+      "name": "Note RE-05",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-05: Booking Coordinator\n\nValidates 2-day minimum, checks Google Calendar,\ngenerates available slots (08:00-17:00 SAST),\nuses AI to suggest best 3, creates event + record.",
+        "width": 300,
+        "height": 180,
+        "color": 2
+      }
+    },
+    {
+      "id": "89cffe07-d4d1-46e0-8ec4-aa8d69bc5d1f",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "8f2f7620-ef56-4669-b4b5-e3db5cae10d6",
+      "name": "Validate Booking Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Validate preferred date is at least 2 full business days in the future\nconst input = $input.first().json;\nconst preferredDate = input.preferred_date || '';\nconst clientName = input.client_name || 'Unknown';\nconst propertyId = input.property_id || '';\nconst agentName = input.agent_name || '';\n\nconst now = new Date();\nconst preferred = new Date(preferredDate);\n\n// Calculate business days difference\nlet businessDays = 0;\nconst tempDate = new Date(now);\nwhile (tempDate < preferred) {\n  tempDate.setDate(tempDate.getDate() + 1);\n  const dayOfWeek = tempDate.getDay();\n  if (dayOfWeek !== 0 && dayOfWeek !== 6) {\n    businessDays++;\n  }\n}\n\nconst isValid = businessDays >= 2 && !isNaN(preferred.getTime());\nconst bookingId = 'BOOK-' + Date.now().toString(36).toUpperCase();\n\nreturn {\n  json: {\n    booking_id: bookingId,\n    client_name: clientName,\n    preferred_date: preferredDate,\n    property_id: propertyId,\n    agent_name: agentName,\n    is_valid: isValid,\n    business_days_ahead: businessDays,\n    rejection_reason: isValid ? null : (\n      isNaN(preferred.getTime())\n        ? 'Invalid date format'\n        : `Only ${businessDays} business days ahead (minimum 2 required)`\n    ),\n    validated_at: now.toISOString(),\n    duration_min: parseInt(input.duration_min || 30),\n    viewing_type: input.viewing_type || 'first_viewing',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "2f20fda4-b117-4b61-a9db-979248a21e4c",
+      "name": "Date Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_valid }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "14af195e-5f36-489e-8081-931cd8e1364e",
+      "name": "Get Agent Info",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOIksmbzg44M514",
+          "mode": "id"
+        },
+        "filterByFormula": "=({agent_name} = '{{ $('Validate Booking Date').first().json.agent_name }}')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "c97ec056-508a-4ee7-86ac-3b8ec2030c01",
+      "name": "Query Calendar FreeBusy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/freeBusy",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"timeMin\":\"{{ $now.toISO() }}\",\"timeMax\":\"{{ $now.plus({days: 10}).toISO() }}\",\"items\":[{\"id\":\"primary\"}]}"
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "I5zIYf0UxlkUt3KG",
+          "name": "Google Calendar AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "162b156e-f31a-455a-8b43-cf03bb093208",
+      "name": "Generate Available Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Generate available 30-min slots from freeBusy response\n// Business hours: 08:00-17:00 SAST (06:00-15:00 UTC)\nconst validation = $('Validate Booking Date').first().json;\nconst busyData = $input.first().json;\nconst busySlots = (busyData.calendars && busyData.calendars.primary)\n  ? busyData.calendars.primary.busy || []\n  : [];\n\nconst preferredDate = new Date(validation.preferred_date);\nconst durationMin = validation.duration_min || 30;\nconst candidates = [];\n\n// Generate slots: preferred_date +/- 3 days\nfor (let dayOffset = 0; dayOffset <= 5; dayOffset++) {\n  const day = new Date(preferredDate);\n  day.setDate(day.getDate() + dayOffset);\n  const dayOfWeek = day.getDay();\n  if (dayOfWeek === 0 || dayOfWeek === 6) continue; // skip weekends\n\n  for (let hour = 6; hour <= 14; hour++) { // UTC hours (08:00-16:00 SAST)\n    for (let min = 0; min < 60; min += 30) {\n      const slotStart = new Date(day);\n      slotStart.setUTCHours(hour, min, 0, 0);\n\n      // Skip if in the past\n      if (slotStart <= new Date()) continue;\n\n      const slotEnd = new Date(slotStart.getTime() + durationMin * 60000);\n      // End must be before 17:00 SAST (15:00 UTC)\n      if (slotEnd.getUTCHours() > 15 || (slotEnd.getUTCHours() === 15 && slotEnd.getUTCMinutes() > 0)) continue;\n\n      // Check against busy slots\n      const isBusy = busySlots.some(b => {\n        const bStart = new Date(b.start);\n        const bEnd = new Date(b.end);\n        // Add 30 min buffer\n        const bufferStart = new Date(bStart.getTime() - 30 * 60000);\n        const bufferEnd = new Date(bEnd.getTime() + 30 * 60000);\n        return slotStart < bufferEnd && slotEnd > bufferStart;\n      });\n\n      if (!isBusy) {\n        candidates.push({\n          start: slotStart.toISOString(),\n          end: slotEnd.toISOString(),\n          date_label: slotStart.toISOString().split('T')[0],\n          time_sast: `${String(slotStart.getUTCHours() + 2).padStart(2, '0')}:${String(slotStart.getUTCMinutes()).padStart(2, '0')}`,\n          day_offset: dayOffset,\n        });\n      }\n    }\n  }\n}\n\nreturn { json: {\n  ...validation,\n  available_slots: candidates.slice(0, 30),\n  total_available: candidates.length,\n  busy_periods: busySlots.length,\n}};\n"
+      }
+    },
+    {
+      "id": "074d868e-5e9c-4fba-98b9-c333aac87a08",
+      "name": "Slots Available?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.total_available }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cc791133-f93f-4d49-aabb-31b35d47e840",
+      "name": "Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Build prompt for AI slot suggestion\nconst data = $input.first().json;\n\nreturn { json: {\n  ...data,\n  prompt_text: `Client: ${data.client_name}\nProperty: ${data.property_id}\nAgent: ${data.agent_name}\nViewing type: ${data.viewing_type}\nPreferred date: ${data.preferred_date}\nDuration: ${data.duration_min} minutes\nAvailable slots (showing up to 30):\n${JSON.stringify(data.available_slots.slice(0, 30), null, 2)}`,\n}};\n"
+      }
+    },
+    {
+      "id": "ac6eed45-7f8b-427f-9cf8-5e3784a43f8d",
+      "name": "AI Suggest Slots",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 800, \"temperature\": 0.3, \"messages\": [{\"role\": \"system\", \"content\": \"You are a scheduling assistant for a South African real estate agency.\\n\\nGiven a list of available time slots, the client's preferences, and the property/agent details, suggest the BEST 3 time slots for a property viewing or meeting.\\n\\nConsider these factors when ranking slots:\\n1. Proximity to the client's preferred date/time\\n2. Morning slots (09:00-12:00 SAST) are preferred for first viewings\\n3. Afternoon slots (14:00-16:00 SAST) are preferred for second viewings and negotiations\\n4. Avoid slots that are back-to-back with other appointments (buffer time)\\n5. Weekend slots should only be suggested if weekday options are limited\\n6. Consider daylight hours for property viewings (before 17:00 in winter, 18:00 in summer)\\n\\nIMPORTANT RULES:\\n- ALL slots must be at least 2 FULL BUSINESS DAYS in the future from now\\n- Slots must be within business hours: 08:00-17:00 SAST (06:00-15:00 UTC)\\n- Each viewing slot should be 30 or 60 minutes\\n- Leave at least 30 minutes buffer between appointments for travel time\\n- Never double-book an agent\\n\\nOUTPUT FORMAT (JSON only, no markdown fences):\\n{\\n  \\\"recommended_slots\\\": [\\n    {\\n      \\\"start\\\": \\\"2026-01-15T09:00:00+02:00\\\",\\n      \\\"end\\\": \\\"2026-01-15T09:30:00+02:00\\\",\\n      \\\"reason\\\": \\\"Morning slot, closest to preferred date, good for first viewing\\\"\\n    }\\n  ],\\n  \\\"selected_slot\\\": {\\n    \\\"start\\\": \\\"2026-01-15T09:00:00+02:00\\\",\\n    \\\"end\\\": \\\"2026-01-15T09:30:00+02:00\\\"\\n  },\\n  \\\"notes\\\": \\\"Any additional scheduling notes\\\"\\n}\"}, {\"role\": \"user\", \"content\": \"={{$json.prompt_text}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "2a74d981-73a1-41e6-9ee3-643a6456cf47",
+      "name": "Parse AI Suggestion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse AI slot suggestion response\nconst aiResp = $input.first().json;\nconst content = (aiResp.choices && aiResp.choices[0])\n  ? aiResp.choices[0].message.content\n  : '{}';\n\nconst slotData = $('Build AI Prompt').first().json;\n\nlet aiResult = {};\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  aiResult = JSON.parse(cleaned);\n} catch (e) {\n  // Fallback to first available slot\n  aiResult = {\n    recommended_slots: [],\n    selected_slot: slotData.available_slots[0] || {},\n    notes: 'AI parse failed, using first available slot',\n  };\n}\n\nconst selectedSlot = aiResult.selected_slot || slotData.available_slots[0] || {};\n\nreturn { json: {\n  booking_id: slotData.booking_id,\n  client_name: slotData.client_name,\n  property_id: slotData.property_id,\n  agent_name: slotData.agent_name,\n  viewing_type: slotData.viewing_type,\n  duration_min: slotData.duration_min,\n  event_start: selectedSlot.start || '',\n  event_end: selectedSlot.end || '',\n  recommended_slots: aiResult.recommended_slots || [],\n  ai_notes: aiResult.notes || '',\n  booked_at: new Date().toISOString(),\n}};\n"
+      }
+    },
+    {
+      "id": "16b30144-4643-43a2-bc28-8c40deeddd65",
+      "name": "Create Calendar Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2420,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"summary\":\"{{ $json.viewing_type }} - {{ $json.client_name }} @ {{ $json.property_id }}\",\"description\":\"Booking ID: {{ $json.booking_id }}\\nAgent: {{ $json.agent_name }}\\nViewing Type: {{ $json.viewing_type }}\",\"start\":{\"dateTime\":\"{{ $json.event_start }}\",\"timeZone\":\"Africa/Johannesburg\"},\"end\":{\"dateTime\":\"{{ $json.event_end }}\",\"timeZone\":\"Africa/Johannesburg\"},\"reminders\":{\"useDefault\":false,\"overrides\":[{\"method\":\"email\",\"minutes\":60},{\"method\":\"popup\",\"minutes\":15}]}}"
+      },
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "I5zIYf0UxlkUt3KG",
+          "name": "Google Calendar AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "db829b2a-25f6-44c1-8acc-49ed5ad8ca5e",
+      "name": "Create Appointment",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2640,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQ72B5XSgRLdKIc",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "booking_id": "={{ $('Parse AI Suggestion').first().json.booking_id }}",
+            "client_name": "={{ $('Parse AI Suggestion').first().json.client_name }}",
+            "agent_name": "={{ $('Parse AI Suggestion').first().json.agent_name }}",
+            "property_id": "={{ $('Parse AI Suggestion').first().json.property_id }}",
+            "viewing_type": "={{ $('Parse AI Suggestion').first().json.viewing_type }}",
+            "event_start": "={{ $('Parse AI Suggestion').first().json.event_start }}",
+            "event_end": "={{ $('Parse AI Suggestion').first().json.event_end }}",
+            "duration_min": "={{ $('Parse AI Suggestion').first().json.duration_min }}",
+            "status": "Scheduled",
+            "booked_at": "={{ $('Parse AI Suggestion').first().json.booked_at }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "f95b9d23-9674-44de-b039-d5e43f40368b",
+      "name": "Log Booking",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2860,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "Viewing Booked",
+            "entity_type": "Appointment",
+            "entity_id": "={{ $('Parse AI Suggestion').first().json.booking_id }}",
+            "description": "=Viewing booked for {{ $('Parse AI Suggestion').first().json.client_name }} with {{ $('Parse AI Suggestion').first().json.agent_name }} at {{ $('Parse AI Suggestion').first().json.event_start }}",
+            "performed_by": "System",
+            "timestamp": "={{ $('Parse AI Suggestion').first().json.booked_at }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "2b7815ef-242a-4463-8392-2610a5bf35b1",
+      "name": "Return Rejection",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        500
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dfe2612c-749d-41ea-88c2-176adfd4da50",
+              "name": "booking_id",
+              "value": "={{ $('Validate Booking Date').first().json.booking_id }}",
+              "type": "string"
+            },
+            {
+              "id": "0fdc2c22-5d06-45ce-9428-ed9258572f2e",
+              "name": "status",
+              "value": "rejected",
+              "type": "string"
+            },
+            {
+              "id": "7067c479-34d0-4f5e-adfd-8926c3cdfcb5",
+              "name": "rejection_reason",
+              "value": "={{ $('Validate Booking Date').first().json.rejection_reason }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "3a35071f-e126-4cea-957d-66f7cd84ba74",
+      "name": "Return No Slots",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1760,
+        500
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6b6c2fb2-9ac1-4129-9885-9676437ae85f",
+              "name": "booking_id",
+              "value": "={{ $('Validate Booking Date').first().json.booking_id }}",
+              "type": "string"
+            },
+            {
+              "id": "3178eb65-0b53-4319-9726-7c0cb8a8b3cc",
+              "name": "status",
+              "value": "no_availability",
+              "type": "string"
+            },
+            {
+              "id": "5747974d-d42f-4725-bb90-21425b947052",
+              "name": "rejection_reason",
+              "value": "No available slots in the requested date range",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Booking Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Booking Date": {
+      "main": [
+        [
+          {
+            "node": "Date Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date Valid?": {
+      "main": [
+        [
+          {
+            "node": "Get Agent Info",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Agent Info": {
+      "main": [
+        [
+          {
+            "node": "Query Calendar FreeBusy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Calendar FreeBusy": {
+      "main": [
+        [
+          {
+            "node": "Generate Available Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Available Slots": {
+      "main": [
+        [
+          {
+            "node": "Slots Available?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slots Available?": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return No Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Suggest Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Suggest Slots": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Suggestion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Suggestion": {
+      "main": [
+        [
+          {
+            "node": "Create Calendar Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Calendar Event": {
+      "main": [
+        [
+          {
+            "node": "Create Appointment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Appointment": {
+      "main": [
+        [
+          {
+            "node": "Log Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "booking",
+    "calendar",
+    "sub-workflow"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:12.395295"
+  }
+}

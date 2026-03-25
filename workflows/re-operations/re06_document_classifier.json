@@ -1,0 +1,322 @@
+{
+  "name": "RE-06 Document Classifier",
+  "nodes": [
+    {
+      "id": "489d6cf8-a4aa-4a5e-9f23-141b60bbe0ed",
+      "name": "Note RE-06",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-06: Document Classifier\n\nAI-classifies documents into 15 SA real estate categories.\nAuto-files if confidence >= 0.75, flags for review otherwise.",
+        "width": 300,
+        "height": 160,
+        "color": 5
+      }
+    },
+    {
+      "id": "ff043d59-3d7b-4e25-8f32-9db185b120a8",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "e9368af3-32bd-43c8-91a4-aebdd4cc3319",
+      "name": "Build Classification Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Build classification prompt with document context\nconst input = $input.first().json;\nconst docText = (input.document_text || '').substring(0, 8000); // Limit to 8K chars\nconst filename = input.filename || 'unknown';\nconst senderContext = input.sender_context || 'No sender context';\n\nreturn {\n  json: {\n    prompt_text: `Document filename: ${filename}\\nSender context: ${senderContext}\\n\\nDocument text (first 8000 chars):\\n${docText}`,\n    original_filename: filename,\n    sender_context: senderContext,\n    doc_text_length: (input.document_text || '').length,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "32d38074-fc16-4313-afdf-1a793cef35ee",
+      "name": "AI Classify Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500, \"temperature\": 0.2, \"messages\": [{\"role\": \"system\", \"content\": \"You are a South African real estate document classification system.\\n\\nYou will receive the text content (or OCR output) of a document, along with the filename and any sender context.\\n\\nCLASSIFY the document into exactly one of these 15 categories:\\n\\n1.  FICA - FICA/KYC identity documents (ID copies, proof of address, bank statements for verification)\\n2.  OTP - Offer to Purchase / Sale Agreement\\n3.  MANDATE - Sole/dual mandate, listing agreement, agent appointment\\n4.  TITLE - Title deed, transfer documents, deed of sale\\n5.  MUNICIPAL - Rates clearance, municipal accounts, zoning certificates, compliance certificates\\n6.  BOND - Bond approval, pre-qualification, mortgage documents, bank correspondence\\n7.  COMPLIANCE - Electrical COC, plumbing COC, beetle/gas certificates, occupancy certificates\\n8.  SECTIONAL - Body corporate docs, levy statements, management rules, scheme plans\\n9.  ENTITY - Company registration (CIPC), trust deeds, partnership agreements, resolution letters\\n10. VALUATION - Property valuations, CMA reports, bank valuations, appraisals\\n11. INSPECTION - Home inspection reports, snag lists, structural reports\\n12. INSURANCE - Homeowner insurance, building insurance, title insurance\\n13. COMMISSION - Commission invoices, fee agreements, referral agreements\\n14. CORRESPONDENCE - General letters, emails, notices between parties (not fitting above)\\n15. OTHER - Anything that does not fit the above categories\\n\\nFor each document, also extract structured metadata where applicable:\\n- property_address\\n- parties_involved (buyer, seller, agent names)\\n- amounts (purchase price, bond amount, rates)\\n- dates (agreement date, expiry, transfer date)\\n- reference_numbers (deed number, case number, offer ref)\\n\\nCONFIDENCE: Rate your confidence from 0.0 to 1.0 in the classification.\\n\\nOUTPUT FORMAT (JSON only, no markdown fences):\\n{\\n  \\\"doc_type\\\": \\\"CATEGORY_NAME\\\",\\n  \\\"confidence\\\": 0.95,\\n  \\\"reasoning\\\": \\\"Brief explanation of classification\\\",\\n  \\\"extracted_metadata\\\": {\\n    \\\"property_address\\\": \\\"...\\\",\\n    \\\"parties_involved\\\": [\\\"...\\\"],\\n    \\\"amounts\\\": {\\\"purchase_price\\\": 0, \\\"bond_amount\\\": 0},\\n    \\\"dates\\\": {\\\"agreement_date\\\": \\\"...\\\", \\\"expiry_date\\\": \\\"...\\\"},\\n    \\\"reference_numbers\\\": [\\\"...\\\"]\\n  },\\n  \\\"suggested_filename\\\": \\\"YYYY-MM-DD_Surname_DocType_PropertyRef.ext\\\",\\n  \\\"review_flag\\\": false,\\n  \\\"review_reason\\\": null\\n}\"}, {\"role\": \"user\", \"content\": \"={{$json.prompt_text}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "b66ec6b1-8299-445e-afa6-238af9a80eeb",
+      "name": "Parse Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse AI classification response\nconst aiResp = $input.first().json;\nconst content = (aiResp.choices && aiResp.choices[0])\n  ? aiResp.choices[0].message.content\n  : '{}';\n\nconst promptData = $('Build Classification Prompt').first().json;\n\nlet classification = {};\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  classification = JSON.parse(cleaned);\n} catch (e) {\n  classification = {\n    doc_type: 'OTHER',\n    confidence: 0.0,\n    reasoning: 'Failed to parse AI response',\n    review_flag: true,\n    review_reason: 'AI response parse failure',\n    extracted_metadata: {},\n  };\n}\n\nconst confidence = parseFloat(classification.confidence || 0);\nconst VALID_TYPES = [\n  'FICA', 'OTP', 'MANDATE', 'TITLE', 'MUNICIPAL', 'BOND',\n  'COMPLIANCE', 'SECTIONAL', 'ENTITY', 'VALUATION', 'INSPECTION',\n  'INSURANCE', 'COMMISSION', 'CORRESPONDENCE', 'OTHER',\n];\nconst docType = VALID_TYPES.includes(classification.doc_type)\n  ? classification.doc_type\n  : 'OTHER';\n\nconst needsReview = confidence < 0.75 || classification.review_flag === true;\n\nreturn {\n  json: {\n    doc_type: docType,\n    confidence: confidence,\n    reasoning: classification.reasoning || '',\n    extracted_metadata: classification.extracted_metadata || {},\n    suggested_filename: classification.suggested_filename || '',\n    review_required: needsReview,\n    review_reason: needsReview\n      ? (classification.review_reason || `Low confidence: ${confidence.toFixed(2)}`)\n      : null,\n    original_filename: promptData.original_filename,\n    sender_context: promptData.sender_context,\n    doc_text_length: promptData.doc_text_length,\n    classified_at: new Date().toISOString(),\n  }\n};\n"
+      }
+    },
+    {
+      "id": "eabee5cc-754a-4243-968c-8fce9ed91bcf",
+      "name": "Auto-File?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !$json.review_required }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ddabf45f-6750-409d-bbdd-6bde29753d6a",
+      "name": "Return Auto Classification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "623fda9b-a5d3-4562-bea4-879df938fb36",
+              "name": "doc_type",
+              "value": "={{ $('Parse Classification').first().json.doc_type }}",
+              "type": "string"
+            },
+            {
+              "id": "4ab00437-a1ef-4c3e-ab8a-c115000f990d",
+              "name": "confidence",
+              "value": "={{ $('Parse Classification').first().json.confidence }}",
+              "type": "number"
+            },
+            {
+              "id": "95b78bcd-6b18-44e4-8c15-7dbd94c5004d",
+              "name": "review_required",
+              "value": "false",
+              "type": "string"
+            },
+            {
+              "id": "bbaed937-f004-4de3-9af0-d142f6dada8d",
+              "name": "extracted_metadata",
+              "value": "={{ JSON.stringify($('Parse Classification').first().json.extracted_metadata) }}",
+              "type": "string"
+            },
+            {
+              "id": "8e44905b-157e-4c35-9324-de7810990c72",
+              "name": "suggested_filename",
+              "value": "={{ $('Parse Classification').first().json.suggested_filename }}",
+              "type": "string"
+            },
+            {
+              "id": "de77b8ce-1af3-41ea-90dd-817b53337226",
+              "name": "classified_at",
+              "value": "={{ $('Parse Classification').first().json.classified_at }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "91fd5b14-65a4-4e84-a23f-7928c2d6a4c4",
+      "name": "Return Review Classification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1320,
+        500
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "584e8943-cac4-4a6d-a668-271b650c7dec",
+              "name": "doc_type",
+              "value": "={{ $('Parse Classification').first().json.doc_type }}",
+              "type": "string"
+            },
+            {
+              "id": "76020778-3b1d-47ac-ac4e-adb93cec9759",
+              "name": "confidence",
+              "value": "={{ $('Parse Classification').first().json.confidence }}",
+              "type": "number"
+            },
+            {
+              "id": "14faec6d-0a2a-4369-9ed6-b6021754c0b9",
+              "name": "review_required",
+              "value": "true",
+              "type": "string"
+            },
+            {
+              "id": "f9620f09-b946-4b04-9fd8-005d27fd79a4",
+              "name": "review_reason",
+              "value": "={{ $('Parse Classification').first().json.review_reason }}",
+              "type": "string"
+            },
+            {
+              "id": "2372eec4-147a-4603-9764-4e5db4c96af3",
+              "name": "extracted_metadata",
+              "value": "={{ JSON.stringify($('Parse Classification').first().json.extracted_metadata) }}",
+              "type": "string"
+            },
+            {
+              "id": "1e459e64-bd68-4947-8d0c-c42d0a582073",
+              "name": "suggested_filename",
+              "value": "={{ $('Parse Classification').first().json.suggested_filename }}",
+              "type": "string"
+            },
+            {
+              "id": "11f615bb-49aa-4b83-b8a4-af050b9cb400",
+              "name": "classified_at",
+              "value": "={{ $('Parse Classification').first().json.classified_at }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Classification Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Classification Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify Document": {
+      "main": [
+        [
+          {
+            "node": "Parse Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classification": {
+      "main": [
+        [
+          {
+            "node": "Auto-File?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-File?": {
+      "main": [
+        [
+          {
+            "node": "Return Auto Classification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Review Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "documents",
+    "ai-classification",
+    "sub-workflow"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:10.788356"
+  }
+}

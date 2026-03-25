@@ -1,0 +1,598 @@
+{
+  "name": "RE-13 Stale Lead Follow-up",
+  "nodes": [
+    {
+      "id": "f51d5f68-6e8c-4b25-8277-b89182a5a8f2",
+      "name": "Note RE-13",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-13: Stale Lead Follow-up\n\nRuns daily at 09:00 SAST (07:00 UTC).\nFinds leads with no contact > 48h,\ngenerates AI follow-up, sends WhatsApp.\nMax 3 follow-ups, then marks Cold.",
+        "width": 300,
+        "height": 200,
+        "color": 5
+      }
+    },
+    {
+      "id": "8614812a-a3a6-4f74-ad02-25dd06d98817",
+      "name": "Daily 09:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "1da54d2f-a259-41dc-96fa-ceabab608960",
+      "name": "Find Stale Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND(IS_BEFORE({last_contact}, DATEADD(NOW(), -48, 'hours')), NOT(OR({status} = 'Converted', {status} = 'Closed', {status} = 'Cold')), {follow_up_count} < 3)",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "a3c981b9-c025-4c2b-add8-d2c85fe711c8",
+      "name": "Has Stale Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "50e7fd7d-04d6-4a1c-a029-dd7f39657c8a",
+      "name": "Generate Follow-up Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Generate follow-up message for each stale lead\nconst leads = $input.all();\nconst results = [];\n\nfor (const item of leads) {\n  const lead = item.json;\n  const followUpCount = parseInt(lead.follow_up_count || 0);\n  const name = lead.client_name || 'there';\n  const area = lead.area || '';\n  const budget = lead.budget || '';\n\n  let promptContext = `Generate a brief, warm WhatsApp follow-up message (under 200 chars) for:\\n`;\n  promptContext += `Name: ${name}\\nFollow-up #${followUpCount + 1}\\n`;\n  if (area) promptContext += `Interested area: ${area}\\n`;\n  if (budget) promptContext += `Budget: ${budget}\\n`;\n\n  if (followUpCount === 0) {\n    promptContext += 'First follow-up: check if they are still looking, mention we have new listings.';\n  } else if (followUpCount === 1) {\n    promptContext += 'Second follow-up: ask if they have questions, offer to schedule a viewing.';\n  } else {\n    promptContext += 'Final follow-up: let them know we are here when ready, wish them well.';\n  }\n\n  results.push({\n    json: {\n      ...lead,\n      follow_up_number: followUpCount + 1,\n      is_final_followup: followUpCount >= 2,\n      prompt_text: promptContext,\n      phone_number_id: lead.phone_number_id || '',\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{ json: { skip: true } }];\n"
+      }
+    },
+    {
+      "id": "23dceac6-de2c-4795-bdd2-fb4700c1e4dc",
+      "name": "Not Skip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !$json.skip }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "72f7a37e-78e3-4c99-9c6d-a9e35243bea5",
+      "name": "AI Generate Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 200, \"temperature\": 0.6, \"messages\": [{\"role\": \"system\", \"content\": \"You are a friendly real estate assistant in South Africa. Generate a brief, warm WhatsApp follow-up message. Keep it under 200 characters. Do not use markdown. Be conversational and natural.\"}, {\"role\": \"user\", \"content\": \"={{$json.prompt_text}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "72e5acdd-33d0-4477-a7cb-da7a2f8eb874",
+      "name": "Parse Follow-up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse AI-generated follow-up and prepare for sending\nconst aiResp = $input.first().json;\nconst content = (aiResp.choices && aiResp.choices[0])\n  ? aiResp.choices[0].message.content\n  : 'Hi! Just checking in to see if you are still looking for property. Let us know if we can help!';\n\n// Strip any markdown\nlet cleanText = content\n  .replace(/\\*\\*([^*]+)\\*\\*/g, '$1')\n  .replace(/\\*([^*]+)\\*/g, '$1')\n  .replace(/`([^`]+)`/g, '$1')\n  .trim();\n\nif (cleanText.length > 500) {\n  cleanText = cleanText.substring(0, 495) + '...';\n}\n\nconst leadData = $('Generate Follow-up Data').first().json;\n\nreturn {\n  json: {\n    follow_up_text: cleanText,\n    lead_id: leadData.lead_id || leadData.id || '',\n    client_name: leadData.client_name || 'Unknown',\n    phone_normalized: leadData.phone_normalized || leadData.phone || '',\n    phone_number_id: leadData.phone_number_id || '',\n    follow_up_number: leadData.follow_up_number,\n    is_final_followup: leadData.is_final_followup,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "63d235d9-1683-49a8-9556-2879e33c7865",
+      "name": "Send Follow-up WA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $json.phone_number_id }}/messages",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"messaging_product\":\"whatsapp\",\"to\":\"{{ $json.phone_normalized }}\",\"type\":\"text\",\"text\":{\"body\":\"{{ $json.follow_up_text }}\"}}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dCAz6MBXpOXvMJrq",
+          "name": "WhatsApp account AVM Multi Agent"
+        }
+      }
+    },
+    {
+      "id": "fa37d577-d8cf-48f9-b2f1-a5d661ca873c",
+      "name": "Update Lead Follow-up",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "lead_id"
+        ],
+        "options": {},
+        "columns": {
+          "value": {
+            "lead_id": "={{ $('Parse Follow-up').first().json.lead_id }}",
+            "follow_up_count": "={{ $('Parse Follow-up').first().json.follow_up_number }}",
+            "last_contact": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "143b4da0-f71f-4735-994f-742099d45600",
+      "name": "Is Final Follow-up?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Parse Follow-up').first().json.is_final_followup }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7669c37c-35ca-456d-916c-4f8ffd3762ca",
+      "name": "Mark Lead Cold",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "lead_id"
+        ],
+        "options": {},
+        "columns": {
+          "value": {
+            "lead_id": "={{ $('Parse Follow-up').first().json.lead_id }}",
+            "status": "Cold",
+            "tier": "Cold"
+          }
+        }
+      }
+    },
+    {
+      "id": "ba18d734-991d-4726-959e-3b1c14d28dba",
+      "name": "Notify Lead Cold",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        200
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE18_ID || '' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "7df48169-7851-4c46-a416-317b2d036459",
+      "name": "Log Follow-up Message",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblgp46QN1C9JcOlt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "message_id": "=FU-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "conversation_id": "={{ $('Parse Follow-up').first().json.phone_normalized }}",
+            "direction": "outbound",
+            "channel": "whatsapp",
+            "body": "={{ $('Parse Follow-up').first().json.follow_up_text }}",
+            "sender": "System",
+            "recipient": "={{ $('Parse Follow-up').first().json.phone_normalized }}",
+            "intent": "follow_up",
+            "timestamp": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "8f19db80-0d03-43c6-ad67-ec8e985ba50d",
+      "name": "Log Follow-up Activity",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2640,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "Follow-up Sent",
+            "entity_type": "Lead",
+            "entity_id": "={{ $('Parse Follow-up').first().json.lead_id }}",
+            "description": "=Follow-up #{{ $('Parse Follow-up').first().json.follow_up_number }} sent to {{ $('Parse Follow-up').first().json.client_name }}",
+            "performed_by": "System",
+            "timestamp": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 09:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Find Stale Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Stale Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Stale Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Stale Leads?": {
+      "main": [
+        [
+          {
+            "node": "Generate Follow-up Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Generate Follow-up Data": {
+      "main": [
+        [
+          {
+            "node": "Not Skip?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Skip?": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "AI Generate Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Parse Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up WA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up WA": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Is Final Follow-up?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Final Follow-up?": {
+      "main": [
+        [
+          {
+            "node": "Mark Lead Cold",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Follow-up Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Lead Cold": {
+      "main": [
+        [
+          {
+            "node": "Notify Lead Cold",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Lead Cold": {
+      "main": [
+        [
+          {
+            "node": "Log Follow-up Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Follow-up Message": {
+      "main": [
+        [
+          {
+            "node": "Log Follow-up Activity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "follow-up",
+    "scheduled",
+    "whatsapp"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:17.197947"
+  }
+}

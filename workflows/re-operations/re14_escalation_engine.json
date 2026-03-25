@@ -1,0 +1,439 @@
+{
+  "name": "RE-14 Escalation Engine",
+  "nodes": [
+    {
+      "id": "6cf7e4be-f934-475a-9d1b-25c6e5149088",
+      "name": "Note RE-14",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-14: Escalation Engine\n\nRuns every 15 min. Finds:\n- Unresponded leads past SLA\n- Stale deals (7+ days)\n- Missed appointments (No Show)\nCreates Exception records, alerts via RE-18.",
+        "width": 300,
+        "height": 200,
+        "color": 6
+      }
+    },
+    {
+      "id": "8c3b5539-fc44-493b-a98f-707860f0d4bc",
+      "name": "Every 15 Min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6fedec30-c2fe-43b8-bf0c-a13f3c7d56f8",
+      "name": "Unresponded Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND(IS_BEFORE({last_contact}, DATEADD(NOW(), -2, 'hours')), OR({status} = 'New', {status} = 'Active'))",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "71c7c7d1-4137-4cd6-b1f1-7acad616fc47",
+      "name": "Stale Deals",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblx5NiAfu3Py5ha8",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND(IS_BEFORE({updated_at}, DATEADD(NOW(), -7, 'days')), OR({status} = 'Active', {status} = 'In Progress'))",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "423b8f4a-cea4-4ff3-9be4-4893459e1e53",
+      "name": "Missed Appointments",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQ72B5XSgRLdKIc",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({status} = 'No_Show', {escalated} != TRUE())",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "c14b0cbb-af44-4ffa-9e8a-0d746a13237b",
+      "name": "Merge Exceptions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Merge all exception sources and create Exception records\nconst unresponded = $('Unresponded Leads').all();\nconst staleDeals = $('Stale Deals').all();\nconst missedAppts = $('Missed Appointments').all();\n\nconst exceptions = [];\nconst now = new Date();\n\n// Unresponded leads (> 2 hours SLA)\nfor (const item of unresponded) {\n  const lead = item.json;\n  exceptions.push({\n    json: {\n      exception_id: 'EXC-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6),\n      exception_type: 'Unresponded Lead',\n      severity: lead.tier === 'Hot' ? 'critical' : 'high',\n      entity_type: 'Lead',\n      entity_id: lead.lead_id || lead.id || '',\n      description: `Lead ${lead.client_name || 'Unknown'} (${lead.tier || 'Unscored'}) has not been responded to within SLA`,\n      assigned_agent: lead.assigned_agent || 'Unassigned',\n      status: 'Open',\n      created_at: now.toISOString(),\n    }\n  });\n}\n\n// Stale deals (> 7 days no update)\nfor (const item of staleDeals) {\n  const deal = item.json;\n  exceptions.push({\n    json: {\n      exception_id: 'EXC-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6),\n      exception_type: 'Stale Deal',\n      severity: 'medium',\n      entity_type: 'Deal',\n      entity_id: deal.deal_id || deal.id || '',\n      description: `Deal \"${deal.deal_name || 'Unknown'}\" has had no updates for 7+ days`,\n      assigned_agent: deal.assigned_agent || 'Unknown',\n      status: 'Open',\n      created_at: now.toISOString(),\n    }\n  });\n}\n\n// Missed appointments\nfor (const item of missedAppts) {\n  const appt = item.json;\n  exceptions.push({\n    json: {\n      exception_id: 'EXC-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substring(2, 6),\n      exception_type: 'Missed Appointment',\n      severity: 'high',\n      entity_type: 'Appointment',\n      entity_id: appt.booking_id || appt.id || '',\n      description: `No-show for appointment: ${appt.client_name || 'Unknown'} with ${appt.agent_name || 'Unknown'}`,\n      assigned_agent: appt.agent_name || 'Unknown',\n      status: 'Open',\n      created_at: now.toISOString(),\n    }\n  });\n}\n\nreturn exceptions.length > 0\n  ? exceptions\n  : [{ json: { no_exceptions: true, status: 'All clear', created_at: now.toISOString() } }];\n"
+      }
+    },
+    {
+      "id": "537a4cb0-5853-4deb-90ba-29dc2fccd846",
+      "name": "Has Exceptions?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ !$json.no_exceptions }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "db10e60d-695e-4fb4-b545-1630fbfdb125",
+      "name": "Create Exception",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblDunXJFQr0elXon",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "exception_id": "={{ $json.exception_id }}",
+            "exception_type": "={{ $json.exception_type }}",
+            "severity": "={{ $json.severity }}",
+            "entity_type": "={{ $json.entity_type }}",
+            "entity_id": "={{ $json.entity_id }}",
+            "description": "={{ $json.description }}",
+            "assigned_agent": "={{ $json.assigned_agent }}",
+            "status": "={{ $json.status }}",
+            "created_at": "={{ $json.created_at }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "174d5196-2c24-4a1f-b8f9-a653a559a9c6",
+      "name": "Is Critical/High?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.severity === 'critical' || $json.severity === 'high' }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "43f2d7fc-8c20-4c47-b65e-d606ac6f4906",
+      "name": "Call RE-18 Alert",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        200
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE18_ID || '' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "5698ab13-0b12-4445-b49e-d255a91b3fdf",
+      "name": "Log Escalation",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "Escalation Check",
+            "entity_type": "System",
+            "entity_id": "=ESC-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "description": "=Escalation engine check completed",
+            "performed_by": "System",
+            "timestamp": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 15 Min": {
+      "main": [
+        [
+          {
+            "node": "Unresponded Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unresponded Leads": {
+      "main": [
+        [
+          {
+            "node": "Stale Deals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stale Deals": {
+      "main": [
+        [
+          {
+            "node": "Missed Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Missed Appointments": {
+      "main": [
+        [
+          {
+            "node": "Merge Exceptions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Exceptions": {
+      "main": [
+        [
+          {
+            "node": "Has Exceptions?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Exceptions?": {
+      "main": [
+        [
+          {
+            "node": "Create Exception",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Exception": {
+      "main": [
+        [
+          {
+            "node": "Is Critical/High?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Critical/High?": {
+      "main": [
+        [
+          {
+            "node": "Call RE-18 Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call RE-18 Alert": {
+      "main": [
+        [
+          {
+            "node": "Log Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "escalation",
+    "scheduled",
+    "monitoring"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:17.688804"
+  }
+}

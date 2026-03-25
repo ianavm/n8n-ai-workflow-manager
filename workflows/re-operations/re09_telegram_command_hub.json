@@ -1,0 +1,1849 @@
+{
+  "name": "RE-09 Telegram Command Hub",
+  "nodes": [
+    {
+      "id": "651df08d-e625-4df8-a409-b68e04c87127",
+      "name": "Note RE-09",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-09: Telegram Command Hub\n\nMain user-facing interface. Authorized users\nsend /commands to manage the RE operations system.\nCommands: /help /today /lead /newleads /hotleads\n/unassigned /appointments /agentload /exceptions\n/search /status /reassign /approve /pause /resume",
+        "width": 340,
+        "height": 240,
+        "color": 6
+      }
+    },
+    {
+      "id": "c567c81e-a915-46a5-be69-4b7e315e9259",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        400
+      ],
+      "webhookId": "be22d3ad-21a1-4e1a-b887-638751a2a077",
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "updates": [
+          "message"
+        ]
+      }
+    },
+    {
+      "id": "ccf8aaac-8b29-4767-9480-6913b0a1ea62",
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\n// Extract Telegram message fields\nconst msg = $input.first().json;\nconst message = msg.message || msg;\n\nreturn {\n  json: {\n    from_id: String((message.from && message.from.id) || ''),\n    chat_id: String((message.chat && message.chat.id) || ''),\n    first_name: (message.from && message.from.first_name) || '',\n    message_text: message.text || '',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "aff8795c-b691-4081-9f40-621dc7786c77",
+      "name": "Check Auth",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblmktJaE9V3pFRoa",
+          "mode": "id"
+        },
+        "filterByFormula": "=OR({telegram_user_id} = '{{ $json.from_id }}', {telegram_chat_id} = '{{ $json.from_id }}')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "96dae66c-a935-4e52-aa42-883c453e3c5b",
+      "name": "Verify Auth",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\n// Verify Telegram user is authorized (check Admin Staff table results)\nconst input = $input.first().json;\nconst authResults = $('Check Auth').all();\n\nconst telegramUserId = String(input.from_id || '');\nconst isAuthorized = authResults.length > 0\n  && authResults[0].json\n  && String(authResults[0].json.telegram_user_id || authResults[0].json.telegram_chat_id || '') === telegramUserId;\n\nreturn {\n  json: {\n    is_authorized: isAuthorized,\n    telegram_user_id: telegramUserId,\n    chat_id: String(input.chat_id || ''),\n    message_text: input.message_text || '',\n    first_name: input.first_name || '',\n    admin_name: isAuthorized ? (authResults[0].json.name || authResults[0].json.Name || 'Admin') : '',\n    admin_role: isAuthorized ? (authResults[0].json.role || 'staff') : '',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "7cf19bad-f2e0-4ccf-8d44-6d40bb38cac5",
+      "name": "Authorized?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_authorized }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "68cd0e94-6cba-40b2-ba84-2db69539bf98",
+      "name": "Parse Command",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse /command and arguments from message text\nconst data = $input.first().json;\nconst text = (data.message_text || '').trim();\n\nlet command = '';\nlet args = '';\nlet argParts = [];\n\nif (text.startsWith('/')) {\n  const spaceIdx = text.indexOf(' ');\n  if (spaceIdx > 0) {\n    command = text.substring(1, spaceIdx).toLowerCase();\n    args = text.substring(spaceIdx + 1).trim();\n    argParts = args.split(/\\s+/);\n  } else {\n    command = text.substring(1).toLowerCase();\n  }\n} else {\n  command = 'unknown';\n  args = text;\n}\n\nreturn {\n  json: {\n    ...data,\n    command: command,\n    args: args,\n    arg_parts: argParts,\n    arg1: argParts[0] || '',\n    arg2: argParts[1] || '',\n    arg3: argParts[2] || '',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "50d59a23-0644-4cdd-a900-0673829c57a8",
+      "name": "Route Command",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1540,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "help",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "today",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "lead",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "newleads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "hotleads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "unassigned",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "appointments",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "agentload",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "exceptions",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "search",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "reassign",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "pause",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "resume",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "dd4a7d9a-4900-4c43-963e-fc170bd84664",
+      "name": "Handle Help",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -200
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /help response\nconst data = $input.first().json;\n\nconst helpText = `<b>RE Operations Command Hub</b>\n\n<b>Dashboard:</b>\n/today - Today's summary (leads, appointments, deals)\n/status - System health overview\n\n<b>Leads:</b>\n/newleads - New leads (last 24h)\n/hotleads - Hot-tier leads requiring attention\n/unassigned - Unassigned leads\n/lead [id] - View specific lead details\n/search [query] - Search leads/properties\n\n<b>Agents:</b>\n/agentload - Agent workload overview\n/reassign [lead_id] [agent_id] - Reassign a lead\n/pause [agent_id] - Pause agent (set unavailable)\n/resume [agent_id] - Resume agent (set available)\n\n<b>Operations:</b>\n/appointments [date] - View appointments\n/exceptions - Open exceptions/escalations\n/approve [id] - Approve pending action\n\n<b>Other:</b>\n/help - This message`;\n\nreturn {\n  json: {\n    response: helpText,\n    chat_id: data.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "67debbf6-f5f2-4cc5-a1d8-269bfd4b4dc5",
+      "name": "Today Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        -50
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({created_at}, DATEADD(TODAY(), -1, 'days'))",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b7c4d35e-5127-47ac-b99d-eed199f24e0b",
+      "name": "Today Appointments",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        -50
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQ72B5XSgRLdKIc",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_SAME({event_start}, TODAY(), 'day')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "37e9ad2e-e3d5-4a00-ad2b-097683e596eb",
+      "name": "Open Exceptions",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        -50
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblDunXJFQr0elXon",
+          "mode": "id"
+        },
+        "filterByFormula": "=({status} = 'Open')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "c5c10030-5f00-4844-9efe-30a8e15f2f5c",
+      "name": "Handle Today",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        -50
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /today summary by fetching data from upstream nodes\nconst data = $input.first().json;\nconst todayLeads = $('Today Leads').all();\nconst todayAppts = $('Today Appointments').all();\nconst openExceptions = $('Open Exceptions').all();\n\nconst leadsCount = todayLeads.length;\nconst apptsCount = todayAppts.length;\nconst exceptionsCount = openExceptions.length;\n\nconst now = new Date();\nconst dateStr = now.toISOString().split('T')[0];\n\nlet leadsList = '';\nif (leadsCount > 0) {\n  leadsList = todayLeads.slice(0, 5).map(l => {\n    const ld = l.json;\n    return `  - ${ld.client_name || 'Unknown'} (${ld.tier || 'Unscored'}) via ${ld.channel || 'unknown'}`;\n  }).join('\\n');\n}\n\nlet apptsList = '';\nif (apptsCount > 0) {\n  apptsList = todayAppts.slice(0, 5).map(a => {\n    const ad = a.json;\n    return `  - ${ad.client_name || 'Unknown'} @ ${ad.event_start || 'TBD'} (${ad.agent_name || 'Unassigned'})`;\n  }).join('\\n');\n}\n\nconst summary = `<b>Daily Summary - ${dateStr}</b>\n\n<b>Leads Today:</b> ${leadsCount}\n${leadsList || '  No new leads'}\n\n<b>Appointments:</b> ${apptsCount}\n${apptsList || '  No appointments scheduled'}\n\n<b>Open Exceptions:</b> ${exceptionsCount}\n${exceptionsCount > 0 ? '  Use /exceptions for details' : '  All clear'}`;\n\nreturn {\n  json: {\n    response: summary,\n    chat_id: data.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "6807bbb3-0e32-45da-87f8-76a3e68a2a07",
+      "name": "Search Lead By ID",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        100
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=({lead_id} = '{{ $('Parse Command').first().json.arg1 }}')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "51c5fd5a-e5a7-4bf7-af4f-46ba9b21dd33",
+      "name": "Handle Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        100
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /lead [id] response\nconst data = $input.first().json;\nconst leadResults = $('Search Lead By ID').all();\n\nif (leadResults.length === 0 || !leadResults[0].json.lead_id) {\n  return { json: {\n    response: `No lead found with ID: ${data.arg1 || 'none'}`,\n    chat_id: data.chat_id,\n  }};\n}\n\nconst lead = leadResults[0].json;\n\nconst detail = `<b>Lead: ${lead.client_name || 'Unknown'}</b>\n\n<b>ID:</b> ${lead.lead_id || lead.id || ''}\n<b>Status:</b> ${lead.status || 'Unknown'}\n<b>Tier:</b> ${lead.tier || 'Unscored'}\n<b>Score:</b> ${lead.lead_score || 'N/A'}\n<b>Phone:</b> ${lead.phone_normalized || lead.phone || 'N/A'}\n<b>Email:</b> ${lead.email || 'N/A'}\n<b>Channel:</b> ${lead.channel || 'N/A'}\n<b>Area:</b> ${lead.area || 'Not specified'}\n<b>Budget:</b> ${lead.budget || 'Not specified'}\n<b>Agent:</b> ${lead.assigned_agent || 'Unassigned'}\n<b>Last Contact:</b> ${lead.last_contact || 'N/A'}\n<b>Created:</b> ${lead.created_at || 'N/A'}`;\n\nreturn {\n  json: {\n    response: detail,\n    chat_id: data.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "d623737c-030a-4ea4-8753-766c7b9d432e",
+      "name": "New Leads 24h",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        250
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_AFTER({created_at}, DATEADD(NOW(), -24, 'hours'))",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "31c6c9f9-3193-42cd-83b9-f8edd61943c8",
+      "name": "Handle Newleads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        250
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /newleads response\nconst leads = $('New Leads 24h').all();\n\nif (leads.length === 0) {\n  return { json: {\n    response: 'No new leads in the last 24 hours.',\n    chat_id: $input.first().json.chat_id,\n  }};\n}\n\nlet report = `<b>New Leads (Last 24h): ${leads.length}</b>\\n`;\nfor (const item of leads.slice(0, 10)) {\n  const lead = item.json;\n  report += `\\n- <b>${lead.client_name || 'Unknown'}</b> (${lead.tier || 'Unscored'})`;\n  report += `\\n  Via: ${lead.channel || 'unknown'} | Area: ${lead.area || 'N/A'}`;\n}\n\nreturn {\n  json: {\n    response: report,\n    chat_id: $input.first().json.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "fa5358f0-fec4-432a-893a-eab4080fa7c9",
+      "name": "Hot Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({tier} = 'Hot', OR({status} = 'New', {status} = 'Active', {status} = 'Contacted'))",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "2806dceb-6d47-43ef-92d3-33df8ec8647a",
+      "name": "Handle Hotleads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /hotleads response\nconst leads = $('Hot Leads').all();\n\nif (leads.length === 0) {\n  return { json: {\n    response: 'No hot leads at the moment.',\n    chat_id: $input.first().json.chat_id,\n  }};\n}\n\nlet report = '<b>Hot Leads (Score >= 80)</b>\\n';\nfor (const item of leads.slice(0, 10)) {\n  const lead = item.json;\n  report += `\\n- <b>${lead.client_name || 'Unknown'}</b> (Score: ${lead.lead_score || 'N/A'})`;\n  report += `\\n  ${lead.area || 'No area'} | Budget: ${lead.budget || 'N/A'} | Agent: ${lead.assigned_agent || 'Unassigned'}`;\n}\n\nreturn {\n  json: {\n    response: report,\n    chat_id: $input.first().json.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "c47458cc-36af-40a2-a9fa-e9348adb1836",
+      "name": "Unassigned Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        550
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=OR({assigned_agent} = '', {assigned_agent} = BLANK())",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "eefeeb3c-bb11-4c2c-860d-192d65e04555",
+      "name": "Handle Unassigned",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        550
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /unassigned response\nconst leads = $('Unassigned Leads').all();\n\nif (leads.length === 0) {\n  return { json: {\n    response: 'All leads are currently assigned.',\n    chat_id: $input.first().json.chat_id,\n  }};\n}\n\nlet report = `<b>Unassigned Leads: ${leads.length}</b>\\n`;\nfor (const item of leads.slice(0, 10)) {\n  const lead = item.json;\n  report += `\\n- <b>${lead.client_name || 'Unknown'}</b> (${lead.tier || 'Unscored'})`;\n  report += `\\n  ID: ${lead.lead_id || lead.id || ''} | Area: ${lead.area || 'N/A'}`;\n}\nreport += '\\n\\nUse /reassign [lead_id] [agent_id] to assign';\n\nreturn {\n  json: {\n    response: report,\n    chat_id: $input.first().json.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "21d6213e-098b-41b0-b26e-2065cafd4086",
+      "name": "Search Appointments",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        700
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblQ72B5XSgRLdKIc",
+          "mode": "id"
+        },
+        "filterByFormula": "=IS_SAME({event_start}, IF('{{ $('Parse Command').first().json.arg1 }}' = '', TODAY(), DATETIME_PARSE('{{ $('Parse Command').first().json.arg1 }}')), 'day')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "7a654abc-9e77-47ce-9347-5bcf8b323d19",
+      "name": "Handle Appointments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        700
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /appointments [date] response\nconst data = $input.first().json;\nconst appts = $('Search Appointments').all();\n\nif (appts.length === 0) {\n  return { json: {\n    response: `No appointments found for ${data.arg1 || 'today'}`,\n    chat_id: data.chat_id,\n  }};\n}\n\nlet list = `<b>Appointments - ${data.arg1 || 'Today'}</b>\\n`;\nfor (const apt of appts.slice(0, 10)) {\n  const a = apt.json;\n  list += `\\n- ${a.client_name || 'Unknown'} @ ${a.event_start || 'TBD'}`;\n  list += `\\n  Agent: ${a.agent_name || 'Unassigned'} | ${a.viewing_type || 'Viewing'} | ${a.status || ''}`;\n}\n\nreturn {\n  json: {\n    response: list,\n    chat_id: data.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "180fbf78-5283-4beb-998e-cf0572fcf646",
+      "name": "Fetch All Agents",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        850
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOIksmbzg44M514",
+          "mode": "id"
+        },
+        "filterByFormula": "=({Is Active} = TRUE())",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "abcfb762-5d50-4d56-a1f1-ea77de49bdb3",
+      "name": "Handle Agentload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        850
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /agentload response\nconst agents = $('Fetch All Agents').all();\n\nif (agents.length === 0) {\n  return { json: {\n    response: 'No agents found in the system.',\n    chat_id: $input.first().json.chat_id,\n  }};\n}\n\nlet report = '<b>Agent Workload Overview</b>\\n';\nfor (const agentItem of agents) {\n  const agent = agentItem.json;\n  const name = agent.agent_name || agent.Name || 'Unknown';\n  const active = agent.active_deals || 0;\n  const max = agent.max_deals || 10;\n  const available = agent.Is_Available !== false;\n  const status = available ? 'Available' : 'Paused';\n  const bar = '|'.repeat(Math.round(active / max * 10)).padEnd(10, '.');\n\n  report += `\\n<b>${name}</b> [${status}]`;\n  report += `\\n  Deals: ${active}/${max} [${bar}]`;\n}\n\nreturn {\n  json: {\n    response: report,\n    chat_id: $input.first().json.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "a118e026-e6b7-465f-9da3-a94ce244bc16",
+      "name": "Open Exceptions Data",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        1000
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblDunXJFQr0elXon",
+          "mode": "id"
+        },
+        "filterByFormula": "=({status} = 'Open')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "fabbda61-ca42-41b4-bc48-3f0e809d0a9c",
+      "name": "Handle Exceptions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        1000
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /exceptions response\nconst exceptions = $('Open Exceptions Data').all();\n\nif (exceptions.length === 0) {\n  return { json: {\n    response: 'No open exceptions. System running normally.',\n    chat_id: $input.first().json.chat_id,\n  }};\n}\n\nlet report = `<b>Open Exceptions: ${exceptions.length}</b>\\n`;\nfor (const item of exceptions.slice(0, 10)) {\n  const exc = item.json;\n  report += `\\n- [${(exc.severity || 'medium').toUpperCase()}] ${exc.exception_type || 'Unknown'}`;\n  report += `\\n  ${exc.description || 'No description'}`;\n  report += `\\n  Entity: ${exc.entity_id || 'N/A'} | Created: ${exc.created_at || 'N/A'}`;\n}\n\nreturn {\n  json: {\n    response: report,\n    chat_id: $input.first().json.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "a32c7e6a-90d3-4dd5-9b1e-bb053bd39d12",
+      "name": "Search Results",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        1150
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=OR(FIND(LOWER('{{ $('Parse Command').first().json.args }}'), LOWER({client_name})), FIND(LOWER('{{ $('Parse Command').first().json.args }}'), LOWER({area})), FIND(LOWER('{{ $('Parse Command').first().json.args }}'), LOWER({email})))",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b0f2a407-e130-42a5-8c19-44d8e8d1a826",
+      "name": "Handle Search",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        1150
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /search [query] response\nconst data = $input.first().json;\nconst results = $('Search Results').all();\n\nif (results.length === 0) {\n  return { json: {\n    response: `No results found for: ${data.args || 'empty query'}`,\n    chat_id: data.chat_id,\n  }};\n}\n\nlet report = `<b>Search Results for \"${data.args}\":</b>\\n`;\nfor (const item of results.slice(0, 10)) {\n  const r = item.json;\n  report += `\\n- <b>${r.client_name || r.Name || 'Unknown'}</b>`;\n  report += ` (${r.lead_id || r.id || ''})`;\n  report += `\\n  ${r.area || ''} | ${r.status || ''} | ${r.tier || ''}`;\n}\n\nreturn {\n  json: {\n    response: report,\n    chat_id: data.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "72c2035b-d575-45cb-811b-be6ccee8e370",
+      "name": "Handle Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1300
+      ],
+      "parameters": {
+        "jsCode": "\n// Build /status response with system health\nconst data = $input.first().json;\nconst now = new Date();\nconst uptime = 'Running';\n\nconst status = `<b>System Status</b>\n\n<b>Time:</b> ${now.toISOString()} (SAST: ${new Date(now.getTime() + 2*60*60*1000).toISOString().substring(11, 16)})\n<b>Status:</b> ${uptime}\n<b>Workflows:</b> RE-01 through RE-18\n\n<b>Active Triggers:</b>\n  - RE-01: WhatsApp Intake\n  - RE-07: Email Intake\n  - RE-09: Telegram Command Hub\n  - RE-11: Daily Summary (07:00 SAST)\n  - RE-13: Stale Lead Follow-up (09:00 SAST)\n  - RE-14: Escalation Engine (every 15 min)\n  - RE-17: Orchestrator Monitor (every 15 min)\n  - RE-12: Agent Performance (Mon 06:00 SAST)\n\nUse /exceptions to check for issues.`;\n\nreturn {\n  json: {\n    response: status,\n    chat_id: data.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "da1139ca-d66a-42bd-af7b-31492fcd1461",
+      "name": "Handle Reassign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1450
+      ],
+      "parameters": {
+        "jsCode": "\n// Handle /reassign [lead_id] [agent_id]\nconst data = $input.first().json;\nconst leadId = data.arg1 || '';\nconst agentId = data.arg2 || '';\n\nif (!leadId || !agentId) {\n  return { json: {\n    response: 'Usage: /reassign [lead_id] [agent_id]\\nExample: /reassign LEAD-ABC123 AGENT-001',\n    chat_id: data.chat_id,\n    do_reassign: false,\n  }};\n}\n\nreturn {\n  json: {\n    response: `Reassigning lead ${leadId} to agent ${agentId}...`,\n    chat_id: data.chat_id,\n    do_reassign: true,\n    lead_id: leadId,\n    agent_id: agentId,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "03fe63dd-ba50-45fe-91ab-e7553724ed14",
+      "name": "Do Reassign?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        1450
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.do_reassign }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e9dd328f-31b7-44c5-a835-8ed92dbc058e",
+      "name": "Reassign Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        1450
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "lead_id"
+        ],
+        "options": {},
+        "columns": {
+          "value": {
+            "lead_id": "={{ $('Handle Reassign').first().json.lead_id }}",
+            "assigned_agent": "={{ $('Handle Reassign').first().json.agent_id }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "ddc18550-702c-42a5-87a4-da4bf322c108",
+      "name": "Handle Approve",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1600
+      ],
+      "parameters": {
+        "jsCode": "\nconst data = $input.first().json;\nif (!data.arg1) {\n  return { json: { response: 'Usage: /approve [id]', chat_id: data.chat_id } };\n}\nreturn { json: {\n  response: `Approved: ${data.arg1}`,\n  chat_id: data.chat_id,\n}};\n"
+      }
+    },
+    {
+      "id": "a523596a-a57a-4655-84eb-732bf918b27e",
+      "name": "Handle Pause",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1750
+      ],
+      "parameters": {
+        "jsCode": "\n// Handle /pause or /resume [agent_id]\nconst data = $input.first().json;\nconst agentId = data.arg1 || '';\nconst action = data.command; // 'pause' or 'resume'\n\nif (!agentId) {\n  return { json: {\n    response: `Usage: /${action} [agent_id]\\nExample: /${action} AGENT-001`,\n    chat_id: data.chat_id,\n    do_update: false,\n  }};\n}\n\nreturn {\n  json: {\n    response: `${action === 'pause' ? 'Pausing' : 'Resuming'} agent ${agentId}...`,\n    chat_id: data.chat_id,\n    do_update: true,\n    agent_id: agentId,\n    new_availability: action === 'resume',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "4638fe30-2605-4c21-9014-8da7c9461ccd",
+      "name": "Do Pause?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        1750
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.do_update }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0818acc9-48fd-41b7-be52-b3ab7891c6c2",
+      "name": "Pause Agent",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        1750
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOIksmbzg44M514",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "agent_id"
+        ],
+        "options": {},
+        "columns": {
+          "value": {
+            "agent_id": "={{ $('Handle Pause').first().json.agent_id }}",
+            "Is_Available": "=false"
+          }
+        }
+      }
+    },
+    {
+      "id": "2249cb28-73cf-411b-8c87-32f9e09eefde",
+      "name": "Handle Resume",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        1900
+      ],
+      "parameters": {
+        "jsCode": "\n// Handle /pause or /resume [agent_id]\nconst data = $input.first().json;\nconst agentId = data.arg1 || '';\nconst action = data.command; // 'pause' or 'resume'\n\nif (!agentId) {\n  return { json: {\n    response: `Usage: /${action} [agent_id]\\nExample: /${action} AGENT-001`,\n    chat_id: data.chat_id,\n    do_update: false,\n  }};\n}\n\nreturn {\n  json: {\n    response: `${action === 'pause' ? 'Pausing' : 'Resuming'} agent ${agentId}...`,\n    chat_id: data.chat_id,\n    do_update: true,\n    agent_id: agentId,\n    new_availability: action === 'resume',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "9ce942c7-84c0-4555-905b-e8d238605193",
+      "name": "Do Resume?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        1900
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.do_update }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fc98da2b-0423-4d66-ba17-dac567fa1de8",
+      "name": "Resume Agent",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        1900
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOIksmbzg44M514",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "agent_id"
+        ],
+        "options": {},
+        "columns": {
+          "value": {
+            "agent_id": "={{ $('Handle Resume').first().json.agent_id }}",
+            "Is_Available": "=true"
+          }
+        }
+      }
+    },
+    {
+      "id": "8e92fc4c-6c3a-4923-b764-63c2394fe536",
+      "name": "Handle Unknown",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        2050
+      ],
+      "parameters": {
+        "jsCode": "\n// Handle unknown command\nconst data = $input.first().json;\n\nreturn {\n  json: {\n    response: `Unknown command: /${data.command || '?'}\\n\\nUse /help to see available commands.`,\n    chat_id: data.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "5c46a637-910d-4717-8af5-500a93c56c46",
+      "name": "Unauthorized Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        600
+      ],
+      "parameters": {
+        "jsCode": "\nreturn {\n  json: {\n    response: 'Unauthorized. Contact admin for access.',\n    chat_id: $input.first().json.chat_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "3944b013-7cde-43f9-89bd-c15d31970de2",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2860,
+        400
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.response }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    },
+    {
+      "id": "3452921d-3698-4dda-914d-98fc45c25e33",
+      "name": "Reassign Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        1450
+      ],
+      "parameters": {
+        "jsCode": "\nconst data = $('Handle Reassign').first().json;\nreturn { json: {\n  response: `Lead ${data.lead_id} reassigned to agent ${data.agent_id}.`,\n  chat_id: data.chat_id,\n}};\n"
+      }
+    },
+    {
+      "id": "7ab87599-a2b3-42c7-95e4-bf45a346c6de",
+      "name": "Pause Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        1750
+      ],
+      "parameters": {
+        "jsCode": "\nconst data = $('Handle Pause').first().json;\nreturn { json: {\n  response: `Agent ${data.agent_id} has been paused.`,\n  chat_id: data.chat_id,\n}};\n"
+      }
+    },
+    {
+      "id": "9502174f-2240-4682-ae40-74aeff9ea619",
+      "name": "Resume Success",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        1900
+      ],
+      "parameters": {
+        "jsCode": "\nconst data = $('Handle Resume').first().json;\nreturn { json: {\n  response: `Agent ${data.agent_id} has been resumed.`,\n  chat_id: data.chat_id,\n}};\n"
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message": {
+      "main": [
+        [
+          {
+            "node": "Check Auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Auth": {
+      "main": [
+        [
+          {
+            "node": "Verify Auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Auth": {
+      "main": [
+        [
+          {
+            "node": "Authorized?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Authorized?": {
+      "main": [
+        [
+          {
+            "node": "Parse Command",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unauthorized Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Command": {
+      "main": [
+        [
+          {
+            "node": "Route Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Command": {
+      "main": [
+        [
+          {
+            "node": "Handle Help",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Today Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Search Lead By ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "New Leads 24h",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Hot Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unassigned Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Search Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch All Agents",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Open Exceptions Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Reassign",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Approve",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Pause",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Resume",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Unknown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Help": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Today Leads": {
+      "main": [
+        [
+          {
+            "node": "Today Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Today Appointments": {
+      "main": [
+        [
+          {
+            "node": "Open Exceptions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open Exceptions": {
+      "main": [
+        [
+          {
+            "node": "Handle Today",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Today": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Lead By ID": {
+      "main": [
+        [
+          {
+            "node": "Handle Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Lead": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Leads 24h": {
+      "main": [
+        [
+          {
+            "node": "Handle Newleads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Newleads": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hot Leads": {
+      "main": [
+        [
+          {
+            "node": "Handle Hotleads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Hotleads": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unassigned Leads": {
+      "main": [
+        [
+          {
+            "node": "Handle Unassigned",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Unassigned": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Appointments": {
+      "main": [
+        [
+          {
+            "node": "Handle Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Appointments": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Agents": {
+      "main": [
+        [
+          {
+            "node": "Handle Agentload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Agentload": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open Exceptions Data": {
+      "main": [
+        [
+          {
+            "node": "Handle Exceptions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Exceptions": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Results": {
+      "main": [
+        [
+          {
+            "node": "Handle Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Search": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Status": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Reassign": {
+      "main": [
+        [
+          {
+            "node": "Do Reassign?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Do Reassign?": {
+      "main": [
+        [
+          {
+            "node": "Reassign Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reassign Lead": {
+      "main": [
+        [
+          {
+            "node": "Reassign Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reassign Success": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Approve": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Pause": {
+      "main": [
+        [
+          {
+            "node": "Do Pause?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Do Pause?": {
+      "main": [
+        [
+          {
+            "node": "Pause Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause Agent": {
+      "main": [
+        [
+          {
+            "node": "Pause Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause Success": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Resume": {
+      "main": [
+        [
+          {
+            "node": "Do Resume?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Do Resume?": {
+      "main": [
+        [
+          {
+            "node": "Resume Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Agent": {
+      "main": [
+        [
+          {
+            "node": "Resume Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Success": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Unknown": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unauthorized Reply": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "telegram",
+    "command-hub",
+    "trigger"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-25T15:29:15.595587"
+  }
+}
