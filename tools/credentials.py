@@ -53,7 +53,7 @@ CREDENTIALS = {
         "N8N_CRED_GOOGLE_CALENDAR", "I5zIYf0UxlkUt3KG", "Google Calendar AVM Tutorial"
     ),
     "google_drive": _cred(
-        "N8N_CRED_GDRIVE", "PLACEHOLDER_GDRIVE", "Google Drive OAuth2"
+        "N8N_CRED_GDRIVE", "h1nJlw5vhziBMlh8", "Google Drive OAuth2"
     ),
 
     # ── Airtable ────────────────────────────────────────────

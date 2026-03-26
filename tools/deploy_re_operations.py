@@ -5885,7 +5885,7 @@ def build_re13_connections(nodes):
 # ======================================================================
 # Trigger: Called from RE-03 / RE-04 / RE-09 when client decides to buy/sell
 # Input: {lead_id, client_id, deal_id, pack_type: "buyer"|"seller", source}
-# Sends buyer or seller document pack via Google Drive share link (email + WhatsApp)
+# Sends buyer or seller document pack (PDFs) as attachments via email + WhatsApp
 # with AI-generated cover message.
 # ======================================================================
 
@@ -5907,8 +5907,8 @@ if (!packType || !['buyer', 'seller'].includes(packType)) {
 
 // Map pack type to Google Drive folder ID (set in env vars)
 const folderMap = {
-  buyer: $env.RE_BUYER_PACK_FOLDER_ID || '',
-  seller: $env.RE_SELLER_PACK_FOLDER_ID || '',
+  buyer: $env.RE_GDRIVE_BUYER_PACK_FOLDER_ID || '',
+  seller: $env.RE_GDRIVE_SELLER_PACK_FOLDER_ID || '',
 };
 
 const folderId = folderMap[packType];
@@ -5974,14 +5974,12 @@ if (files.length === 0) {
   throw new Error('RE-19: No files found in ' + input.pack_label + ' folder');
 }
 
-// Build shareable folder link (folder already shared by previous node)
-const shareLink = 'https://drive.google.com/drive/folders/' + input.drive_folder_id + '?usp=sharing';
-
-// Build file metadata for individual links in email
+// Build file metadata for downstream nodes
 const fileList = files.map(f => ({
   id: f.id,
   name: f.name,
   mimeType: f.mimeType || 'application/pdf',
+  downloadUrl: 'https://www.googleapis.com/drive/v3/files/' + f.id + '?alt=media',
   viewUrl: 'https://drive.google.com/file/d/' + f.id + '/view',
 }));
 
@@ -5989,18 +5987,16 @@ const docNames = fileList.map(f => f.name).join('\n- ');
 
 const prompt = `You are a professional South African real estate assistant for AnyVision Media.
 
-A client has decided to ${input.pack_type === 'buyer' ? 'purchase' : 'sell'} a property. Generate a warm, professional cover message to accompany a document pack. The documents are shared via a Google Drive link (NOT attached).
+A client has decided to ${input.pack_type === 'buyer' ? 'purchase' : 'sell'} a property. Generate a warm, professional cover message to accompany the document pack being sent to them.
 
 Client name: ${input.client_name}
 Pack type: ${input.pack_label}
 Documents included:
 - ${docNames}
 
-Google Drive link: ${shareLink}
-
 Generate TWO versions:
-1. EMAIL version: Professional HTML-formatted message (use <p> tags, keep it concise, 3-4 paragraphs max). Include a brief explanation of what each document is for. Mention that they can access all documents via the link provided below. Sign off as "AnyVision Media Property Team". Do NOT include the link itself in the body - it will be added as a button separately.
-2. WHATSAPP version: Plain text message, friendly but professional, suitable for WhatsApp. Use line breaks, no HTML. Keep it shorter than the email version. Include the Google Drive link at the end of the message.
+1. EMAIL version: Professional HTML-formatted message (use <p> tags, keep it concise, 3-4 paragraphs max). Include a brief explanation of what each document is for. Sign off as "AnyVision Media Property Team".
+2. WHATSAPP version: Plain text message, friendly but professional, suitable for WhatsApp. Use line breaks, no HTML. Keep it shorter than the email version.
 
 Respond in this exact JSON format:
 {
@@ -6017,17 +6013,15 @@ return {
     files: fileList,
     file_count: fileList.length,
     doc_names: docNames,
-    share_link: shareLink,
     ai_prompt: prompt,
   }
 };
 """
 
 RE19_PARSE_AI_CODE = r"""
-// Parse AI response, build final email HTML + WA text with Drive share link
+// Parse AI response, build final email HTML + WA text
 const input = $('Build AI Prompt').first().json;
 const aiRaw = $input.first().json;
-const shareLink = input.share_link;
 
 let parsed = {};
 try {
@@ -6041,14 +6035,14 @@ try {
   // Fallback if AI response is malformed
   parsed = {
     email_subject: 'Your ' + input.pack_label + ' - AnyVision Media',
-    email_body: '<p>Dear ' + input.client_name + ',</p><p>We have prepared your ' + input.pack_label.toLowerCase() + ' for the next steps in your property transaction. You can access all the documents via the link below.</p><p>Please review them at your earliest convenience and do not hesitate to reach out if you have any questions.</p><p>Kind regards,<br>AnyVision Media Property Team</p>',
-    whatsapp_text: 'Hi ' + input.client_name + ', your ' + input.pack_label.toLowerCase() + ' is ready. You can access all the documents here:\n\n' + shareLink + '\n\nPlease review and let us know if you have any questions. - AnyVision Media',
+    email_body: '<p>Dear ' + input.client_name + ',</p><p>Please find attached your ' + input.pack_label.toLowerCase() + '. These documents are essential for the next steps in your property transaction.</p><p>Please review them at your earliest convenience and do not hesitate to reach out if you have any questions.</p><p>Kind regards,<br>AnyVision Media Property Team</p>',
+    whatsapp_text: 'Hi ' + input.client_name + ', please find your ' + input.pack_label.toLowerCase() + ' attached. Please review and let us know if you have any questions. - AnyVision Media',
   };
 }
 
-// Build individual file links for reference list
+// Build file links for email (backup access if attachment issue)
 const fileLinks = (input.files || []).map(f =>
-  '<li><a href="' + f.viewUrl + '" style="color:#FF6D5A">' + f.name + '</a></li>'
+  '<li><a href="' + f.viewUrl + '">' + f.name + '</a></li>'
 ).join('');
 
 const emailHtml = `<div style="font-family:Arial,sans-serif;max-width:650px;margin:0 auto">
@@ -6057,30 +6051,22 @@ const emailHtml = `<div style="font-family:Arial,sans-serif;max-width:650px;marg
 </div>
 <div style="padding:25px;background:#ffffff">
 ${parsed.email_body || ''}
-<div style="text-align:center;margin:25px 0">
-<a href="${shareLink}" style="display:inline-block;background:#FF6D5A;color:white;padding:14px 32px;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold">Access Your Documents</a>
-</div>
 <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
-<p style="font-size:13px;color:#666"><strong>Documents included (${input.file_count} files):</strong></p>
+<p style="font-size:13px;color:#666"><strong>Documents included:</strong></p>
 <ul style="font-size:13px;color:#666">${fileLinks}</ul>
+<p style="font-size:11px;color:#999">If attachments did not come through, you can access the documents via the links above.</p>
 </div>
 <div style="background:#f5f5f5;padding:15px;text-align:center;font-size:11px;color:#999">
 AnyVision Media | Property Services
 </div>
 </div>`;
 
-// Ensure WhatsApp text includes the share link
-let waText = parsed.whatsapp_text || '';
-if (!waText.includes(shareLink)) {
-  waText += '\n\n' + shareLink;
-}
-
 return {
   json: {
     ...input,
     email_subject: parsed.email_subject || 'Your ' + input.pack_label + ' - AnyVision Media',
     email_html: emailHtml,
-    whatsapp_text: waText || 'Hi ' + input.client_name + ', your document pack is ready:\n\n' + shareLink + '\n\nPlease review and let us know if you have any questions. - AnyVision Media',
+    whatsapp_text: parsed.whatsapp_text || 'Hi ' + input.client_name + ', your document pack is ready. Please check your email for the full pack.',
   }
 };
 """
@@ -6106,23 +6092,48 @@ return {
 """
 
 RE19_PREPARE_WA_DOCS_CODE = r"""
-// Prepare single WhatsApp text message with Google Drive share link
+// Prepare WhatsApp document messages (one per file) + cover text
 const input = $input.first().json;
+const files = input.files || [];
 const phone = input.client_phone;
 const phoneNumberId = input.phone_number_id;
 
-return {
+// Output one item per file for WhatsApp document sending
+const items = files.map(f => ({
   json: {
     phone: phone,
     phone_number_id: phoneNumberId,
-    wa_body: JSON.stringify({
+    file_name: f.name,
+    file_url: f.downloadUrl,
+    view_url: f.viewUrl,
+    wa_doc_body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'document',
+      document: {
+        link: f.viewUrl,
+        filename: f.name,
+      },
+    }),
+  }
+}));
+
+// Add cover text message as last item
+items.push({
+  json: {
+    phone: phone,
+    phone_number_id: phoneNumberId,
+    file_name: '__cover__',
+    wa_doc_body: JSON.stringify({
       messaging_product: 'whatsapp',
       to: phone,
       type: 'text',
       text: { body: input.whatsapp_text },
     }),
   }
-};
+});
+
+return items;
 """
 
 RE19_PREPARE_NOTIFICATIONS_CODE = r"""
@@ -6164,8 +6175,8 @@ def build_re19_nodes():
     # 0. Sticky Note
     nodes.append(build_sticky_note(
         "Note RE-19", "RE-19: Document Pack Sender\n\n"
-        "Sends buyer/seller document packs from Google Drive\n"
-        "via email (HTML with Drive link) + WhatsApp (text with Drive link).\n"
+        "Sends buyer/seller document packs (PDFs) from Google Drive\n"
+        "via email (attachments) + WhatsApp (document messages).\n"
         "AI generates a professional cover message.\n"
         "Called from RE-03, RE-04, or RE-09.",
         [0, 100], width=320, height=200, color=4,
@@ -6224,17 +6235,6 @@ def build_re19_nodes():
         cred_ref=CRED_GOOGLE_DRIVE,
     ))
 
-    # 8b. Share folder with "anyone with link" read access
-    nodes.append(build_http_request(
-        "Share Folder", "POST",
-        "=" + GOOGLE_DRIVE_API + "/files/{{ $('Check Already Sent').first().json.drive_folder_id }}/permissions",
-        [1650, 600],
-        auth_type="predefinedCredentialType",
-        cred_type="googleOAuth2Api",
-        cred_ref=CRED_GOOGLE_DRIVE,
-        body={"type": "anyone", "role": "reader"},
-    ))
-
     # 9. Parse file list + build AI prompt
     nodes.append(build_code_node("Build AI Prompt", RE19_BUILD_PROMPT_CODE, [1760, 500]))
 
@@ -6279,16 +6279,16 @@ def build_re19_nodes():
         [3080, 500],
     ))
 
-    # 16. Prepare WA text message with share link
+    # 16. Prepare WA document messages
     nodes.append(build_code_node("Prepare WA Docs", RE19_PREPARE_WA_DOCS_CODE, [3300, 400]))
 
-    # 17. Send single WhatsApp text message with Drive link
+    # 17. Send WhatsApp documents via Graph API
     nodes.append(build_http_request(
-        "Send WA Message", "POST",
+        "Send WA Document", "POST",
         "=https://graph.facebook.com/v18.0/{{ $('Check Channels').first().json.phone_number_id }}/messages",
         [3520, 400],
         cred_ref=CRED_WHATSAPP_SEND,
-        body="={{ $json.wa_body }}",
+        body="={{ $json.wa_doc_body }}",
     ))
 
     # 18. Prepare notification payloads
@@ -6357,9 +6357,6 @@ def build_re19_connections(nodes):
             [{"node": "List Pack Files", "type": "main", "index": 0}],
         ]},
         "List Pack Files": {"main": [[
-            {"node": "Share Folder", "type": "main", "index": 0},
-        ]]},
-        "Share Folder": {"main": [[
             {"node": "Build AI Prompt", "type": "main", "index": 0},
         ]]},
         "Build AI Prompt": {"main": [[
@@ -6386,9 +6383,9 @@ def build_re19_connections(nodes):
             [{"node": "Prepare Notifications", "type": "main", "index": 0}],
         ]},
         "Prepare WA Docs": {"main": [[
-            {"node": "Send WA Message", "type": "main", "index": 0},
+            {"node": "Send WA Document", "type": "main", "index": 0},
         ]]},
-        "Send WA Message": {"main": [[
+        "Send WA Document": {"main": [[
             {"node": "Prepare Notifications", "type": "main", "index": 0},
         ]]},
         "Prepare Notifications": {"main": [[
