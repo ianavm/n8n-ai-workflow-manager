@@ -1,0 +1,788 @@
+{
+  "name": "RE-19 Document Pack Sender",
+  "nodes": [
+    {
+      "id": "98897eb8-9682-42f2-b67e-17e6f0cdeabe",
+      "name": "Note RE-19",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "RE-19: Document Pack Sender\n\nSends buyer/seller document packs (PDFs) from Google Drive\nvia email (attachments) + WhatsApp (document messages).\nAI generates a professional cover message.\nCalled from RE-03, RE-04, or RE-09.",
+        "width": 320,
+        "height": 200,
+        "color": 4
+      }
+    },
+    {
+      "id": "f53c2ac7-9a73-4863-9337-5a69dcd5c495",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "207d7c1c-0344-4fc6-b3f3-e74e6d0d09dd",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Validate & normalize input for document pack sending\nconst input = $input.first().json;\nconst leadId = (input.lead_id || '').trim();\nconst clientId = (input.client_id || '').trim();\nconst dealId = (input.deal_id || '').trim();\nconst packType = (input.pack_type || '').toLowerCase().trim();\nconst source = (input.source || 'manual').toLowerCase().trim();\n\nif (!leadId) {\n  throw new Error('RE-19: lead_id is required');\n}\nif (!packType || !['buyer', 'seller'].includes(packType)) {\n  throw new Error('RE-19: pack_type must be \"buyer\" or \"seller\", got: ' + packType);\n}\n\n// Map pack type to Google Drive folder ID (set in env vars)\nconst folderMap = {\n  buyer: $env.RE_BUYER_PACK_FOLDER_ID || '',\n  seller: $env.RE_SELLER_PACK_FOLDER_ID || '',\n};\n\nconst folderId = folderMap[packType];\nif (!folderId) {\n  throw new Error('RE-19: No Drive folder ID configured for pack_type=' + packType);\n}\n\nreturn {\n  json: {\n    lead_id: leadId,\n    client_id: clientId,\n    deal_id: dealId,\n    pack_type: packType,\n    source: source,\n    drive_folder_id: folderId,\n    pack_label: packType === 'buyer' ? 'Buyer Document Pack' : 'Seller Document Pack',\n    timestamp: new Date().toISOString(),\n  }\n};\n"
+      }
+    },
+    {
+      "id": "777cd9b4-48f3-4a2a-965b-32fbce60ce71",
+      "name": "Fetch Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblnsKB429zyzEpfJ",
+          "mode": "id"
+        },
+        "filterByFormula": "=({lead_id} = '{{ $json.lead_id }}')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "779ea86f-926c-4df7-a47f-76d0ad452dbd",
+      "name": "Fetch Deal",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblx5NiAfu3Py5ha8",
+          "mode": "id"
+        },
+        "filterByFormula": "=({lead_id} = '{{ $('Validate Input').first().json.lead_id }}')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "7be2129c-7e39-48f5-b94a-8f0f4870133e",
+      "name": "Check Already Sent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Merge lead + deal data, check if pack already sent\nconst input = $('Validate Input').first().json;\nconst leadData = $('Fetch Lead').first().json;\nconst dealData = $('Fetch Deal').first().json;\n\n// Extract client info from lead\nconst clientName = leadData.client_name || leadData.name || leadData.Name || 'Client';\nconst clientEmail = leadData.email || leadData.Email || '';\nconst clientPhone = leadData.phone || leadData.Phone || leadData.whatsapp_number || '';\nconst phoneNumberId = leadData.phone_number_id || $env.RE_WHATSAPP_PHONE_ID || '';\n\n// Check if docs already sent for this deal + pack type\nconst docsSentField = 'docs_' + input.pack_type + '_sent';\nconst alreadySent = dealData[docsSentField] === true\n  || dealData[docsSentField] === 'true'\n  || dealData[docsSentField] === 1;\n\nreturn {\n  json: {\n    ...input,\n    client_name: clientName,\n    client_email: clientEmail,\n    client_phone: clientPhone,\n    phone_number_id: phoneNumberId,\n    already_sent: alreadySent,\n    lead_record_id: leadData.id || '',\n    deal_record_id: dealData.id || '',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "f86fbbea-0514-4822-b723-cfd85dcea74a",
+      "name": "Already Sent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.already_sent }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "82774f01-0804-492c-92e1-3cb053d95525",
+      "name": "Log Skip",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "document_pack_skipped",
+            "entity_type": "deal",
+            "entity_id": "={{ $('Check Already Sent').first().json.deal_id }}",
+            "description": "={{ $('Check Already Sent').first().json.pack_label + ' already sent to ' + $('Check Already Sent').first().json.client_name + ' - skipped' }}",
+            "performed_by": "RE-19",
+            "timestamp": "={{ $now.toISO() }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "f3487f3e-f293-44eb-b774-94146ba7f345",
+      "name": "List Pack Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        500
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/drive/v3/files?q={{ encodeURIComponent(\"'\" + $('Check Already Sent').first().json.drive_folder_id + \"' in parents and trashed=false\") }}&fields=files(id,name,mimeType,size)&pageSize=20",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api"
+      },
+      "credentials": {
+        "googleOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
+      "id": "83d8dbc9-bdd6-43d1-938c-36fdac787eca",
+      "name": "Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse Drive file list and build AI cover message prompt\nconst input = $('Check Already Sent').first().json;\nconst driveResponse = $input.first().json;\nconst files = (driveResponse.files || []).filter(\n  f => f.mimeType !== 'application/vnd.google-apps.folder'\n);\n\nif (files.length === 0) {\n  throw new Error('RE-19: No files found in ' + input.pack_label + ' folder');\n}\n\n// Build file metadata for downstream nodes\nconst fileList = files.map(f => ({\n  id: f.id,\n  name: f.name,\n  mimeType: f.mimeType || 'application/pdf',\n  downloadUrl: 'https://www.googleapis.com/drive/v3/files/' + f.id + '?alt=media',\n  viewUrl: 'https://drive.google.com/file/d/' + f.id + '/view',\n}));\n\nconst docNames = fileList.map(f => f.name).join('\\n- ');\n\nconst prompt = `You are a professional South African real estate assistant for AnyVision Media.\n\nA client has decided to ${input.pack_type === 'buyer' ? 'purchase' : 'sell'} a property. Generate a warm, professional cover message to accompany the document pack being sent to them.\n\nClient name: ${input.client_name}\nPack type: ${input.pack_label}\nDocuments included:\n- ${docNames}\n\nGenerate TWO versions:\n1. EMAIL version: Professional HTML-formatted message (use <p> tags, keep it concise, 3-4 paragraphs max). Include a brief explanation of what each document is for. Sign off as \"AnyVision Media Property Team\".\n2. WHATSAPP version: Plain text message, friendly but professional, suitable for WhatsApp. Use line breaks, no HTML. Keep it shorter than the email version.\n\nRespond in this exact JSON format:\n{\n  \"email_subject\": \"Your ${input.pack_label} - AnyVision Media\",\n  \"email_body\": \"<p>HTML content here</p>\",\n  \"whatsapp_text\": \"Plain text here\"\n}\n\nReturn ONLY valid JSON, no markdown fences.`;\n\nreturn {\n  json: {\n    ...input,\n    files: fileList,\n    file_count: fileList.length,\n    doc_names: docNames,\n    ai_prompt: prompt,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "e1dc37e2-c326-4fa1-b6c3-3d3a3bce7ef2",
+      "name": "AI Generate Cover",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        500
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500, \"temperature\": 0.4, \"messages\": [{\"role\": \"system\", \"content\": \"You are a professional South African real estate assistant. Return ONLY valid JSON.\"}, {\"role\": \"user\", \"content\": \"={{ $json.ai_prompt }}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "1b01f329-3e8e-4939-8c56-ee4ecc945ee7",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse AI response, build final email HTML + WA text\nconst input = $('Build AI Prompt').first().json;\nconst aiRaw = $input.first().json;\n\nlet parsed = {};\ntry {\n  const content = (aiRaw.choices && aiRaw.choices[0] && aiRaw.choices[0].message)\n    ? aiRaw.choices[0].message.content\n    : '';\n  // Strip markdown fences if present\n  const cleaned = content.replace(/^```json?\\s*/i, '').replace(/\\s*```$/i, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  // Fallback if AI response is malformed\n  parsed = {\n    email_subject: 'Your ' + input.pack_label + ' - AnyVision Media',\n    email_body: '<p>Dear ' + input.client_name + ',</p><p>Please find attached your ' + input.pack_label.toLowerCase() + '. These documents are essential for the next steps in your property transaction.</p><p>Please review them at your earliest convenience and do not hesitate to reach out if you have any questions.</p><p>Kind regards,<br>AnyVision Media Property Team</p>',\n    whatsapp_text: 'Hi ' + input.client_name + ', please find your ' + input.pack_label.toLowerCase() + ' attached. Please review and let us know if you have any questions. - AnyVision Media',\n  };\n}\n\n// Build file links for email (in case binary attachment fails)\nconst fileLinks = (input.files || []).map(f =>\n  '<li><a href=\"' + f.viewUrl + '\">' + f.name + '</a></li>'\n).join('');\n\nconst emailHtml = `<div style=\"font-family:Arial,sans-serif;max-width:650px;margin:0 auto\">\n<div style=\"background:#FF6D5A;padding:20px;text-align:center\">\n<h2 style=\"color:white;margin:0\">${parsed.email_subject || input.pack_label}</h2>\n</div>\n<div style=\"padding:25px;background:#ffffff\">\n${parsed.email_body || ''}\n<hr style=\"border:none;border-top:1px solid #eee;margin:20px 0\">\n<p style=\"font-size:13px;color:#666\"><strong>Documents included:</strong></p>\n<ul style=\"font-size:13px;color:#666\">${fileLinks}</ul>\n<p style=\"font-size:11px;color:#999\">If attachments did not come through, you can access the documents via the links above.</p>\n</div>\n<div style=\"background:#f5f5f5;padding:15px;text-align:center;font-size:11px;color:#999\">\nAnyVision Media | Property Services\n</div>\n</div>`;\n\nreturn {\n  json: {\n    ...input,\n    email_subject: parsed.email_subject || 'Your ' + input.pack_label + ' - AnyVision Media',\n    email_html: emailHtml,\n    whatsapp_text: parsed.whatsapp_text || 'Hi ' + input.client_name + ', your document pack is ready. Please check your email for the full pack.',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "065890cc-5a74-4181-b20a-035c45b107df",
+      "name": "Check Channels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Determine which channels are available for delivery\nconst input = $input.first().json;\n\nconst hasEmail = !!(input.client_email && input.client_email.includes('@'));\nconst hasWhatsApp = !!(input.client_phone && input.client_phone.length >= 10);\n\nif (!hasEmail && !hasWhatsApp) {\n  throw new Error('RE-19: Client has no email or phone. Cannot deliver document pack.');\n}\n\nreturn {\n  json: {\n    ...input,\n    send_email: hasEmail,\n    send_whatsapp: hasWhatsApp,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "59d1e87e-22b1-4877-9301-7b04c3b4e843",
+      "name": "Has Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        500
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.send_email }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "63e0e37e-d846-4536-94a4-ea633e289131",
+      "name": "Send Email Pack",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2860,
+        400
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $('Check Channels').first().json.client_email }}",
+        "subject": "={{ $('Check Channels').first().json.email_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Check Channels').first().json.email_html }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "f8849445-ddc7-4dcb-9398-1b286f037ce3",
+      "name": "Has WhatsApp?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3080,
+        500
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Check Channels').first().json.send_whatsapp }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a3fe10b3-c4f9-452b-af58-18df735a6d65",
+      "name": "Prepare WA Docs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\n// Prepare WhatsApp document messages (one per file) + cover text\nconst input = $input.first().json;\nconst files = input.files || [];\nconst phone = input.client_phone;\nconst phoneNumberId = input.phone_number_id;\n\n// Output one item per file for WhatsApp document sending\nconst items = files.map(f => ({\n  json: {\n    phone: phone,\n    phone_number_id: phoneNumberId,\n    file_name: f.name,\n    file_url: f.downloadUrl,\n    view_url: f.viewUrl,\n    wa_doc_body: JSON.stringify({\n      messaging_product: 'whatsapp',\n      to: phone,\n      type: 'document',\n      document: {\n        link: f.viewUrl,\n        filename: f.name,\n      },\n    }),\n  }\n}));\n\n// Add cover text message as last item\nitems.push({\n  json: {\n    phone: phone,\n    phone_number_id: phoneNumberId,\n    file_name: '__cover__',\n    wa_doc_body: JSON.stringify({\n      messaging_product: 'whatsapp',\n      to: phone,\n      type: 'text',\n      text: { body: input.whatsapp_text },\n    }),\n  }\n});\n\nreturn items;\n"
+      }
+    },
+    {
+      "id": "2bd64f82-816c-43b0-a034-fe0f0b88b212",
+      "name": "Send WA Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3520,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v18.0/{{ $('Check Channels').first().json.phone_number_id }}/messages",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.wa_doc_body }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "dCAz6MBXpOXvMJrq",
+          "name": "WhatsApp account AVM Multi Agent"
+        }
+      }
+    },
+    {
+      "id": "c903e00b-5dd1-4b5f-b7e3-570edcf06093",
+      "name": "Prepare Notifications",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        500
+      ],
+      "parameters": {
+        "jsCode": "\n// Prepare notification payloads for RE-10 and RE-18\nconst input = $('Check Channels').first().json;\nconst timestamp = new Date().toISOString();\n\nreturn {\n  json: {\n    // Activity log fields\n    activity_type: 'document_pack_sent',\n    entity_type: 'deal',\n    entity_id: input.deal_id || input.lead_id,\n    description: input.pack_label + ' sent to ' + input.client_name\n      + ' via ' + (input.send_email ? 'email' : '')\n      + (input.send_email && input.send_whatsapp ? ' + ' : '')\n      + (input.send_whatsapp ? 'WhatsApp' : '')\n      + ' (' + input.file_count + ' files)',\n    performed_by: 'RE-19',\n    timestamp: timestamp,\n    // RE-10 notification\n    notify_type: 'document_pack_sent',\n    notify_severity: 'low',\n    notify_message: input.pack_label + ' (' + input.file_count + ' docs) sent to '\n      + input.client_name + ' [' + input.pack_type + ']',\n    // Deal update fields\n    deal_record_id: input.deal_record_id,\n    docs_sent_field: 'docs_' + input.pack_type + '_sent',\n    lead_id: input.lead_id,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "7cf6c834-2fd6-4fd9-bdcd-818925ec3ed7",
+      "name": "Update Deal Docs Sent",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3960,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblx5NiAfu3Py5ha8",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "lead_id"
+        ],
+        "options": {},
+        "columns": {
+          "value": {
+            "lead_id": "={{ $json.lead_id }}",
+            "docs_{{ $json.docs_sent_field }}": "true"
+          }
+        }
+      }
+    },
+    {
+      "id": "d842f963-ece4-4a8f-b26a-47ceaf164de9",
+      "name": "Log Activity",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        4180,
+        500
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appCVxBCRi5ppbUpV",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbljWVNcirCTGBegR",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "value": {
+            "activity_type": "={{ $json.activity_type }}",
+            "entity_type": "={{ $json.entity_type }}",
+            "entity_id": "={{ $json.entity_id }}",
+            "description": "={{ $json.description }}",
+            "performed_by": "={{ $json.performed_by }}",
+            "timestamp": "={{ $json.timestamp }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "36c052a7-6607-439a-af4f-3158c51ed5b2",
+      "name": "Notify Team RE-10",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4400,
+        400
+      ],
+      "parameters": {
+        "workflowId": "REPLACE_AFTER_DEPLOY",
+        "options": {}
+      }
+    },
+    {
+      "id": "29ba2b02-b4b9-404b-8947-5736ae01256b",
+      "name": "Alert RE-18",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        4400,
+        600
+      ],
+      "parameters": {
+        "workflowId": "REPLACE_AFTER_DEPLOY",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Fetch Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Lead": {
+      "main": [
+        [
+          {
+            "node": "Fetch Deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Deal": {
+      "main": [
+        [
+          {
+            "node": "Check Already Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Already Sent": {
+      "main": [
+        [
+          {
+            "node": "Already Sent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Sent?": {
+      "main": [
+        [
+          {
+            "node": "Log Skip",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "List Pack Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Pack Files": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Cover",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Cover": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Check Channels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Channels": {
+      "main": [
+        [
+          {
+            "node": "Has Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email?": {
+      "main": [
+        [
+          {
+            "node": "Send Email Pack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email Pack": {
+      "main": [
+        [
+          {
+            "node": "Has WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has WhatsApp?": {
+      "main": [
+        [
+          {
+            "node": "Prepare WA Docs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare WA Docs": {
+      "main": [
+        [
+          {
+            "node": "Send WA Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WA Document": {
+      "main": [
+        [
+          {
+            "node": "Prepare Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Notifications": {
+      "main": [
+        [
+          {
+            "node": "Update Deal Docs Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Deal Docs Sent": {
+      "main": [
+        [
+          {
+            "node": "Log Activity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Activity": {
+      "main": [
+        [
+          {
+            "node": "Notify Team RE-10",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alert RE-18",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": [
+    "re-operations",
+    "documents",
+    "email",
+    "whatsapp",
+    "sub-workflow"
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "builder": "deploy_re_operations.py",
+    "built_at": "2026-03-26T09:20:07.236365"
+  }
+}

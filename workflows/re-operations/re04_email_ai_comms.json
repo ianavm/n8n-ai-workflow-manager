@@ -2,7 +2,7 @@
   "name": "RE-04 Email AI Comms",
   "nodes": [
     {
-      "id": "45302485-1354-4162-9b2a-980208e46b89",
+      "id": "bf78be55-c746-4ae2-9b64-b92aeca85395",
       "name": "Note RE-04",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "a7a582d2-01b7-4b80-aa38-69fcd158bb94",
+      "id": "eae93de0-8346-4d2e-920c-b992aaa7bc2d",
       "name": "Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -29,7 +29,7 @@
       "parameters": {}
     },
     {
-      "id": "9205771a-5b76-4276-a9ab-8d804d37d942",
+      "id": "2ca90085-0b32-42f8-8c77-29a00c491786",
       "name": "Build Email Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -42,7 +42,7 @@
       }
     },
     {
-      "id": "d0b64a02-6541-48ed-839a-b3dca0cd1bb9",
+      "id": "2adf1ab8-0618-423e-b39e-d1ce66eb6091",
       "name": "AI Classify Email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -77,7 +77,7 @@
       }
     },
     {
-      "id": "c7b46928-e6c9-4f33-b66c-04555234fe36",
+      "id": "c85a575b-5a62-452c-b74e-ac0da0894324",
       "name": "Parse Email AI",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -90,7 +90,7 @@
       }
     },
     {
-      "id": "e814490c-b068-4c56-ad49-d6c4e1d3ae65",
+      "id": "88c4f142-c8ef-4cad-a81a-e93bd624c611",
       "name": "Route by Confidence",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
@@ -148,7 +148,7 @@
       }
     },
     {
-      "id": "71a67610-4cb2-45ff-bd43-cf908f9e0c86",
+      "id": "cc8787ea-e7fc-4991-82ab-20f6f78b874e",
       "name": "Auto Send Reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -171,7 +171,7 @@
       }
     },
     {
-      "id": "aedbfa6f-c361-43a3-83ed-4decd6139a14",
+      "id": "a76e5ad4-da39-4421-a24c-b26709a2e6a0",
       "name": "Save Draft",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -195,7 +195,7 @@
       }
     },
     {
-      "id": "0c91418a-72de-421c-9d1b-ee0b9a45700d",
+      "id": "4ca79a33-83b1-4504-9e69-43eddf96af10",
       "name": "Notify Draft Ready",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -209,7 +209,7 @@
       }
     },
     {
-      "id": "5ba4c970-2ddc-41c5-8322-dc4d3d67c20a",
+      "id": "a405e4cf-4a09-40b7-8944-4eb9141279a0",
       "name": "Notify Admin Review",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -223,7 +223,7 @@
       }
     },
     {
-      "id": "439decc1-c7d3-40a0-a4bb-47b3bf509e04",
+      "id": "3aabdbb1-c156-4aea-ad70-df7fb18dfe52",
       "name": "Log Email Thread",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -265,7 +265,7 @@
       }
     },
     {
-      "id": "02819060-a96f-4e35-8708-e099eb7b4acd",
+      "id": "34e46014-6eb1-4cef-8842-e250c33c90fb",
       "name": "Log Email Message",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -305,6 +305,63 @@
             "timestamp": "={{ $now.toISO() }}"
           }
         }
+      }
+    },
+    {
+      "id": "aeeabd67-c6d6-4a76-92fa-399be3dcb6b1",
+      "name": "Check Proceeding",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Check if email classification indicates client wants to proceed\nconst data = $('Parse Email AI').first().json;\nconst cls = (data.classification || '').toLowerCase();\nconst confidence = parseFloat(data.confidence || 0);\nconst body = (data.email_body || '').toLowerCase();\n\n// Detect proceeding intent from classification or email body keywords\nconst proceedKeywords = ['proceed', 'go ahead', 'move forward', 'make an offer',\n  'ready to buy', 'ready to sell', 'send me the documents', 'send paperwork',\n  'send the forms', 'what documents do i need'];\nconst hasKeyword = proceedKeywords.some(k => body.includes(k));\n\nconst isProceeding = (cls === 'proceeding' || cls === 'offer') ||\n  (hasKeyword && confidence >= 0.6);\n\n// Determine transaction type\nlet packType = 'buyer';\nif (body.includes('sell') || body.includes('mandate') || body.includes('list my')) {\n  packType = 'seller';\n}\n\nreturn {\n  json: {\n    trigger_re19: isProceeding,\n    lead_id: data.lead_id || '',\n    pack_type: packType,\n    source: 're04',\n    confidence: confidence,\n  }\n};\n"
+      }
+    },
+    {
+      "id": "e05e425b-bd6a-4e10-a43e-98df53eb7444",
+      "name": "Email Send Docs?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2420,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.trigger_re19 }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4d42ff48-2d40-445a-9415-2144ca074a32",
+      "name": "Call RE-19 Email Docs",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2640,
+        300
+      ],
+      "parameters": {
+        "workflowId": "={{ $env.RE_WF_RE19_ID || '' }}",
+        "options": {}
       }
     }
   ],
@@ -433,6 +490,40 @@
           }
         ]
       ]
+    },
+    "Log Email Message": {
+      "main": [
+        [
+          {
+            "node": "Check Proceeding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Proceeding": {
+      "main": [
+        [
+          {
+            "node": "Email Send Docs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Send Docs?": {
+      "main": [
+        [
+          {
+            "node": "Call RE-19 Email Docs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
     }
   },
   "active": false,
@@ -450,6 +541,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-25T15:29:14.535512"
+    "built_at": "2026-03-26T09:23:42.239931"
   }
 }

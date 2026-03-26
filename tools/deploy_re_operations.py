@@ -2861,6 +2861,54 @@ def build_re03_nodes():
         [1980, 500],
     ))
 
+    # 14. Check if AI detected document intent (buy/sell proceeding)
+    nodes.append(build_code_node("Check Doc Intent", r"""
+// Check if AI detected intent to proceed with buy/sell -> trigger RE-19
+const data = $('Parse AI Response').first().json;
+const intent = (data.intent || '').toLowerCase();
+const confidence = parseFloat(data.confidence || 0);
+const leadData = data.lead_data || {};
+
+// Detect document-sending intents
+const docIntents = ['send_documents', 'proceed', 'buy', 'sell', 'make_offer'];
+const isDocIntent = docIntents.includes(intent) ||
+  (intent === 'general' && confidence >= 0.7 && (
+    (data.response_text || '').toLowerCase().includes('proceed') ||
+    (data.response_text || '').toLowerCase().includes('document pack')
+  ));
+
+// Determine transaction type from context
+let packType = 'buyer';
+if (leadData.transaction_type) {
+  packType = leadData.transaction_type.toLowerCase();
+} else if (intent === 'sell' || (data.response_text || '').toLowerCase().includes('sell')) {
+  packType = 'seller';
+}
+
+return {
+  json: {
+    trigger_re19: isDocIntent && confidence >= 0.7,
+    lead_id: data.lead_id || '',
+    pack_type: packType,
+    source: 're03',
+    confidence: confidence,
+  }
+};
+""", [2200, 200]))
+
+    # 15. Should send documents?
+    nodes.append(build_if_node(
+        "Send Docs?",
+        "={{ $json.trigger_re19 }}",
+        [2420, 200],
+    ))
+
+    # 16. Call RE-19 Document Pack Sender
+    nodes.append(build_execute_workflow(
+        "Call RE-19 Send Docs", "={{ $env.RE_WF_RE19_ID || '' }}",
+        [2640, 200],
+    ))
+
     return nodes
 
 
@@ -2892,6 +2940,16 @@ def build_re03_connections(nodes):
         "Prepare Outbound Log": {"main": [[
             {"node": "Log Outbound Message", "type": "main", "index": 0},
         ]]},
+        "Log Outbound Message": {"main": [[
+            {"node": "Check Doc Intent", "type": "main", "index": 0},
+        ]]},
+        "Check Doc Intent": {"main": [[
+            {"node": "Send Docs?", "type": "main", "index": 0},
+        ]]},
+        "Send Docs?": {"main": [
+            [{"node": "Call RE-19 Send Docs", "type": "main", "index": 0}],
+            [],
+        ]},
         "Set Handoff Flag": {"main": [[
             {"node": "Strip Markdown Handoff", "type": "main", "index": 0},
         ]]},
@@ -3488,6 +3546,53 @@ def build_re04_nodes():
         },
     ))
 
+    # 12. Check if email is about proceeding with transaction -> send doc pack
+    nodes.append(build_code_node("Check Proceeding", r"""
+// Check if email classification indicates client wants to proceed
+const data = $('Parse Email AI').first().json;
+const cls = (data.classification || '').toLowerCase();
+const confidence = parseFloat(data.confidence || 0);
+const body = (data.email_body || '').toLowerCase();
+
+// Detect proceeding intent from classification or email body keywords
+const proceedKeywords = ['proceed', 'go ahead', 'move forward', 'make an offer',
+  'ready to buy', 'ready to sell', 'send me the documents', 'send paperwork',
+  'send the forms', 'what documents do i need'];
+const hasKeyword = proceedKeywords.some(k => body.includes(k));
+
+const isProceeding = (cls === 'proceeding' || cls === 'offer') ||
+  (hasKeyword && confidence >= 0.6);
+
+// Determine transaction type
+let packType = 'buyer';
+if (body.includes('sell') || body.includes('mandate') || body.includes('list my')) {
+  packType = 'seller';
+}
+
+return {
+  json: {
+    trigger_re19: isProceeding,
+    lead_id: data.lead_id || '',
+    pack_type: packType,
+    source: 're04',
+    confidence: confidence,
+  }
+};
+""", [2200, 300]))
+
+    # 13. Should send docs?
+    nodes.append(build_if_node(
+        "Email Send Docs?",
+        "={{ $json.trigger_re19 }}",
+        [2420, 300],
+    ))
+
+    # 14. Call RE-19 Document Pack Sender
+    nodes.append(build_execute_workflow(
+        "Call RE-19 Email Docs", "={{ $env.RE_WF_RE19_ID || '' }}",
+        [2640, 300],
+    ))
+
     return nodes
 
 
@@ -3527,6 +3632,16 @@ def build_re04_connections(nodes):
         "Log Email Thread": {"main": [[
             {"node": "Log Email Message", "type": "main", "index": 0},
         ]]},
+        "Log Email Message": {"main": [[
+            {"node": "Check Proceeding", "type": "main", "index": 0},
+        ]]},
+        "Check Proceeding": {"main": [[
+            {"node": "Email Send Docs?", "type": "main", "index": 0},
+        ]]},
+        "Email Send Docs?": {"main": [
+            [{"node": "Call RE-19 Email Docs", "type": "main", "index": 0}],
+            [],
+        ]},
     }
 
 
@@ -3799,6 +3914,9 @@ const helpText = `<b>RE Operations Command Hub</b>
 /appointments [date] - View appointments
 /exceptions - Open exceptions/escalations
 /approve [id] - Approve pending action
+
+<b>Documents:</b>
+/senddocs [lead_id] [buyer|seller] - Send document pack
 
 <b>Other:</b>
 /help - This message`;
@@ -4263,6 +4381,7 @@ return {
             "help", "today", "lead", "newleads", "hotleads",
             "unassigned", "appointments", "agentload", "exceptions",
             "search", "status", "reassign", "approve", "pause", "resume",
+            "senddocs",
         ],
         [1540, 400],
     ))
@@ -4471,6 +4590,70 @@ return { json: {
 """
     nodes.append(build_code_node("Resume Success", resume_success_code, [2640, 1900]))
 
+    # /senddocs handler
+    senddocs_code = r"""
+// Handle /senddocs [lead_id] [buyer|seller]
+const data = $input.first().json;
+const leadId = data.arg1 || '';
+const packType = (data.arg2 || '').toLowerCase();
+
+if (!leadId) {
+  return { json: {
+    response: '<b>Usage:</b> /senddocs [lead_id] [buyer|seller]\n\n' +
+              '<b>Example:</b> /senddocs LEAD-ABC123 buyer\n\n' +
+              'Pack types: buyer, seller, tenant, landlord',
+    chat_id: data.chat_id,
+    trigger_re19: false,
+  }};
+}
+
+const validTypes = ['buyer', 'seller', 'tenant', 'landlord'];
+const resolvedType = validTypes.includes(packType) ? packType : 'buyer';
+
+if (!packType) {
+  return { json: {
+    response: `Sending <b>buyer</b> document pack to lead <b>${leadId}</b>...\n(Defaulted to buyer. Use /senddocs ${leadId} seller for seller pack)`,
+    chat_id: data.chat_id,
+    trigger_re19: true,
+    lead_id: leadId,
+    pack_type: resolvedType,
+    source: 're09',
+  }};
+}
+
+return { json: {
+  response: `Sending <b>${resolvedType}</b> document pack to lead <b>${leadId}</b>...`,
+  chat_id: data.chat_id,
+  trigger_re19: true,
+  lead_id: leadId,
+  pack_type: resolvedType,
+  source: 're09',
+}};
+"""
+    nodes.append(build_code_node("Handle Senddocs", senddocs_code, [1980, 2200]))
+
+    # Check if senddocs should trigger RE-19
+    nodes.append(build_if_node(
+        "Do Senddocs?",
+        "={{ $json.trigger_re19 }}",
+        [2420, 2200],
+    ))
+
+    # Call RE-19
+    nodes.append(build_execute_workflow(
+        "Call RE-19 Docs", "={{ $env.RE_WF_RE19_ID || '' }}",
+        [2640, 2100],
+    ))
+
+    # Senddocs success reply
+    senddocs_success_code = r"""
+return { json: {
+  response: 'Document pack sent successfully.',
+  chat_id: $('Handle Senddocs').first().json.chat_id,
+}};
+"""
+    nodes.append(build_code_node("Senddocs Success", senddocs_success_code, [2860, 2100]))
+
     return nodes
 
 
@@ -4527,6 +4710,8 @@ def build_re09_connections(nodes):
             [{"node": "Handle Pause", "type": "main", "index": 0}],
             # Output 14: /resume
             [{"node": "Handle Resume", "type": "main", "index": 0}],
+            # Output 15: /senddocs
+            [{"node": "Handle Senddocs", "type": "main", "index": 0}],
             # Fallthrough
             [{"node": "Handle Unknown", "type": "main", "index": 0}],
         ]},
@@ -4651,6 +4836,21 @@ def build_re09_connections(nodes):
             {"node": "Resume Success", "type": "main", "index": 0},
         ]]},
         "Resume Success": {"main": [[
+            {"node": "Send Reply", "type": "main", "index": 0},
+        ]]},
+        # /senddocs -> check -> call RE-19 -> reply
+        "Handle Senddocs": {"main": [[
+            {"node": "Send Reply", "type": "main", "index": 0},
+            {"node": "Do Senddocs?", "type": "main", "index": 0},
+        ]]},
+        "Do Senddocs?": {"main": [
+            [{"node": "Call RE-19 Docs", "type": "main", "index": 0}],
+            [],
+        ]},
+        "Call RE-19 Docs": {"main": [[
+            {"node": "Senddocs Success", "type": "main", "index": 0},
+        ]]},
+        "Senddocs Success": {"main": [[
             {"node": "Send Reply", "type": "main", "index": 0},
         ]]},
         # Unknown -> reply
@@ -5681,6 +5881,527 @@ def build_re13_connections(nodes):
 
 
 # ======================================================================
+# RE-19: DOCUMENT PACK SENDER (sub-workflow)
+# ======================================================================
+# Trigger: Called from RE-03 / RE-04 / RE-09 when client decides to buy/sell
+# Input: {lead_id, client_id, deal_id, pack_type: "buyer"|"seller", source}
+# Sends buyer or seller document pack (PDFs) via email + WhatsApp
+# with AI-generated cover message.
+# ======================================================================
+
+RE19_VALIDATE_INPUT_CODE = r"""
+// Validate & normalize input for document pack sending
+const input = $input.first().json;
+const leadId = (input.lead_id || '').trim();
+const clientId = (input.client_id || '').trim();
+const dealId = (input.deal_id || '').trim();
+const packType = (input.pack_type || '').toLowerCase().trim();
+const source = (input.source || 'manual').toLowerCase().trim();
+
+if (!leadId) {
+  throw new Error('RE-19: lead_id is required');
+}
+if (!packType || !['buyer', 'seller'].includes(packType)) {
+  throw new Error('RE-19: pack_type must be "buyer" or "seller", got: ' + packType);
+}
+
+// Map pack type to Google Drive folder ID (set in env vars)
+const folderMap = {
+  buyer: $env.RE_BUYER_PACK_FOLDER_ID || '',
+  seller: $env.RE_SELLER_PACK_FOLDER_ID || '',
+};
+
+const folderId = folderMap[packType];
+if (!folderId) {
+  throw new Error('RE-19: No Drive folder ID configured for pack_type=' + packType);
+}
+
+return {
+  json: {
+    lead_id: leadId,
+    client_id: clientId,
+    deal_id: dealId,
+    pack_type: packType,
+    source: source,
+    drive_folder_id: folderId,
+    pack_label: packType === 'buyer' ? 'Buyer Document Pack' : 'Seller Document Pack',
+    timestamp: new Date().toISOString(),
+  }
+};
+"""
+
+RE19_CHECK_DEDUP_CODE = r"""
+// Merge lead + deal data, check if pack already sent
+const input = $('Validate Input').first().json;
+const leadData = $('Fetch Lead').first().json;
+const dealData = $('Fetch Deal').first().json;
+
+// Extract client info from lead
+const clientName = leadData.client_name || leadData.name || leadData.Name || 'Client';
+const clientEmail = leadData.email || leadData.Email || '';
+const clientPhone = leadData.phone || leadData.Phone || leadData.whatsapp_number || '';
+const phoneNumberId = leadData.phone_number_id || $env.RE_WHATSAPP_PHONE_ID || '';
+
+// Check if docs already sent for this deal + pack type
+const docsSentField = 'docs_' + input.pack_type + '_sent';
+const alreadySent = dealData[docsSentField] === true
+  || dealData[docsSentField] === 'true'
+  || dealData[docsSentField] === 1;
+
+return {
+  json: {
+    ...input,
+    client_name: clientName,
+    client_email: clientEmail,
+    client_phone: clientPhone,
+    phone_number_id: phoneNumberId,
+    already_sent: alreadySent,
+    lead_record_id: leadData.id || '',
+    deal_record_id: dealData.id || '',
+  }
+};
+"""
+
+RE19_BUILD_PROMPT_CODE = r"""
+// Parse Drive file list and build AI cover message prompt
+const input = $('Check Already Sent').first().json;
+const driveResponse = $input.first().json;
+const files = (driveResponse.files || []).filter(
+  f => f.mimeType !== 'application/vnd.google-apps.folder'
+);
+
+if (files.length === 0) {
+  throw new Error('RE-19: No files found in ' + input.pack_label + ' folder');
+}
+
+// Build file metadata for downstream nodes
+const fileList = files.map(f => ({
+  id: f.id,
+  name: f.name,
+  mimeType: f.mimeType || 'application/pdf',
+  downloadUrl: 'https://www.googleapis.com/drive/v3/files/' + f.id + '?alt=media',
+  viewUrl: 'https://drive.google.com/file/d/' + f.id + '/view',
+}));
+
+const docNames = fileList.map(f => f.name).join('\n- ');
+
+const prompt = `You are a professional South African real estate assistant for AnyVision Media.
+
+A client has decided to ${input.pack_type === 'buyer' ? 'purchase' : 'sell'} a property. Generate a warm, professional cover message to accompany the document pack being sent to them.
+
+Client name: ${input.client_name}
+Pack type: ${input.pack_label}
+Documents included:
+- ${docNames}
+
+Generate TWO versions:
+1. EMAIL version: Professional HTML-formatted message (use <p> tags, keep it concise, 3-4 paragraphs max). Include a brief explanation of what each document is for. Sign off as "AnyVision Media Property Team".
+2. WHATSAPP version: Plain text message, friendly but professional, suitable for WhatsApp. Use line breaks, no HTML. Keep it shorter than the email version.
+
+Respond in this exact JSON format:
+{
+  "email_subject": "Your ${input.pack_label} - AnyVision Media",
+  "email_body": "<p>HTML content here</p>",
+  "whatsapp_text": "Plain text here"
+}
+
+Return ONLY valid JSON, no markdown fences.`;
+
+return {
+  json: {
+    ...input,
+    files: fileList,
+    file_count: fileList.length,
+    doc_names: docNames,
+    ai_prompt: prompt,
+  }
+};
+"""
+
+RE19_PARSE_AI_CODE = r"""
+// Parse AI response, build final email HTML + WA text
+const input = $('Build AI Prompt').first().json;
+const aiRaw = $input.first().json;
+
+let parsed = {};
+try {
+  const content = (aiRaw.choices && aiRaw.choices[0] && aiRaw.choices[0].message)
+    ? aiRaw.choices[0].message.content
+    : '';
+  // Strip markdown fences if present
+  const cleaned = content.replace(/^```json?\s*/i, '').replace(/\s*```$/i, '').trim();
+  parsed = JSON.parse(cleaned);
+} catch (e) {
+  // Fallback if AI response is malformed
+  parsed = {
+    email_subject: 'Your ' + input.pack_label + ' - AnyVision Media',
+    email_body: '<p>Dear ' + input.client_name + ',</p><p>Please find attached your ' + input.pack_label.toLowerCase() + '. These documents are essential for the next steps in your property transaction.</p><p>Please review them at your earliest convenience and do not hesitate to reach out if you have any questions.</p><p>Kind regards,<br>AnyVision Media Property Team</p>',
+    whatsapp_text: 'Hi ' + input.client_name + ', please find your ' + input.pack_label.toLowerCase() + ' attached. Please review and let us know if you have any questions. - AnyVision Media',
+  };
+}
+
+// Build file links for email (in case binary attachment fails)
+const fileLinks = (input.files || []).map(f =>
+  '<li><a href="' + f.viewUrl + '">' + f.name + '</a></li>'
+).join('');
+
+const emailHtml = `<div style="font-family:Arial,sans-serif;max-width:650px;margin:0 auto">
+<div style="background:#FF6D5A;padding:20px;text-align:center">
+<h2 style="color:white;margin:0">${parsed.email_subject || input.pack_label}</h2>
+</div>
+<div style="padding:25px;background:#ffffff">
+${parsed.email_body || ''}
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+<p style="font-size:13px;color:#666"><strong>Documents included:</strong></p>
+<ul style="font-size:13px;color:#666">${fileLinks}</ul>
+<p style="font-size:11px;color:#999">If attachments did not come through, you can access the documents via the links above.</p>
+</div>
+<div style="background:#f5f5f5;padding:15px;text-align:center;font-size:11px;color:#999">
+AnyVision Media | Property Services
+</div>
+</div>`;
+
+return {
+  json: {
+    ...input,
+    email_subject: parsed.email_subject || 'Your ' + input.pack_label + ' - AnyVision Media',
+    email_html: emailHtml,
+    whatsapp_text: parsed.whatsapp_text || 'Hi ' + input.client_name + ', your document pack is ready. Please check your email for the full pack.',
+  }
+};
+"""
+
+RE19_CHECK_CHANNELS_CODE = r"""
+// Determine which channels are available for delivery
+const input = $input.first().json;
+
+const hasEmail = !!(input.client_email && input.client_email.includes('@'));
+const hasWhatsApp = !!(input.client_phone && input.client_phone.length >= 10);
+
+if (!hasEmail && !hasWhatsApp) {
+  throw new Error('RE-19: Client has no email or phone. Cannot deliver document pack.');
+}
+
+return {
+  json: {
+    ...input,
+    send_email: hasEmail,
+    send_whatsapp: hasWhatsApp,
+  }
+};
+"""
+
+RE19_PREPARE_WA_DOCS_CODE = r"""
+// Prepare WhatsApp document messages (one per file) + cover text
+const input = $input.first().json;
+const files = input.files || [];
+const phone = input.client_phone;
+const phoneNumberId = input.phone_number_id;
+
+// Output one item per file for WhatsApp document sending
+const items = files.map(f => ({
+  json: {
+    phone: phone,
+    phone_number_id: phoneNumberId,
+    file_name: f.name,
+    file_url: f.downloadUrl,
+    view_url: f.viewUrl,
+    wa_doc_body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'document',
+      document: {
+        link: f.viewUrl,
+        filename: f.name,
+      },
+    }),
+  }
+}));
+
+// Add cover text message as last item
+items.push({
+  json: {
+    phone: phone,
+    phone_number_id: phoneNumberId,
+    file_name: '__cover__',
+    wa_doc_body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'text',
+      text: { body: input.whatsapp_text },
+    }),
+  }
+});
+
+return items;
+"""
+
+RE19_PREPARE_NOTIFICATIONS_CODE = r"""
+// Prepare notification payloads for RE-10 and RE-18
+const input = $('Check Channels').first().json;
+const timestamp = new Date().toISOString();
+
+return {
+  json: {
+    // Activity log fields
+    activity_type: 'document_pack_sent',
+    entity_type: 'deal',
+    entity_id: input.deal_id || input.lead_id,
+    description: input.pack_label + ' sent to ' + input.client_name
+      + ' via ' + (input.send_email ? 'email' : '')
+      + (input.send_email && input.send_whatsapp ? ' + ' : '')
+      + (input.send_whatsapp ? 'WhatsApp' : '')
+      + ' (' + input.file_count + ' files)',
+    performed_by: 'RE-19',
+    timestamp: timestamp,
+    // RE-10 notification
+    notify_type: 'document_pack_sent',
+    notify_severity: 'low',
+    notify_message: input.pack_label + ' (' + input.file_count + ' docs) sent to '
+      + input.client_name + ' [' + input.pack_type + ']',
+    // Deal update fields
+    deal_record_id: input.deal_record_id,
+    docs_sent_field: 'docs_' + input.pack_type + '_sent',
+    lead_id: input.lead_id,
+  }
+};
+"""
+
+
+def build_re19_nodes():
+    """Build RE-19: Document Pack Sender sub-workflow nodes."""
+    nodes = []
+
+    # 0. Sticky Note
+    nodes.append(build_sticky_note(
+        "Note RE-19", "RE-19: Document Pack Sender\n\n"
+        "Sends buyer/seller document packs (PDFs) from Google Drive\n"
+        "via email (attachments) + WhatsApp (document messages).\n"
+        "AI generates a professional cover message.\n"
+        "Called from RE-03, RE-04, or RE-09.",
+        [0, 100], width=320, height=200, color=4,
+    ))
+
+    # 1. Sub-workflow trigger
+    nodes.append(build_execute_workflow_trigger("Trigger", [220, 300]))
+
+    # 2. Validate input
+    nodes.append(build_code_node("Validate Input", RE19_VALIDATE_INPUT_CODE, [440, 300]))
+
+    # 3. Fetch Lead from Airtable
+    nodes.append(build_airtable_search(
+        "Fetch Lead", RE_BASE_ID, TABLE_LEADS,
+        "=({lead_id} = '{{ $json.lead_id }}')",
+        [660, 300], always_output=True,
+    ))
+
+    # 4. Fetch Deal from Airtable
+    nodes.append(build_airtable_search(
+        "Fetch Deal", RE_BASE_ID, TABLE_DEALS,
+        "=({lead_id} = '{{ $('Validate Input').first().json.lead_id }}')",
+        [880, 300], always_output=True,
+    ))
+
+    # 5. Check dedup (already sent?)
+    nodes.append(build_code_node("Check Already Sent", RE19_CHECK_DEDUP_CODE, [1100, 300]))
+
+    # 6. Already sent?
+    nodes.append(build_if_node(
+        "Already Sent?",
+        "={{ $json.already_sent }}",
+        [1320, 300],
+    ))
+
+    # 7. Log skip (true branch = already sent)
+    nodes.append(build_airtable_create(
+        "Log Skip", RE_BASE_ID, TABLE_ACTIVITY_LOG, [1540, 200],
+        columns={
+            "activity_type": "document_pack_skipped",
+            "entity_type": "deal",
+            "entity_id": "={{ $('Check Already Sent').first().json.deal_id }}",
+            "description": "={{ $('Check Already Sent').first().json.pack_label + ' already sent to ' + $('Check Already Sent').first().json.client_name + ' - skipped' }}",
+            "performed_by": "RE-19",
+            "timestamp": "={{ $now.toISO() }}",
+        },
+    ))
+
+    # 8. List files from Google Drive folder (false branch = not yet sent)
+    nodes.append(build_http_request(
+        "List Pack Files", "GET",
+        "=" + GOOGLE_DRIVE_API + "/files?q={{ encodeURIComponent(\"'\" + $('Check Already Sent').first().json.drive_folder_id + \"' in parents and trashed=false\") }}&fields=files(id,name,mimeType,size)&pageSize=20",
+        [1540, 500],
+        auth_type="predefinedCredentialType",
+        cred_type="googleOAuth2Api",
+        cred_ref=CRED_GOOGLE_DRIVE,
+    ))
+
+    # 9. Parse file list + build AI prompt
+    nodes.append(build_code_node("Build AI Prompt", RE19_BUILD_PROMPT_CODE, [1760, 500]))
+
+    # 10. AI generate cover message
+    nodes.append(build_openrouter_ai(
+        "AI Generate Cover",
+        "You are a professional South African real estate assistant. Return ONLY valid JSON.",
+        " $json.ai_prompt ",
+        [1980, 500],
+        max_tokens=1500,
+        temperature=0.4,
+    ))
+
+    # 11. Parse AI response
+    nodes.append(build_code_node("Parse AI Response", RE19_PARSE_AI_CODE, [2200, 500]))
+
+    # 12. Check channels
+    nodes.append(build_code_node("Check Channels", RE19_CHECK_CHANNELS_CODE, [2420, 500]))
+
+    # 13. Has Email?
+    nodes.append(build_if_node(
+        "Has Email?",
+        "={{ $json.send_email }}",
+        [2640, 500],
+    ))
+
+    # 14. Send email with doc links (true branch)
+    # Gmail node v2.1 - sends HTML email with document links embedded
+    nodes.append(build_gmail_send(
+        "Send Email Pack",
+        "={{ $('Check Channels').first().json.client_email }}",
+        "={{ $('Check Channels').first().json.email_subject }}",
+        "={{ $('Check Channels').first().json.email_html }}",
+        [2860, 400],
+        is_html=True,
+    ))
+
+    # 15. Has WhatsApp? (check after email path merges)
+    nodes.append(build_if_node(
+        "Has WhatsApp?",
+        "={{ $('Check Channels').first().json.send_whatsapp }}",
+        [3080, 500],
+    ))
+
+    # 16. Prepare WA document messages
+    nodes.append(build_code_node("Prepare WA Docs", RE19_PREPARE_WA_DOCS_CODE, [3300, 400]))
+
+    # 17. Send WhatsApp documents via Graph API
+    nodes.append(build_http_request(
+        "Send WA Document", "POST",
+        "=https://graph.facebook.com/v18.0/{{ $('Check Channels').first().json.phone_number_id }}/messages",
+        [3520, 400],
+        cred_ref=CRED_WHATSAPP_SEND,
+        body="={{ $json.wa_doc_body }}",
+    ))
+
+    # 18. Prepare notification payloads
+    nodes.append(build_code_node("Prepare Notifications", RE19_PREPARE_NOTIFICATIONS_CODE, [3740, 500]))
+
+    # 19. Update Deal - mark docs as sent
+    nodes.append(build_airtable_update(
+        "Update Deal Docs Sent", RE_BASE_ID, TABLE_DEALS, [3960, 500],
+        matching_columns=["lead_id"],
+        columns={
+            "lead_id": "={{ $json.lead_id }}",
+            "docs_{{ $json.docs_sent_field }}": "true",
+        },
+    ))
+
+    # 20. Log activity
+    nodes.append(build_airtable_create(
+        "Log Activity", RE_BASE_ID, TABLE_ACTIVITY_LOG, [4180, 500],
+        columns={
+            "activity_type": "={{ $json.activity_type }}",
+            "entity_type": "={{ $json.entity_type }}",
+            "entity_id": "={{ $json.entity_id }}",
+            "description": "={{ $json.description }}",
+            "performed_by": "={{ $json.performed_by }}",
+            "timestamp": "={{ $json.timestamp }}",
+        },
+    ))
+
+    # 21. Notify team via RE-10
+    nodes.append(build_execute_workflow(
+        "Notify Team RE-10",
+        os.getenv("RE_WF_RE10_ID", "REPLACE_AFTER_DEPLOY"),
+        [4400, 400],
+    ))
+
+    # 22. Alert via RE-18
+    nodes.append(build_execute_workflow(
+        "Alert RE-18",
+        os.getenv("RE_WF_RE18_ID", "REPLACE_AFTER_DEPLOY"),
+        [4400, 600],
+    ))
+
+    return nodes
+
+
+def build_re19_connections(nodes):
+    """Build RE-19: Document Pack Sender connections."""
+    return {
+        "Trigger": {"main": [[
+            {"node": "Validate Input", "type": "main", "index": 0},
+        ]]},
+        "Validate Input": {"main": [[
+            {"node": "Fetch Lead", "type": "main", "index": 0},
+        ]]},
+        "Fetch Lead": {"main": [[
+            {"node": "Fetch Deal", "type": "main", "index": 0},
+        ]]},
+        "Fetch Deal": {"main": [[
+            {"node": "Check Already Sent", "type": "main", "index": 0},
+        ]]},
+        "Check Already Sent": {"main": [[
+            {"node": "Already Sent?", "type": "main", "index": 0},
+        ]]},
+        "Already Sent?": {"main": [
+            [{"node": "Log Skip", "type": "main", "index": 0}],
+            [{"node": "List Pack Files", "type": "main", "index": 0}],
+        ]},
+        "List Pack Files": {"main": [[
+            {"node": "Build AI Prompt", "type": "main", "index": 0},
+        ]]},
+        "Build AI Prompt": {"main": [[
+            {"node": "AI Generate Cover", "type": "main", "index": 0},
+        ]]},
+        "AI Generate Cover": {"main": [[
+            {"node": "Parse AI Response", "type": "main", "index": 0},
+        ]]},
+        "Parse AI Response": {"main": [[
+            {"node": "Check Channels", "type": "main", "index": 0},
+        ]]},
+        "Check Channels": {"main": [[
+            {"node": "Has Email?", "type": "main", "index": 0},
+        ]]},
+        "Has Email?": {"main": [
+            [{"node": "Send Email Pack", "type": "main", "index": 0}],
+            [{"node": "Has WhatsApp?", "type": "main", "index": 0}],
+        ]},
+        "Send Email Pack": {"main": [[
+            {"node": "Has WhatsApp?", "type": "main", "index": 0},
+        ]]},
+        "Has WhatsApp?": {"main": [
+            [{"node": "Prepare WA Docs", "type": "main", "index": 0}],
+            [{"node": "Prepare Notifications", "type": "main", "index": 0}],
+        ]},
+        "Prepare WA Docs": {"main": [[
+            {"node": "Send WA Document", "type": "main", "index": 0},
+        ]]},
+        "Send WA Document": {"main": [[
+            {"node": "Prepare Notifications", "type": "main", "index": 0},
+        ]]},
+        "Prepare Notifications": {"main": [[
+            {"node": "Update Deal Docs Sent", "type": "main", "index": 0},
+        ]]},
+        "Update Deal Docs Sent": {"main": [[
+            {"node": "Log Activity", "type": "main", "index": 0},
+        ]]},
+        "Log Activity": {"main": [[
+            {"node": "Notify Team RE-10", "type": "main", "index": 0},
+            {"node": "Alert RE-18", "type": "main", "index": 0},
+        ]]},
+    }
+
+
+# ======================================================================
 # WORKFLOW ASSEMBLY & DEPLOYMENT
 # ======================================================================
 
@@ -5810,6 +6531,13 @@ WORKFLOW_BUILDERS = {
         "build_connections": build_re17_connections,
         "filename": "re17_orchestrator_monitor.json",
         "tags": ["re-operations", "monitoring", "health", "scheduled"],
+    },
+    "re19": {
+        "name": "RE-19 Document Pack Sender",
+        "build_nodes": build_re19_nodes,
+        "build_connections": build_re19_connections,
+        "filename": "re19_document_pack_sender.json",
+        "tags": ["re-operations", "documents", "email", "whatsapp", "sub-workflow"],
     },
 }
 
