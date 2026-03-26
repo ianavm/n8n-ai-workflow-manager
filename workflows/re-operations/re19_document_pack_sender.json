@@ -11,7 +11,7 @@
         100
       ],
       "parameters": {
-        "content": "RE-19: Document Pack Sender\n\nSends buyer/seller document packs (PDFs) from Google Drive\nvia email (attachments) + WhatsApp (document messages).\nAI generates a professional cover message.\nCalled from RE-03, RE-04, or RE-09.",
+        "content": "RE-19: Document Pack Sender\n\nSends buyer/seller document packs from Google Drive\nvia email (HTML with Drive link) + WhatsApp (text with Drive link).\nAI generates a professional cover message.\nCalled from RE-03, RE-04, or RE-09.",
         "width": 320,
         "height": 200,
         "color": 4
@@ -214,6 +214,34 @@
       }
     },
     {
+      "id": "a4e1c7d8-3b5f-4a2e-9c1d-8e7f6a5b4c3d",
+      "name": "Share Folder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1650,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $('Check Already Sent').first().json.drive_folder_id }}/permissions",
+        "options": {
+          "timeout": 30000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"type\": \"anyone\", \"role\": \"reader\"}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleOAuth2Api"
+      },
+      "credentials": {
+        "googleOAuth2Api": {
+          "id": "PLACEHOLDER_GDRIVE",
+          "name": "Google Drive OAuth2"
+        }
+      }
+    },
+    {
       "id": "83d8dbc9-bdd6-43d1-938c-36fdac787eca",
       "name": "Build AI Prompt",
       "type": "n8n-nodes-base.code",
@@ -223,7 +251,7 @@
         500
       ],
       "parameters": {
-        "jsCode": "\n// Parse Drive file list and build AI cover message prompt\nconst input = $('Check Already Sent').first().json;\nconst driveResponse = $input.first().json;\nconst files = (driveResponse.files || []).filter(\n  f => f.mimeType !== 'application/vnd.google-apps.folder'\n);\n\nif (files.length === 0) {\n  throw new Error('RE-19: No files found in ' + input.pack_label + ' folder');\n}\n\n// Build file metadata for downstream nodes\nconst fileList = files.map(f => ({\n  id: f.id,\n  name: f.name,\n  mimeType: f.mimeType || 'application/pdf',\n  downloadUrl: 'https://www.googleapis.com/drive/v3/files/' + f.id + '?alt=media',\n  viewUrl: 'https://drive.google.com/file/d/' + f.id + '/view',\n}));\n\nconst docNames = fileList.map(f => f.name).join('\\n- ');\n\nconst prompt = `You are a professional South African real estate assistant for AnyVision Media.\n\nA client has decided to ${input.pack_type === 'buyer' ? 'purchase' : 'sell'} a property. Generate a warm, professional cover message to accompany the document pack being sent to them.\n\nClient name: ${input.client_name}\nPack type: ${input.pack_label}\nDocuments included:\n- ${docNames}\n\nGenerate TWO versions:\n1. EMAIL version: Professional HTML-formatted message (use <p> tags, keep it concise, 3-4 paragraphs max). Include a brief explanation of what each document is for. Sign off as \"AnyVision Media Property Team\".\n2. WHATSAPP version: Plain text message, friendly but professional, suitable for WhatsApp. Use line breaks, no HTML. Keep it shorter than the email version.\n\nRespond in this exact JSON format:\n{\n  \"email_subject\": \"Your ${input.pack_label} - AnyVision Media\",\n  \"email_body\": \"<p>HTML content here</p>\",\n  \"whatsapp_text\": \"Plain text here\"\n}\n\nReturn ONLY valid JSON, no markdown fences.`;\n\nreturn {\n  json: {\n    ...input,\n    files: fileList,\n    file_count: fileList.length,\n    doc_names: docNames,\n    ai_prompt: prompt,\n  }\n};\n"
+        "jsCode": "\n// Parse Drive file list and build AI cover message prompt\nconst input = $('Check Already Sent').first().json;\nconst driveResponse = $input.first().json;\nconst files = (driveResponse.files || []).filter(\n  f => f.mimeType !== 'application/vnd.google-apps.folder'\n);\n\nif (files.length === 0) {\n  throw new Error('RE-19: No files found in ' + input.pack_label + ' folder');\n}\n\n// Build shareable folder link (folder already shared by previous node)\nconst shareLink = 'https://drive.google.com/drive/folders/' + input.drive_folder_id + '?usp=sharing';\n\n// Build file metadata for individual links in email\nconst fileList = files.map(f => ({\n  id: f.id,\n  name: f.name,\n  mimeType: f.mimeType || 'application/pdf',\n  viewUrl: 'https://drive.google.com/file/d/' + f.id + '/view',\n}));\n\nconst docNames = fileList.map(f => f.name).join('\\n- ');\n\nconst prompt = `You are a professional South African real estate assistant for AnyVision Media.\n\nA client has decided to ${input.pack_type === 'buyer' ? 'purchase' : 'sell'} a property. Generate a warm, professional cover message to accompany a document pack. The documents are shared via a Google Drive link (NOT attached).\n\nClient name: ${input.client_name}\nPack type: ${input.pack_label}\nDocuments included:\n- ${docNames}\n\nGoogle Drive link: ${shareLink}\n\nGenerate TWO versions:\n1. EMAIL version: Professional HTML-formatted message (use <p> tags, keep it concise, 3-4 paragraphs max). Include a brief explanation of what each document is for. Mention that they can access all documents via the link provided below. Sign off as \"AnyVision Media Property Team\". Do NOT include the link itself in the body - it will be added as a button separately.\n2. WHATSAPP version: Plain text message, friendly but professional, suitable for WhatsApp. Use line breaks, no HTML. Keep it shorter than the email version. Include the Google Drive link at the end of the message.\n\nRespond in this exact JSON format:\n{\n  \"email_subject\": \"Your ${input.pack_label} - AnyVision Media\",\n  \"email_body\": \"<p>HTML content here</p>\",\n  \"whatsapp_text\": \"Plain text here\"\n}\n\nReturn ONLY valid JSON, no markdown fences.`;\n\nreturn {\n  json: {\n    ...input,\n    files: fileList,\n    file_count: fileList.length,\n    doc_names: docNames,\n    share_link: shareLink,\n    ai_prompt: prompt,\n  }\n};\n"
       }
     },
     {
@@ -271,7 +299,7 @@
         500
       ],
       "parameters": {
-        "jsCode": "\n// Parse AI response, build final email HTML + WA text\nconst input = $('Build AI Prompt').first().json;\nconst aiRaw = $input.first().json;\n\nlet parsed = {};\ntry {\n  const content = (aiRaw.choices && aiRaw.choices[0] && aiRaw.choices[0].message)\n    ? aiRaw.choices[0].message.content\n    : '';\n  // Strip markdown fences if present\n  const cleaned = content.replace(/^```json?\\s*/i, '').replace(/\\s*```$/i, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  // Fallback if AI response is malformed\n  parsed = {\n    email_subject: 'Your ' + input.pack_label + ' - AnyVision Media',\n    email_body: '<p>Dear ' + input.client_name + ',</p><p>Please find attached your ' + input.pack_label.toLowerCase() + '. These documents are essential for the next steps in your property transaction.</p><p>Please review them at your earliest convenience and do not hesitate to reach out if you have any questions.</p><p>Kind regards,<br>AnyVision Media Property Team</p>',\n    whatsapp_text: 'Hi ' + input.client_name + ', please find your ' + input.pack_label.toLowerCase() + ' attached. Please review and let us know if you have any questions. - AnyVision Media',\n  };\n}\n\n// Build file links for email (in case binary attachment fails)\nconst fileLinks = (input.files || []).map(f =>\n  '<li><a href=\"' + f.viewUrl + '\">' + f.name + '</a></li>'\n).join('');\n\nconst emailHtml = `<div style=\"font-family:Arial,sans-serif;max-width:650px;margin:0 auto\">\n<div style=\"background:#FF6D5A;padding:20px;text-align:center\">\n<h2 style=\"color:white;margin:0\">${parsed.email_subject || input.pack_label}</h2>\n</div>\n<div style=\"padding:25px;background:#ffffff\">\n${parsed.email_body || ''}\n<hr style=\"border:none;border-top:1px solid #eee;margin:20px 0\">\n<p style=\"font-size:13px;color:#666\"><strong>Documents included:</strong></p>\n<ul style=\"font-size:13px;color:#666\">${fileLinks}</ul>\n<p style=\"font-size:11px;color:#999\">If attachments did not come through, you can access the documents via the links above.</p>\n</div>\n<div style=\"background:#f5f5f5;padding:15px;text-align:center;font-size:11px;color:#999\">\nAnyVision Media | Property Services\n</div>\n</div>`;\n\nreturn {\n  json: {\n    ...input,\n    email_subject: parsed.email_subject || 'Your ' + input.pack_label + ' - AnyVision Media',\n    email_html: emailHtml,\n    whatsapp_text: parsed.whatsapp_text || 'Hi ' + input.client_name + ', your document pack is ready. Please check your email for the full pack.',\n  }\n};\n"
+        "jsCode": "\n// Parse AI response, build final email HTML + WA text with Drive share link\nconst input = $('Build AI Prompt').first().json;\nconst aiRaw = $input.first().json;\nconst shareLink = input.share_link;\n\nlet parsed = {};\ntry {\n  const content = (aiRaw.choices && aiRaw.choices[0] && aiRaw.choices[0].message)\n    ? aiRaw.choices[0].message.content\n    : '';\n  // Strip markdown fences if present\n  const cleaned = content.replace(/^```json?\\s*/i, '').replace(/\\s*```$/i, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  // Fallback if AI response is malformed\n  parsed = {\n    email_subject: 'Your ' + input.pack_label + ' - AnyVision Media',\n    email_body: '<p>Dear ' + input.client_name + ',</p><p>We have prepared your ' + input.pack_label.toLowerCase() + ' for the next steps in your property transaction. You can access all the documents via the link below.</p><p>Please review them at your earliest convenience and do not hesitate to reach out if you have any questions.</p><p>Kind regards,<br>AnyVision Media Property Team</p>',\n    whatsapp_text: 'Hi ' + input.client_name + ', your ' + input.pack_label.toLowerCase() + ' is ready. You can access all the documents here:\\n\\n' + shareLink + '\\n\\nPlease review and let us know if you have any questions. - AnyVision Media',\n  };\n}\n\n// Build individual file links for reference list\nconst fileLinks = (input.files || []).map(f =>\n  '<li><a href=\"' + f.viewUrl + '\" style=\"color:#FF6D5A\">' + f.name + '</a></li>'\n).join('');\n\nconst emailHtml = `<div style=\"font-family:Arial,sans-serif;max-width:650px;margin:0 auto\">\n<div style=\"background:#FF6D5A;padding:20px;text-align:center\">\n<h2 style=\"color:white;margin:0\">${parsed.email_subject || input.pack_label}</h2>\n</div>\n<div style=\"padding:25px;background:#ffffff\">\n${parsed.email_body || ''}\n<div style=\"text-align:center;margin:25px 0\">\n<a href=\"${shareLink}\" style=\"display:inline-block;background:#FF6D5A;color:white;padding:14px 32px;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold\">Access Your Documents</a>\n</div>\n<hr style=\"border:none;border-top:1px solid #eee;margin:20px 0\">\n<p style=\"font-size:13px;color:#666\"><strong>Documents included (${input.file_count} files):</strong></p>\n<ul style=\"font-size:13px;color:#666\">${fileLinks}</ul>\n</div>\n<div style=\"background:#f5f5f5;padding:15px;text-align:center;font-size:11px;color:#999\">\nAnyVision Media | Property Services\n</div>\n</div>`;\n\n// Ensure WhatsApp text includes the share link\nlet waText = parsed.whatsapp_text || '';\nif (!waText.includes(shareLink)) {\n  waText += '\\n\\n' + shareLink;\n}\n\nreturn {\n  json: {\n    ...input,\n    email_subject: parsed.email_subject || 'Your ' + input.pack_label + ' - AnyVision Media',\n    email_html: emailHtml,\n    whatsapp_text: waText || 'Hi ' + input.client_name + ', your document pack is ready:\\n\\n' + shareLink + '\\n\\nPlease review and let us know if you have any questions. - AnyVision Media',\n  }\n};\n"
       }
     },
     {
@@ -380,12 +408,12 @@
         400
       ],
       "parameters": {
-        "jsCode": "\n// Prepare WhatsApp document messages (one per file) + cover text\nconst input = $input.first().json;\nconst files = input.files || [];\nconst phone = input.client_phone;\nconst phoneNumberId = input.phone_number_id;\n\n// Output one item per file for WhatsApp document sending\nconst items = files.map(f => ({\n  json: {\n    phone: phone,\n    phone_number_id: phoneNumberId,\n    file_name: f.name,\n    file_url: f.downloadUrl,\n    view_url: f.viewUrl,\n    wa_doc_body: JSON.stringify({\n      messaging_product: 'whatsapp',\n      to: phone,\n      type: 'document',\n      document: {\n        link: f.viewUrl,\n        filename: f.name,\n      },\n    }),\n  }\n}));\n\n// Add cover text message as last item\nitems.push({\n  json: {\n    phone: phone,\n    phone_number_id: phoneNumberId,\n    file_name: '__cover__',\n    wa_doc_body: JSON.stringify({\n      messaging_product: 'whatsapp',\n      to: phone,\n      type: 'text',\n      text: { body: input.whatsapp_text },\n    }),\n  }\n});\n\nreturn items;\n"
+        "jsCode": "\n// Prepare single WhatsApp text message with Google Drive share link\nconst input = $input.first().json;\nconst phone = input.client_phone;\nconst phoneNumberId = input.phone_number_id;\n\nreturn {\n  json: {\n    phone: phone,\n    phone_number_id: phoneNumberId,\n    wa_body: JSON.stringify({\n      messaging_product: 'whatsapp',\n      to: phone,\n      type: 'text',\n      text: { body: input.whatsapp_text },\n    }),\n  }\n};\n"
       }
     },
     {
       "id": "2bd64f82-816c-43b0-a034-fe0f0b88b212",
-      "name": "Send WA Document",
+      "name": "Send WA Message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -400,7 +428,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ $json.wa_doc_body }}"
+        "jsonBody": "={{ $json.wa_body }}"
       },
       "credentials": {
         "httpHeaderAuth": {
@@ -608,6 +636,17 @@
       "main": [
         [
           {
+            "node": "Share Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Share Folder": {
+      "main": [
+        [
+          {
             "node": "Build AI Prompt",
             "type": "main",
             "index": 0
@@ -710,14 +749,14 @@
       "main": [
         [
           {
-            "node": "Send WA Document",
+            "node": "Send WA Message",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Send WA Document": {
+    "Send WA Message": {
       "main": [
         [
           {
