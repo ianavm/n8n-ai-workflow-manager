@@ -958,7 +958,7 @@ def build_template_nodes(agent_name="AGENT_NAME_HERE",
     nodes.append({
         "parameters": {
             "operation": "upload",
-            "name": "={{ $now.format('yyyyMMdd_HHmmss') + '_' + ($json.name || $json.fileName || 'attachment') }}",
+            "name": "={{ $now.toFormat('yyyyMMdd_HHmmss') + '_' + ($json.name || $json.fileName || 'attachment') }}",
             "folderId": {
                 "__rl": True,
                 "value": "={{ $json.target_folder_id }}",

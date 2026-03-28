@@ -55,70 +55,91 @@ WORKFLOWS = {
     # ============================================================
     # LinkedIn Lead Generation
     # ============================================================
-    "LINKEDIN": "iCZCgD4UDdlRVmiN",   # LinkedIn lead gen, scoring & comms
-
     # ============================================================
     # AVM Orchestrator (4 workflows)
     # ============================================================
-    "ORCH_01": "DEPLOY_PENDING",       # Health Monitor (every 15 min)
-    "ORCH_02": "DEPLOY_PENDING",       # Cross-Dept Event Router
-    "ORCH_03": "DEPLOY_PENDING",       # Daily KPI Aggregation
-    "ORCH_04": "DEPLOY_PENDING",       # Weekly Executive Report
+    "ORCH_01": "5XR7j7hQ8cdWpi1e",    # Health Monitor (every 15 min)
+    "ORCH_02": "47CJmRKTh9kPZ7u5",    # Cross-Dept Event Router
+    "ORCH_03": "JDrgcv5iNIXLyQfs",    # Daily KPI Aggregation
+    "ORCH_04": "2gXlFqBtOoReQfaT",    # Weekly Executive Report
 
     # ============================================================
     # Intelligence & Optimization (5 workflows)
     # ============================================================
-    "INTEL_01": "DEPLOY_PENDING",      # Cross-Dept Correlator
-    "INTEL_02": "DEPLOY_PENDING",      # Executive Intelligence Report
-    "INTEL_03": "DEPLOY_PENDING",      # Prompt Performance Tracker
-    "OPT_01": "DEPLOY_PENDING",        # A/B Test Manager
-    "OPT_02": "DEPLOY_PENDING",        # A/B Test Analyzer
+    "INTEL_01": "P9NgW8csqbCh817f",    # Cross-Dept Correlator
+    "INTEL_02": "Fmut5pJ4fVXIfxke",    # Executive Intelligence Report
+    "INTEL_03": "hSiIZJu5bgDIOCDO",    # Prompt Performance Tracker
+    "OPT_01": "Rsyz1BHai3q94wPI",      # A/B Test Manager
+    "OPT_02": "I37U9l1kOcsr8fpP",      # A/B Test Analyzer
 
     # ============================================================
     # Ads Department (8 workflows)
     # ============================================================
-    "ADS_01": "DEPLOY_PENDING",        # Campaign Strategy Generator
-    "ADS_02": "DEPLOY_PENDING",        # Ad Copy & Creative Generator
-    "ADS_03": "DEPLOY_PENDING",        # Campaign Builder & Publisher
-    "ADS_04": "DEPLOY_PENDING",        # Performance Monitor
-    "ADS_05": "DEPLOY_PENDING",        # Optimization Engine
-    "ADS_06": "DEPLOY_PENDING",        # Creative Recycler
-    "ADS_07": "DEPLOY_PENDING",        # Cross-Channel Attribution
-    "ADS_08": "DEPLOY_PENDING",        # Reporting Dashboard
+    "ADS_01": "LZ2ZXwra1ep3IEQH",     # Campaign Strategy Generator
+    "ADS_02": "Ygvv6yGVqqOGDYgV",     # Ad Copy & Creative Generator
+    "ADS_03": "KAkjBo273HOMbVEP",     # Campaign Builder & Publisher
+    "ADS_04": "3U4ZXsWW7255zoFm",     # Performance Monitor
+    "ADS_05": "cwdYl8T8GRSmrWjp",     # Optimization Engine
+    "ADS_06": "uU3OLLP5vtLpD5uM",     # Creative Recycler
+    "ADS_07": "h3YGMAPAcCx3Y51G",     # Cross-Channel Attribution
+    "ADS_08": "6cDCfVjuAcZQKStK",     # Reporting Dashboard
 
     # ============================================================
     # Support (4 workflows)
     # ============================================================
-    "SUP_01": "DEPLOY_PENDING",        # Ticket Creator
-    "SUP_02": "DEPLOY_PENDING",        # SLA Monitor
-    "SUP_03": "DEPLOY_PENDING",        # Auto-Resolver
-    "SUP_04": "DEPLOY_PENDING",        # KB Builder
+    "SUP_01": "Pk0B97gW8xtcgHBf",     # Ticket Creator
+    "SUP_02": "EnnsJg43EazmEHJl",     # SLA Monitor
+    "SUP_03": "HnmuFSsdx7hasPcI",     # Auto-Resolver
+    "SUP_04": "3CQqDNDtgLJi2ZUu",     # KB Builder
 
     # ============================================================
     # Client Relations (4 workflows)
     # ============================================================
-    "CR_01": "DEPLOY_PENDING",         # Client Health Scorer
-    "CR_02": "DEPLOY_PENDING",         # Renewal Manager
-    "CR_03": "DEPLOY_PENDING",         # Onboarding Automation
-    "CR_04": "DEPLOY_PENDING",         # Satisfaction Pulse
+    "CR_01": "5Qzbyar2VTIbAuEo",      # Client Health Scorer
+    "CR_02": "3ZzWEUmgVNIxNmx3",      # Renewal Manager
+    "CR_03": "e1ufCH2KvuvrBQPm",      # Onboarding Automation
+    "CR_04": "fOygygjEdwAyf5of",      # Satisfaction Pulse
 
     # ============================================================
     # Finance Agent (2 workflows)
     # ============================================================
-    "FIN_08": "DEPLOY_PENDING",        # Cash Flow Forecast
-    "FIN_09": "DEPLOY_PENDING",        # Anomaly Detector
+    "FIN_08": "3Gb4pWJhsf2aHhsW",     # Cash Flow Forecast
+    "FIN_09": "6bo7BSssN6SQeodg",     # Anomaly Detector
 
     # ============================================================
     # WhatsApp Agent (3 workflows)
     # ============================================================
-    "WA_01": "DEPLOY_PENDING",         # Conversation Analyzer
-    "WA_02": "DEPLOY_PENDING",         # CRM Sync
-    "WA_03": "DEPLOY_PENDING",         # Issue Detector
+    "WA_01": "YBxMfFdFb7BCUxzi",      # Conversation Analyzer
+    "WA_02": "phF5vteIF4y6Tevt",      # CRM Sync
+    "WA_03": "6C9PPWe4IWoUhjq2",      # Issue Detector
 
     # ============================================================
     # Self-Healing (1 workflow)
     # ============================================================
-    "SELF_HEALING": "DEPLOY_PENDING",  # Self-Healing Error Monitor
+    "SELF_HEALING": "EyLZIilcnAidOv7R",  # Self-Healing Error Monitor
+
+    # ============================================================
+    # RE Operations (19 workflows)
+    # ============================================================
+    "RE_01": "GEVrxiSWmmlxAaH0",      # WhatsApp Intake
+    "RE_02": "cPJnLkWpPrgJkSS6",      # Lead Router
+    "RE_03": "E5KOoMCK5E9EGoK5",      # WhatsApp AI Comms
+    "RE_04": "qLGbpfJf8DA1NXg3",      # Email AI Comms
+    "RE_05": "tsJsDqaXKajM4Ji4",      # Booking Coordinator
+    "RE_06": "1yyPXJbYXJc9R3W6",      # Document Classifier
+    "RE_07": "qpZlTfgUuRsnBQFw",      # Email Intake
+    "RE_08": "deajJpSeUQqKhvEb",      # Document Filing
+    "RE_09": "KGc5cpmCHYbPaOgO",      # Telegram Command Hub
+    "RE_10": "HC1VNZrZqARCXnZJ",      # Team Notifications
+    "RE_11": "4HnNBzw00rkdc2rR",      # Daily Summary
+    "RE_12": "DU4UaP6HSVxdydAk",      # Agent Performance
+    "RE_13": "HFclWELoCQDC4qEO",      # Stale Lead Follow-up
+    "RE_14": "gYfJuJh6WPbKJHwx",      # Escalation Engine
+    "RE_15": "T0UJYKCsfeaa5lE8",      # Scoring Engine
+    "RE_16": "HnFI6dKPXDJFMsVP",      # Assignment Engine
+    "RE_17": "APCxVRECbsa1xbH0",      # Orchestrator Monitor
+    "RE_18": "MfGMU3RLTepoiQEV",      # Telegram Alert Router
+    "RE_19": "IxC9jNsGeU7Fonoh",      # Document Pack Sender
 
     # ============================================================
     # NEW AGENTS - Market Intelligence (3 workflows)
@@ -201,7 +222,7 @@ WORKFLOWS = {
     # ============================================================
     # Churn Predictor
     # ============================================================
-    "OPT_03": "DEPLOY_PENDING",        # Churn Predictor
+    "OPT_03": "TPp402GuDxnruRd2",      # Churn Predictor
 
     # ============================================================
     # Email Suppression
