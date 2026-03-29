@@ -1,0 +1,1675 @@
+{
+  "name": "Business Email Management Automation",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "22dcca3e-ca34-498a-9108-d3ba5f2b0da1",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "id": "7d74d87c-b135-47ba-afd1-f949a77202d1",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        200,
+        432
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "f017b0fb-b43d-48b5-a342-ca6282cf4ca2",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -200,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ ($json.labelIds || []).includes('Label_9') }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f2f59eb4-f900-4059-a64d-61b1a6109f65",
+      "name": "Has DNT Label?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        340,
+        432
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "04a977d8-e924-4078-88ea-c2a53031a587",
+      "name": "Skip - DNT",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        340,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\n// Blocked domains - emails from these are classified but never auto-replied\nconst BLOCKED_DOMAINS = [\n  '@eftcorp.atlassian.net',\n  '@noreply.github.com',\n  '@notifications.google.com',\n  '@mailer-daemon.'\n];\n\nfor (const item of items) {\n  const emailData = {\n    from: item.json.from || item.json.sender || '',\n    to: item.json.to || '',\n    subject: item.json.subject || '',\n    date: item.json.date || new Date().toISOString(),\n    body: (item.json.textPlain || item.json.snippet || item.json.text || '').substring(0, 3000),\n    hasAttachments: item.json.attachments ? item.json.attachments.length > 0 : false,\n    attachmentCount: item.json.attachments ? item.json.attachments.length : 0,\n    messageId: item.json.id || item.json.messageId || '',\n    threadId: item.json.threadId || '',\n    labelIds: item.json.labelIds || []\n  };\n\n  const fromLower = emailData.from.toLowerCase();\n  const isBlockedDomain = BLOCKED_DOMAINS.some(d => fromLower.includes(d));\n\n  const classificationPrompt = `Analyze this business email. Return ONLY valid JSON, no markdown, no backticks.\n\nFrom: ${emailData.from}\nSubject: ${emailData.subject}\nDate: ${emailData.date}\nBody:\n${emailData.body}\nHas Attachments: ${emailData.hasAttachments ? 'Yes (' + emailData.attachmentCount + ')' : 'No'}\n\nReturn this exact JSON:\n{\n  \"sender\": \"<email>\",\n  \"sender_name\": \"<name>\",\n  \"subject\": \"<subject>\",\n  \"intent\": \"<what sender wants>\",\n  \"tone\": \"<formal|informal|urgent|angry|friendly|neutral>\",\n  \"urgency\": \"<high|medium|low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance|Customer_Support|Sales|Management|Admin|Legal|Internal|Spam_Irrelevant>\",\n  \"tags\": [\"<from: Invoice,Payment,Refund,Complaint,New_Lead,Contract,Meeting_Request,Follow_Up,Escalation,Urgent>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<professional reply if action_required, else null>\",\n  \"summary\": \"<1-2 sentence summary>\",\n  \"escalation_needed\": true or false,\n  \"is_interested_reply\": true or false\n}\n\nRules:\n- Accounting_Finance: invoices, payments, billing, refunds\n- Customer_Support: complaints, technical issues, service support\n- Sales: new enquiries, pricing, leads\n- Management: strategy, legal, partnerships, high-level complaints\n- Spam_Irrelevant: suspicious links, phishing, irrelevant promos\n- Mark urgency HIGH if: urgent/ASAP in subject, legal threats, payment issues\n- Responses must be professional and concise`;\n\n  results.push({\n    json: {\n      ...emailData,\n      classificationPrompt,\n      is_blocked_domain: isBlockedDomain\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "4c8389c3-217d-47fe-a09a-07019bcaf6f0",
+      "name": "Prepare Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.classificationPrompt }}",
+        "options": {
+          "systemMessage": "You are the AI Email Manager for AnyVision Media, a digital media and technology agency. Your job is to analyze incoming business emails and return a structured JSON classification.\n\n## Your Task\nFor every email you receive, analyze it and return ONLY a valid JSON object. No markdown formatting, no backticks, no explanation text - just the raw JSON.\n\n## Company Context\n- Company: AnyVision Media (digital media, AI solutions, web development)\n- Owner: Ian Immelman (ian@anyvisionmedia.com)\n- Services: AI workflow automation, web development, social media management, real estate tech solutions\n- Tone: Professional but approachable, tech-savvy\n\n## JSON Output Format\nReturn exactly this structure:\n{\n  \"sender\": \"<sender email address>\",\n  \"sender_name\": \"<sender display name>\",\n  \"subject\": \"<email subject line>\",\n  \"intent\": \"<1 sentence: what the sender wants or needs>\",\n  \"tone\": \"<one of: formal, informal, urgent, angry, friendly, neutral>\",\n  \"urgency\": \"<one of: high, medium, low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance, Customer_Support, Sales, Management, Admin, Legal, Internal, Spam_Irrelevant>\",\n  \"tags\": [\"<applicable tags from the list below>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<a professional draft reply if action_required is true, otherwise null>\",\n  \"summary\": \"<1-2 sentence summary of the email>\",\n  \"escalation_needed\": true or false,\n  \"is_interested_reply\": true or false\n}\n\n## Department Classification Rules\n- **Accounting_Finance**: Invoices, payments, billing inquiries, refund requests, financial statements, tax documents\n- **Customer_Support**: Service complaints, technical issues, bug reports, account help, feature requests\n- **Sales**: New business enquiries, pricing requests, partnership proposals, lead generation, RFP responses\n- **Management**: Strategic decisions, legal matters, high-level partnerships, media/PR, executive communications, escalated complaints\n- **Admin**: Documentation, compliance, vendor setup, office operations\n- **Legal**: Contracts, legal threats, regulatory matters, NDAs\n- **Internal**: Team communications, internal updates, HR matters\n- **Spam_Irrelevant**: Unsolicited marketing, phishing attempts, suspicious links, irrelevant promotions\n\n## Available Tags\nInvoice, Payment, Refund, Complaint, New_Lead, Contract, Meeting_Request, Follow_Up, Escalation, Urgent\n\n## Urgency Rules\nMark as HIGH if any of these apply:\n- Subject contains \"urgent\", \"ASAP\", \"immediate\", \"critical\"\n- Legal threats or regulatory deadlines\n- Payment disputes or overdue invoices\n- Escalated customer complaints\n- Time-sensitive business opportunities\n\n## Response Writing Rules (for suggested_response)\nWhen action_required is true, write a professional, well-structured reply:\n\n**STRUCTURE:**\n1. Greeting - Personalized with sender's name\n2. Acknowledgment - Thank them and acknowledge their specific concern\n3. Response - Address their question or request (1-2 paragraphs)\n4. Next Steps - What happens next (if applicable)\n5. Closing - Professional sign-off\n\n**CONTENT GUIDELINES:**\n- Acknowledge receipt of their email\n- Be professional, warm, and concise\n- Never promise specific timelines without verification\n- Never confirm financial or legal decisions\n- Never reveal that this is an automated system\n- Match their tone (formal vs casual) appropriately\n- Use proper line breaks (\\n\\n between paragraphs)\n\nWhen action_required is false or the email is spam, set suggested_response to null.\n\n## Interested Reply Detection Rules\nSet is_interested_reply to TRUE if ALL of these apply:\n- The email appears to be a REPLY to a previous outreach from AnyVision Media\n- The sender expresses positive interest (wants to learn more, schedule a call, get pricing, says 'interested', 'sounds good', 'tell me more')\n- The sender is NOT from AnyVision Media itself\n\nSet is_interested_reply to FALSE for:\n- First-time inbound emails (not replies to our outreach)\n- Negative responses ('not interested', 'unsubscribe', 'remove me')\n- Automated responses / out-of-office replies\n- Spam or irrelevant emails\n\nCRITICAL: Return ONLY the JSON object. No other text.",
+          "maxIterations": 1,
+          "returnIntermediateSteps": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        660,
+        432
+      ],
+      "id": "f645bb6b-595f-496a-8acd-3889057192df",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4-20250514",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        660,
+        680
+      ],
+      "id": "8620684e-c0c6-4a07-80c4-7c9e49ce9f82",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\n// Opt-out phrases (case-insensitive)\nconst OPT_OUT_PHRASES = [\n  'unsubscribe', 'opt out', 'opt-out', 'remove me', 'stop emailing',\n  'not interested', 'no thanks', 'no thank you', \"i'll pass\", 'take me off',\n  'remove from list', 'stop sending', 'do not contact', \"don't contact\",\n  'leave me alone', 'stop messaging', 'reported as spam', 'block sender',\n  'cease and desist', 'gdpr removal', 'popia removal', 'remove my data'\n];\n\n// Ticket / reference number patterns\nconst TICKET_PATTERNS = [\n  /\\bTKT[-#]?\\s*\\d+/i,\n  /\\bTICKET\\s*[#:]?\\s*\\d+/i,\n  /\\bTICKET\\s+NUMBER\\s*:?\\s*\\w+/i,\n  /\\bREF\\s*[-:]\\s*#?\\s*[A-Z0-9]{3,}/i,\n  /\\bREFERENCE\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bENQ[-#]?\\s*\\d+/i,\n  /\\bENQUIRY\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*\\w+/i,\n  /\\bCASE\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bINCIDENT\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bSR[-#]\\s*\\d+/i,\n  /\\bINC[-#]\\s*\\d+/i,\n  /\\b[A-Z]{2,4}-\\d{4,}\\b/\n];\n\nconst SIGNATURE = `<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table>`;\n\nfor (const item of items) {\n  const emailData = $('Prepare Email Data').first().json;\n\n  let parsed;\n  try {\n    let aiContent = item.json.output || '';\n    if (!aiContent && item.json.choices) {\n      aiContent = item.json.choices[0].message.content;\n    }\n    const cleaned = aiContent\n      .replace(/```json\\n?/g, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n    parsed = JSON.parse(cleaned);\n  } catch (e) {\n    parsed = {\n      sender: emailData.from || 'unknown',\n      sender_name: 'Unknown',\n      subject: emailData.subject || 'No Subject',\n      intent: 'Classification failed - manual review required',\n      tone: 'neutral',\n      urgency: 'medium',\n      action_required: true,\n      department: 'Admin',\n      tags: ['Escalation'],\n      is_spam: false,\n      suggested_response: null,\n      summary: 'Email could not be auto-classified. Manual review required.',\n      escalation_needed: true,\n      is_interested_reply: false\n    };\n  }\n\n  // Reference number detection\n  const subject = (emailData.subject || '').toUpperCase();\n  const body = (emailData.body || '').substring(0, 2000).toUpperCase();\n  const textToCheck = subject + ' ' + body;\n\n  let has_reference_number = false;\n  let matched_reference_pattern = '';\n  for (const pattern of TICKET_PATTERNS) {\n    const match = textToCheck.match(pattern);\n    if (match) {\n      has_reference_number = true;\n      matched_reference_pattern = match[0];\n      break;\n    }\n  }\n\n  // Opt-out detection\n  const bodyLower = (emailData.body || '').toLowerCase();\n  const subjectLower = (emailData.subject || '').toLowerCase();\n  const is_opt_out = OPT_OUT_PHRASES.some(phrase =>\n    bodyLower.includes(phrase) || subjectLower.includes(phrase)\n  );\n\n  // Build HTML response from suggested_response\n  const html_response = (() => {\n    const text = parsed.suggested_response || '';\n    if (!text) return '';\n    const paragraphs = text.split(/\\n\\n+/);\n    const htmlParagraphs = paragraphs\n      .map(p => p.replace(/\\n/g, '<br>'))\n      .map(p => '<p style=\"margin:0 0 12px 0;font-family:Segoe UI,Helvetica Neue,Arial,' +\n        'sans-serif;font-size:14px;line-height:1.5;color:#333333;\">' + p + '</p>')\n      .join('');\n    return '<div style=\"font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;\">' +\n      htmlParagraphs + '<br>' + SIGNATURE + '</div>';\n  })();\n\n  results.push({\n    json: {\n      original_from: emailData.from || '',\n      original_to: emailData.to || '',\n      original_subject: emailData.subject || '',\n      original_date: emailData.date || '',\n      original_body: emailData.body || '',\n      original_message_id: emailData.messageId || '',\n      original_thread_id: emailData.threadId || '',\n      has_original_attachments: emailData.hasAttachments || false,\n      sender: parsed.sender || emailData.from || '',\n      sender_name: parsed.sender_name || 'Unknown',\n      subject: parsed.subject || emailData.subject || '',\n      intent: parsed.intent || '',\n      tone: parsed.tone || 'neutral',\n      urgency: parsed.urgency || 'medium',\n      action_required: parsed.action_required || false,\n      department: parsed.department || 'Admin',\n      tags: parsed.tags || [],\n      tags_string: (parsed.tags || []).join(', '),\n      is_spam: parsed.is_spam || false,\n      suggested_response: parsed.suggested_response || '',\n      html_response,\n      summary: parsed.summary || '',\n      escalation_needed: parsed.escalation_needed || false,\n      is_interested_reply: parsed.is_interested_reply || false,\n      has_reference_number,\n      matched_reference_pattern,\n      is_opt_out,\n      is_blocked_domain: emailData.is_blocked_domain || false,\n      processed_at: new Date().toISOString(),\n      ticket_number: 'TKT-' + Date.now()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "7e9574e3-bf80-4b3c-9a46-75e9ef7749a5",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        990,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Spam",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Spam_Irrelevant",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "Finance",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Accounting_Finance",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "Support",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Customer_Support",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "Sales",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Sales",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "Management",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.department }}",
+                    "rightValue": "Management",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "0b3c364f-723d-47a9-998b-c4533dd710d7",
+      "name": "Route by Department",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1250,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.original_message_id }}",
+        "labelIds": [
+          "Label_8"
+        ]
+      },
+      "id": "a10c077f-d712-44ca-944c-30f45865f4ee",
+      "name": "Label Junk",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        112
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.original_message_id }}",
+        "labelIds": [
+          "Label_1"
+        ]
+      },
+      "id": "8d77848d-4000-4682-8511-67c6b3289fde",
+      "name": "Label Finance",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        288
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.original_message_id }}",
+        "labelIds": [
+          "Label_2"
+        ]
+      },
+      "id": "1e45f318-14d9-4b6d-8c3b-168b8252c0e5",
+      "name": "Label Support",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        464
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.original_message_id }}",
+        "labelIds": [
+          "Label_3"
+        ]
+      },
+      "id": "4030ab28-bbe2-4b67-a4d3-deb9ddd4230e",
+      "name": "Label Sales",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        640
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.original_message_id }}",
+        "labelIds": [
+          "Label_4"
+        ]
+      },
+      "id": "28eeabe8-1ac3-4b7b-a344-96dd49e4b267",
+      "name": "Label Management",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        832
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.original_message_id }}",
+        "labelIds": [
+          "Label_5"
+        ]
+      },
+      "id": "9dd9a5b9-7a4d-4455-8225-c168994724ff",
+      "name": "Label General",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        1008
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Parse AI Response').first().json.original_message_id }}"
+      },
+      "id": "49e1f24e-510f-47ad-9261-024ac5be6676",
+      "name": "Mark Spam Read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        112
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.urgency }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1fe84539-0bbf-479b-9dde-e4574f750cc9",
+      "name": "Is Urgent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1250,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.original_message_id }}",
+        "labelIds": [
+          "Label_7"
+        ]
+      },
+      "id": "87082fcb-df2a-46f6-8b97-d1e4e38100f9",
+      "name": "Label Urgent",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        1152
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "1a07eab0-90c3-4d09-81ca-41b4bc46f98d",
+      "name": "Not Urgent",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "noreply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "no-reply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "donotreply",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "9cb18586-90a6-46f8-b959-60c4c405aea7",
+      "name": "Is No-Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1250,
+        1808
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.original_message_id }}"
+      },
+      "id": "a74feef3-d68c-46cb-b6ae-22044bddaf0f",
+      "name": "Mark No-Reply Read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        1744
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "d504e2fd-e281-4076-9905-c2ce4b8719f2",
+      "name": "Not No-Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        1904
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action_required }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            },
+            {
+              "leftValue": "={{ $json.suggested_response }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "leftValue": "={{ $json.is_spam }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            },
+            {
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "noreply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "no-reply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "donotreply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.original_body }}",
+              "rightValue": "no reply",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.has_reference_number }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            },
+            {
+              "leftValue": "={{ $json.is_opt_out }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            },
+            {
+              "leftValue": "={{ $json.is_blocked_domain }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "df826d33-e869-4f46-b1f9-05eed2d54e9b",
+      "name": "Reply Needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1250,
+        1520
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "subject": "={{ 'Re: ' + $json.original_subject }}",
+        "message": "={{ $json.html_response }}",
+        "emailType": "html",
+        "options": {
+          "threadId": "={{ $json.original_thread_id }}",
+          "sendTo": "={{ $json.sender }}"
+        }
+      },
+      "id": "674168e2-5e9b-4c1d-b15a-7267ab2a4c41",
+      "name": "Create Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        1472
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "8339e114-7639-4215-9c9d-6e6c7553ad30",
+      "name": "No Reply Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_reference_number }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "55c5a594-e238-4b3a-b51f-d4f3c046d854",
+      "name": "Has Reference Number?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1250,
+        1680
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "app2ALQUP7CKEkHOz",
+          "cachedResultName": "Lead Scraper - Johannesburg CRM"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblOsuh298hB9WWrA",
+          "cachedResultName": "Leads"
+        },
+        "columns": {
+          "value": {
+            "Email": "={{ $json.sender }}",
+            "Follow Up Stage": 0,
+            "Status": "Ticket Reply - Do Not Follow Up"
+          },
+          "schema": [
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email"
+            },
+            {
+              "id": "Follow Up Stage",
+              "type": "number",
+              "display": true,
+              "displayName": "Follow Up Stage"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            }
+          ],
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Email"
+          ]
+        },
+        "options": {}
+      },
+      "id": "72c0a9ee-78be-4c57-b6f7-365a18b03361",
+      "name": "Update Lead - Stop Follow Up",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        1648
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "4987d0eb-16fc-45c2-b788-f6ac0550f979",
+      "name": "Skip - Not Ticket Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        1780
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "1Adp3x0ler5H69Cih5tbMLqWEgZMziebhnOEWbMPTvaA"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Email Log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "2f92df1e-b111-4461-98ee-4b4eac0945a3",
+      "name": "Log to Email Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1250,
+        1950
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst d = item.json;\n\nif (d.department === 'Sales' && d.tags_string && d.tags_string.includes('New_Lead')) {\n  return [{\n    json: {\n      date: d.processed_at,\n      lead_name: d.sender_name,\n      email: d.sender,\n      subject: d.original_subject,\n      interest: d.intent,\n      summary: d.summary,\n      urgency: d.urgency,\n      status: 'New',\n      follow_up_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)\n        .toISOString().split('T')[0],\n      is_lead: true\n    }\n  }];\n}\n\nreturn [{ json: { is_lead: false } }];"
+      },
+      "id": "fb079f46-a392-4d2d-b9d9-341c235887ef",
+      "name": "Check If Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        2080
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_lead }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dea0dca4-6528-441d-a2a9-c258591fe38b",
+      "name": "Is New Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1500,
+        2080
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "1G2P9gYuPKtqhDkkJaTVLbuA_yxj_IqTI7vuCfhFLklM"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.date }}",
+            "lead_name": "={{ $json.lead_name }}",
+            "email": "={{ $json.email }}",
+            "subject": "={{ $json.subject }}",
+            "interest": "={{ $json.interest }}",
+            "summary": "={{ $json.summary }}",
+            "urgency": "={{ $json.urgency }}",
+            "status": "={{ $json.status }}",
+            "follow_up_date": "={{ $json.follow_up_date }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "d1904a97-4ecd-4f45-a910-b116501e86fd",
+      "name": "Log New Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1760,
+        2032
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "primary"
+        },
+        "start": "={{ $json.follow_up_date + 'T09:00:00' }}",
+        "end": "={{ $json.follow_up_date + 'T09:30:00' }}",
+        "additionalFields": {
+          "description": "=Auto-generated sales lead follow-up.\n\nLead: {{ $json.lead_name }} ({{ $json.email }})\nInterest: {{ $json.interest }}\nSummary: {{ $json.summary }}",
+          "summary": "=Follow up: {{ $json.lead_name }}"
+        }
+      },
+      "id": "6f7b12ea-3854-4dc6-874a-cad9c2a9d506",
+      "name": "Create Follow-Up",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        2030,
+        2032
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "I5zIYf0UxlkUt3KG",
+          "name": "Google Calendar AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "c00d248e-b8b0-41d1-a28b-2c452208c976",
+      "name": "Not a Lead",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        2160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_interested_reply }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            },
+            {
+              "leftValue": "={{ $json.sender }}",
+              "rightValue": "@eftcorp.atlassian.net",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7b9d8ae6-cc3a-49cd-a6b0-083d5122e01e",
+      "name": "Is Interested Reply?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1250,
+        2340
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $json.original_message_id }}",
+        "message": "=<div style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.5;color:#333333;\"><p style=\"margin:0 0 12px 0;\">Hi {{ $json.sender_name }},</p><p style=\"margin:0 0 12px 0;\">Thank you so much for getting back to us! We really appreciate your interest.</p><p style=\"margin:0 0 12px 0;\">I'll be in touch shortly to discuss how AnyVision Media can help you further. In the meantime, if you have any questions, feel free to reply to this email.</p><p style=\"margin:0 0 12px 0;\">Looking forward to connecting!</p><br><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table></div>",
+        "options": {}
+      },
+      "id": "acb590a0-8eca-49cf-8e88-1faee3efb514",
+      "name": "Send Thank You",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        2288
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Send Thank You').first().json.id || $json.original_message_id }}",
+        "labelIds": [
+          "Label_9"
+        ]
+      },
+      "id": "fd45a272-823d-440a-ae30-bb2724071e6e",
+      "name": "Apply DNT Label",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        2288
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "mode": "id",
+          "value": "1G2P9gYuPKtqhDkkJaTVLbuA_yxj_IqTI7vuCfhFLklM"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "email"
+          ],
+          "value": {
+            "email": "={{ $json.sender }}",
+            "status": "Converted - Do Not Follow Up"
+          }
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "97f90214-5bd8-4667-8746-03e35cf12db5",
+      "name": "Update Lead Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2030,
+        2288
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "b0033378-8541-4b36-92aa-d3aa6598aa4b",
+      "name": "Not Interested Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        2432
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_opt_out }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d2171fcd-3614-45dc-8625-dae18ae8e835",
+      "name": "Is Opt-Out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1250,
+        2600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "app2ALQUP7CKEkHOz",
+          "cachedResultName": "Lead Scraper - Johannesburg CRM"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0LtepawDzFYg4I",
+          "cachedResultName": "Email Suppression"
+        },
+        "columns": {
+          "value": {
+            "Email": "={{ $json.sender }}",
+            "Status": "Opted Out",
+            "Source": "Email Management - Auto Detected",
+            "Date Added": "={{ $json.processed_at }}"
+          },
+          "schema": [
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Source",
+              "type": "string",
+              "display": true,
+              "displayName": "Source"
+            },
+            {
+              "id": "Date Added",
+              "type": "string",
+              "display": true,
+              "displayName": "Date Added"
+            }
+          ],
+          "mappingMode": "defineBelow"
+        },
+        "options": {}
+      },
+      "id": "3016e505-dcec-41a1-ab18-948b411d8105",
+      "name": "Mark Opt-Out Suppression",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        2560
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "7TtMl7ZnJFpC4RGk",
+          "name": "Lead Scraper Airtable"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Parse AI Response').first().json.original_message_id }}",
+        "labelIds": [
+          "Label_9"
+        ]
+      },
+      "id": "53e5564c-3612-4cbe-bddb-e0260dea8f1b",
+      "name": "Apply Opt-Out DNT",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        2560
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "5655480b-64cf-406f-b6e2-ef41cc0ead43",
+      "name": "Not Opt-Out",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1500,
+        2700
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "mode": "id",
+          "value": "1Adp3x0ler5H69Cih5tbMLqWEgZMziebhnOEWbMPTvaA"
+        },
+        "sheetName": {
+          "mode": "name",
+          "value": "Error Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ new Date().toISOString() }}",
+            "workflow": "={{ $json.workflow.name }}",
+            "error": "={{ $json.execution.error.message }}",
+            "node": "={{ $json.execution.lastNodeExecuted }}",
+            "execution_url": "={{ $json.execution.url }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "5005254c-9882-49d1-baa7-c3c80c2b68c4",
+      "name": "Log Error to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        56,
+        600
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Has DNT Label?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Has DNT Label?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has DNT Label?": {
+      "main": [
+        [
+          {
+            "node": "Skip - DNT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Route by Department",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Urgent?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is No-Reply?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reply Needed?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Has Reference Number?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Email Sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check If Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Interested Reply?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Is Opt-Out?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Department": {
+      "main": [
+        [
+          {
+            "node": "Label Junk",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Label Finance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Label Support",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Label Sales",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Label Management",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Label General",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label Junk": {
+      "main": [
+        [
+          {
+            "node": "Mark Spam Read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Urgent?": {
+      "main": [
+        [
+          {
+            "node": "Label Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Urgent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is No-Reply?": {
+      "main": [
+        [
+          {
+            "node": "Mark No-Reply Read",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not No-Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Needed?": {
+      "main": [
+        [
+          {
+            "node": "Create Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Reply Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Reference Number?": {
+      "main": [
+        [
+          {
+            "node": "Update Lead - Stop Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip - Not Ticket Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Lead": {
+      "main": [
+        [
+          {
+            "node": "Is New Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is New Lead?": {
+      "main": [
+        [
+          {
+            "node": "Log New Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not a Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log New Lead": {
+      "main": [
+        [
+          {
+            "node": "Create Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Interested Reply?": {
+      "main": [
+        [
+          {
+            "node": "Send Thank You",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Interested Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Thank You": {
+      "main": [
+        [
+          {
+            "node": "Apply DNT Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply DNT Label": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Opt-Out?": {
+      "main": [
+        [
+          {
+            "node": "Mark Opt-Out Suppression",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Opt-Out Suppression": {
+      "main": [
+        [
+          {
+            "node": "Apply Opt-Out DNT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Log Error to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
