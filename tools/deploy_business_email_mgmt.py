@@ -139,6 +139,7 @@ def if_node(
         "parameters": {
             "conditions": {
                 "options": {
+                    "version": 2,
                     "caseSensitive": case_sensitive,
                     "leftValue": "",
                     "typeValidation": type_validation,
@@ -184,7 +185,7 @@ def code_node(name: str, js_code: str, position: list[int], on_error: str | None
 
 
 def cond_str(left: str, operation: str, right: str) -> dict:
-    """Build a string condition for If/Switch nodes."""
+    """Build a binary string condition (equals, contains, notContains)."""
     return {
         "leftValue": left,
         "rightValue": right,
@@ -192,12 +193,19 @@ def cond_str(left: str, operation: str, right: str) -> dict:
     }
 
 
-def cond_bool(left: str, operation: str) -> dict:
-    """Build a boolean condition for If/Switch nodes (unary)."""
+def cond_str_unary(left: str, operation: str) -> dict:
+    """Build a unary string condition (empty, notEmpty)."""
     return {
         "leftValue": left,
-        "rightValue": True if operation == "true" else False,
-        "operator": {"type": "boolean", "operation": operation},
+        "operator": {"type": "string", "operation": operation, "singleValue": True},
+    }
+
+
+def cond_bool(left: str, operation: str) -> dict:
+    """Build a unary boolean condition (true, false). No rightValue."""
+    return {
+        "leftValue": left,
+        "operator": {"type": "boolean", "operation": operation, "singleValue": True},
     }
 
 
@@ -675,7 +683,7 @@ def build_nodes() -> list[dict]:
     # 8. OpenRouter Chat Model (Claude Sonnet)
     nodes.append({
         "parameters": {
-            "model": "anthropic/claude-sonnet-4-20250514",
+            "model": "anthropic/claude-sonnet-4",
             "options": {},
         },
         "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
@@ -801,7 +809,7 @@ def build_nodes() -> list[dict]:
         "Reply Needed?",
         [
             cond_bool("={{ $json.action_required }}", "true"),
-            cond_str("={{ $json.suggested_response }}", "notEmpty", ""),
+            cond_str_unary("={{ $json.suggested_response }}", "notEmpty"),
             cond_bool("={{ $json.is_spam }}", "false"),
             cond_str("={{ $json.sender }}", "notContains", "noreply"),
             cond_str("={{ $json.sender }}", "notContains", "no-reply"),
@@ -951,15 +959,10 @@ def build_nodes() -> list[dict]:
         "onError": "continueRegularOutput",
     })
 
-    # 34. Create Follow-Up (Calendar v1.3 with resourceLocator)
+    # 34. Create Follow-Up (Calendar v1 — plain string calendar, default create)
     nodes.append({
         "parameters": {
-            "operation": "create",
-            "calendar": {
-                "__rl": True,
-                "mode": "id",
-                "value": "primary",
-            },
+            "calendar": "primary",
             "start": "={{ $json.follow_up_date + 'T09:00:00' }}",
             "end": "={{ $json.follow_up_date + 'T09:30:00' }}",
             "additionalFields": {
@@ -975,7 +978,7 @@ def build_nodes() -> list[dict]:
         "id": uid(),
         "name": "Create Follow-Up",
         "type": "n8n-nodes-base.googleCalendar",
-        "typeVersion": 1.3,
+        "typeVersion": 1,
         "position": [2030, 2032],
         "credentials": {"googleCalendarOAuth2Api": CRED_GOOGLE_CALENDAR},
         "onError": "continueRegularOutput",
