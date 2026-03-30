@@ -42,8 +42,7 @@ export default function AdminLoginPage() {
         return;
       }
 
-      router.push(redirect || "/admin");
-      router.refresh();
+      window.location.href = redirect || "/admin";
     } catch {
       await supabase.auth.signOut();
       setError("Unable to verify access. Please try again.");

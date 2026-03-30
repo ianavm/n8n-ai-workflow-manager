@@ -36,11 +36,10 @@ export default function PortalLoginPage() {
     try {
       const res = await fetch("/api/auth/check-role");
       const { redirect } = await res.json();
-      router.push(redirect || "/portal");
-      router.refresh();
+      // Use window.location for cross-section navigation (more reliable than router.push)
+      window.location.href = redirect || "/portal";
     } catch {
-      router.push("/portal");
-      router.refresh();
+      window.location.href = "/portal";
     }
   }
 
