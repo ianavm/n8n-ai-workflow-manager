@@ -30,35 +30,25 @@ export default function AdminLoginPage() {
       return;
     }
 
-    const { data: adminUser } = await supabase
-      .from("admin_users")
-      .select("role")
-      .eq("auth_user_id", data.user.id)
-      .maybeSingle();
+    // Server-side role check (bypasses RLS issues)
+    try {
+      const res = await fetch("/api/auth/check-role");
+      const { role, redirect } = await res.json();
 
-    if (adminUser) {
-      router.push("/admin");
+      if (!role || role === "client") {
+        await supabase.auth.signOut();
+        setError("This account does not have admin access");
+        setLoading(false);
+        return;
+      }
+
+      router.push(redirect || "/admin");
       router.refresh();
-      return;
+    } catch {
+      await supabase.auth.signOut();
+      setError("Unable to verify access. Please try again.");
+      setLoading(false);
     }
-
-    // Check if user is a financial adviser
-    const { data: adviser } = await supabase
-      .from("fa_advisers")
-      .select("id, role")
-      .eq("auth_user_id", data.user.id)
-      .eq("active", true)
-      .maybeSingle();
-
-    if (adviser) {
-      router.push("/admin/advisory/my-dashboard");
-      router.refresh();
-      return;
-    }
-
-    await supabase.auth.signOut();
-    setError("This account does not have admin access");
-    setLoading(false);
   }
 
   return (

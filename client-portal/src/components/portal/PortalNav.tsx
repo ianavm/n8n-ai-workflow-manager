@@ -18,10 +18,12 @@ import {
   FileBarChart,
   MessageCircle,
   HeadphonesIcon,
+  Briefcase,
 } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", href: "/portal", icon: LayoutDashboard },
+  { label: "Advisory", href: "/portal/advisory", icon: Briefcase },
   { label: "Automations", href: "/portal/workflows", icon: Zap },
   { label: "AI Agents", href: "/portal/ai-agents", icon: Bot },
   { label: "Documents", href: "/portal/documents", icon: FileText },

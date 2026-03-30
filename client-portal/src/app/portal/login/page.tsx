@@ -32,37 +32,16 @@ export default function PortalLoginPage() {
       return;
     }
 
-    // Check if user is an admin
-    if (data.user) {
-      const { data: adminUser } = await supabase
-        .from("admin_users")
-        .select("id")
-        .eq("auth_user_id", data.user.id)
-        .maybeSingle();
-
-      if (adminUser) {
-        router.push("/admin");
-        router.refresh();
-        return;
-      }
-
-      // Check if user is a financial adviser
-      const { data: adviser } = await supabase
-        .from("fa_advisers")
-        .select("id, role")
-        .eq("auth_user_id", data.user.id)
-        .eq("active", true)
-        .maybeSingle();
-
-      if (adviser) {
-        router.push("/admin/advisory/my-dashboard");
-        router.refresh();
-        return;
-      }
+    // Server-side role check (bypasses RLS issues)
+    try {
+      const res = await fetch("/api/auth/check-role");
+      const { redirect } = await res.json();
+      router.push(redirect || "/portal");
+      router.refresh();
+    } catch {
+      router.push("/portal");
+      router.refresh();
     }
-
-    router.push("/portal");
-    router.refresh();
   }
 
   async function handleReset(e: React.FormEvent) {
