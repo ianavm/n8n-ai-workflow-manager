@@ -30,9 +30,15 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // Server-side role check (bypasses RLS issues)
+    // Server-side role check (uses service role to bypass RLS)
     try {
       const res = await fetch("/api/auth/check-role");
+      if (!res.ok) {
+        await supabase.auth.signOut();
+        setError("Unable to verify access. Please try again.");
+        setLoading(false);
+        return;
+      }
       const { role, redirect } = await res.json();
 
       if (!role || role === "client") {

@@ -32,12 +32,23 @@ export default function PortalLoginPage() {
       return;
     }
 
-    // Server-side role check (bypasses RLS issues)
+    // Server-side role check (uses service role to bypass RLS)
     try {
       const res = await fetch("/api/auth/check-role");
+      if (!res.ok) {
+        // API error — fall back to portal home
+        window.location.href = "/portal";
+        return;
+      }
       const { redirect } = await res.json();
-      // Use window.location for cross-section navigation (more reliable than router.push)
-      window.location.href = redirect || "/portal";
+      const target = redirect || "/portal";
+      // Prevent redirect loop back to the same login page
+      if (target === "/portal/login") {
+        setError("Account not found. Please contact support.");
+        setLoading(false);
+        return;
+      }
+      window.location.href = target;
     } catch {
       window.location.href = "/portal";
     }
