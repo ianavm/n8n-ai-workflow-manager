@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
       supabase
         .from("fa_meetings")
         .select(
-          "id, title, scheduled_at, status, meeting_type, location, teams_link, fa_clients!inner(id, first_name, last_name)"
+          "id, title, scheduled_at, status, meeting_type, location, teams_meeting_url, fa_clients!inner(id, first_name, last_name)"
         )
         .eq("adviser_id", adviserId)
         .in("status", ["scheduled", "confirmed"])
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
         )
         .eq("assigned_to", adviserId)
         .lt("due_date", new Date().toISOString())
-        .not("status", "in", '("completed","cancelled")')
+        .not("status", "in", "(completed,cancelled)")
         .order("due_date", { ascending: true })
         .limit(5),
     ]);

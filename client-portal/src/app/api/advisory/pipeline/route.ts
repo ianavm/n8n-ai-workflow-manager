@@ -7,13 +7,16 @@ const updatePipelineSchema = z.object({
   client_id: z.string().uuid("Valid client ID is required"),
   pipeline_stage: z.enum([
     "lead",
-    "prospect",
-    "discovery",
-    "proposal",
-    "onboarding",
+    "contacted",
+    "intake_complete",
+    "discovery_scheduled",
+    "discovery_complete",
+    "analysis",
+    "presentation_scheduled",
+    "presentation_complete",
+    "implementation",
     "active",
-    "review",
-    "churned",
+    "inactive",
   ]),
   notes: z.string().optional(),
 });
@@ -116,14 +119,14 @@ export async function PATCH(req: NextRequest) {
   // Audit log
   await supabase.from("fa_audit_log").insert({
     firm_id: session.firmId,
-    actor_id: session.profileId,
-    actor_type: session.role,
-    action: "pipeline_stage_changed",
+    performed_by: session.profileId,
+    performed_by_type: session.role === "client" ? "client" : "adviser",
+    action: "updated",
     entity_type: "fa_clients",
     entity_id: parsed.data.client_id,
-    details: {
-      previous_stage: previousStage,
-      new_stage: parsed.data.pipeline_stage,
+    old_value: { pipeline_stage: previousStage },
+    new_value: {
+      pipeline_stage: parsed.data.pipeline_stage,
       notes: parsed.data.notes ?? null,
     },
   });

@@ -81,25 +81,22 @@ export async function POST(req: NextRequest, context: RouteContext) {
   await supabase.from("fa_consent_records").insert({
     firm_id: pricing.firm_id,
     client_id: pricing.client_id,
-    consent_type: "pricing_acceptance",
-    entity_type: "fa_pricing",
-    entity_id: id,
-    consented_at: now,
+    consent_type: "fais_record_of_advice",
+    granted: true,
+    granted_at: now,
     ip_address: ipAddress,
     user_agent: req.headers.get("user-agent") ?? "unknown",
-    consented_by: session.profileId,
-    consented_by_role: session.role,
   });
 
   // Audit log with IP
   await supabase.from("fa_audit_log").insert({
     firm_id: pricing.firm_id,
-    actor_id: session.profileId,
-    actor_type: session.role,
-    action: "pricing_accepted",
+    performed_by: session.profileId,
+    performed_by_type: session.role === "client" ? "client" : "adviser",
+    action: "fee_accepted",
     entity_type: "fa_pricing",
     entity_id: id,
-    details: {
+    new_value: {
       client_id: pricing.client_id,
       ip_address: ipAddress,
       accepted_at: now,

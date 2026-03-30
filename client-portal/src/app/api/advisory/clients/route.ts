@@ -18,7 +18,6 @@ const createClientSchema = z.object({
   occupation: z.string().optional(),
   source: z.string().optional(),
   pipeline_stage: z.string().default("lead"),
-  assigned_adviser_id: z.string().uuid().optional(),
   notes: z.string().optional(),
 });
 
@@ -46,7 +45,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from("fa_clients")
     .select(
-      "*, assigned_adviser:fa_advisers!fa_clients_assigned_adviser_id_fkey(id, full_name)"
+      "*"
     )
     .eq("firm_id", session.firmId)
     .order("created_at", { ascending: false });
@@ -106,8 +105,6 @@ export async function POST(req: NextRequest) {
     .insert({
       ...parsed.data,
       firm_id: session.firmId,
-      assigned_adviser_id:
-        parsed.data.assigned_adviser_id ?? session.adviserId ?? null,
       created_by: session.profileId,
     })
     .select()
@@ -123,12 +120,12 @@ export async function POST(req: NextRequest) {
   // Audit log
   await supabase.from("fa_audit_log").insert({
     firm_id: session.firmId,
-    actor_id: session.profileId,
-    actor_type: session.role,
-    action: "client_created",
+    performed_by: session.profileId,
+    performed_by_type: session.role === "client" ? "client" : "adviser",
+    action: "created",
     entity_type: "fa_clients",
     entity_id: data.id,
-    details: { email: parsed.data.email },
+    new_value: { email: parsed.data.email },
   });
 
   return NextResponse.json({ success: true, data }, { status: 201 });

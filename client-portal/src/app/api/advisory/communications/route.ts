@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from("fa_communications")
     .select(
-      "*, client:fa_clients!fa_communications_client_id_fkey(id, first_name, last_name), sent_by_adviser:fa_advisers!fa_communications_sent_by_fkey(id, full_name)"
+      "*, client:fa_clients!fa_communications_client_id_fkey(id, first_name, last_name), adviser:fa_advisers!fa_communications_adviser_id_fkey(id, full_name)"
     )
     .order("created_at", { ascending: false });
 

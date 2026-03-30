@@ -61,10 +61,22 @@ export default function AdvisoryTasks() {
       return;
     }
 
+    const { data: portalClient } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("auth_user_id", userData.user.id)
+      .single();
+
+    if (!portalClient) {
+      setError("No portal account found");
+      setLoading(false);
+      return;
+    }
+
     const { data: client } = await supabase
       .from("fa_clients")
-      .select("id")
-      .eq("portal_client_id", userData.user.id)
+      .select("id, firm_id")
+      .eq("portal_client_id", portalClient.id)
       .single();
 
     if (!client) {

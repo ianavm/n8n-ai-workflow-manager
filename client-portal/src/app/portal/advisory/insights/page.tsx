@@ -16,11 +16,11 @@ interface MeetingInsight {
   summary: string | null;
   priorities: string[] | null;
   action_items: string[] | null;
-  next_steps: string[] | null;
+  next_steps: string | null;
   meeting: {
-    meeting_date: string;
+    scheduled_at: string;
     meeting_type: string;
-    adviser_name: string | null;
+    adviser: { full_name: string } | null;
   };
 }
 
@@ -49,10 +49,22 @@ export default function AdvisoryInsights() {
       return;
     }
 
+    const { data: portalClient } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("auth_user_id", userData.user.id)
+      .single();
+
+    if (!portalClient) {
+      setError("No portal account found");
+      setLoading(false);
+      return;
+    }
+
     const { data: client } = await supabase
       .from("fa_clients")
-      .select("id")
-      .eq("portal_client_id", userData.user.id)
+      .select("id, firm_id")
+      .eq("portal_client_id", portalClient.id)
       .single();
 
     if (!client) {
@@ -61,23 +73,12 @@ export default function AdvisoryInsights() {
       return;
     }
 
-    const { data: insightData, error: insightErr } = await supabase
-      .from("fa_meeting_insights")
-      .select(`
-        id,
-        meeting_id,
-        summary,
-        priorities,
-        action_items,
-        next_steps,
-        meeting:fa_meetings!inner (
-          meeting_date,
-          meeting_type,
-          adviser_name
-        )
-      `)
-      .eq("fa_meetings.client_id", client.id)
-      .order("created_at", { ascending: false });
+    // Query meetings with insights, filtered by client_id
+    const { data: meetingData, error: insightErr } = await supabase
+      .from("fa_meetings")
+      .select("*,insights:fa_meeting_insights(*),adviser:fa_advisers(full_name)")
+      .eq("client_id", client.id)
+      .order("scheduled_at", { ascending: false });
 
     if (insightErr) {
       setError(insightErr.message);
@@ -85,11 +86,21 @@ export default function AdvisoryInsights() {
       return;
     }
 
-    // Normalize the joined meeting data
-    const normalized = (insightData || []).map((row: Record<string, unknown>) => ({
-      ...row,
-      meeting: Array.isArray(row.meeting) ? row.meeting[0] : row.meeting,
-    })) as MeetingInsight[];
+    // Flatten: extract insights and attach meeting context
+    const normalized: MeetingInsight[] = [];
+    for (const m of meetingData || []) {
+      const meetingInsights = Array.isArray(m.insights) ? m.insights : [];
+      for (const ins of meetingInsights) {
+        normalized.push({
+          ...ins,
+          meeting: {
+            scheduled_at: m.scheduled_at,
+            meeting_type: m.meeting_type,
+            adviser: m.adviser,
+          },
+        });
+      }
+    }
 
     setInsights(normalized);
     setLoading(false);
@@ -182,14 +193,14 @@ export default function AdvisoryInsights() {
                       </div>
                       <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px", display: "flex", alignItems: "center", gap: "6px" }}>
                         <Calendar size={11} />
-                        {meeting?.meeting_date
-                          ? new Date(meeting.meeting_date).toLocaleDateString("en-ZA", {
+                        {meeting?.scheduled_at
+                          ? new Date(meeting.scheduled_at).toLocaleDateString("en-ZA", {
                               day: "numeric",
                               month: "short",
                               year: "numeric",
                             })
                           : "---"}
-                        {meeting?.adviser_name && ` - ${meeting.adviser_name}`}
+                        {meeting?.adviser?.full_name && ` - ${meeting.adviser.full_name}`}
                       </div>
                     </div>
                   </div>
@@ -251,19 +262,14 @@ export default function AdvisoryInsights() {
                       </div>
                     )}
 
-                    {insight.next_steps && insight.next_steps.length > 0 && (
+                    {insight.next_steps && (
                       <div>
                         <h4 style={{ fontSize: "13px", fontWeight: 600, color: "#B0B8C8", marginBottom: "8px" }}>
                           Next Steps
                         </h4>
-                        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "6px" }}>
-                          {insight.next_steps.map((step, i) => (
-                            <li key={i} style={{ fontSize: "13px", color: "#B0B8C8", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                              <span style={{ color: "#00A651", flexShrink: 0 }}>&rarr;</span>
-                              {step}
-                            </li>
-                          ))}
-                        </ul>
+                        <p style={{ fontSize: "13px", color: "#B0B8C8", lineHeight: "1.7" }}>
+                          {insight.next_steps}
+                        </p>
                       </div>
                     )}
                   </div>

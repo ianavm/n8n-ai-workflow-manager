@@ -17,10 +17,10 @@ import {
 
 interface MeetingDetail {
   id: string;
-  meeting_date: string;
+  scheduled_at: string;
   meeting_type: string;
   status: string;
-  adviser_name: string | null;
+  adviser: { full_name: string } | null;
   teams_meeting_url: string | null;
   duration_minutes: number | null;
   notes: string | null;
@@ -32,7 +32,7 @@ interface MeetingInsight {
   summary: string | null;
   priorities: string[] | null;
   action_items: string[] | null;
-  next_steps: string[] | null;
+  next_steps: string | null;
 }
 
 const glassCard: React.CSSProperties = {
@@ -77,7 +77,7 @@ export default function MeetingDetailPage() {
 
     const { data: meetingData, error: meetingErr } = await supabase
       .from("fa_meetings")
-      .select("*")
+      .select("*,adviser:fa_advisers(full_name),insights:fa_meeting_insights(*)")
       .eq("id", meetingId)
       .single();
 
@@ -89,11 +89,9 @@ export default function MeetingDetailPage() {
 
     setMeeting(meetingData);
 
-    const { data: insightData } = await supabase
-      .from("fa_meeting_insights")
-      .select("id, summary, priorities, action_items, next_steps")
-      .eq("meeting_id", meetingId)
-      .single();
+    const insightData = Array.isArray(meetingData.insights) && meetingData.insights.length > 0
+      ? meetingData.insights[0]
+      : null;
 
     if (insightData) {
       setInsights(insightData);
@@ -136,7 +134,7 @@ export default function MeetingDetailPage() {
 
   const badge = statusBadge(meeting.status);
   const recording = recordingBadge(meeting.recording_status);
-  const isUpcoming = new Date(meeting.meeting_date) > new Date() && meeting.status !== "completed";
+  const isUpcoming = new Date(meeting.scheduled_at) > new Date() && meeting.status !== "completed";
 
   return (
     <div>
@@ -167,7 +165,7 @@ export default function MeetingDetailPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#B0B8C8", fontSize: "14px" }}>
                 <Calendar size={14} />
-                {new Date(meeting.meeting_date).toLocaleDateString("en-ZA", {
+                {new Date(meeting.scheduled_at).toLocaleDateString("en-ZA", {
                   weekday: "long",
                   day: "numeric",
                   month: "long",
@@ -176,16 +174,16 @@ export default function MeetingDetailPage() {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#B0B8C8", fontSize: "14px" }}>
                 <Clock size={14} />
-                {new Date(meeting.meeting_date).toLocaleTimeString("en-ZA", {
+                {new Date(meeting.scheduled_at).toLocaleTimeString("en-ZA", {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}
                 {meeting.duration_minutes && ` (${meeting.duration_minutes} minutes)`}
               </div>
-              {meeting.adviser_name && (
+              {meeting.adviser?.full_name && (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#B0B8C8", fontSize: "14px" }}>
                   <User size={14} />
-                  Adviser: {meeting.adviser_name}
+                  Adviser: {meeting.adviser.full_name}
                 </div>
               )}
             </div>
@@ -310,28 +308,14 @@ export default function MeetingDetailPage() {
             </div>
           )}
 
-          {insights.next_steps && insights.next_steps.length > 0 && (
+          {insights.next_steps && (
             <div style={glassCard}>
               <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "12px" }}>
                 Next Steps
               </h3>
-              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "8px" }}>
-                {insights.next_steps.map((step, i) => (
-                  <li
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "10px",
-                      fontSize: "14px",
-                      color: "#B0B8C8",
-                    }}
-                  >
-                    <span style={{ color: "#00A651", fontWeight: 700, flexShrink: 0 }}>&rarr;</span>
-                    {step}
-                  </li>
-                ))}
-              </ul>
+              <p style={{ fontSize: "14px", color: "#B0B8C8", lineHeight: "1.7" }}>
+                {insights.next_steps}
+              </p>
             </div>
           )}
         </div>

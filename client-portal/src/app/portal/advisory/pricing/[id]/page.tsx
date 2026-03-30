@@ -10,7 +10,6 @@ import {
   Lock,
   CheckCircle,
   Clock,
-  History,
 } from "lucide-react";
 
 interface PricingDetail {
@@ -24,15 +23,6 @@ interface PricingDetail {
   updated_at: string | null;
   version: number | null;
   accepted_at: string | null;
-}
-
-interface PricingVersion {
-  id: string;
-  version: number;
-  amount: number | null;
-  percentage: number | null;
-  status: string;
-  created_at: string;
 }
 
 const glassCard: React.CSSProperties = {
@@ -67,7 +57,6 @@ export default function PricingDetailPage() {
   const pricingId = params.id as string;
   const supabase = createClient();
   const [pricing, setPricing] = useState<PricingDetail | null>(null);
-  const [versions, setVersions] = useState<PricingVersion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
@@ -89,15 +78,6 @@ export default function PricingDetailPage() {
     }
 
     setPricing(pricingData);
-
-    // Fetch version history if available
-    const { data: versionData } = await supabase
-      .from("fa_pricing_versions")
-      .select("id, version, amount, percentage, status, created_at")
-      .eq("pricing_id", pricingId)
-      .order("version", { ascending: false });
-
-    setVersions(versionData || []);
     setLoading(false);
   }, [supabase, pricingId]);
 
@@ -296,62 +276,7 @@ export default function PricingDetailPage() {
         )}
       </div>
 
-      {/* Version History */}
-      {versions.length > 0 && (
-        <div style={glassCard}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-            <History size={16} style={{ color: "#00A651" }} />
-            <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff" }}>Version History</h3>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {versions.map((v) => {
-              const vsc = statusConfig(v.status);
-              return (
-                <div
-                  key={v.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    borderRadius: "10px",
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.04)",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#00A651" }}>
-                      v{v.version}
-                    </span>
-                    <span style={{ fontSize: "13px", color: "#B0B8C8" }}>
-                      {v.amount != null && formatCurrency(v.amount)}
-                      {v.percentage != null && ` / ${v.percentage}%`}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        fontSize: "11px",
-                        fontWeight: 600,
-                        background: vsc.bg,
-                        color: vsc.color,
-                      }}
-                    >
-                      {vsc.label}
-                    </span>
-                    <span style={{ fontSize: "12px", color: "#6B7280" }}>
-                      {new Date(v.created_at).toLocaleDateString("en-ZA")}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Version info shown inline above */}
     </div>
   );
 }

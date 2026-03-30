@@ -11,22 +11,12 @@ import {
 } from "lucide-react";
 
 interface ComplianceData {
-  missing_popia_consent: number;
+  missing_popia: number;
   missing_fais_disclosure: number;
   expired_consent: number;
   overdue_tasks: number;
-  fica_verification_gaps: number;
+  unverified_fica: number;
   total_clients: number;
-  compliant_clients: number;
-  clients_needing_attention: ComplianceClient[];
-}
-
-interface ComplianceClient {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  issues: string[];
 }
 
 interface ComplianceCard {
@@ -79,15 +69,22 @@ export default function CompliancePage() {
 
   if (!data) return null;
 
+  const totalIssuesCount =
+    data.missing_popia +
+    data.missing_fais_disclosure +
+    data.expired_consent +
+    data.overdue_tasks +
+    data.unverified_fica;
+  const maxPossibleIssues = data.total_clients * 5;
   const complianceRate =
-    data.total_clients > 0
-      ? Math.round((data.compliant_clients / data.total_clients) * 100)
-      : 0;
+    maxPossibleIssues > 0
+      ? Math.round(((maxPossibleIssues - totalIssuesCount) / maxPossibleIssues) * 100)
+      : 100;
 
   const cards: ComplianceCard[] = [
     {
       label: "Missing POPIA Consent",
-      value: data.missing_popia_consent,
+      value: data.missing_popia,
       icon: FileWarning,
       color: "#EF4444",
       bgColor: "rgba(239, 68, 68, 0.1)",
@@ -114,8 +111,8 @@ export default function CompliancePage() {
       bgColor: "rgba(239, 68, 68, 0.1)",
     },
     {
-      label: "FICA Verification Gaps",
-      value: data.fica_verification_gaps,
+      label: "Unverified FICA",
+      value: data.unverified_fica,
       icon: UserX,
       color: "#F97316",
       bgColor: "rgba(249, 115, 22, 0.1)",
@@ -147,8 +144,7 @@ export default function CompliancePage() {
               Overall Compliance Rate
             </h2>
             <p className="text-sm text-[#6B7280]">
-              {data.compliant_clients} of {data.total_clients} clients fully
-              compliant
+              {data.total_clients} total clients, {totalIssuesCount} outstanding issues
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -215,59 +211,7 @@ export default function CompliancePage() {
         })}
       </div>
 
-      {/* Clients Needing Attention */}
-      {data.clients_needing_attention &&
-        data.clients_needing_attention.length > 0 && (
-          <div className="glass-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-[rgba(255,255,255,0.06)]">
-              <h3 className="text-sm font-semibold text-white">
-                Clients Needing Attention
-              </h3>
-            </div>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-[rgba(255,255,255,0.06)]">
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
-                    Client
-                  </th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
-                    Issues
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.clients_needing_attention.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.02)] transition-colors"
-                  >
-                    <td className="px-4 py-3 text-sm font-medium text-white">
-                      {c.first_name} {c.last_name}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-[#B0B8C8]">
-                      {c.email}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {c.issues.map((issue) => (
-                          <span
-                            key={issue}
-                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-500/10 text-red-400 border border-red-500/20"
-                          >
-                            {issue}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* Issue summary is shown in the cards above */}
     </div>
   );
 }

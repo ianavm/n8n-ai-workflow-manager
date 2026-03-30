@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from("fa_documents")
     .select(
-      "*, uploaded_by_adviser:fa_advisers!fa_documents_uploaded_by_fkey(id, full_name)"
+      "*, uploaded_by"
     )
     .order("created_at", { ascending: false });
 
@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
   const clientId = formData.get("client_id") as string | null;
-  const category = (formData.get("category") as string) ?? "general";
+  const category = (formData.get("category") as string) ?? "other";
   const description = formData.get("description") as string | null;
 
   if (!file) {
@@ -152,11 +152,11 @@ export async function POST(req: NextRequest) {
     .insert({
       firm_id: firmId,
       client_id: resolvedClientId,
-      filename: file.name,
+      file_name: file.name,
       storage_path: storagePath,
-      mime_type: file.type,
-      size_bytes: file.size,
-      category,
+      file_type: file.type,
+      file_size: file.size,
+      document_type: category,
       description: description ?? null,
       uploaded_by: session.profileId,
       uploaded_by_role: session.role,
@@ -176,14 +176,14 @@ export async function POST(req: NextRequest) {
   // Audit log
   await supabase.from("fa_audit_log").insert({
     firm_id: firmId,
-    actor_id: session.profileId,
-    actor_type: session.role,
+    performed_by: session.profileId,
+    performed_by_type: session.role === "client" ? "client" : "adviser",
     action: "document_uploaded",
     entity_type: "fa_documents",
     entity_id: data.id,
-    details: {
-      filename: file.name,
-      category,
+    new_value: {
+      file_name: file.name,
+      document_type: category,
       client_id: resolvedClientId,
     },
   });

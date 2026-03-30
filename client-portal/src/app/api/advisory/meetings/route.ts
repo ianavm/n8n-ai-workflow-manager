@@ -5,17 +5,17 @@ import { z } from "zod";
 
 const createMeetingSchema = z.object({
   client_id: z.string().uuid("Valid client ID is required"),
-  type: z.enum([
-    "initial_consultation",
-    "annual_review",
+  meeting_type: z.enum([
+    "discovery",
+    "presentation",
+    "review",
+    "follow_up",
     "ad_hoc",
-    "claims",
-    "onboarding",
   ]),
   scheduled_at: z.string().min(1, "Scheduled date is required"),
   duration_minutes: z.number().int().min(15).max(480).default(60),
   location: z.string().optional(),
-  video_link: z.string().url().optional(),
+  teams_meeting_url: z.string().url().optional(),
   agenda: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
         client_id: parsed.data.client_id,
         adviser_id: session.adviserId,
         scheduled_at: parsed.data.scheduled_at,
-        type: parsed.data.type,
+        meeting_type: parsed.data.meeting_type,
       }),
     }).catch(() => {
       // Non-blocking webhook; failure is logged but not surfaced
@@ -154,12 +154,12 @@ export async function POST(req: NextRequest) {
   // Audit log
   await supabase.from("fa_audit_log").insert({
     firm_id: session.firmId,
-    actor_id: session.profileId,
-    actor_type: session.role,
-    action: "meeting_created",
+    performed_by: session.profileId,
+    performed_by_type: session.role === "client" ? "client" : "adviser",
+    action: "meeting_booked",
     entity_type: "fa_meetings",
     entity_id: data.id,
-    details: { type: parsed.data.type, client_id: parsed.data.client_id },
+    new_value: { meeting_type: parsed.data.meeting_type, client_id: parsed.data.client_id },
   });
 
   return NextResponse.json({ success: true, data }, { status: 201 });

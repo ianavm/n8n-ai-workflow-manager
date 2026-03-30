@@ -153,12 +153,12 @@ export async function POST(req: NextRequest) {
   // Audit log
   await supabase.from("fa_audit_log").insert({
     firm_id: session.firmId,
-    actor_id: session.profileId,
-    actor_type: session.role,
-    action: "task_created",
+    performed_by: session.profileId,
+    performed_by_type: session.role === "client" ? "client" : "adviser",
+    action: "created",
     entity_type: "fa_tasks",
     entity_id: data.id,
-    details: { title: parsed.data.title, client_id: parsed.data.client_id },
+    new_value: { title: parsed.data.title, client_id: parsed.data.client_id },
   });
 
   return NextResponse.json({ success: true, data }, { status: 201 });
@@ -241,12 +241,12 @@ export async function PATCH(req: NextRequest) {
   // Audit log
   await supabase.from("fa_audit_log").insert({
     firm_id: existing.firm_id,
-    actor_id: session.profileId,
-    actor_type: session.role,
-    action: "task_updated",
+    performed_by: session.profileId,
+    performed_by_type: session.role === "client" ? "client" : "adviser",
+    action: "updated",
     entity_type: "fa_tasks",
     entity_id: task_id,
-    details: { updated_fields: Object.keys(parsed.data) },
+    new_value: { updated_fields: Object.keys(parsed.data) },
   });
 
   return NextResponse.json({ success: true, data });

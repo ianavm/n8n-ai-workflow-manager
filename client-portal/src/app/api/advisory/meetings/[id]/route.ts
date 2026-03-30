@@ -120,12 +120,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   // Audit log
   await supabase.from("fa_audit_log").insert({
     firm_id: session.firmId,
-    actor_id: session.profileId,
-    actor_type: session.role,
-    action: "meeting_updated",
+    performed_by: session.profileId,
+    performed_by_type: session.role === "client" ? "client" : "adviser",
+    action: "updated",
     entity_type: "fa_meetings",
     entity_id: id,
-    details: { updated_fields: Object.keys(parsed.data) },
+    new_value: { updated_fields: Object.keys(parsed.data) },
   });
 
   return NextResponse.json({ success: true, data });

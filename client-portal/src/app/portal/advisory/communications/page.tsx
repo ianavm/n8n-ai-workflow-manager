@@ -16,7 +16,7 @@ interface FaCommunication {
   channel: string;
   direction: string;
   subject: string | null;
-  body_preview: string | null;
+  content: string | null;
   created_at: string;
   status: string | null;
 }
@@ -87,10 +87,22 @@ export default function AdvisoryCommunications() {
       return;
     }
 
+    const { data: portalClient } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("auth_user_id", userData.user.id)
+      .single();
+
+    if (!portalClient) {
+      setError("No portal account found");
+      setLoading(false);
+      return;
+    }
+
     const { data: client } = await supabase
       .from("fa_clients")
-      .select("id")
-      .eq("portal_client_id", userData.user.id)
+      .select("id, firm_id")
+      .eq("portal_client_id", portalClient.id)
       .single();
 
     if (!client) {
@@ -101,7 +113,7 @@ export default function AdvisoryCommunications() {
 
     const { data: commData, error: commErr } = await supabase
       .from("fa_communications")
-      .select("id, channel, direction, subject, body_preview, created_at, status")
+      .select("id, channel, direction, subject, content, created_at, status")
       .eq("client_id", client.id)
       .order("created_at", { ascending: false })
       .limit(50);
@@ -268,7 +280,7 @@ export default function AdvisoryCommunications() {
                             </span>
                           </div>
 
-                          {comm.body_preview && (
+                          {comm.content && (
                             <p
                               style={{
                                 fontSize: "13px",
@@ -281,7 +293,7 @@ export default function AdvisoryCommunications() {
                                 maxWidth: "500px",
                               }}
                             >
-                              {comm.body_preview}
+                              {comm.content}
                             </p>
                           )}
 

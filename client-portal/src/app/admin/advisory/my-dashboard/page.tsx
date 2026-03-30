@@ -30,7 +30,7 @@ interface UpcomingMeeting {
   status: string;
   meeting_type: string;
   location: string | null;
-  teams_link: string | null;
+  teams_meeting_url: string | null;
   fa_clients: MeetingClient;
 }
 
@@ -312,9 +312,9 @@ export default function MyDashboardPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {m.teams_link && (
+                    {m.teams_meeting_url && (
                       <a
-                        href={m.teams_link}
+                        href={m.teams_meeting_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-[#00A651] hover:text-[#5A52E0] transition-colors"

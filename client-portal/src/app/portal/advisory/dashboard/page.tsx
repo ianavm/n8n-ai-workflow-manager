@@ -11,25 +11,36 @@ import {
   Upload,
 } from "lucide-react";
 
-interface DashboardData {
-  upcoming_meetings_count: number;
-  pending_tasks_count: number;
-  active_products_count: number;
+interface RpcDashboardData {
+  upcoming_meetings: number;
+  pending_tasks: number;
+  active_products: number;
   health_score: number;
-  upcoming_meetings: Array<{
-    id: string;
-    meeting_date: string;
-    meeting_type: string;
-    status: string;
-    teams_meeting_url: string | null;
-  }>;
-  recent_activity: Array<{
-    id: string;
-    channel: string;
-    direction: string;
-    subject: string | null;
-    created_at: string;
-  }>;
+  unread_comms: number;
+  pipeline_stage: string;
+}
+
+interface FaMeeting {
+  id: string;
+  scheduled_at: string;
+  meeting_type: string;
+  status: string;
+  teams_meeting_url: string | null;
+  adviser: { full_name: string } | null;
+}
+
+interface FaCommunication {
+  id: string;
+  channel: string;
+  direction: string;
+  subject: string | null;
+  created_at: string;
+}
+
+interface DashboardData {
+  rpc: RpcDashboardData;
+  upcoming_meetings: FaMeeting[];
+  recent_activity: FaCommunication[];
 }
 
 const glassCard: React.CSSProperties = {
@@ -124,22 +135,34 @@ export default function AdvisoryDashboard() {
       return;
     }
 
-    // Look up fa_clients.id from the portal user
-    const { data: client } = await supabase
-      .from("fa_clients")
+    // Two-step lookup: clients -> fa_clients
+    const { data: portalClient } = await supabase
+      .from("clients")
       .select("id")
-      .eq("portal_client_id", userData.user.id)
+      .eq("auth_user_id", userData.user.id)
       .single();
 
-    if (!client) {
+    if (!portalClient) {
+      setError("No portal account found");
+      setLoading(false);
+      return;
+    }
+
+    const { data: faClient } = await supabase
+      .from("fa_clients")
+      .select("id, firm_id")
+      .eq("portal_client_id", portalClient.id)
+      .single();
+
+    if (!faClient) {
       setError("No advisory profile linked to your account.");
       setLoading(false);
       return;
     }
 
-    const { data: dashboardData, error: rpcError } = await supabase.rpc(
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
       "fa_get_client_dashboard",
-      { p_client_id: client.id }
+      { p_client_id: faClient.id }
     );
 
     if (rpcError) {
@@ -148,7 +171,28 @@ export default function AdvisoryDashboard() {
       return;
     }
 
-    setData(dashboardData);
+    // Fetch upcoming meetings
+    const { data: meetingsData } = await supabase
+      .from("fa_meetings")
+      .select("*,adviser:fa_advisers(full_name)")
+      .eq("client_id", faClient.id)
+      .in("status", ["scheduled", "confirmed"])
+      .order("scheduled_at", { ascending: true })
+      .limit(3);
+
+    // Fetch recent activity
+    const { data: activityData } = await supabase
+      .from("fa_communications")
+      .select("*")
+      .eq("client_id", faClient.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    setData({
+      rpc: rpcData,
+      upcoming_meetings: meetingsData || [],
+      recent_activity: activityData || [],
+    });
     setLoading(false);
   }, [supabase]);
 
@@ -203,25 +247,25 @@ export default function AdvisoryDashboard() {
       >
         <StatCard
           title="Upcoming Meetings"
-          value={data.upcoming_meetings_count}
+          value={data.rpc.upcoming_meetings}
           icon={<Calendar size={18} />}
           color="#00A651"
         />
         <StatCard
           title="Pending Tasks"
-          value={data.pending_tasks_count}
+          value={data.rpc.pending_tasks}
           icon={<CheckSquare size={18} />}
           color="#F59E0B"
         />
         <StatCard
           title="Active Products"
-          value={data.active_products_count}
+          value={data.rpc.active_products}
           icon={<Package size={18} />}
           color="#00D4AA"
         />
         <StatCard
           title="Health Score"
-          value={`${data.health_score}%`}
+          value={`${data.rpc.health_score}%`}
           icon={<Heart size={18} />}
           color="#FF6D5A"
         />
@@ -256,7 +300,7 @@ export default function AdvisoryDashboard() {
                       {m.meeting_type}
                     </div>
                     <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>
-                      {formatDate(m.meeting_date)}
+                      {formatDate(m.scheduled_at)}
                     </div>
                   </div>
                   {m.teams_meeting_url && (

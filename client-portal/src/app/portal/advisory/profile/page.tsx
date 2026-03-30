@@ -119,10 +119,22 @@ export default function AdvisoryProfile() {
       return;
     }
 
+    const { data: portalClient } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("auth_user_id", userData.user.id)
+      .single();
+
+    if (!portalClient) {
+      setError("No portal account found");
+      setLoading(false);
+      return;
+    }
+
     const { data: faClient, error: clientErr } = await supabase
       .from("fa_clients")
       .select("*")
-      .eq("portal_client_id", userData.user.id)
+      .eq("portal_client_id", portalClient.id)
       .single();
 
     if (clientErr || !faClient) {
@@ -135,7 +147,9 @@ export default function AdvisoryProfile() {
     setEditable({
       phone: faClient.phone || "",
       mobile: faClient.mobile || "",
-      physical_address: faClient.physical_address || "",
+      physical_address: typeof faClient.physical_address === "object" && faClient.physical_address !== null
+        ? JSON.stringify(faClient.physical_address)
+        : faClient.physical_address || "",
       employer: faClient.employer || "",
       occupation: faClient.occupation || "",
     });

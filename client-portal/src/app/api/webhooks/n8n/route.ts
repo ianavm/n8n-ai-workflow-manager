@@ -45,8 +45,8 @@ export async function POST(req: NextRequest) {
           .from("fa_meetings")
           .update({
             status: "confirmed",
-            calendar_event_id: meetingData.calendar_event_id as string,
-            video_link: meetingData.video_link as string,
+            outlook_event_id: meetingData.calendar_event_id as string,
+            teams_meeting_url: meetingData.video_link as string,
             updated_at: new Date().toISOString(),
           })
           .eq("id", meetingData.meeting_id as string);
@@ -74,10 +74,8 @@ export async function POST(req: NextRequest) {
           firm_id: insightsData.firm_id as string,
           summary: insightsData.summary as string,
           action_items: insightsData.action_items,
-          risk_factors: insightsData.risk_factors,
           compliance_flags: insightsData.compliance_flags,
-          sentiment_score: insightsData.sentiment_score as number,
-          topics_discussed: insightsData.topics_discussed,
+          client_sentiment: insightsData.client_sentiment as string,
         });
         break;
       }
@@ -107,8 +105,8 @@ export async function POST(req: NextRequest) {
           channel: commData.channel as string,
           direction: (commData.direction as string) ?? "outbound",
           subject: commData.subject as string,
-          body: commData.body as string,
-          sent_by: commData.sent_by as string,
+          content: commData.body as string,
+          adviser_id: commData.sent_by as string,
           sent_at: commData.sent_at as string,
         });
         break;
@@ -119,7 +117,7 @@ export async function POST(req: NextRequest) {
         await supabase
           .from("fa_documents")
           .update({
-            category: docData.category as string,
+            document_type: docData.category as string,
             ai_classification: docData.classification,
             updated_at: new Date().toISOString(),
           })

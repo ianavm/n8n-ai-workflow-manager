@@ -12,12 +12,11 @@ import {
 
 interface FaDocument {
   id: string;
-  document_name: string;
+  file_name: string;
   document_type: string;
-  file_url: string | null;
+  storage_url: string | null;
   file_size: number | null;
-  uploaded_at: string;
-  status: string | null;
+  created_at: string;
 }
 
 const glassCard: React.CSSProperties = {
@@ -75,10 +74,22 @@ export default function AdvisoryDocuments() {
       return;
     }
 
+    const { data: portalClient } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("auth_user_id", userData.user.id)
+      .single();
+
+    if (!portalClient) {
+      setError("No portal account found");
+      setLoading(false);
+      return;
+    }
+
     const { data: client } = await supabase
       .from("fa_clients")
-      .select("id")
-      .eq("portal_client_id", userData.user.id)
+      .select("id, firm_id")
+      .eq("portal_client_id", portalClient.id)
       .single();
 
     if (!client) {
@@ -89,9 +100,9 @@ export default function AdvisoryDocuments() {
 
     const { data: docData, error: docErr } = await supabase
       .from("fa_documents")
-      .select("id, document_name, document_type, file_url, file_size, uploaded_at, status")
+      .select("id, file_name, document_type, storage_url, file_size, created_at")
       .eq("client_id", client.id)
-      .order("uploaded_at", { ascending: false });
+      .order("created_at", { ascending: false });
 
     if (docErr) {
       setError(docErr.message);
@@ -116,7 +127,7 @@ export default function AdvisoryDocuments() {
 
     const formData = new FormData();
     for (let i = 0; i < files.length; i++) {
-      formData.append("files", files[i]);
+      formData.append("file", files[i]);
     }
 
     try {
@@ -254,36 +265,19 @@ export default function AdvisoryDocuments() {
                       <File size={18} style={{ color: typeColors[type.toLowerCase()] || typeColors.other, flexShrink: 0 }} />
                       <div>
                         <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff" }}>
-                          {doc.document_name}
+                          {doc.file_name}
                         </div>
                         <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>
-                          {new Date(doc.uploaded_at).toLocaleDateString("en-ZA")}
+                          {new Date(doc.created_at).toLocaleDateString("en-ZA")}
                           {doc.file_size != null && ` - ${formatFileSize(doc.file_size)}`}
                         </div>
                       </div>
                     </div>
 
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      {doc.status && (
-                        <span
-                          style={{
-                            fontSize: "11px",
-                            fontWeight: 600,
-                            padding: "3px 8px",
-                            borderRadius: "4px",
-                            background: doc.status === "verified"
-                              ? "rgba(16,185,129,0.1)"
-                              : "rgba(245,158,11,0.1)",
-                            color: doc.status === "verified" ? "#10B981" : "#F59E0B",
-                            textTransform: "capitalize",
-                          }}
-                        >
-                          {doc.status}
-                        </span>
-                      )}
-                      {doc.file_url && (
+                      {doc.storage_url && (
                         <a
-                          href={doc.file_url}
+                          href={doc.storage_url}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{
@@ -303,7 +297,7 @@ export default function AdvisoryDocuments() {
                           Download
                         </a>
                       )}
-                    </div>
+                      </div>
                   </div>
                 ))}
               </div>

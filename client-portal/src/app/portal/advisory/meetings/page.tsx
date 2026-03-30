@@ -7,10 +7,10 @@ import { Calendar, Video, Clock, Filter } from "lucide-react";
 
 interface FaMeeting {
   id: string;
-  meeting_date: string;
+  scheduled_at: string;
   meeting_type: string;
   status: string;
-  adviser_name: string | null;
+  adviser: { full_name: string } | null;
   teams_meeting_url: string | null;
   duration_minutes: number | null;
 }
@@ -70,10 +70,22 @@ export default function AdvisoryMeetings() {
       return;
     }
 
+    const { data: portalClient } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("auth_user_id", userData.user.id)
+      .single();
+
+    if (!portalClient) {
+      setError("No portal account found");
+      setLoading(false);
+      return;
+    }
+
     const { data: client } = await supabase
       .from("fa_clients")
-      .select("id")
-      .eq("portal_client_id", userData.user.id)
+      .select("id, firm_id")
+      .eq("portal_client_id", portalClient.id)
       .single();
 
     if (!client) {
@@ -84,9 +96,9 @@ export default function AdvisoryMeetings() {
 
     const { data: meetingData, error: meetingErr } = await supabase
       .from("fa_meetings")
-      .select("id, meeting_date, meeting_type, status, adviser_name, teams_meeting_url, duration_minutes")
+      .select("*,adviser:fa_advisers(full_name)")
       .eq("client_id", client.id)
-      .order("meeting_date", { ascending: false });
+      .order("scheduled_at", { ascending: false });
 
     if (meetingErr) {
       setError(meetingErr.message);
@@ -103,7 +115,7 @@ export default function AdvisoryMeetings() {
   }, [fetchMeetings]);
 
   const filtered = meetings.filter((m) => {
-    if (filter === "upcoming") return isUpcoming(m.meeting_date, m.status);
+    if (filter === "upcoming") return isUpcoming(m.scheduled_at, m.status);
     if (filter === "completed") return m.status === "completed";
     return true;
   });
@@ -172,7 +184,7 @@ export default function AdvisoryMeetings() {
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {filtered.map((m) => {
             const badge = statusBadge(m.status);
-            const upcoming = isUpcoming(m.meeting_date, m.status);
+            const upcoming = isUpcoming(m.scheduled_at, m.status);
 
             return (
               <Link
@@ -211,10 +223,10 @@ export default function AdvisoryMeetings() {
                       </div>
                       <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px", display: "flex", alignItems: "center", gap: "8px" }}>
                         <Clock size={12} />
-                        {formatMeetingDate(m.meeting_date)}
+                        {formatMeetingDate(m.scheduled_at)}
                         {m.duration_minutes && ` (${m.duration_minutes} min)`}
-                        {m.adviser_name && (
-                          <span style={{ marginLeft: "4px" }}>with {m.adviser_name}</span>
+                        {m.adviser?.full_name && (
+                          <span style={{ marginLeft: "4px" }}>with {m.adviser.full_name}</span>
                         )}
                       </div>
                     </div>
