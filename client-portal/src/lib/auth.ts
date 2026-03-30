@@ -5,7 +5,9 @@ export type UserRole =
   | "employee"
   | "client"
   | "adviser"
-  | "compliance_officer";
+  | "compliance_officer"
+  | "office_manager"
+  | "super_admin";
 
 export interface SessionUser {
   id: string;
@@ -121,7 +123,9 @@ export async function requireAdviser(): Promise<SessionUser> {
   const session = await getSession();
   if (
     !session ||
-    !["adviser", "compliance_officer", "owner"].includes(session.role)
+    !["adviser", "compliance_officer", "office_manager", "super_admin", "owner"].includes(
+      session.role
+    )
   ) {
     throw new Error("Unauthorized: Adviser access required");
   }
@@ -132,6 +136,25 @@ export async function requireComplianceOfficer(): Promise<SessionUser> {
   const session = await getSession();
   if (!session || !["compliance_officer", "owner"].includes(session.role)) {
     throw new Error("Unauthorized: Compliance access required");
+  }
+  return session;
+}
+
+export async function requireSuperAdmin(): Promise<SessionUser> {
+  const session = await getSession();
+  if (!session || !["super_admin", "owner"].includes(session.role)) {
+    throw new Error("Unauthorized: Super admin access required");
+  }
+  return session;
+}
+
+export async function requireOfficeManager(): Promise<SessionUser> {
+  const session = await getSession();
+  if (
+    !session ||
+    !["office_manager", "super_admin", "owner"].includes(session.role)
+  ) {
+    throw new Error("Unauthorized: Office manager access required");
   }
   return session;
 }

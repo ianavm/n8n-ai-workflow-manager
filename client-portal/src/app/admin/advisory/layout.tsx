@@ -8,9 +8,16 @@ import {
   Calendar,
   CheckSquare,
   ShieldCheck,
+  LayoutDashboard,
+  Building2,
 } from "lucide-react";
 
 const NAV_ITEMS = [
+  {
+    href: "/admin/advisory/my-dashboard",
+    label: "My Dashboard",
+    icon: LayoutDashboard,
+  },
   { href: "/admin/advisory/clients", label: "Clients", icon: Users },
   { href: "/admin/advisory/pipeline", label: "Pipeline", icon: GitBranch },
   { href: "/admin/advisory/meetings", label: "Meetings", icon: Calendar },
@@ -20,6 +27,7 @@ const NAV_ITEMS = [
     label: "Compliance",
     icon: ShieldCheck,
   },
+  { href: "/admin/advisory/offices", label: "Offices", icon: Building2 },
 ];
 
 export default function AdvisoryLayout({
