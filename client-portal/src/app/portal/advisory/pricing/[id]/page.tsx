@@ -49,7 +49,7 @@ function statusConfig(status: string) {
   if (s === "accepted" || s === "active")
     return { color: "#10B981", bg: "rgba(16,185,129,0.1)", label: "Accepted" };
   if (s === "approved")
-    return { color: "#6C63FF", bg: "rgba(108,99,255,0.1)", label: "Approved" };
+    return { color: "#00A651", bg: "rgba(108,99,255,0.1)", label: "Approved" };
   if (s === "draft")
     return { color: "#F59E0B", bg: "rgba(245,158,11,0.1)", label: "Draft" };
   if (s === "expired")
@@ -137,7 +137,7 @@ export default function PricingDetailPage() {
           style={{
             width: "32px",
             height: "32px",
-            border: "2px solid #6C63FF",
+            border: "2px solid #00A651",
             borderTopColor: "transparent",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
@@ -151,7 +151,7 @@ export default function PricingDetailPage() {
     return (
       <div style={{ ...glassCard, textAlign: "center", color: "#EF4444", marginTop: "24px" }}>
         <p style={{ fontSize: "14px" }}>{error || "Not found."}</p>
-        <Link href="/portal/advisory/pricing" style={{ color: "#6C63FF", fontSize: "13px", marginTop: "8px", display: "inline-block" }}>
+        <Link href="/portal/advisory/pricing" style={{ color: "#00A651", fontSize: "13px", marginTop: "8px", display: "inline-block" }}>
           Back to Fee Agreements
         </Link>
       </div>
@@ -205,7 +205,7 @@ export default function PricingDetailPage() {
                   <label style={{ fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                     Percentage
                   </label>
-                  <div style={{ fontSize: "20px", fontWeight: 700, color: "#6C63FF", marginTop: "4px" }}>
+                  <div style={{ fontSize: "20px", fontWeight: 700, color: "#00A651", marginTop: "4px" }}>
                     {pricing.percentage}%
                   </div>
                 </div>
@@ -300,7 +300,7 @@ export default function PricingDetailPage() {
       {versions.length > 0 && (
         <div style={glassCard}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-            <History size={16} style={{ color: "#6C63FF" }} />
+            <History size={16} style={{ color: "#00A651" }} />
             <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff" }}>Version History</h3>
           </div>
 
@@ -321,7 +321,7 @@ export default function PricingDetailPage() {
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#6C63FF" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#00A651" }}>
                       v{v.version}
                     </span>
                     <span style={{ fontSize: "13px", color: "#B0B8C8" }}>

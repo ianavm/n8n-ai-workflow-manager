@@ -98,7 +98,7 @@ export default function OfficesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin w-8 h-8 border-2 border-[#6C63FF] border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-[#00A651] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -131,7 +131,7 @@ export default function OfficesPage() {
 
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-[#6C63FF] hover:bg-[#5A52E0] text-white rounded-lg text-sm font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[#00A651] hover:bg-[#5A52E0] text-white rounded-lg text-sm font-medium transition-colors"
         >
           <Plus size={16} />
           Add Office
@@ -161,13 +161,13 @@ export default function OfficesPage() {
                 <div
                   className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                   style={{
-                    background: "linear-gradient(135deg, #6C63FF, #00D4AA)",
+                    background: "linear-gradient(135deg, #00A651, #00D4AA)",
                   }}
                 >
                   <Building2 size={20} className="text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-white font-semibold text-sm truncate group-hover:text-[#6C63FF] transition-colors">
+                  <h3 className="text-white font-semibold text-sm truncate group-hover:text-[#00A651] transition-colors">
                     {office.firm_name}
                   </h3>
                   <p className="text-xs text-[#6B7280]">
@@ -181,7 +181,7 @@ export default function OfficesPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-[rgba(255,255,255,0.03)] rounded-lg p-3">
                   <div className="flex items-center gap-1.5 mb-1">
-                    <Users size={12} className="text-[#6C63FF]" />
+                    <Users size={12} className="text-[#00A651]" />
                     <span className="text-[10px] text-[#6B7280] uppercase tracking-wider">
                       Advisers
                     </span>
@@ -315,7 +315,7 @@ export default function OfficesPage() {
               <button
                 onClick={handleCreate}
                 disabled={creating}
-                className="flex items-center gap-2 px-4 py-2 bg-[#6C63FF] hover:bg-[#5A52E0] disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[#00A651] hover:bg-[#5A52E0] disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 {creating ? (
                   <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />

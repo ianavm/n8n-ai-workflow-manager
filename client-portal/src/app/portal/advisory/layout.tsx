@@ -58,11 +58,11 @@ export default function AdvisoryLayout({
             fontSize: "11px",
             fontWeight: 700,
             letterSpacing: "1.5px",
-            color: "#6C63FF",
+            color: "#00A651",
             textTransform: "uppercase",
           }}
         >
-          Financial Advisory
+          Discovery Advisory
         </div>
 
         {advisoryNavItems.map((item) => {
@@ -89,7 +89,7 @@ export default function AdvisoryLayout({
                 transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
                 textDecoration: "none",
                 background: isActive ? "rgba(108,99,255,0.15)" : "transparent",
-                borderLeft: isActive ? "3px solid #6C63FF" : "3px solid transparent",
+                borderLeft: isActive ? "3px solid #00A651" : "3px solid transparent",
               }}
             >
               <Icon size={16} style={{ flexShrink: 0 }} />

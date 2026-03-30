@@ -134,7 +134,7 @@ export default function AdvisoryTasks() {
           style={{
             width: "32px",
             height: "32px",
-            border: "2px solid #6C63FF",
+            border: "2px solid #00A651",
             borderTopColor: "transparent",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",

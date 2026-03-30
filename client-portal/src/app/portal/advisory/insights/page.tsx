@@ -106,7 +106,7 @@ export default function AdvisoryInsights() {
           style={{
             width: "32px",
             height: "32px",
-            border: "2px solid #6C63FF",
+            border: "2px solid #00A651",
             borderTopColor: "transparent",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
@@ -174,7 +174,7 @@ export default function AdvisoryInsights() {
                         justifyContent: "center",
                       }}
                     >
-                      <Lightbulb size={18} style={{ color: "#6C63FF" }} />
+                      <Lightbulb size={18} style={{ color: "#00A651" }} />
                     </div>
                     <div>
                       <div style={{ fontSize: "14px", fontWeight: 600, color: "#fff" }}>
@@ -259,7 +259,7 @@ export default function AdvisoryInsights() {
                         <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "6px" }}>
                           {insight.next_steps.map((step, i) => (
                             <li key={i} style={{ fontSize: "13px", color: "#B0B8C8", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                              <span style={{ color: "#6C63FF", flexShrink: 0 }}>&rarr;</span>
+                              <span style={{ color: "#00A651", flexShrink: 0 }}>&rarr;</span>
                               {step}
                             </li>
                           ))}

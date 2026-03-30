@@ -28,7 +28,7 @@ type MeetingFilter = "all" | "upcoming" | "completed";
 
 function statusBadge(status: string) {
   const map: Record<string, { color: string; bg: string }> = {
-    scheduled: { color: "#6C63FF", bg: "rgba(108,99,255,0.1)" },
+    scheduled: { color: "#00A651", bg: "rgba(108,99,255,0.1)" },
     confirmed: { color: "#00D4AA", bg: "rgba(0,212,170,0.1)" },
     completed: { color: "#10B981", bg: "rgba(16,185,129,0.1)" },
     cancelled: { color: "#EF4444", bg: "rgba(239,68,68,0.1)" },
@@ -128,7 +128,7 @@ export default function AdvisoryMeetings() {
           style={{
             width: "32px",
             height: "32px",
-            border: "2px solid #6C63FF",
+            border: "2px solid #00A651",
             borderTopColor: "transparent",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
@@ -203,7 +203,7 @@ export default function AdvisoryMeetings() {
                         justifyContent: "center",
                       }}
                     >
-                      <Calendar size={20} style={{ color: "#6C63FF" }} />
+                      <Calendar size={20} style={{ color: "#00A651" }} />
                     </div>
                     <div>
                       <div style={{ fontSize: "14px", fontWeight: 600, color: "#fff" }}>
@@ -247,7 +247,7 @@ export default function AdvisoryMeetings() {
                           padding: "6px 12px",
                           borderRadius: "8px",
                           background: "rgba(108,99,255,0.15)",
-                          color: "#6C63FF",
+                          color: "#00A651",
                           fontSize: "12px",
                           fontWeight: 600,
                           textDecoration: "none",

@@ -31,7 +31,7 @@ const glassCard: React.CSSProperties = {
 };
 
 const channelConfig: Record<string, { icon: typeof Mail; color: string; label: string }> = {
-  email: { icon: Mail, color: "#6C63FF", label: "Email" },
+  email: { icon: Mail, color: "#00A651", label: "Email" },
   whatsapp: { icon: MessageCircle, color: "#25D366", label: "WhatsApp" },
   teams: { icon: Video, color: "#5B5FC7", label: "Teams" },
   portal: { icon: Globe, color: "#00D4AA", label: "Portal" },
@@ -127,7 +127,7 @@ export default function AdvisoryCommunications() {
           style={{
             width: "32px",
             height: "32px",
-            border: "2px solid #6C63FF",
+            border: "2px solid #00A651",
             borderTopColor: "transparent",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
@@ -257,7 +257,7 @@ export default function AdvisoryCommunications() {
                                 gap: "4px",
                                 fontSize: "11px",
                                 fontWeight: 500,
-                                color: isSent ? "#6C63FF" : "#00D4AA",
+                                color: isSent ? "#00A651" : "#00D4AA",
                                 padding: "1px 6px",
                                 borderRadius: "4px",
                                 background: isSent ? "rgba(108,99,255,0.1)" : "rgba(0,212,170,0.1)",

@@ -34,7 +34,7 @@ function statusConfig(status: string) {
   if (s === "accepted" || s === "active")
     return { color: "#10B981", bg: "rgba(16,185,129,0.1)", label: "Accepted" };
   if (s === "approved")
-    return { color: "#6C63FF", bg: "rgba(108,99,255,0.1)", label: "Approved" };
+    return { color: "#00A651", bg: "rgba(108,99,255,0.1)", label: "Approved" };
   if (s === "draft")
     return { color: "#F59E0B", bg: "rgba(245,158,11,0.1)", label: "Draft" };
   if (s === "expired")
@@ -101,7 +101,7 @@ export default function AdvisoryPricing() {
           style={{
             width: "32px",
             height: "32px",
-            border: "2px solid #6C63FF",
+            border: "2px solid #00A651",
             borderTopColor: "transparent",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",

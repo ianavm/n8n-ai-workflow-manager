@@ -16,7 +16,7 @@ interface PipelineClient {
 }
 
 const PIPELINE_STAGES = [
-  { key: "lead", label: "Lead", color: "#6C63FF" },
+  { key: "lead", label: "Lead", color: "#00A651" },
   { key: "prospect", label: "Prospect", color: "#818CF8" },
   { key: "discovery", label: "Discovery", color: "#FF6D5A" },
   { key: "proposal", label: "Proposal", color: "#F59E0B" },
@@ -59,7 +59,7 @@ export default function PipelinePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin w-8 h-8 border-2 border-[#6C63FF] border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-[#00A651] border-t-transparent rounded-full" />
       </div>
     );
   }

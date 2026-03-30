@@ -101,7 +101,7 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 const channelColors: Record<string, string> = {
-  email: "#6C63FF",
+  email: "#00A651",
   whatsapp: "#25D366",
   teams: "#5B5FC7",
   portal: "#00D4AA",
@@ -163,7 +163,7 @@ export default function AdvisoryDashboard() {
           style={{
             width: "32px",
             height: "32px",
-            border: "2px solid #6C63FF",
+            border: "2px solid #00A651",
             borderTopColor: "transparent",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
@@ -205,7 +205,7 @@ export default function AdvisoryDashboard() {
           title="Upcoming Meetings"
           value={data.upcoming_meetings_count}
           icon={<Calendar size={18} />}
-          color="#6C63FF"
+          color="#00A651"
         />
         <StatCard
           title="Pending Tasks"
@@ -267,7 +267,7 @@ export default function AdvisoryDashboard() {
                       style={{
                         fontSize: "12px",
                         fontWeight: 600,
-                        color: "#6C63FF",
+                        color: "#00A651",
                         textDecoration: "none",
                         padding: "6px 12px",
                         borderRadius: "8px",
@@ -338,7 +338,7 @@ export default function AdvisoryDashboard() {
             gap: "8px",
             padding: "12px 20px",
             borderRadius: "10px",
-            background: "linear-gradient(135deg, #6C63FF, #5B5FC7)",
+            background: "linear-gradient(135deg, #00A651, #5B5FC7)",
             color: "#fff",
             fontSize: "14px",
             fontWeight: 600,

@@ -30,7 +30,7 @@ const glassCard: React.CSSProperties = {
 };
 
 const typeColors: Record<string, string> = {
-  identity: "#6C63FF",
+  identity: "#00A651",
   financial: "#00D4AA",
   insurance: "#F59E0B",
   tax: "#EF4444",
@@ -150,7 +150,7 @@ export default function AdvisoryDocuments() {
           style={{
             width: "32px",
             height: "32px",
-            border: "2px solid #6C63FF",
+            border: "2px solid #00A651",
             borderTopColor: "transparent",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
@@ -192,7 +192,7 @@ export default function AdvisoryDocuments() {
               gap: "8px",
               padding: "10px 18px",
               borderRadius: "10px",
-              background: "linear-gradient(135deg, #6C63FF, #5B5FC7)",
+              background: "linear-gradient(135deg, #00A651, #5B5FC7)",
               color: "#fff",
               fontSize: "14px",
               fontWeight: 600,

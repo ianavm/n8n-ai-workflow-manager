@@ -86,7 +86,7 @@ const PIPELINE_ORDER = [
 const stageColor = (stage: string): string => {
   switch (stage) {
     case "lead":
-      return "#6C63FF";
+      return "#00A651";
     case "prospect":
       return "#8B5CF6";
     case "discovery":
@@ -201,7 +201,7 @@ export default function MyDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin w-8 h-8 border-2 border-[#6C63FF] border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-[#00A651] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -249,7 +249,7 @@ export default function MyDashboardPage() {
           icon={<Users size={20} />}
           label="My Clients"
           value={data.my_clients}
-          color="#6C63FF"
+          color="#00A651"
         />
         <StatCard
           icon={<Calendar size={20} />}
@@ -317,7 +317,7 @@ export default function MyDashboardPage() {
                         href={m.teams_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[#6C63FF] hover:text-[#5A52E0] transition-colors"
+                        className="text-[#00A651] hover:text-[#5A52E0] transition-colors"
                         title="Join Teams meeting"
                       >
                         <Video size={14} />
@@ -336,7 +336,7 @@ export default function MyDashboardPage() {
         {/* My Pipeline */}
         <div className="glass-card p-5">
           <div className="flex items-center gap-2 mb-4">
-            <TrendingUp size={16} className="text-[#6C63FF]" />
+            <TrendingUp size={16} className="text-[#00A651]" />
             <h2 className="text-sm font-semibold text-white">My Pipeline</h2>
             <span className="text-xs text-[#6B7280] ml-auto">
               {totalPipelineClients} clients

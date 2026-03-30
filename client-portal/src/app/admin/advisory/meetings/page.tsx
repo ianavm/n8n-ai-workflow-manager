@@ -81,7 +81,7 @@ export default function MeetingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin w-8 h-8 border-2 border-[#6C63FF] border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-[#00A651] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -140,7 +140,7 @@ export default function MeetingsPage() {
                 <div className="flex items-center gap-4">
                   {/* Date badge */}
                   <div className="w-14 h-14 rounded-lg bg-[rgba(108,99,255,0.1)] border border-[rgba(108,99,255,0.2)] flex flex-col items-center justify-center flex-shrink-0">
-                    <span className="text-xs text-[#6C63FF] font-medium">
+                    <span className="text-xs text-[#00A651] font-medium">
                       {format(new Date(m.scheduled_at), "MMM")}
                     </span>
                     <span className="text-lg font-bold text-white leading-tight">
@@ -171,7 +171,7 @@ export default function MeetingsPage() {
                         {m.duration_minutes}min)
                       </span>
                       {m.video_link && (
-                        <span className="flex items-center gap-1 text-[#6C63FF]">
+                        <span className="flex items-center gap-1 text-[#00A651]">
                           <Video size={12} />
                           Video
                         </span>

@@ -46,7 +46,7 @@ const glassCard: React.CSSProperties = {
 
 function statusBadge(status: string) {
   const map: Record<string, { color: string; bg: string }> = {
-    scheduled: { color: "#6C63FF", bg: "rgba(108,99,255,0.1)" },
+    scheduled: { color: "#00A651", bg: "rgba(108,99,255,0.1)" },
     confirmed: { color: "#00D4AA", bg: "rgba(0,212,170,0.1)" },
     completed: { color: "#10B981", bg: "rgba(16,185,129,0.1)" },
     cancelled: { color: "#EF4444", bg: "rgba(239,68,68,0.1)" },
@@ -113,7 +113,7 @@ export default function MeetingDetailPage() {
           style={{
             width: "32px",
             height: "32px",
-            border: "2px solid #6C63FF",
+            border: "2px solid #00A651",
             borderTopColor: "transparent",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
@@ -127,7 +127,7 @@ export default function MeetingDetailPage() {
     return (
       <div style={{ ...glassCard, textAlign: "center", color: "#EF4444", marginTop: "24px" }}>
         <p style={{ fontSize: "14px" }}>{error || "Meeting not found."}</p>
-        <Link href="/portal/advisory/meetings" style={{ color: "#6C63FF", fontSize: "13px", marginTop: "8px", display: "inline-block" }}>
+        <Link href="/portal/advisory/meetings" style={{ color: "#00A651", fontSize: "13px", marginTop: "8px", display: "inline-block" }}>
           Back to Meetings
         </Link>
       </div>
@@ -224,7 +224,7 @@ export default function MeetingDetailPage() {
                   gap: "8px",
                   padding: "10px 18px",
                   borderRadius: "10px",
-                  background: "linear-gradient(135deg, #6C63FF, #5B5FC7)",
+                  background: "linear-gradient(135deg, #00A651, #5B5FC7)",
                   color: "#fff",
                   fontSize: "14px",
                   fontWeight: 600,
@@ -327,7 +327,7 @@ export default function MeetingDetailPage() {
                       color: "#B0B8C8",
                     }}
                   >
-                    <span style={{ color: "#6C63FF", fontWeight: 700, flexShrink: 0 }}>&rarr;</span>
+                    <span style={{ color: "#00A651", fontWeight: 700, flexShrink: 0 }}>&rarr;</span>
                     {step}
                   </li>
                 ))}

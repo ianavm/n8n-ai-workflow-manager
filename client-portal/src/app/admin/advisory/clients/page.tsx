@@ -85,7 +85,7 @@ export default function AdvisoryClientsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin w-8 h-8 border-2 border-[#6C63FF] border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-[#00A651] border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -121,7 +121,7 @@ export default function AdvisoryClientsPage() {
               className="pl-9 w-full"
             />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-[#6C63FF] hover:bg-[#5A52E0] text-white rounded-lg text-sm font-medium transition-colors">
+          <button className="flex items-center gap-2 px-4 py-2 bg-[#00A651] hover:bg-[#5A52E0] text-white rounded-lg text-sm font-medium transition-colors">
             <Plus size={16} />
             Add Client
           </button>
@@ -195,7 +195,7 @@ export default function AdvisoryClientsPage() {
                         className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
                         style={{
                           background:
-                            "linear-gradient(135deg, #6C63FF, #00D4AA)",
+                            "linear-gradient(135deg, #00A651, #00D4AA)",
                         }}
                       >
                         {c.first_name[0]}

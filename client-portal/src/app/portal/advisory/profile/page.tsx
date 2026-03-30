@@ -91,7 +91,7 @@ function riskColor(risk: string | null): string {
   if (r === "conservative") return "#10B981";
   if (r === "moderate") return "#F59E0B";
   if (r === "aggressive") return "#EF4444";
-  return "#6C63FF";
+  return "#00A651";
 }
 
 export default function AdvisoryProfile() {
@@ -186,7 +186,7 @@ export default function AdvisoryProfile() {
           style={{
             width: "32px",
             height: "32px",
-            border: "2px solid #6C63FF",
+            border: "2px solid #00A651",
             borderTopColor: "transparent",
             borderRadius: "50%",
             animation: "spin 0.8s linear infinite",
@@ -220,7 +220,7 @@ export default function AdvisoryProfile() {
       {/* Personal Info (read-only fields) */}
       <div style={{ ...glassCard, marginBottom: "20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
-          <User size={18} style={{ color: "#6C63FF" }} />
+          <User size={18} style={{ color: "#00A651" }} />
           <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff" }}>Personal Information</h3>
           <div
             style={{
@@ -340,7 +340,7 @@ export default function AdvisoryProfile() {
               gap: "8px",
               padding: "10px 20px",
               borderRadius: "10px",
-              background: "linear-gradient(135deg, #6C63FF, #5B5FC7)",
+              background: "linear-gradient(135deg, #00A651, #5B5FC7)",
               color: "#fff",
               fontSize: "14px",
               fontWeight: 600,
