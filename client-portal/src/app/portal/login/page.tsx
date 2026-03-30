@@ -38,10 +38,24 @@ export default function PortalLoginPage() {
         .from("admin_users")
         .select("id")
         .eq("auth_user_id", data.user.id)
-        .single();
+        .maybeSingle();
 
       if (adminUser) {
         router.push("/admin");
+        router.refresh();
+        return;
+      }
+
+      // Check if user is a financial adviser
+      const { data: adviser } = await supabase
+        .from("fa_advisers")
+        .select("id, role")
+        .eq("auth_user_id", data.user.id)
+        .eq("active", true)
+        .maybeSingle();
+
+      if (adviser) {
+        router.push("/admin/advisory/my-dashboard");
         router.refresh();
         return;
       }

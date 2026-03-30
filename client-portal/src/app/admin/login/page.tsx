@@ -34,17 +34,31 @@ export default function AdminLoginPage() {
       .from("admin_users")
       .select("role")
       .eq("auth_user_id", data.user.id)
-      .single();
+      .maybeSingle();
 
-    if (!adminUser) {
-      await supabase.auth.signOut();
-      setError("This account does not have admin access");
-      setLoading(false);
+    if (adminUser) {
+      router.push("/admin");
+      router.refresh();
       return;
     }
 
-    router.push("/admin");
-    router.refresh();
+    // Check if user is a financial adviser
+    const { data: adviser } = await supabase
+      .from("fa_advisers")
+      .select("id, role")
+      .eq("auth_user_id", data.user.id)
+      .eq("active", true)
+      .maybeSingle();
+
+    if (adviser) {
+      router.push("/admin/advisory/my-dashboard");
+      router.refresh();
+      return;
+    }
+
+    await supabase.auth.signOut();
+    setError("This account does not have admin access");
+    setLoading(false);
   }
 
   return (
