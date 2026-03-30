@@ -1,0 +1,599 @@
+{
+  "name": "FA - Scheduled Reminders (FA-07a)",
+  "nodes": [
+    {
+      "id": "93065abd-7f63-4945-bf79-5ab1640e057b",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 7-19 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ca8aafff-5e8c-4131-8f81-2fbbe54a975d",
+      "name": "Query 24h Reminders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?select=*,client:fa_clients(*),adviser:fa_advisers(*)&reminder_24h_sent=eq.false&status=in.(scheduled,confirmed)&scheduled_at=gte.{{ $now.plus({hours: 23}).toISO() }}&scheduled_at=lte.{{ $now.plus({hours: 25}).toISO() }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "a345f097-6db2-4950-a3e2-4cd74714c197",
+      "name": "Has 24h Reminders",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6effd8c6-3886-455d-9d8b-702cb92dc91c",
+      "name": "Split 24h Batch",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        900,
+        -100
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "8dc50171-3b47-40de-ade7-c96d3b0fa273",
+      "name": "Send 24h Email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -200
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ (function() {\n  const m = $json;\n  const dt = new Date(m.scheduled_at);\n  const dateStr = dt.toLocaleDateString('en-ZA', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Africa/Johannesburg'});\n  const timeStr = dt.toLocaleTimeString('en-ZA', {hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Johannesburg'});\n  return `<h2>Meeting Reminder - Tomorrow</h2>\n  <p>Hi ${m.client.first_name},</p>\n  <p>This is a friendly reminder that you have a <strong>${m.meeting_type}</strong> meeting scheduled:</p>\n  <div style=\"background:#f0f0ff;border:1px solid #d0d0ff;border-radius:12px;padding:20px;margin:16px 0;\">\n    <p><strong>Date:</strong> ${dateStr}</p>\n    <p><strong>Time:</strong> ${timeStr} (SAST)</p>\n    <p><strong>Adviser:</strong> ${m.adviser.full_name}</p>\n    <p><strong>Duration:</strong> ${m.duration_minutes || 60} minutes</p>\n  </div>\n  ${m.teams_meeting_url ? '<p style=\"text-align:center;\"><a href=\"' + m.teams_meeting_url + '\" style=\"display:inline-block;background:#6264A7;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;\">Join Teams Meeting</a></p>' : ''}\n  <p>If you need to reschedule, please reply to this email.</p>`;\n})() }}",
+        "toRecipients": "={{ $json.client.email }}",
+        "subject": "=Reminder: Your meeting tomorrow with {{ $json.adviser.full_name }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "9d1666fc-8b9f-4c96-94e1-572dc0260714",
+      "name": "WhatsApp 24h Reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0//messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.FA_WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": {{ $json.client.mobile }},\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"fa_reminder_24h\",\n    \"language\": {\"code\": \"en\"},\n    \"components\": [{\"type\": \"body\", \"parameters\": ={{ JSON.stringify([\n  {type: 'text', text: $json.client.first_name},\n  {type: 'text', text: $json.adviser.full_name},\n  {type: 'text', text: new Date($json.scheduled_at).toLocaleDateString('en-ZA', {weekday: 'long', month: 'long', day: 'numeric', timeZone: 'Africa/Johannesburg'})},\n  {type: 'text', text: new Date($json.scheduled_at).toLocaleTimeString('en-ZA', {hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Johannesburg'})}\n]) }}}]\n  }\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "6f3c763c-14fd-431e-8530-d452bf570599",
+      "name": "Mark 24h Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        -200
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?id=eq.={{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({reminder_24h_sent: true}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "41baa087-0a2b-4a9f-ab14-385cd279c252",
+      "name": "Log 24h Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_communications",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $json.client_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    adviser_id: $json.adviser_id,\n    meeting_id: $json.id,\n    channel: 'email',\n    direction: 'outbound',\n    subject: 'Meeting Reminder - 24h',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "2f913c79-5b19-424e-a51d-0ff77a4766e2",
+      "name": "Query 1h Reminders",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?select=*,client:fa_clients(*),adviser:fa_advisers(*)&reminder_1h_sent=eq.false&status=in.(scheduled,confirmed)&scheduled_at=gte.{{ $now.plus({minutes: 50}).toISO() }}&scheduled_at=lte.{{ $now.plus({minutes: 70}).toISO() }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "bd238f5c-41bb-49bf-af27-122e6dc6ae53",
+      "name": "Has 1h Reminders",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "81f3b549-3f6d-42ec-be25-cb73ebcbf047",
+      "name": "Split 1h Batch",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2400,
+        -100
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "69cf2814-abd9-46ab-a619-ba5b9502bf4b",
+      "name": "Send 1h Email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        2700,
+        -200
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ (function() {\n  const m = $json;\n  const timeStr = new Date(m.scheduled_at).toLocaleTimeString('en-ZA', {hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Johannesburg'});\n  return `<h2>Your Meeting Starts Soon</h2>\n  <p>Hi ${m.client.first_name},</p>\n  <p>Your <strong>${m.meeting_type}</strong> meeting with <strong>${m.adviser.full_name}</strong> starts in about 1 hour at <strong>${timeStr} (SAST)</strong>.</p>\n  ${m.teams_meeting_url ? '<p style=\"text-align:center;\"><a href=\"' + m.teams_meeting_url + '\" style=\"display:inline-block;background:#6264A7;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;\">Join Teams Meeting Now</a></p>' : ''}`;\n})() }}",
+        "toRecipients": "={{ $json.client.email }}",
+        "subject": "=Your meeting starts in 1 hour with {{ $json.adviser.full_name }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "9fd9e0d2-4bb7-4c04-b745-51e9f86db164",
+      "name": "WhatsApp 1h Reminder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2700,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0//messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.FA_WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": {{ $json.client.mobile }},\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"fa_reminder_1h\",\n    \"language\": {\"code\": \"en\"},\n    \"components\": [{\"type\": \"body\", \"parameters\": ={{ JSON.stringify([\n  {type: 'text', text: $json.client.first_name},\n  {type: 'text', text: $json.adviser.full_name},\n  {type: 'text', text: new Date($json.scheduled_at).toLocaleTimeString('en-ZA', {hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Johannesburg'})},\n  {type: 'text', text: $json.teams_meeting_url || ''}\n]) }}}]\n  }\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "a94fdebd-1d5e-48e4-91af-99cb0c8644e4",
+      "name": "Mark 1h Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3000,
+        -100
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?id=eq.={{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({reminder_1h_sent: true}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Query 24h Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query 24h Reminders": {
+      "main": [
+        [
+          {
+            "node": "Has 24h Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has 24h Reminders": {
+      "main": [
+        [
+          {
+            "node": "Split 24h Batch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Query 1h Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split 24h Batch": {
+      "main": [
+        [
+          {
+            "node": "Query 1h Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send 24h Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp 24h Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send 24h Email": {
+      "main": [
+        [
+          {
+            "node": "Mark 24h Sent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log 24h Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp 24h Reminder": {
+      "main": [
+        []
+      ]
+    },
+    "Mark 24h Sent": {
+      "main": [
+        []
+      ]
+    },
+    "Log 24h Email": {
+      "main": [
+        []
+      ]
+    },
+    "Query 1h Reminders": {
+      "main": [
+        [
+          {
+            "node": "Has 1h Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has 1h Reminders": {
+      "main": [
+        [
+          {
+            "node": "Split 1h Batch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Split 1h Batch": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Send 1h Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp 1h Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send 1h Email": {
+      "main": [
+        [
+          {
+            "node": "Mark 1h Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp 1h Reminder": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

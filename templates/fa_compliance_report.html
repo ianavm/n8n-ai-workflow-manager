@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Compliance Report</title>
+  <style>
+    body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+    .container { max-width: 700px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; }
+    .header { background: #1a1a2e; padding: 24px 32px; }
+    .header h1 { color: #fff; margin: 0; font-size: 20px; }
+    .header p { color: #a0a0b0; margin: 4px 0 0; font-size: 13px; }
+    .body { padding: 32px; }
+    .score-bar { display: flex; align-items: center; margin: 16px 0 24px; }
+    .score-circle { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; color: #fff; margin-right: 16px; }
+    .score-ok { background: #4caf50; }
+    .score-warning { background: #ff9800; }
+    .score-critical { background: #f44336; }
+    .score-label { font-size: 14px; color: #888; }
+    .score-label strong { display: block; font-size: 18px; color: #333; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th { background: #f8f9fa; text-align: left; padding: 10px 12px; font-size: 13px; color: #888; border-bottom: 2px solid #eee; }
+    td { padding: 10px 12px; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .badge-ok { background: #e8f5e9; color: #2e7d32; }
+    .badge-warning { background: #fff3e0; color: #e65100; }
+    .badge-critical { background: #ffebee; color: #c62828; }
+    .section { margin: 24px 0; }
+    .section h3 { color: #1a1a2e; font-size: 15px; margin: 0 0 8px; }
+    .footer { background: #f8f9fa; padding: 20px 32px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Daily Compliance Report</h1>
+      <p>{{report_date}} | {{firm_name}}</p>
+    </div>
+    <div class="body">
+      <div class="score-bar">
+        <div class="score-circle {{score_class}}">{{compliance_score}}</div>
+        <div class="score-label">
+          <strong>Compliance Score</strong>
+          {{score_label}}
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Summary</h3>
+        <table>
+          <tr><th>Metric</th><th>Count</th><th>Status</th></tr>
+          <tr><td>Total Active Clients</td><td>{{total_clients}}</td><td><span class="badge badge-ok">OK</span></td></tr>
+          <tr><td>Missing POPIA Consent</td><td>{{missing_popia}}</td><td><span class="badge {{popia_badge}}">{{popia_status}}</span></td></tr>
+          <tr><td>Missing FAIS Disclosure</td><td>{{missing_fais}}</td><td><span class="badge {{fais_badge}}">{{fais_status}}</span></td></tr>
+          <tr><td>Expired Consent Records</td><td>{{expired_consent}}</td><td><span class="badge {{consent_badge}}">{{consent_status}}</span></td></tr>
+          <tr><td>Overdue Tasks</td><td>{{overdue_tasks}}</td><td><span class="badge {{tasks_badge}}">{{tasks_status}}</span></td></tr>
+          <tr><td>Unverified FICA Clients</td><td>{{unverified_fica}}</td><td><span class="badge {{fica_badge}}">{{fica_status}}</span></td></tr>
+        </table>
+      </div>
+
+      <div class="section">
+        <h3>AI Analysis</h3>
+        <div style="background: #f8f9fa; border-radius: 8px; padding: 16px; font-size: 14px; line-height: 1.6; color: #555;">
+          {{ai_analysis}}
+        </div>
+      </div>
+
+      {{detail_sections_html}}
+    </div>
+    <div class="footer">
+      <p>{{firm_name}} | FSP {{fsp_number}}<br>
+      Generated automatically by the Financial Advisory CRM compliance engine.</p>
+    </div>
+  </div>
+</body>
+</html>

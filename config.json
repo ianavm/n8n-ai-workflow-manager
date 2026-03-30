@@ -35,7 +35,8 @@
     "lead_generation",
     "internal_tools",
     "ai_agents",
-    "accounting"
+    "accounting",
+    "financial_advisory"
   ],
   "ai_models": {
     "preferred_provider": "openrouter",
@@ -748,6 +749,86 @@
     "workflows": {
       "ord_01_intake": "REPLACE_AFTER_DEPLOY",
       "ord_02_approval": "REPLACE_AFTER_DEPLOY"
+    }
+  },
+  "financial_advisory": {
+    "airtable_base_id": "REPLACE_AFTER_SETUP",
+    "tables": {
+      "pipeline": "REPLACE_AFTER_SETUP",
+      "meetings": "REPLACE_AFTER_SETUP",
+      "tasks": "REPLACE_AFTER_SETUP",
+      "compliance_log": "REPLACE_AFTER_SETUP",
+      "metrics": "REPLACE_AFTER_SETUP"
+    },
+    "supabase": {
+      "project_url": "https://qfvsqjsrlnxjplqefhon.supabase.co"
+    },
+    "schedules": {
+      "pre_meeting_prep": "0 * 6-18 * * 1-5",
+      "transcript_poll": "*/15 6-20 * * 1-5",
+      "reminders": "*/30 7-19 * * 1-5",
+      "compliance_audit": "0 6 * * 1-5",
+      "weekly_report": "0 7 * * 1"
+    },
+    "microsoft": {
+      "graph_api_version": "v1.0",
+      "graph_beta_version": "beta",
+      "default_timezone": "Africa/Johannesburg",
+      "meeting_duration_minutes": 60,
+      "booking_window_days": 14,
+      "business_hours": {
+        "start": "08:00",
+        "end": "17:00",
+        "days": [1, 2, 3, 4, 5]
+      },
+      "transcript_poll_timeout_hours": 48
+    },
+    "whatsapp": {
+      "templates": [
+        "fa_meeting_confirm",
+        "fa_reminder_24h",
+        "fa_reminder_1h",
+        "fa_doc_request",
+        "fa_welcome"
+      ]
+    },
+    "ai": {
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "provider": "openrouter",
+      "max_tokens_briefing": 3000,
+      "max_tokens_transcript_analysis": 6000,
+      "max_tokens_research": 4000,
+      "max_tokens_compliance_report": 2000,
+      "daily_token_budget": 80000,
+      "temperature": 0.3
+    },
+    "compliance": {
+      "country": "ZA",
+      "currency": "ZAR",
+      "symbol": "R",
+      "vat_rate": 0.15,
+      "popia_consent_expiry_months": 24,
+      "fica_documents_required": ["id_document", "proof_of_address", "bank_statement"],
+      "disclosure_required_before": ["discovery", "presentation"],
+      "consent_types_required": ["popia_processing", "fais_disclosure", "recording_consent"]
+    },
+    "pipeline_stages": [
+      "lead", "contacted", "intake_complete", "discovery_scheduled",
+      "discovery_complete", "analysis", "presentation_scheduled",
+      "presentation_complete", "implementation", "active", "inactive"
+    ],
+    "workflows": {
+      "fa01_client_intake": "0kXaGEfwAdTvSfD0",
+      "fa02_meeting_scheduler": "2tbs2BASV132Hq9a",
+      "fa03_pre_meeting_prep": "g0iJU06wQMbcqHdq",
+      "fa04_transcript_analysis": "9mh6mj96w8f4tmKU",
+      "fa05_post_meeting": "t7bgW9jDMCBdG0qQ",
+      "fa06_discovery_pipeline": "2JqMzIOnBbnINGvL",
+      "fa07a_reminders": "JjnhoxMX9R5Q0h0V",
+      "fa07b_send_comms": "vfHepMY5AK9Z6D3P",
+      "fa08_compliance": "bmERknvAKhd4L54c",
+      "fa09_documents": "v0TfqXNNXsDvEgmh",
+      "fa10_reporting": "jk8QDQyOP5VyAwGj"
     }
   },
   "re_operations": {

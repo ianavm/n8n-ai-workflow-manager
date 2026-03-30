@@ -1,0 +1,667 @@
+{
+  "name": "FA - Transcript Analysis (FA-04)",
+  "nodes": [
+    {
+      "id": "8f7c5102-7deb-4b3d-86c2-350afbd60d66",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 6-20 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "75a2c27f-8661-4722-93a7-f137d11d629c",
+      "name": "Fetch Completed Meetings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?select=*,adviser:fa_advisers(id,full_name,email,microsoft_user_id)&status=eq.completed&transcript_status=in.(none,pending)&ended_at=gte.{{ new Date(Date.now() - 48*60*60*1000).toISOString() }}&select=*,adviser:fa_advisers(id,full_name,email,microsoft_user_id)",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "7d78571a-f420-4b54-9718-c0946b7d3b0b",
+      "name": "Has Meetings",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "92cf6af4-2b9d-4553-8773-9887d0fa7d9e",
+      "name": "Loop Meetings",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        900,
+        0
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "6546736d-1ce4-456a-b15b-56da44752ea1",
+      "name": "Resolve Meeting ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.microsoft.com/v1.0=/users/{{ $json.adviser.microsoft_user_id }}/onlineMeetings?$filter=joinWebUrl eq '{{ encodeURIComponent($json.teams_meeting_url) }}'",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "options": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "9463ed0f-ce05-4f11-979f-e180ea872ced",
+      "name": "Meeting Found",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.value?.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "61ee5440-0cb0-4a82-a320-6663999490ed",
+      "name": "Get Transcripts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.microsoft.com/beta=/users/{{ $('Loop Meetings').first().json.adviser.microsoft_user_id }}/onlineMeetings/{{ $json.value[0].id }}/transcripts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "options": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "d5faa0b7-9d0c-4460-87da-4b4947a31b05",
+      "name": "Transcripts Available",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.value?.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6f01b119-e3b0-48a0-b28b-8efebe5f6be3",
+      "name": "Download Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.microsoft.com/beta=/users/{{ $('Loop Meetings').first().json.adviser.microsoft_user_id }}/onlineMeetings/{{ $('Resolve Meeting ID').first().json.value[0].id }}/transcripts/{{ $json.value[0].id }}/content",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "options": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "b0b6c050-b34f-4360-8289-3bc9366744dd",
+      "name": "Set Processing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2700,
+        0
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?id=eq.={{ $('Loop Meetings').first().json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  transcript_status: 'processing',\n  updated_at: new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "558ee462-3b82-4bfd-96fd-58704d1854d7",
+      "name": "Analyze Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3000,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 6000,\n  \"temperature\": 0.3,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": 'Analyze this financial advisory meeting transcript. Extract as JSON: 1. summary (2-3 paragraphs), 2. priorities [{priority, details, urgency}], 3. objections [{objection, response_given, resolved}], 4. action_items [{task, assignee, suggested_due_date}], 5. compliance_flags [{flag, severity, details}], 6. research_needs [{topic, product_type, details}], 7. client_sentiment, 8. key_quotes [], 9. risk_tolerance_indicated, 10. next_steps'},\n    {\"role\": \"user\", \"content\": \"Transcript for meeting \" + $('Loop Meetings').first().json.id + \" (\" + $('Loop Meetings').first().json.meeting_type + \"):\\n\\n\" + JSON.stringify($('Download Transcript').first().json)}\n  ]\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "676e031f-5833-4c63-9f74-76ed541fe7de",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\n// Extract JSON from AI response\nconst raw = $input.first().json.choices?.[0]?.message?.content || '{}';\nlet parsed;\ntry {\n  // Handle markdown code blocks\n  const jsonMatch = raw.match(/```json\\n?([\\s\\S]*?)```/) || raw.match(/\\{[\\s\\S]*\\}/);\n  parsed = JSON.parse(jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : raw);\n} catch (e) {\n  parsed = {\n    summary: raw,\n    priorities: [],\n    objections: [],\n    action_items: [],\n    compliance_flags: [],\n    research_needs: [],\n    client_sentiment: 'unknown',\n    key_quotes: [],\n    risk_tolerance_indicated: 'unknown',\n    next_steps: ''\n  };\n}\n\n// Validate required fields\nconst defaults = {\n  summary: '', priorities: [], objections: [], action_items: [],\n  compliance_flags: [], research_needs: [], client_sentiment: 'unknown',\n  key_quotes: [], risk_tolerance_indicated: 'unknown', next_steps: ''\n};\nfor (const [k, v] of Object.entries(defaults)) {\n  if (parsed[k] === undefined) parsed[k] = v;\n}\n\nreturn [{json: parsed}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "0f8f4295-15db-49e6-8ac1-a161837a5d24",
+      "name": "Store Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3600,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meeting_insights",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    meeting_id: $('Loop Meetings').first().json.id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    summary: $json.summary,\n    priorities: $json.priorities,\n    objections: $json.objections,\n    action_items: $json.action_items,\n    compliance_flags: $json.compliance_flags,\n    research_needs: $json.research_needs,\n    client_sentiment: $json.client_sentiment,\n    key_quotes: $json.key_quotes,\n    risk_tolerance_indicated: $json.risk_tolerance_indicated,\n    next_steps: $json.next_steps\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "8a1af2e4-365d-4822-9767-58e4a59f8efb",
+      "name": "Store Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3900,
+        0
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?id=eq.={{ $('Loop Meetings').first().json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  transcript_raw: $('Download Transcript').first().json,\n  transcript_status: 'available',\n  updated_at: new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "12a97687-e557-4910-9485-892e09ed1ca3",
+      "name": "Trigger FA-05",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        4200,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "REPLACE_WITH_FA05_WORKFLOW_ID",
+        "mode": "each"
+      }
+    },
+    {
+      "id": "c7940659-16c5-4c1e-90bf-44e45c807cfa",
+      "name": "Mark Transcript Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?id=eq.={{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  transcript_status: 'failed',\n  updated_at: new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Completed Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Completed Meetings": {
+      "main": [
+        [
+          {
+            "node": "Has Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Meetings": {
+      "main": [
+        [
+          {
+            "node": "Loop Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Loop Meetings": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Resolve Meeting ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Meeting ID": {
+      "main": [
+        [
+          {
+            "node": "Meeting Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meeting Found": {
+      "main": [
+        [
+          {
+            "node": "Get Transcripts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Transcript Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Transcripts": {
+      "main": [
+        [
+          {
+            "node": "Transcripts Available",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcripts Available": {
+      "main": [
+        [
+          {
+            "node": "Download Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Transcript": {
+      "main": [
+        [
+          {
+            "node": "Set Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Processing": {
+      "main": [
+        [
+          {
+            "node": "Analyze Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Transcript": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Store Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Insights": {
+      "main": [
+        [
+          {
+            "node": "Store Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Transcript": {
+      "main": [
+        [
+          {
+            "node": "Trigger FA-05",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger FA-05": {
+      "main": [
+        [
+          {
+            "node": "Loop Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

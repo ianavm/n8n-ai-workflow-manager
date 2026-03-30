@@ -1,0 +1,479 @@
+{
+  "name": "FA - Weekly Reporting (FA-10)",
+  "nodes": [
+    {
+      "id": "2fbe45ee-b24b-43fb-acc9-7977dae242bd",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7dc19a31-aa06-41b1-8f7d-13df84c09b8a",
+      "name": "Get Pipeline Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/rpc/fa_get_pipeline_summary",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({firm_id: \"ea0fbe19-4612-414a-b00f-f1ce185a1ea3\"}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "80ca93a7-7009-44c4-864f-2a412e2f031d",
+      "name": "Meetings This Week",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?select=*&created_at=gte.{{ $now.minus({days: 7}).toISO() }}&select=meeting_type,status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "dd78ecb0-e902-4253-bb72-a683391ec30a",
+      "name": "Task Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        400
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_tasks?select=*&select=id,status,due_date,created_at&or=(created_at.gte.{{ $now.minus({days: 7}).toISO() }},status.eq.completed,and(due_date.lt.{{ $now.toISO() }},status.not.in.(completed,cancelled)))",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "0cacbd36-9a79-4f49-a1b2-99f6a68392bf",
+      "name": "New Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        600
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?select=*&created_at=gte.{{ $now.minus({days: 7}).toISO() }}&select=id,first_name,last_name,pipeline_stage",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "b94c9fdc-a8a7-41f8-8f15-236f24fb3787",
+      "name": "Get Compliance Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        800
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/rpc/fa_get_compliance_summary",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({firm_id: \"ea0fbe19-4612-414a-b00f-f1ce185a1ea3\"}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "5bbcb4c6-7c2a-4580-9b9a-1ddd90f7b116",
+      "name": "Aggregate Report Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\nconst pipeline = $('Get Pipeline Summary').first().json;\nconst meetingsRaw = $('Meetings This Week').first().json;\nconst tasksRaw = $('Task Stats').first().json;\nconst newClientsRaw = $('New Clients').first().json;\nconst compliance = $('Get Compliance Summary').first().json;\n\nconst meetings = Array.isArray(meetingsRaw) ? meetingsRaw : [];\nconst tasks = Array.isArray(tasksRaw) ? tasksRaw : [];\nconst newClients = Array.isArray(newClientsRaw) ? newClientsRaw : [];\n\n// Meeting aggregation by type and status\nconst meetingsByType = {};\nmeetings.forEach(m => {\n  const key = m.meeting_type || 'other';\n  if (!meetingsByType[key]) meetingsByType[key] = {total: 0, statuses: {}};\n  meetingsByType[key].total++;\n  const s = m.status || 'unknown';\n  meetingsByType[key].statuses[s] = (meetingsByType[key].statuses[s] || 0) + 1;\n});\n\n// Task aggregation\nconst now = new Date();\nconst weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);\nconst completedTasks = tasks.filter(t => t.status === 'completed').length;\nconst overdueTasks = tasks.filter(t =>\n  t.due_date && new Date(t.due_date) < now &&\n  !['completed', 'cancelled'].includes(t.status)\n).length;\nconst newTasks = tasks.filter(t =>\n  t.created_at && new Date(t.created_at) >= weekAgo\n).length;\n\nreturn [{json: {\n  week_ending: now.toISOString(),\n  pipeline: pipeline,\n  meetings: {\n    total: meetings.length,\n    by_type: meetingsByType,\n  },\n  tasks: {\n    completed: completedTasks,\n    overdue: overdueTasks,\n    new: newTasks,\n  },\n  new_clients: {\n    count: newClients.length,\n    list: newClients.slice(0, 10),\n  },\n  compliance: compliance,\n}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "949fe4a8-aeb3-4803-9b11-aaee2c5b4a38",
+      "name": "AI Executive Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 2000,\n  \"temperature\": 0.3,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": 'Generate a concise weekly executive summary for a financial advisory firm. Highlight key achievements, concerns, and recommendations. Keep it brief (3-5 paragraphs). Use professional tone suitable for firm leadership. Include specific numbers from the data provided.'},\n    {\"role\": \"user\", \"content\": ={{ JSON.stringify($json) }}}\n  ]\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "8788b934-7b22-4855-bcd3-79b7ce0f4fd2",
+      "name": "Format Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\nconst data = $('Aggregate Report Data').first().json;\nconst aiSummary = $input.first().json.choices?.[0]?.message?.content || 'No summary generated.';\n\nconst meetingRows = Object.entries(data.meetings.by_type || {}).map(([type, info]) => {\n  const statusList = Object.entries(info.statuses).map(([s, c]) => `${s}: ${c}`).join(', ');\n  return `<tr><td style=\"padding:8px;border-bottom:1px solid #e2e8f0;\">${type}</td><td style=\"padding:8px;text-align:center;border-bottom:1px solid #e2e8f0;\">${info.total}</td><td style=\"padding:8px;border-bottom:1px solid #e2e8f0;\">${statusList}</td></tr>`;\n}).join('');\n\nconst clientList = (data.new_clients.list || []).map(c =>\n  `<li>${c.first_name} ${c.last_name} (${c.pipeline_stage})</li>`\n).join('');\n\nconst html = `\n<div style=\"font-family:Arial,sans-serif;max-width:800px;margin:0 auto;\">\n  <h1 style=\"color:#1e293b;\">Weekly Advisory Report</h1>\n  <p style=\"color:#64748b;\">Week ending ${new Date().toLocaleDateString('en-ZA', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'})}</p>\n\n  <div style=\"background:#f8fafc;border-radius:12px;padding:20px;margin:16px 0;\">\n    <h2 style=\"margin-top:0;\">Executive Summary</h2>\n    ${aiSummary.split('\\n').map(p => p.trim() ? '<p>' + p + '</p>' : '').join('')}\n  </div>\n\n  <h2>Key Metrics</h2>\n  <div style=\"display:flex;gap:16px;flex-wrap:wrap;margin:16px 0;\">\n    <div style=\"flex:1;min-width:150px;background:#eff6ff;border-radius:12px;padding:20px;text-align:center;\">\n      <div style=\"font-size:32px;font-weight:700;color:#2563eb;\">${data.new_clients.count}</div>\n      <div style=\"color:#64748b;\">New Clients</div>\n    </div>\n    <div style=\"flex:1;min-width:150px;background:#f0fdf4;border-radius:12px;padding:20px;text-align:center;\">\n      <div style=\"font-size:32px;font-weight:700;color:#16a34a;\">${data.meetings.total}</div>\n      <div style=\"color:#64748b;\">Meetings</div>\n    </div>\n    <div style=\"flex:1;min-width:150px;background:#fefce8;border-radius:12px;padding:20px;text-align:center;\">\n      <div style=\"font-size:32px;font-weight:700;color:#ca8a04;\">${data.tasks.completed}</div>\n      <div style=\"color:#64748b;\">Tasks Completed</div>\n    </div>\n    <div style=\"flex:1;min-width:150px;background:${data.tasks.overdue > 5 ? '#fef2f2' : '#f0fdf4'};border-radius:12px;padding:20px;text-align:center;\">\n      <div style=\"font-size:32px;font-weight:700;color:${data.tasks.overdue > 5 ? '#dc2626' : '#16a34a'};\">${data.tasks.overdue}</div>\n      <div style=\"color:#64748b;\">Overdue Tasks</div>\n    </div>\n  </div>\n\n  <h2>Meetings by Type</h2>\n  <table style=\"width:100%;border-collapse:collapse;margin:16px 0;\">\n    <tr style=\"background:#f1f5f9;\"><th style=\"padding:8px;text-align:left;\">Type</th><th style=\"padding:8px;\">Count</th><th style=\"padding:8px;text-align:left;\">Statuses</th></tr>\n    ${meetingRows || '<tr><td colspan=\"3\" style=\"padding:8px;text-align:center;\">No meetings this week</td></tr>'}\n  </table>\n\n  ${data.new_clients.count > 0 ? '<h2>New Clients</h2><ul>' + clientList + '</ul>' : ''}\n</div>\n`;\n\nreturn [{json: {\n  html,\n  new_clients_count: data.new_clients.count,\n  meetings_total: data.meetings.total,\n  tasks_completed: data.tasks.completed,\n  tasks_overdue: data.tasks.overdue,\n  tasks_new: data.tasks.new,\n}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "13844ab5-b1ca-482f-9b74-8e2f6b4648fa",
+      "name": "Send Weekly Report",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        400
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ $json.html }}",
+        "toRecipients": "={{ $env.FA_ADMIN_EMAIL || 'admin@anyvisionmedia.com' }}",
+        "subject": "=Weekly Advisory Report - {{ $now.toFormat('dd MMM yyyy') }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "9c02da28-0839-4a8b-889b-c31b94c82e60",
+      "name": "Log Weekly Metrics",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1500,
+        600
+      ],
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE_WITH_BASE_ID",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE_WITH_TABLE_ID",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Week Ending": "={{ $now.toFormat('yyyy-MM-dd') }}",
+            "New Clients": "={{ $('Format Report').first().json.new_clients_count }}",
+            "Meetings Total": "={{ $('Format Report').first().json.meetings_total }}",
+            "Tasks Completed": "={{ $('Format Report').first().json.tasks_completed }}",
+            "Tasks Overdue": "={{ $('Format Report').first().json.tasks_overdue }}",
+            "Tasks New": "={{ $('Format Report').first().json.tasks_new }}"
+          }
+        },
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Pipeline Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Meetings This Week",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Task Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "New Clients",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Compliance Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pipeline Summary": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meetings This Week": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Task Stats": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Clients": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Compliance Summary": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Report Data": {
+      "main": [
+        [
+          {
+            "node": "AI Executive Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Executive Summary": {
+      "main": [
+        [
+          {
+            "node": "Format Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Report": {
+      "main": [
+        [
+          {
+            "node": "Send Weekly Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Weekly Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

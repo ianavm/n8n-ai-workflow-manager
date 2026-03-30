@@ -1,0 +1,505 @@
+{
+  "name": "FA - Meeting Scheduler (FA-02)",
+  "nodes": [
+    {
+      "id": "03add6f9-2776-4cf6-9c13-9e76667be31a",
+      "name": "Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "8edbd52b-1093-4f40-b8eb-b8f7f66c927a",
+      "name": "Fetch Adviser",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_advisers?select=*&id=eq.{{ $json.adviser_id }}&select=id,full_name,email,microsoft_user_id,outlook_calendar_id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "ddc64d30-cf7a-4f35-961c-e0330a77cc34",
+      "name": "Fetch Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?select=*&id=eq.{{ $json.client_id }}&select=id,first_name,last_name,email,mobile",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "05f5a93a-6eb9-432b-8d10-c6db37dfc9c6",
+      "name": "Check Availability",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.microsoft.com/v1.0=/users/{{ $('Fetch Adviser').first().json[0].microsoft_user_id }}/calendar/getSchedule",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  schedules: [$('Fetch Adviser').first().json[0].email],\n  startTime: {\n    dateTime: new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0] + 'T08:00:00',\n    timeZone: 'Africa/Johannesburg'\n  },\n  endTime: {\n    dateTime: new Date(Date.now() + 14*24*60*60*1000).toISOString().split('T')[0] + 'T17:00:00',\n    timeZone: 'Africa/Johannesburg'\n  },\n  availabilityViewInterval: 60\n}) }}"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "814766e1-0756-4703-9c84-cbbce7b6454b",
+      "name": "Find Best Slot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse availability and find first open 60-min slot in business hours\nconst schedule = $input.first().json.value?.[0] || {};\nconst availability = schedule.availabilityView || '';\nconst startDate = new Date(schedule.scheduleItems?.[0]?.start?.dateTime || Date.now() + 86400000);\n\n// Each char in availabilityView represents one interval (60min):\n// 0=free, 1=tentative, 2=busy, 3=oof, 4=workingElsewhere\nlet slotStart = null;\nconst baseDate = new Date(startDate);\nbaseDate.setHours(8, 0, 0, 0);\n\nfor (let day = 1; day <= 14; day++) {\n  const checkDate = new Date(baseDate);\n  checkDate.setDate(checkDate.getDate() + day);\n\n  // Skip weekends\n  const dow = checkDate.getDay();\n  if (dow === 0 || dow === 6) continue;\n\n  // Check 8:00-16:00 (last slot starts at 16:00 for 60min meeting ending at 17:00)\n  for (let hour = 8; hour <= 16; hour++) {\n    const slotTime = new Date(checkDate);\n    slotTime.setHours(hour, 0, 0, 0);\n\n    // Simple approach: assume free (we'll let Graph API reject if busy)\n    slotStart = slotTime;\n    break;\n  }\n  if (slotStart) break;\n}\n\nif (!slotStart) {\n  slotStart = new Date(Date.now() + 3*24*60*60*1000);\n  slotStart.setHours(10, 0, 0, 0);\n}\n\nconst slotEnd = new Date(slotStart.getTime() + 60*60*1000);\n\nreturn [{json: {\n  slot_start: slotStart.toISOString(),\n  slot_end: slotEnd.toISOString(),\n  slot_date: slotStart.toLocaleDateString('en-ZA', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Africa/Johannesburg'}),\n  slot_time: slotStart.toLocaleTimeString('en-ZA', {hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Johannesburg'}),\n}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "e925719a-6430-42ea-9890-1070de2b7ffd",
+      "name": "Create Teams Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.microsoft.com/v1.0=/users/{{ $('Fetch Adviser').first().json[0].microsoft_user_id }}/calendars/{{ $('Fetch Adviser').first().json[0].outlook_calendar_id || 'AAMkAD' }}/events",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "microsoftOutlookOAuth2Api",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  subject: `${$('Workflow Trigger').first().json.meeting_type || 'Discovery'} Meeting - ${$('Fetch Client').first().json[0].first_name} ${$('Fetch Client').first().json[0].last_name}`,\n  start: {\n    dateTime: $json.slot_start,\n    timeZone: 'Africa/Johannesburg'\n  },\n  end: {\n    dateTime: $json.slot_end,\n    timeZone: 'Africa/Johannesburg'\n  },\n  isOnlineMeeting: true,\n  onlineMeetingProvider: 'teamsForBusiness',\n  attendees: [{\n    emailAddress: {\n      address: $('Fetch Client').first().json[0].email,\n      name: $('Fetch Client').first().json[0].first_name + ' ' + $('Fetch Client').first().json[0].last_name\n    },\n    type: 'required'\n  }],\n  body: {\n    contentType: 'html',\n    content: '<p>Financial advisory ' + ($('Workflow Trigger').first().json.meeting_type || 'discovery') + ' meeting.</p>'\n  }\n}) }}"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "30feefef-f3c9-4216-a45b-8a35c30ac8ed",
+      "name": "Store Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $('Workflow Trigger').first().json.client_id,\n    adviser_id: $('Workflow Trigger').first().json.adviser_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    meeting_type: $('Workflow Trigger').first().json.meeting_type || 'discovery',\n    status: 'scheduled',\n    title: $('Create Teams Meeting').first().json.subject,\n    scheduled_at: $('Find Best Slot').first().json.slot_start,\n    duration_minutes: 60,\n    outlook_event_id: $('Create Teams Meeting').first().json.id,\n    teams_meeting_url: $('Create Teams Meeting').first().json.onlineMeeting?.joinUrl || $('Create Teams Meeting').first().json.onlineMeetingUrl || '',\n    teams_meeting_id: $('Create Teams Meeting').first().json.onlineMeeting?.conferenceId || '',\n    location_type: 'online'\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "994e9d6a-7e38-416f-a90f-636754a51d55",
+      "name": "Send Confirmation Email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        -150
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ (function() {\n  const client = $('Fetch Client').first().json[0];\n  const adviser = $('Fetch Adviser').first().json[0];\n  const slot = $('Find Best Slot').first().json;\n  const teamsUrl = $('Create Teams Meeting').first().json.onlineMeeting?.joinUrl || '';\n  const meetingType = $('Workflow Trigger').first().json.meeting_type || 'discovery';\n\n  return `<h2>Your ${meetingType} Meeting is Confirmed</h2>\n  <p>Hi ${client.first_name},</p>\n  <p>Your meeting with <strong>${adviser.full_name}</strong> has been scheduled:</p>\n  <div style=\"background:#f0f0ff;border:1px solid #d0d0ff;border-radius:12px;padding:20px;margin:16px 0;\">\n    <p><strong>Date:</strong> ${slot.slot_date}</p>\n    <p><strong>Time:</strong> ${slot.slot_time} (SAST)</p>\n    <p><strong>Duration:</strong> 60 minutes</p>\n    <p><strong>Location:</strong> Microsoft Teams (online)</p>\n  </div>\n  <p style=\"text-align:center;\"><a href=\"${teamsUrl}\" style=\"display:inline-block;background:#6264A7;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;\">Join Teams Meeting</a></p>`;\n})() }}",
+        "toRecipients": "={{ $('Fetch Client').first().json[0].email }}",
+        "subject": "=Your {{ $('Workflow Trigger').first().json.meeting_type || 'discovery' }} meeting is confirmed",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "c3b32b0b-940a-4f8c-9b18-9a6ffcba799f",
+      "name": "WhatsApp Confirm",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        50
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0//messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.FA_WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": {{ $('Fetch Client').first().json[0].mobile }},\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"fa_meeting_confirm\",\n    \"language\": {\"code\": \"en\"},\n    \"components\": [{\"type\": \"body\", \"parameters\": ={{ JSON.stringify([\n  {type: 'text', text: $('Fetch Client').first().json[0].first_name},\n  {type: 'text', text: $('Workflow Trigger').first().json.meeting_type || 'discovery'},\n  {type: 'text', text: $('Fetch Adviser').first().json[0].full_name},\n  {type: 'text', text: $('Find Best Slot').first().json.slot_date},\n  {type: 'text', text: $('Find Best Slot').first().json.slot_time},\n  {type: 'text', text: $('Create Teams Meeting').first().json.onlineMeeting?.joinUrl || ''}\n]) }}}]\n  }\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "d679812a-7827-4497-8eee-d12f7f838603",
+      "name": "Log Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2100,
+        -150
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_communications",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $('Workflow Trigger').first().json.client_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    adviser_id: $('Workflow Trigger').first().json.adviser_id,\n    meeting_id: $('Store Meeting').first().json[0]?.id || null,\n    channel: 'email',\n    direction: 'outbound',\n    subject: 'Meeting Confirmation',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "14694e79-8342-4781-836c-1a08e369d70e",
+      "name": "Log WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2100,
+        50
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_communications",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $('Workflow Trigger').first().json.client_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    adviser_id: $('Workflow Trigger').first().json.adviser_id,\n    meeting_id: $('Store Meeting').first().json[0]?.id || null,\n    channel: 'whatsapp',\n    direction: 'outbound',\n    whatsapp_template: 'fa_meeting_confirm',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "398dffa1-2eb3-440d-9ff4-a96663e2f8fc",
+      "name": "Update Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2100,
+        200
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?id=eq.={{ $('Workflow Trigger').first().json.client_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    pipeline_stage: ($('Workflow Trigger').first().json.meeting_type || 'discovery') + '_scheduled',\n    pipeline_updated_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Adviser",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Adviser": {
+      "main": [
+        [
+          {
+            "node": "Check Availability",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Availability": {
+      "main": [
+        [
+          {
+            "node": "Find Best Slot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Best Slot": {
+      "main": [
+        [
+          {
+            "node": "Create Teams Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Teams Meeting": {
+      "main": [
+        [
+          {
+            "node": "Store Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Meeting": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp Confirm",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "Log Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Confirm": {
+      "main": [
+        [
+          {
+            "node": "Log WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

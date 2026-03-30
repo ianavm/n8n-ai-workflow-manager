@@ -1,0 +1,391 @@
+{
+  "name": "FA - Send Communications (FA-07b)",
+  "nodes": [
+    {
+      "id": "c6b01cea-7733-43d9-b70b-5487ac260966",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "path": "advisory/send-comm",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "b730a2f5-07be-40a5-86a3-66db62ff1f36",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst body = $input.first().json.body || $input.first().json;\nconst required = ['client_id', 'channel', 'template_name'];\nconst missing = required.filter(f => !body[f]);\n\nif (missing.length > 0) {\n  throw new Error('Missing required fields: ' + missing.join(', '));\n}\n\nconst validChannels = ['email', 'whatsapp', 'teams'];\nif (!validChannels.includes(body.channel)) {\n  throw new Error('Invalid channel: ' + body.channel + '. Must be one of: ' + validChannels.join(', '));\n}\n\nreturn [{json: {\n  client_id: body.client_id,\n  channel: body.channel,\n  template_name: body.template_name,\n  subject: body.subject || '',\n  body: body.body || '',\n  variables: body.variables || {},\n  adviser_id: body.adviser_id || null,\n  meeting_id: body.meeting_id || null,\n}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "d52830fc-4cd8-4617-af60-5b34b00919cc",
+      "name": "Fetch Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?select=*&id=eq.{{ $json.client_id }}&select=id,first_name,last_name,email,mobile",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "3e0b9fb9-a777-454a-ba81-2dd89627ae9a",
+      "name": "Route Channel",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        900,
+        0
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Validate Input').first().json.channel }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "output": 0
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Validate Input').first().json.channel }}",
+                    "rightValue": "whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "output": 1
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Validate Input').first().json.channel }}",
+                    "rightValue": "teams",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "output": 2
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3fc57c7d-bc82-468b-806b-34498ff69db5",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -200
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ $('Validate Input').first().json.body }}",
+        "toRecipients": "={{ $('Fetch Client').first().json[0].email }}",
+        "subject": "={{ $('Validate Input').first().json.subject }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "83c76caf-205f-4c6c-a51e-7beb6e559552",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0//messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.FA_WHATSAPP_ACCESS_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"messaging_product\": \"whatsapp\",\n  \"to\": {{ $('Fetch Client').first().json[0].mobile }},\n  \"type\": \"template\",\n  \"template\": {\n    \"name\": \"={{ $('Validate Input').first().json.template_name }}\",\n    \"language\": {\"code\": \"en\"},\n    \"components\": [{\"type\": \"body\", \"parameters\": ={{ JSON.stringify(\n  Object.values($('Validate Input').first().json.variables).map(v => ({type: 'text', text: String(v)}))\n) }}}]\n  }\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "f3eb2196-ac76-469b-bbac-add601b5948c",
+      "name": "Send Teams",
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "resource": "chatMessage",
+        "operation": "create",
+        "chatId": "={{ $env.FA_TEAMS_CHANNEL_ID }}",
+        "contentType": "html",
+        "message": "={{ $('Validate Input').first().json.body }}"
+      },
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "452f5d42-d243-466c-9a6d-d53d82d803f6",
+      "name": "Log Communication",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_communications",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $('Validate Input').first().json.client_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    adviser_id: $('Validate Input').first().json.adviser_id,\n    meeting_id: $('Validate Input').first().json.meeting_id,\n    channel: $('Validate Input').first().json.channel,\n    direction: 'outbound',\n    subject: $('Validate Input').first().json.subject || $('Validate Input').first().json.template_name,\n    whatsapp_template: $('Validate Input').first().json.channel === 'whatsapp' ? $('Validate Input').first().json.template_name : null,\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "8e1ac6ad-5f78-4fbb-84fd-6954a5033988",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1800,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: true,\n  communication_id: $json[0]?.id || null,\n  channel: $('Validate Input').first().json.channel,\n  client_id: $('Validate Input').first().json.client_id\n}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Fetch Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Client": {
+      "main": [
+        [
+          {
+            "node": "Route Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Channel": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Teams",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Log Communication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Log Communication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Teams": {
+      "main": [
+        [
+          {
+            "node": "Log Communication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Communication": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

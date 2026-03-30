@@ -92,6 +92,12 @@ CREDENTIALS = {
     "outlook": _cred(
         "N8N_CRED_OUTLOOK", "PLACEHOLDER_OUTLOOK", "Microsoft Outlook OAuth2"
     ),
+    "outlook_fa": _cred(
+        "N8N_CRED_OUTLOOK_FA", "PLACEHOLDER_OUTLOOK_FA", "Microsoft Outlook OAuth2 FA"
+    ),
+    "teams_fa": _cred(
+        "N8N_CRED_TEAMS_FA", "PLACEHOLDER_TEAMS_FA", "Microsoft Teams OAuth2 FA"
+    ),
 
     # ── Telegram ───────────────────────────────────────────
     "telegram": _cred(
@@ -141,6 +147,8 @@ CRED_BLOTATO = CREDENTIALS["blotato"]
 
 # Microsoft
 CRED_OUTLOOK = CREDENTIALS["outlook"]
+CRED_OUTLOOK_FA = CREDENTIALS["outlook_fa"]
+CRED_TEAMS_FA = CREDENTIALS["teams_fa"]
 
 # Telegram
 CRED_TELEGRAM = CREDENTIALS["telegram"]

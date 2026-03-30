@@ -1,0 +1,690 @@
+{
+  "name": "FA - Client Intake & Onboarding (FA-01)",
+  "nodes": [
+    {
+      "id": "dfff2e94-8dcd-4a47-b87c-01d6d2e457d0",
+      "name": "Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "path": "advisory/intake",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "cd55e726-e954-46f2-89d9-6ec3260f0fdf",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst body = $input.first().json.body || $input.first().json;\nconst errors = [];\n\nif (!body.first_name) errors.push('first_name is required');\nif (!body.last_name) errors.push('last_name is required');\nif (!body.email) errors.push('email is required');\nif (!body.phone && !body.mobile) errors.push('phone or mobile is required');\nif (!body.consent_popia) errors.push('POPIA consent is required');\n\n// Normalize phone to +27 format\nlet phone = body.phone || body.mobile || '';\nif (phone.startsWith('0')) phone = '+27' + phone.substring(1);\nphone = phone.replace(/[^+0-9]/g, '');\n\nreturn [{\n  json: {\n    valid: errors.length === 0,\n    errors,\n    data: {\n      ...body,\n      phone: phone || null,\n      mobile: body.mobile ? (body.mobile.startsWith('0') ? '+27' + body.mobile.substring(1) : body.mobile) : null,\n      email: (body.email || '').toLowerCase().trim(),\n    }\n  }\n}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "ad0940b1-b9f2-4b45-9364-4c76a2acae06",
+      "name": "Is Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        550,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "42ac14de-c0bf-4954-befe-d83733d828f5",
+      "name": "Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        550,
+        200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": false, \"errors\": {{ JSON.stringify($json.errors) }}}",
+        "options": {
+          "responseCode": 400
+        }
+      }
+    },
+    {
+      "id": "f27c5a10-1663-46c6-8f7c-fb7feacddf88",
+      "name": "Check Existing Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?select=id,email,pipeline_stage&email=eq.{{ $json.data.email }}&firm_id=eq.ea0fbe19-4612-414a-b00f-f1ce185a1ea3",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "525ec1b1-ccb1-433b-b63d-ae8431a5e3eb",
+      "name": "Client Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "4211db6d-96bb-47a3-af2d-f18830a8dab0",
+      "name": "Create Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    first_name: $('Validate Input').first().json.data.first_name,\n    last_name: $('Validate Input').first().json.data.last_name,\n    email: $('Validate Input').first().json.data.email,\n    phone: $('Validate Input').first().json.data.phone,\n    mobile: $('Validate Input').first().json.data.mobile,\n    title: $('Validate Input').first().json.data.title || null,\n    id_number: $('Validate Input').first().json.data.id_number || null,\n    date_of_birth: $('Validate Input').first().json.data.date_of_birth || null,\n    employer: $('Validate Input').first().json.data.employer || null,\n    occupation: $('Validate Input').first().json.data.occupation || null,\n    source: $('Validate Input').first().json.data.source || 'intake_form',\n    pipeline_stage: 'intake_complete',\n    pipeline_updated_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "1b522128-3b7e-47da-b50e-b1f3425fd9ea",
+      "name": "Update Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        100
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?id=eq.={{ $('Check Existing Client').first().json[0].id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    phone: $('Validate Input').first().json.data.phone,\n    mobile: $('Validate Input').first().json.data.mobile,\n    pipeline_stage: 'intake_complete',\n    pipeline_updated_at: new Date().toISOString(),\n    updated_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "4d68346a-0a5f-45e8-94eb-e81a40ff49a9",
+      "name": "Merge Client",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1550,
+        0
+      ],
+      "parameters": {
+        "combineBy": "combineByPosition",
+        "options": {}
+      }
+    },
+    {
+      "id": "db4ac657-ab57-4b2d-b5aa-f0d61f42befa",
+      "name": "Extract Client ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\n// The first non-empty result from create or update\nconst record = items.find(i => i.json && (i.json.id || (Array.isArray(i.json) && i.json[0])));\nlet clientId, clientData;\n\nif (record) {\n  const data = Array.isArray(record.json) ? record.json[0] : record.json;\n  clientId = data.id;\n  clientData = data;\n} else {\n  clientId = 'unknown';\n  clientData = {};\n}\n\nreturn [{json: {client_id: clientId, ...clientData}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "aa784216-9afe-448b-b0f5-fe9ee5094fea",
+      "name": "Record POPIA Consent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2050,
+        -200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_consent_records",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $json.client_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    consent_type: 'popia_processing',\n    granted: true,\n    granted_at: new Date().toISOString(),\n    expires_at: new Date(Date.now() + 24 * 30 * 24 * 60 * 60 * 1000).toISOString(),\n    ip_address: $('Intake Webhook').first().json.headers?.['x-forwarded-for'] || 'unknown',\n    method: 'electronic'\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "385b4d52-7be4-411c-99a5-8c0c8b59a0e7",
+      "name": "Assign Adviser",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2050,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_adviser_clients",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    adviser_id: $('Intake Webhook').first().json.body?.adviser_id || $('Intake Webhook').first().json.adviser_id || 'REPLACE_DEFAULT_ADVISER_ID',\n    client_id: $('Extract Client ID').first().json.client_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    role: 'primary'\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "1d5ab516-2620-48c9-a855-7bf3c51a4fc1",
+      "name": "Airtable Pipeline",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2050,
+        200
+      ],
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "REPLACE",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "REPLACE",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Client Name": "={{ $('Extract Client ID').first().json.first_name }} {{ $('Extract Client ID').first().json.last_name }}",
+            "Email": "={{ $('Extract Client ID').first().json.email }}",
+            "Phone": "={{ $('Extract Client ID').first().json.phone }}",
+            "Pipeline Stage": "Intake Complete",
+            "Source": "={{ $('Extract Client ID').first().json.source }}",
+            "Supabase ID": "={{ $('Extract Client ID').first().json.client_id }}"
+          }
+        },
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "id": "026cbbb0-7502-482c-8c58-28a19b00d1a2",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        -200
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ (function() {\n  const name = $('Extract Client ID').first().json.first_name;\n  return `<h2>Welcome, ${name}!</h2>\n  <p>Thank you for choosing us as your financial adviser. Your dedicated adviser will be in touch shortly to schedule your discovery meeting.</p>\n  <p>In the meantime, you can access your client portal to view your profile and track your advisory journey.</p>\n  <p><a href=\"${$env.PORTAL_URL || 'https://portal.anyvisionmedia.com'}/portal/advisory/dashboard\" style=\"display:inline-block;background:#6C63FF;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;\">Access Your Portal</a></p>\n  <p>We look forward to helping you achieve your financial goals.</p>`;\n})() }}",
+        "toRecipients": "={{ $('Extract Client ID').first().json.email }}",
+        "subject": "=Welcome to {{ $env.FA_FIRM_NAME || 'our advisory firm' }} - Your Financial Advisory Journey",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "4862c365-0ce1-4777-884b-eb2b3162cc12",
+      "name": "Notify Adviser",
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        0
+      ],
+      "parameters": {
+        "resource": "chatMessage",
+        "operation": "create",
+        "chatId": "={{ $env.FA_TEAMS_CHAT_ID || 'REPLACE_CHAT_ID' }}",
+        "contentType": "html",
+        "message": "={{ `<b>New Client Intake</b><br>\n<b>Name:</b> ${$('Extract Client ID').first().json.first_name} ${$('Extract Client ID').first().json.last_name}<br>\n<b>Email:</b> ${$('Extract Client ID').first().json.email}<br>\n<b>Phone:</b> ${$('Extract Client ID').first().json.phone || 'N/A'}<br>\n<b>Source:</b> ${$('Extract Client ID').first().json.source || 'intake_form'}<br>\n<br>Discovery meeting scheduling in progress.` }}"
+      },
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "211cb4c6-22d2-4816-af90-4b27acde847d",
+      "name": "Log Welcome Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2550,
+        -200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_communications",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $('Extract Client ID').first().json.client_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    channel: 'email',\n    direction: 'outbound',\n    subject: 'Welcome Email',\n    content: 'Welcome email sent after intake form submission',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "b0170008-b134-4bf1-b27d-7c412cc8bee4",
+      "name": "Schedule Discovery",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2550,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "REPLACE_WITH_FA02_ID"
+      }
+    },
+    {
+      "id": "1184bc01-b488-42dd-8756-e2f1aa70483b",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2800,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"success\": true, \"client_id\": \"{{ $(\"Extract Client ID\").first().json.client_id }}\", \"message\": \"Intake processed successfully\"}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Intake Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Is Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Client",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Client": {
+      "main": [
+        [
+          {
+            "node": "Client Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Client Exists": {
+      "main": [
+        [
+          {
+            "node": "Update Client",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Client": {
+      "main": [
+        [
+          {
+            "node": "Merge Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Client": {
+      "main": [
+        [
+          {
+            "node": "Merge Client",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Client": {
+      "main": [
+        [
+          {
+            "node": "Extract Client ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Client ID": {
+      "main": [
+        [
+          {
+            "node": "Record POPIA Consent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Assign Adviser",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Airtable Pipeline",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Adviser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Log Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Schedule Discovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Discovery": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

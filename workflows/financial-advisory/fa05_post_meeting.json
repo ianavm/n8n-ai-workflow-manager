@@ -1,0 +1,460 @@
+{
+  "name": "FA - Post-Meeting Processing (FA-05)",
+  "nodes": [
+    {
+      "id": "59991c39-d4cd-472b-b698-03747ba7ebb6",
+      "name": "Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "ffd75764-de46-4fd2-bf41-e48af177b307",
+      "name": "Fetch Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?select=*,insights:fa_meeting_insights(*),client:fa_clients(*),adviser:fa_advisers(*)&id=eq.{{ $json.meeting_id }}&select=*,insights:fa_meeting_insights(*),client:fa_clients(*),adviser:fa_advisers(*)",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "90adb08e-c959-42e7-90d6-4626c8c137cc",
+      "name": "Generate Client Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 3000,\n  \"temperature\": 0.3,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": 'You are a financial advisory assistant. Generate a professional, client-friendly meeting summary email. Exclude compliance_flags and internal notes. Include: discussion points recap, agreed next steps, action items with owners. Use warm but professional tone. Output as HTML suitable for email.'},\n    {\"role\": \"user\", \"content\": \"Generate client meeting summary for: \" + JSON.stringify({  meeting: $('Fetch Meeting').first().json[0],  insights: $('Fetch Meeting').first().json[0]?.insights?.[0] || {}})}\n  ]\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "3a2acd90-1340-42d1-8ea1-8a1479f2d9ae",
+      "name": "Email Client Summary",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        900,
+        0
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ $('Generate Client Summary').first().json.choices?.[0]?.message?.content || '<p>Meeting summary is being prepared.</p>' }}",
+        "toRecipients": "={{ $('Fetch Meeting').first().json[0].client.email }}",
+        "subject": "=Meeting Summary: {{ $('Fetch Meeting').first().json[0].title || $('Fetch Meeting').first().json[0].meeting_type + ' Meeting' }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "7f131bc6-1bfc-4b17-80ad-7db2cb06db64",
+      "name": "Build Task Records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\n// Extract action items from meeting insights and build task records\nconst meeting = $('Fetch Meeting').first().json[0];\nconst insights = meeting?.insights?.[0] || {};\nconst actionItems = insights.action_items || [];\n\nconst tasks = actionItems.map((item, idx) => ({\n  client_id: meeting.client_id,\n  adviser_id: meeting.adviser_id,\n  firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n  meeting_id: meeting.id,\n  title: item.task || 'Action item ' + (idx + 1),\n  description: item.task,\n  assignee: item.assignee || 'adviser',\n  due_date: item.suggested_due_date || new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0],\n  status: 'pending',\n  priority: 'medium'\n}));\n\nreturn [{json: {tasks}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "61de68bd-cfa6-40b2-9aa2-e745010290eb",
+      "name": "Store Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_tasks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.tasks) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "b4f2e990-4bea-4052-b5f2-d88019e0efed",
+      "name": "Log Communication",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_communications",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $('Fetch Meeting').first().json[0].client_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    adviser_id: $('Fetch Meeting').first().json[0].adviser_id,\n    meeting_id: $('Fetch Meeting').first().json[0].id,\n    channel: 'email',\n    direction: 'outbound',\n    subject: 'Post-Meeting Summary',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "8a42479b-ee00-476f-bdf4-b79221f606ec",
+      "name": "Is Discovery",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Fetch Meeting').first().json[0].meeting_type }}",
+              "rightValue": "discovery",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "29d7b5d3-d6b5-43f7-b213-4e815a5ba358",
+      "name": "Trigger FA-06",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2100,
+        -100
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "REPLACE_WITH_FA06_WORKFLOW_ID",
+        "mode": "each"
+      }
+    },
+    {
+      "id": "3200d540-fa23-4734-a844-ea25711b8038",
+      "name": "Pipeline Discovery Complete",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2100,
+        -300
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?id=eq.={{ $('Fetch Meeting').first().json[0].client_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  pipeline_stage: 'discovery_complete',\n  pipeline_updated_at: new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "48789713-9d44-4794-901c-b8d015c46603",
+      "name": "Follow Up Needed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ JSON.stringify($('Fetch Meeting').first().json[0]?.insights?.[0]?.next_steps || '').toLowerCase() }}",
+              "rightValue": "follow",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d4393ba8-d1f4-466f-95ba-4324819537e6",
+      "name": "Schedule Follow-Up",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2100,
+        300
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "REPLACE_WITH_FA02_WORKFLOW_ID",
+        "mode": "each"
+      }
+    }
+  ],
+  "connections": {
+    "Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Meeting": {
+      "main": [
+        [
+          {
+            "node": "Generate Client Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Client Summary": {
+      "main": [
+        [
+          {
+            "node": "Email Client Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Client Summary": {
+      "main": [
+        [
+          {
+            "node": "Build Task Records",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Communication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Task Records": {
+      "main": [
+        [
+          {
+            "node": "Store Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Tasks": {
+      "main": [
+        [
+          {
+            "node": "Is Discovery",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Follow Up Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Discovery": {
+      "main": [
+        [
+          {
+            "node": "Trigger FA-06",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Pipeline Discovery Complete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Follow Up Needed": {
+      "main": [
+        [
+          {
+            "node": "Schedule Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

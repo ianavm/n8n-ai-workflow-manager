@@ -1,0 +1,511 @@
+{
+  "name": "FA - Discovery-to-Presentation Pipeline (FA-06)",
+  "nodes": [
+    {
+      "id": "a6eca46b-e01e-4f4f-9c71-d4088affbd89",
+      "name": "Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "99f0fd73-c7e3-4702-a4a5-52df8a983ae9",
+      "name": "Fetch Full Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?select=*,dependents:fa_dependents(*),products:fa_client_products(*),insights:fa_meeting_insights(*)&id=eq.{{ $json.client_id }}&select=*,dependents:fa_dependents(*),products:fa_client_products(*),insights:fa_meeting_insights(*)",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "0d89e5fa-68cd-4de1-80a1-95ba5ad04059",
+      "name": "Research Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 5000,\n  \"temperature\": 0.3,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": \"Analyze this South African client's financial situation. Identify gaps in coverage, recommend specific products from the provider list, prioritize needs based on urgency and budget, consider risk tolerance. Output as JSON: {recommendations: [{product_type, provider, rationale, priority, estimated_premium}], gap_analysis: string, risk_assessment: string}\"},\n    {\"role\": \"user\", \"content\": \"Full client data for analysis: \" + JSON.stringify($('Fetch Full Client').first().json[0])}\n  ]\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "3ecef847-6ba5-48b3-9d1b-856dbad83ade",
+      "name": "Generate Record of Advice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 6000,\n  \"temperature\": 0.3,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": 'Draft a FAIS-compliant Record of Advice for this South African client. Include: client needs analysis, recommendations with rationale, risk disclosures, fee disclosure, alternative products considered. Format as professional HTML document.'},\n    {\"role\": \"user\", \"content\": \"Client data: \" + JSON.stringify($('Fetch Full Client').first().json[0]) + \"\\n\\nResearch analysis: \" + JSON.stringify($('Research Analysis').first().json.choices?.[0]?.message?.content || '')}\n  ]\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "8f79ee67-ee92-4c45-a195-b02fa6d8fdba",
+      "name": "Store Advice Doc",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_documents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $('Workflow Trigger').first().json.client_id,\n    adviser_id: $('Workflow Trigger').first().json.adviser_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    meeting_id: $('Workflow Trigger').first().json.meeting_id,\n    document_type: 'record_of_advice',\n    title: 'Record of Advice - ' + ($('Fetch Full Client').first().json[0].first_name || '') + ' ' + ($('Fetch Full Client').first().json[0].last_name || ''),\n    content: $('Generate Record of Advice').first().json.choices?.[0]?.message?.content || '',\n    status: 'draft',\n    version: 1\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "106c0f68-feda-421d-9509-67a72def59ee",
+      "name": "Build Pricing Records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse research analysis to extract recommendations with pricing\nconst raw = $('Research Analysis').first().json.choices?.[0]?.message?.content || '{}';\nlet analysis;\ntry {\n  const jsonMatch = raw.match(/```json\\n?([\\s\\S]*?)```/) || raw.match(/\\{[\\s\\S]*\\}/);\n  analysis = JSON.parse(jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : raw);\n} catch (e) {\n  analysis = {recommendations: []};\n}\n\nconst recommendations = analysis.recommendations || [];\nconst clientId = $('Workflow Trigger').first().json.client_id;\nconst adviserId = $('Workflow Trigger').first().json.adviser_id;\n\nconst pricingRecords = recommendations.map((rec, idx) => ({\n  client_id: clientId,\n  adviser_id: adviserId,\n  firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n  product_type: rec.product_type || 'unknown',\n  provider: rec.provider || 'TBD',\n  estimated_premium: rec.estimated_premium || 0,\n  rationale: rec.rationale || '',\n  priority: rec.priority || 'medium',\n  status: 'draft',\n  sort_order: idx + 1\n}));\n\nreturn [{json: {pricing: pricingRecords, gap_analysis: analysis.gap_analysis || '', risk_assessment: analysis.risk_assessment || ''}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "c7ed7153-4f4a-4745-84e5-3405d4a93f63",
+      "name": "Store Pricing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_pricing",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.pricing) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "34d2ab22-3ac8-4057-93b5-7c232b94de8e",
+      "name": "Pipeline Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2100,
+        0
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?id=eq.={{ $('Workflow Trigger').first().json.client_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  pipeline_stage: 'analysis',\n  pipeline_updated_at: new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "4c81166c-8123-4a5f-b026-2b58f1970b01",
+      "name": "Notify Adviser",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        0
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ (function() {\n  const client = $('Fetch Full Client').first().json[0];\n  const pricing = $('Build Pricing Records').first().json.pricing || [];\n  const gap = $('Build Pricing Records').first().json.gap_analysis || 'See full report';\n  return `<h2>Analysis Complete</h2>\n  <p>The discovery analysis for <strong>${client.first_name} ${client.last_name}</strong> is ready for your review.</p>\n  <h3>Gap Analysis</h3>\n  <p>${gap}</p>\n  <h3>Recommendations (${pricing.length})</h3>\n  <ul>${pricing.map(p => `<li><strong>${p.product_type}</strong> - ${p.provider} (est. R${p.estimated_premium}/mo) - ${p.rationale}</li>`).join('')}</ul>\n  <p>Please review the Record of Advice draft before the presentation meeting.</p>\n  <p style=\"text-align:center;margin-top:20px;\"><a href=\"#\" style=\"display:inline-block;background:#FF6D5A;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;\">Review in Portal</a></p>`;\n})() }}",
+        "toRecipients": "={{ $('Fetch Full Client').first().json[0]?.insights?.[0]?.adviser?.email || $('Workflow Trigger').first().json.adviser_id }}",
+        "subject": "=Analysis Complete: {{ $('Fetch Full Client').first().json[0].first_name }} {{ $('Fetch Full Client').first().json[0].last_name }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "16bfdbbb-9c9b-4c86-8cd6-9fc7aec1581d",
+      "name": "Schedule Presentation",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2700,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "REPLACE_WITH_FA02_WORKFLOW_ID",
+        "mode": "each"
+      }
+    },
+    {
+      "id": "7ab7f27a-ef8e-47c8-939f-35e1a3b7fe0c",
+      "name": "Pipeline Presentation Scheduled",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3000,
+        0
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?id=eq.={{ $('Workflow Trigger').first().json.client_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  pipeline_stage: 'presentation_scheduled',\n  pipeline_updated_at: new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "789d5369-b814-4065-9f2b-a50cc7a4fb03",
+      "name": "Log Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_communications",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $('Workflow Trigger').first().json.client_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    adviser_id: $('Workflow Trigger').first().json.adviser_id,\n    meeting_id: $('Workflow Trigger').first().json.meeting_id,\n    channel: 'email',\n    direction: 'outbound',\n    subject: 'Analysis Complete Notification',\n    status: 'sent',\n    sent_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Full Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Full Client": {
+      "main": [
+        [
+          {
+            "node": "Research Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Analysis": {
+      "main": [
+        [
+          {
+            "node": "Generate Record of Advice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Record of Advice": {
+      "main": [
+        [
+          {
+            "node": "Store Advice Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Advice Doc": {
+      "main": [
+        [
+          {
+            "node": "Build Pricing Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Pricing Records": {
+      "main": [
+        [
+          {
+            "node": "Store Pricing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Pricing": {
+      "main": [
+        [
+          {
+            "node": "Pipeline Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pipeline Analysis": {
+      "main": [
+        [
+          {
+            "node": "Notify Adviser",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Adviser": {
+      "main": [
+        [
+          {
+            "node": "Schedule Presentation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Presentation": {
+      "main": [
+        [
+          {
+            "node": "Pipeline Presentation Scheduled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

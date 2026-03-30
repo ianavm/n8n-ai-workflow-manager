@@ -1,0 +1,414 @@
+{
+  "name": "FA - Pre-Meeting Prep (FA-03)",
+  "nodes": [
+    {
+      "id": "1d566eaf-c920-4a51-abf4-931375726314",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * 6-18 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "07d8d98e-b410-400c-bc48-db9d45653e05",
+      "name": "Fetch Upcoming Meetings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?select=*,client:fa_clients(*),adviser:fa_advisers(*)&status=in.(scheduled,confirmed)&scheduled_at=gte.{{ new Date(Date.now() + 90*60*1000).toISOString() }}&scheduled_at=lte.{{ new Date(Date.now() + 150*60*1000).toISOString() }}&select=*,client:fa_clients(*),adviser:fa_advisers(*)",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "0256fb91-c002-42af-8d40-aeae839e45d6",
+      "name": "Has Meetings",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f4c9fc80-7f1b-4455-ba5c-0562623c1022",
+      "name": "Loop Meetings",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        900,
+        0
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "3f3d6f14-c45c-4647-811d-1628b191ea0f",
+      "name": "Fetch Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_client_products?select=*&client_id=eq.{{ $json.client_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "a6a990f7-5e37-4eb0-ab4b-a1a06abc6408",
+      "name": "Fetch Dependents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_dependents?select=*&client_id=eq.{{ $json.client_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "e8a78d1b-cc28-4c93-be79-c6ced10916e2",
+      "name": "Fetch Past Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        -200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meeting_insights?select=*&meeting_id=in.(select id from fa_meetings where client_id=eq.{{ $('Loop Meetings').first().json.client_id }})&order=created_at.desc&limit=5",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "ac18f7ea-44a8-4f03-86ae-3af5e031258c",
+      "name": "Generate Briefing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"temperature\": 0.3,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": 'You are a financial advisory AI assistant. Generate a comprehensive pre-meeting briefing for the adviser. Include: executive summary, client financial profile overview, existing products analysis, identified gaps, previous meeting insights, suggested talking points, risk flags.'},\n    {\"role\": \"user\", \"content\": \"Pre-meeting briefing for: \" + JSON.stringify({  meeting: $('Loop Meetings').first().json,  products: $('Fetch Products').all().map(i => i.json),  dependents: $('Fetch Dependents').all().map(i => i.json),  past_insights: $('Fetch Past Insights').all().map(i => i.json)})}\n  ]\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "5eec3799-8403-48be-9ce6-061551312ede",
+      "name": "Email Briefing",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        -100
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ (function() {\n  const meeting = $('Loop Meetings').first().json;\n  const briefing = $('Generate Briefing').first().json.choices?.[0]?.message?.content || 'No briefing generated';\n  return `<h2>Pre-Meeting Briefing</h2>\n  <p><strong>Client:</strong> ${meeting.client.first_name} ${meeting.client.last_name}</p>\n  <p><strong>Meeting Type:</strong> ${meeting.meeting_type}</p>\n  <p><strong>Scheduled:</strong> ${new Date(meeting.scheduled_at).toLocaleString('en-ZA', {timeZone: 'Africa/Johannesburg'})}</p>\n  <hr/>\n  <div>${briefing.replace(/\\n/g, '<br/>')}</div>`;\n})() }}",
+        "toRecipients": "={{ $('Loop Meetings').first().json.adviser.email }}",
+        "subject": "=Pre-Meeting Briefing: {{ $('Loop Meetings').first().json.client.first_name }} {{ $('Loop Meetings').first().json.client.last_name }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "ac687115-3426-438a-a335-ed79128156e0",
+      "name": "Teams Briefing",
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        100
+      ],
+      "parameters": {
+        "resource": "chatMessage",
+        "operation": "create",
+        "chatId": "={{ $('Loop Meetings').first().json.adviser.microsoft_user_id }}",
+        "contentType": "html",
+        "message": "={{ (function() {\n  const meeting = $('Loop Meetings').first().json;\n  const briefing = $('Generate Briefing').first().json.choices?.[0]?.message?.content || '';\n  const summary = briefing.substring(0, 500) + (briefing.length > 500 ? '...' : '');\n  return `<b>Pre-Meeting Briefing: ${meeting.client.first_name} ${meeting.client.last_name}</b><br/>`\n    + `<b>Type:</b> ${meeting.meeting_type} | <b>Time:</b> ${new Date(meeting.scheduled_at).toLocaleString('en-ZA', {timeZone: 'Africa/Johannesburg'})}<br/>`\n    + `<br/>${summary}<br/><br/><i>Full briefing sent via email.</i>`;\n})() }}"
+      },
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Upcoming Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Upcoming Meetings": {
+      "main": [
+        [
+          {
+            "node": "Has Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Meetings": {
+      "main": [
+        [
+          {
+            "node": "Loop Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Loop Meetings": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Fetch Products",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Dependents",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Past Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Products": {
+      "main": [
+        [
+          {
+            "node": "Generate Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Briefing": {
+      "main": [
+        [
+          {
+            "node": "Email Briefing",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Teams Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Briefing": {
+      "main": [
+        [
+          {
+            "node": "Loop Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

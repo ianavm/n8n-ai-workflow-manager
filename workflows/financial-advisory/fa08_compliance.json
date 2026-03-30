@@ -1,0 +1,561 @@
+{
+  "name": "FA - Compliance & Audit Engine (FA-08)",
+  "nodes": [
+    {
+      "id": "57f52e62-34de-4b04-ae26-c60e22e0828d",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cd8d44aa-cc93-4f53-a162-4fe383c3fd5b",
+      "name": "Get Compliance Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/rpc/fa_get_compliance_summary",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({firm_id: \"ea0fbe19-4612-414a-b00f-f1ce185a1ea3\"}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "832892a6-9e3b-4545-acd2-0c39fdc8241e",
+      "name": "Expiring Consents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_consent_records?select=*,client:fa_clients(id,first_name,last_name,email)&expires_at=lt.{{ $now.plus({days: 30}).toISO() }}&revoked_at=is.null&granted=eq.true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "ecd1b203-2cd5-4f7e-9ec5-c5fdbe3734df",
+      "name": "Overdue Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        400
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_tasks?select=*,client:fa_clients(id,first_name,last_name),adviser:fa_advisers(id,full_name)&due_date=lt.{{ $now.toISO() }}&status=not.in.(completed,cancelled)&limit=50",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "57c2ddf2-deb0-48a2-aa79-a115d04538bd",
+      "name": "Missing Disclosures",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        600
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_meetings?select=*,client:fa_clients(id,first_name,last_name),adviser:fa_advisers(id,full_name)&meeting_type=in.(discovery,presentation)&disclosure_sent=eq.false&status=not.eq.cancelled",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "cd40d479-7f67-4efd-8f1c-0babf696fc88",
+      "name": "Unverified FICA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        800
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?select=id,first_name,last_name,email,fica_status,pipeline_stage&fica_status=not.eq.verified&pipeline_stage=not.in.(lead,contacted,inactive)",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "66fe5caf-a37a-4c66-8663-9981164e2cf0",
+      "name": "Aggregate Compliance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\nconst summary = $('Get Compliance Summary').first().json;\nconst expiringConsents = $('Expiring Consents').first().json;\nconst overdueTasks = $('Overdue Tasks').first().json;\nconst missingDisclosures = $('Missing Disclosures').first().json;\nconst unverifiedFica = $('Unverified FICA').first().json;\n\nconst consents = Array.isArray(expiringConsents) ? expiringConsents : [];\nconst tasks = Array.isArray(overdueTasks) ? overdueTasks : [];\nconst disclosures = Array.isArray(missingDisclosures) ? missingDisclosures : [];\nconst fica = Array.isArray(unverifiedFica) ? unverifiedFica : [];\n\n// Determine severity levels\nconst consentSeverity = consents.length > 10 ? 'CRITICAL' : consents.length > 3 ? 'WARNING' : 'OK';\nconst taskSeverity = tasks.length > 20 ? 'CRITICAL' : tasks.length > 5 ? 'WARNING' : 'OK';\nconst disclosureSeverity = disclosures.length > 5 ? 'CRITICAL' : disclosures.length > 0 ? 'WARNING' : 'OK';\nconst ficaSeverity = fica.length > 10 ? 'CRITICAL' : fica.length > 0 ? 'WARNING' : 'OK';\n\nconst hasCritical = [consentSeverity, taskSeverity, disclosureSeverity, ficaSeverity].includes('CRITICAL');\n\nreturn [{json: {\n  summary,\n  expiring_consents: consents,\n  expiring_consents_count: consents.length,\n  consent_severity: consentSeverity,\n  overdue_tasks: tasks,\n  overdue_tasks_count: tasks.length,\n  task_severity: taskSeverity,\n  missing_disclosures: disclosures,\n  missing_disclosures_count: disclosures.length,\n  disclosure_severity: disclosureSeverity,\n  unverified_fica: fica,\n  unverified_fica_count: fica.length,\n  fica_severity: ficaSeverity,\n  has_critical: hasCritical,\n  report_date: new Date().toISOString(),\n}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "09b6ab2b-9d61-411b-bea5-b5a3d1ce44c0",
+      "name": "AI Compliance Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 4000,\n  \"temperature\": 0.2,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": 'Generate a financial advisory compliance report for a South African firm. Rate each area: OK/WARNING/CRITICAL. Areas: POPIA consent expiry, FAIS disclosure compliance, FICA verification status, task completion rates, consent management. Provide specific recommendations for each area that is WARNING or CRITICAL. Format as structured JSON with fields: areas (array of {name, status, count, recommendations}), overall_rating, executive_summary.'},\n    {\"role\": \"user\", \"content\": ={{ JSON.stringify($json) }}}\n  ]\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "2086d2a6-fc87-47ef-9e14-a6f896c36a06",
+      "name": "Format Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\nconst data = $('Aggregate Compliance').first().json;\nconst aiRaw = $input.first().json.choices?.[0]?.message?.content || '{}';\n\nlet aiReport;\ntry {\n  aiReport = JSON.parse(aiRaw);\n} catch (e) {\n  aiReport = {executive_summary: aiRaw, areas: [], overall_rating: 'UNKNOWN'};\n}\n\nconst severityColor = (s) => {\n  if (s === 'CRITICAL') return '#dc2626';\n  if (s === 'WARNING') return '#f59e0b';\n  return '#16a34a';\n};\n\nconst badge = (s) => `<span style=\"display:inline-block;padding:4px 12px;border-radius:4px;color:#fff;font-weight:600;background:${severityColor(s)}\">${s}</span>`;\n\nconst html = `\n<div style=\"font-family:Arial,sans-serif;max-width:800px;margin:0 auto;\">\n  <h1 style=\"color:#1e293b;\">Daily Compliance Report</h1>\n  <p style=\"color:#64748b;\">${new Date().toLocaleDateString('en-ZA', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'})}</p>\n\n  <h2>Executive Summary</h2>\n  <p>${aiReport.executive_summary || 'No summary available.'}</p>\n\n  <h2>Compliance Areas</h2>\n  <table style=\"width:100%;border-collapse:collapse;margin:16px 0;\">\n    <tr style=\"background:#f1f5f9;\"><th style=\"padding:12px;text-align:left;\">Area</th><th style=\"padding:12px;\">Status</th><th style=\"padding:12px;\">Count</th></tr>\n    <tr><td style=\"padding:12px;border-bottom:1px solid #e2e8f0;\">POPIA Consent Expiry</td><td style=\"padding:12px;text-align:center;border-bottom:1px solid #e2e8f0;\">${badge(data.consent_severity)}</td><td style=\"padding:12px;text-align:center;border-bottom:1px solid #e2e8f0;\">${data.expiring_consents_count}</td></tr>\n    <tr><td style=\"padding:12px;border-bottom:1px solid #e2e8f0;\">FAIS Disclosure</td><td style=\"padding:12px;text-align:center;border-bottom:1px solid #e2e8f0;\">${badge(data.disclosure_severity)}</td><td style=\"padding:12px;text-align:center;border-bottom:1px solid #e2e8f0;\">${data.missing_disclosures_count}</td></tr>\n    <tr><td style=\"padding:12px;border-bottom:1px solid #e2e8f0;\">FICA Verification</td><td style=\"padding:12px;text-align:center;border-bottom:1px solid #e2e8f0;\">${badge(data.fica_severity)}</td><td style=\"padding:12px;text-align:center;border-bottom:1px solid #e2e8f0;\">${data.unverified_fica_count}</td></tr>\n    <tr><td style=\"padding:12px;border-bottom:1px solid #e2e8f0;\">Overdue Tasks</td><td style=\"padding:12px;text-align:center;border-bottom:1px solid #e2e8f0;\">${badge(data.task_severity)}</td><td style=\"padding:12px;text-align:center;border-bottom:1px solid #e2e8f0;\">${data.overdue_tasks_count}</td></tr>\n  </table>\n\n  ${(aiReport.areas || []).filter(a => a.status !== 'OK').map(a => `\n    <div style=\"background:#fff7ed;border-left:4px solid ${severityColor(a.status)};padding:16px;margin:12px 0;border-radius:4px;\">\n      <h3>${a.name} - ${badge(a.status)}</h3>\n      <ul>${(a.recommendations || []).map(r => '<li>' + r + '</li>').join('')}</ul>\n    </div>\n  `).join('')}\n</div>\n`;\n\nreturn [{json: {html, has_critical: data.has_critical}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "04fd2841-c53d-4f2e-b6e2-b5b481f09bab",
+      "name": "Send Compliance Report",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        400
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ $json.html }}",
+        "toRecipients": "={{ $env.FA_COMPLIANCE_EMAIL || 'compliance@anyvisionmedia.com' }}",
+        "subject": "=Daily Compliance Report - {{ $now.toFormat('dd MMM yyyy') }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "20d7e730-70e9-4ae0-9ee7-0a5c07f423c5",
+      "name": "Any Critical",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Format Report').first().json.has_critical }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "1958096c-2855-42f8-9a77-8f611e7d2c06",
+      "name": "Alert Compliance Team",
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        300
+      ],
+      "parameters": {
+        "resource": "chatMessage",
+        "operation": "create",
+        "chatId": "={{ $env.FA_COMPLIANCE_TEAMS_CHANNEL }}",
+        "contentType": "html",
+        "message": "={{ '<h3 style=\"color:#dc2626;\">CRITICAL Compliance Alert</h3><p>The daily compliance report has identified CRITICAL issues requiring immediate attention. Please review the compliance report sent to your email.</p><p>Report date: ' + $now.toFormat('dd MMM yyyy HH:mm') + '</p>' }}"
+      },
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "b65efa88-d9cc-488f-989d-1dc4c74f7fd7",
+      "name": "Log Audit Entry",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    action: 'compliance_report_generated',\n    entity_type: 'compliance_report',\n    details: {\n      has_critical: $('Format Report').first().json.has_critical,\n      report_date: new Date().toISOString()\n    },\n    performed_by: 'system',\n    created_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Compliance Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Expiring Consents",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Overdue Tasks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Missing Disclosures",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Unverified FICA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Compliance Summary": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expiring Consents": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Overdue Tasks": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Missing Disclosures": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unverified FICA": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Compliance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Compliance": {
+      "main": [
+        [
+          {
+            "node": "AI Compliance Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Compliance Report": {
+      "main": [
+        [
+          {
+            "node": "Format Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Report": {
+      "main": [
+        [
+          {
+            "node": "Send Compliance Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Compliance Report": {
+      "main": [
+        [
+          {
+            "node": "Any Critical",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Audit Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Critical": {
+      "main": [
+        [
+          {
+            "node": "Alert Compliance Team",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

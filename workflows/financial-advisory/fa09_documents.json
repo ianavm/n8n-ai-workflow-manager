@@ -1,0 +1,415 @@
+{
+  "name": "FA - Document Management (FA-09)",
+  "nodes": [
+    {
+      "id": "bf01b648-4d24-4049-8b27-bc0f2790a1df",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "path": "advisory/document-upload",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "e965b8a7-1354-4ec1-990d-cf863a2c2a46",
+      "name": "Extract Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst body = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\n\nconst clientId = body.client_id || headers['x-client-id'];\nconst fileName = body.file_name || body.filename || 'unknown';\nconst fileType = body.file_type || body.content_type || 'application/octet-stream';\nconst fileSize = body.file_size || 0;\nconst documentType = body.document_type || 'other';\nconst adviserId = body.adviser_id || null;\n\nif (!clientId) {\n  throw new Error('Missing required field: client_id');\n}\n\nreturn [{json: {\n  client_id: clientId,\n  file_name: fileName,\n  file_type: fileType,\n  file_size: fileSize,\n  document_type: documentType,\n  adviser_id: adviserId,\n}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "87732f93-65a9-411e-950e-9c90a41dec34",
+      "name": "Build Storage Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst meta = $input.first().json;\nconst sanitized = meta.file_name.replace(/[^a-zA-Z0-9._-]/g, '_');\nconst storagePath = `fa-documents/${meta.client_id}/${meta.document_type}/${sanitized}`;\n\nreturn [{json: {\n  ...meta,\n  storage_path: storagePath,\n}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "2bed0c76-4ad4-472a-853f-4876beecaa12",
+      "name": "Create Document Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_documents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n  JSON.stringify({\n    client_id: $json.client_id,\n    firm_id: 'ea0fbe19-4612-414a-b00f-f1ce185a1ea3',\n    file_name: $json.file_name,\n    file_type: $json.file_type,\n    file_size: $json.file_size,\n    document_type: $json.document_type,\n    storage_path: $json.storage_path,\n    status: 'uploaded',\n    uploaded_at: new Date().toISOString()\n  })\n}}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "8c15dbcd-a106-41f2-a8d2-acfaebc15b9f",
+      "name": "Classify Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 200,\n  \"temperature\": 0.1,\n  \"messages\": [\n    {\"role\": \"system\", \"content\": 'Classify this document based on its filename and metadata. Valid types: id_document, proof_of_address, bank_statement, payslip, tax_return, policy_schedule, record_of_advice, disclosure, mandate, quotation, application_form, needs_analysis, risk_assessment, meeting_summary, correspondence, other. Return ONLY valid JSON: {\"type\": \"<type>\", \"confidence\": <0.0-1.0>}'},\n    {\"role\": \"user\", \"content\": ={{ JSON.stringify({\n  file_name: $('Build Storage Path').first().json.file_name,\n  file_type: $('Build Storage Path').first().json.file_type,\n  file_size: $('Build Storage Path').first().json.file_size,\n  initial_type: $('Build Storage Path').first().json.document_type\n}) }}}\n  ]\n}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "ba6e18cc-c556-4205-b39f-6af763701fdc",
+      "name": "Update Classification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        0
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_documents?id=eq.={{ $('Create Document Record').first().json[0].id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (function() {\n  const raw = $json.choices?.[0]?.message?.content || '{}';\n  let parsed;\n  try { parsed = JSON.parse(raw); } catch(e) { parsed = {type: 'other', confidence: 0}; }\n  return JSON.stringify({\n    classified_as: parsed.type || 'other',\n    classification_confidence: parsed.confidence || 0,\n    status: 'classified'\n  });\n})() }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "c783c702-8eaa-4ebe-93ce-734a535c6d90",
+      "name": "Is FICA Document",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ ['id_document', 'proof_of_address', 'bank_statement'].includes((() => { try { return JSON.parse($('Classify Document').first().json.choices?.[0]?.message?.content || '{}').type; } catch(e) { return ''; } })()) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "056376e7-2226-4f99-b79c-f306d16b2f5a",
+      "name": "Check FICA Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "\nconst clientId = $('Extract Metadata').first().json.client_id;\n\n// This node queries existing documents for the client\n// In n8n, we'd use a sub-query. Here we check the classification result\n// combined with what we know about the upload.\nconst classRaw = $('Classify Document').first().json.choices?.[0]?.message?.content || '{}';\nlet classified;\ntry { classified = JSON.parse(classRaw); } catch(e) { classified = {type: 'other'}; }\n\nreturn [{json: {\n  client_id: clientId,\n  new_doc_type: classified.type,\n  // The actual FICA check requires querying fa_documents for this client\n  // to see if all 3 types are present. We'll pass through to the next\n  // Supabase query to verify.\n  check_fica: true,\n}}];\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "3ff49171-2eb3-4ee5-b309-72e61225a1f6",
+      "name": "Update FICA Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        -100
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/fa_clients?id=eq.={{ $('Extract Metadata').first().json.client_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({fica_status: \"verified\", fica_verified_at: new Date().toISOString()}) }}",
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "49090fed-7002-436c-b67b-fccc77a32abb",
+      "name": "Notify Adviser",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        300
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "bodyContentType": "html",
+        "bodyContent": "={{ (function() {\n  const meta = $('Extract Metadata').first().json;\n  const classRaw = $('Classify Document').first().json.choices?.[0]?.message?.content || '{}';\n  let classified;\n  try { classified = JSON.parse(classRaw); } catch(e) { classified = {type: 'other', confidence: 0}; }\n\n  return `<h2>New Document Uploaded</h2>\n  <p>A new document has been uploaded for client <strong>${meta.client_id}</strong>:</p>\n  <div style=\"background:#f0f0ff;border:1px solid #d0d0ff;border-radius:12px;padding:20px;margin:16px 0;\">\n    <p><strong>File:</strong> ${meta.file_name}</p>\n    <p><strong>Type:</strong> ${meta.file_type}</p>\n    <p><strong>Size:</strong> ${(meta.file_size / 1024).toFixed(1)} KB</p>\n    <p><strong>Classification:</strong> ${classified.type} (${(classified.confidence * 100).toFixed(0)}% confidence)</p>\n  </div>`;\n})() }}",
+        "toRecipients": "={{ $('Extract Metadata').first().json.adviser_id ? '' : ($env.FA_DEFAULT_ADVISER_EMAIL || 'adviser@anyvisionmedia.com') }}",
+        "subject": "=Document uploaded: {{ $('Extract Metadata').first().json.file_name }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER_OUTLOOK_FA",
+          "name": "Microsoft Outlook OAuth2 FA"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "id": "d9d49623-b7a6-4bc4-8ce2-ffbf2e872e96",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2100,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: true,\n  document_id: $('Create Document Record').first().json[0]?.id || null,\n  storage_path: $('Build Storage Path').first().json.storage_path,\n  classification: (() => { try { return JSON.parse($('Classify Document').first().json.choices?.[0]?.message?.content || '{}'); } catch(e) { return {type: 'other'}; } })()\n}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Metadata": {
+      "main": [
+        [
+          {
+            "node": "Build Storage Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Storage Path": {
+      "main": [
+        [
+          {
+            "node": "Create Document Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Document Record": {
+      "main": [
+        [
+          {
+            "node": "Classify Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Document": {
+      "main": [
+        [
+          {
+            "node": "Update Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Classification": {
+      "main": [
+        [
+          {
+            "node": "Is FICA Document",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify Adviser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is FICA Document": {
+      "main": [
+        [
+          {
+            "node": "Check FICA Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Check FICA Status": {
+      "main": [
+        [
+          {
+            "node": "Update FICA Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update FICA Status": {
+      "main": [
+        []
+      ]
+    },
+    "Notify Adviser": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

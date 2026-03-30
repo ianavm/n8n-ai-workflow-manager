@@ -1,0 +1,1779 @@
+{
+  "name": "FA - Financial Advisory CRM (Presentation Overview)",
+  "nodes": [
+    {
+      "id": "14da55e1-7611-48e8-9917-8a17a1a2b990",
+      "name": "Header",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        -380
+      ],
+      "parameters": {
+        "content": "# Financial Advisory CRM\n\n**Complete automation system for financial advisory firms**\n\n- 11 interconnected workflows | 138+ nodes\n- Microsoft Teams + Outlook integration\n- AI-powered transcript analysis & insights\n- FAIS & POPIA compliance built-in\n- Client portal with real-time sync\n\nBuilt by **AnyVision Media** | South Africa",
+        "width": 700,
+        "height": 280,
+        "color": 5
+      }
+    },
+    {
+      "id": "85b4f283-d9a3-43d4-93c5-ab3cdecf2c07",
+      "name": "Section FA-01",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        20
+      ],
+      "parameters": {
+        "content": "## FA-01: Client Intake & Onboarding\nWebhook receives intake form -> validates -> creates client record -> sends welcome email -> notifies adviser -> schedules discovery meeting",
+        "width": 1400,
+        "height": 320,
+        "color": 2
+      }
+    },
+    {
+      "id": "d3483e2b-68c7-4435-99a6-a071e39ba0e9",
+      "name": "01 Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        40,
+        200
+      ],
+      "parameters": {
+        "path": "advisory/intake",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "7548fc9c-a25f-48ec-9226-52f753435e0f",
+      "name": "01 Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// Validate: first_name, last_name, email, phone, consent\n// Normalize SA phone to +27 format",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "4652f151-81fa-4da5-ac5e-5a91544005cb",
+      "name": "01 Check Existing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        200
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "Supabase: fa_clients?email=eq.{email}",
+        "options": {}
+      },
+      "notes": "Supabase REST"
+    },
+    {
+      "id": "5a5f08eb-5282-4212-8ee7-1a4b632db180",
+      "name": "01 Create Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        150
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Supabase: fa_clients",
+        "options": {}
+      },
+      "notes": "New client"
+    },
+    {
+      "id": "db83aeef-0169-4122-8c51-43a7b2768a31",
+      "name": "01 Update Client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        280
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "Supabase: fa_clients/{id}",
+        "options": {}
+      },
+      "notes": "Existing client"
+    },
+    {
+      "id": "5241de7d-fd91-4537-b03d-f7c0f67ed124",
+      "name": "01 Record POPIA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        950,
+        150
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Supabase: fa_consent_records",
+        "options": {}
+      },
+      "notes": "POPIA consent"
+    },
+    {
+      "id": "df0ea69a-4bf2-41bd-8e49-681d8dd5cb6f",
+      "name": "01 Welcome Email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        950,
+        280
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Outlook OAuth2 FA"
+        }
+      },
+      "notes": "Welcome + portal link"
+    },
+    {
+      "id": "40a1a4ae-5bf6-4b64-bcdb-a28f213df733",
+      "name": "01 Teams Notify",
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        150
+      ],
+      "parameters": {
+        "resource": "chatMessage",
+        "operation": "create"
+      },
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Teams OAuth2 FA"
+        }
+      },
+      "notes": "Alert adviser"
+    },
+    {
+      "id": "81aba803-79db-4ad1-b61f-0747b1feaa7a",
+      "name": "01 Schedule Discovery",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1180,
+        280
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "FA-02"
+      },
+      "notes": "-> FA-02"
+    },
+    {
+      "id": "a59e50f6-8a53-458f-81f3-dddc7d7818f0",
+      "name": "Section FA-02",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        440
+      ],
+      "parameters": {
+        "content": "## FA-02: Meeting Scheduler (Sub-Workflow)\nCheck Outlook calendar availability -> create Teams meeting via Graph API -> send confirmations via email + WhatsApp -> log communications",
+        "width": 1400,
+        "height": 320,
+        "color": 3
+      }
+    },
+    {
+      "id": "f2037685-dbde-4d3d-8987-154843b62178",
+      "name": "02 Sub-Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        40,
+        620
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "d5dafddd-efa3-41f6-8efa-78a21551f728",
+      "name": "02 Fetch Adviser",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        590
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "Supabase: fa_advisers",
+        "options": {}
+      },
+      "notes": "Get MS user ID"
+    },
+    {
+      "id": "a44099ba-ad5f-4bc7-8651-39cc1b108b03",
+      "name": "02 Check Calendar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        590
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Graph API: /users/{id}/calendar/getSchedule",
+        "options": {}
+      },
+      "notes": "Microsoft Graph"
+    },
+    {
+      "id": "82411165-bd69-4948-924c-fe81dec5b5c7",
+      "name": "02 Find Slot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        590
+      ],
+      "parameters": {
+        "jsCode": "// Find first 60-min open slot\n// Business hours 08:00-17:00 SAST\n// Skip weekends",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "5173991f-9cc0-4027-b8f4-bd4fe64b4888",
+      "name": "02 Create Teams Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        590
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Graph API: /users/{id}/events\nisOnlineMeeting: true\nonlineMeetingProvider: teamsForBusiness",
+        "options": {}
+      },
+      "notes": "Calendar event + Teams link"
+    },
+    {
+      "id": "6f8201c6-6738-4941-97fe-9258776b11a7",
+      "name": "02 Store Meeting",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        720
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Supabase: fa_meetings",
+        "options": {}
+      },
+      "notes": "Save to DB"
+    },
+    {
+      "id": "8d1f3761-9f29-42f7-8f16-06f3dd833a9f",
+      "name": "02 Confirm Email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        590
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Outlook OAuth2 FA"
+        }
+      },
+      "notes": "Date + Teams link"
+    },
+    {
+      "id": "745b1d8d-79a4-416f-b2e5-97c1c48d5cbc",
+      "name": "02 WhatsApp Confirm",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1160,
+        720
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "WhatsApp Cloud API: fa_meeting_confirm",
+        "options": {}
+      },
+      "notes": "Template message"
+    },
+    {
+      "id": "49ff9683-5c70-4dba-b1c0-abcbe29c6896",
+      "name": "Section FA-03",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        860
+      ],
+      "parameters": {
+        "content": "## FA-03: Pre-Meeting Prep\nHourly scan -> 2h before meeting -> fetch client profile + products + history -> AI generates briefing -> send to adviser",
+        "width": 900,
+        "height": 280,
+        "color": 4
+      }
+    },
+    {
+      "id": "dd48aabc-e886-4c0a-8e09-76ac6c8a93c5",
+      "name": "03 Schedule (Hourly)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        1040
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * 6-18 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f8311f65-ac16-4cbc-a9ba-84b44f5503b4",
+      "name": "03 Upcoming Meetings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        1040
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "Supabase: fa_meetings (next 2h)",
+        "options": {}
+      }
+    },
+    {
+      "id": "0e041929-8a6d-4dbc-93a2-95d7af0aa3e0",
+      "name": "03 Fetch Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        1040
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "Supabase: client + products + dependents",
+        "options": {}
+      }
+    },
+    {
+      "id": "247061a3-7909-4278-9408-e7c12b390e24",
+      "name": "03 AI Briefing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        1040
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "OpenRouter: Claude Sonnet\n\"Generate pre-meeting briefing\"",
+        "options": {}
+      },
+      "notes": "AI Analysis"
+    },
+    {
+      "id": "fecdf7f6-db5a-4ce6-9ef1-2eddcb7bf44c",
+      "name": "03 Email Briefing",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        700,
+        1170
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Outlook OAuth2 FA"
+        }
+      },
+      "notes": "To adviser"
+    },
+    {
+      "id": "e1cd37f9-912c-4b7c-8ace-0a5c60dbe8ba",
+      "name": "Section FA-07a",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        960,
+        860
+      ],
+      "parameters": {
+        "content": "## FA-07a: Automated Reminders\n24h + 1h before: Email + WhatsApp to client, Teams alert to adviser",
+        "width": 500,
+        "height": 280,
+        "color": 1
+      }
+    },
+    {
+      "id": "b2be99c4-c2d2-4873-b568-1deddd235651",
+      "name": "07a Schedule (30min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1020,
+        1040
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 7-19 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2784dbfe-f3f0-41e9-a521-da7e5c67ba4c",
+      "name": "07a 24h Reminder",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        1020
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Outlook OAuth2 FA"
+        }
+      },
+      "notes": "Email + WhatsApp"
+    },
+    {
+      "id": "3c1bdaab-fb51-47a6-9fc1-58f6dbd78b30",
+      "name": "07a 1h Reminder",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        1140
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Outlook OAuth2 FA"
+        }
+      },
+      "notes": "Email + WhatsApp + Teams"
+    },
+    {
+      "id": "dcc7c214-0d08-45bd-b173-3af2a964539d",
+      "name": "Section FA-04",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        1260
+      ],
+      "parameters": {
+        "content": "## FA-04: Meeting Recording & Transcription\nPolls Microsoft Graph for transcripts every 15min -> downloads VTT -> AI extracts insights, priorities, objections, action items, compliance flags",
+        "width": 1400,
+        "height": 340,
+        "color": 7
+      }
+    },
+    {
+      "id": "3b74a70e-2e65-4275-890b-07a938532643",
+      "name": "04 Schedule (15min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        1440
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 6-20 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d2e8561c-cdfe-4c4c-b5b0-0e9f0fc08d5f",
+      "name": "04 Completed Meetings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        260,
+        1440
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "Supabase: fa_meetings (completed, no transcript)",
+        "options": {}
+      }
+    },
+    {
+      "id": "c9acb02a-37de-4879-8c77-ca31dc45cbea",
+      "name": "04 Resolve Meeting ID",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        1440
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "Graph API: /onlineMeetings\n?$filter=joinWebUrl eq '{url}'",
+        "options": {}
+      },
+      "notes": "Microsoft Graph"
+    },
+    {
+      "id": "2108838d-d8dd-4db4-9216-8fc77e03225d",
+      "name": "04 Get Transcript",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        1440
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "Graph Beta: /transcripts/{id}/content\nAccept: text/vtt",
+        "options": {}
+      },
+      "notes": "VTT download"
+    },
+    {
+      "id": "adf9b1be-efde-4a04-8c47-64bedf20ae6f",
+      "name": "04 AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        1440
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "OpenRouter: Claude Sonnet\nExtract: summary, priorities,\nobjections, action_items,\ncompliance_flags, research_needs,\nsentiment, key_quotes",
+        "options": {}
+      },
+      "notes": "AI Transcript Analysis"
+    },
+    {
+      "id": "aa2fcdbb-d7b8-4ec3-b08c-bd3a3ffc0179",
+      "name": "04 Store Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        1440
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Supabase: fa_meeting_insights",
+        "options": {}
+      },
+      "notes": "10 structured fields"
+    },
+    {
+      "id": "02aa9549-225a-49bb-bf82-36cf6c8b71bf",
+      "name": "04 Call Post-Meeting",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        1570
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "FA-05"
+      },
+      "notes": "-> FA-05"
+    },
+    {
+      "id": "61181165-b262-4db3-bf26-d1014fff5270",
+      "name": "Section FA-05",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        1700
+      ],
+      "parameters": {
+        "content": "## FA-05: Post-Meeting Processing\nGenerate client-friendly summary -> email to client -> create tasks from action items -> trigger discovery pipeline if discovery meeting",
+        "width": 700,
+        "height": 300,
+        "color": 2
+      }
+    },
+    {
+      "id": "b8f38270-63ab-47ca-bf68-ef88918917e2",
+      "name": "05 Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        40,
+        1880
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "d6ba98c2-3e90-4b09-97db-07e80048379d",
+      "name": "05 AI Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        1880
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "OpenRouter: Claude Sonnet\n\"Client-friendly summary\"",
+        "options": {}
+      },
+      "notes": "Exclude compliance flags"
+    },
+    {
+      "id": "cca81587-487a-474e-8afb-7c33fbcb1cf6",
+      "name": "05 Email Summary",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1850
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Outlook OAuth2 FA"
+        }
+      },
+      "notes": "To client"
+    },
+    {
+      "id": "e426d2ae-2c3a-4012-a95e-0f094210f8ff",
+      "name": "05 Create Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        1980
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Supabase: fa_tasks (batch)",
+        "options": {}
+      },
+      "notes": "From action_items"
+    },
+    {
+      "id": "6ea5dc98-d0ec-4ea5-8dd3-a13c99482ab4",
+      "name": "Section FA-06",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        760,
+        1700
+      ],
+      "parameters": {
+        "content": "## FA-06: Discovery -> Presentation Pipeline\nAI research analysis -> generate Record of Advice -> calculate pricing -> schedule presentation meeting",
+        "width": 700,
+        "height": 300,
+        "color": 6
+      }
+    },
+    {
+      "id": "2d6e97b3-e40e-4e97-906d-82ec0ed9b239",
+      "name": "06 Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        820,
+        1880
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "5da7269f-801f-47b6-a268-431715f9742e",
+      "name": "06 AI Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        1850
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "OpenRouter: Claude Sonnet\n\"Analyse gaps, recommend products\"",
+        "options": {}
+      },
+      "notes": "Gap analysis"
+    },
+    {
+      "id": "654f31ab-2d98-47e9-9d2b-bdf15940488d",
+      "name": "06 Record of Advice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        1980
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "OpenRouter: Claude Sonnet\n\"Draft FAIS-compliant RoA\"",
+        "options": {}
+      },
+      "notes": "Compliance doc"
+    },
+    {
+      "id": "25f985f6-65dd-4e5c-bc73-d1a819315835",
+      "name": "06 Create Pricing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        1850
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Supabase: fa_pricing (batch)",
+        "options": {}
+      },
+      "notes": "Draft fees"
+    },
+    {
+      "id": "46b6d793-ce3e-45fe-8ad0-b4a6141624af",
+      "name": "06 Schedule Presentation",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        1980
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "FA-02"
+      },
+      "notes": "-> FA-02"
+    },
+    {
+      "id": "4f697391-5eb2-4aea-9765-3c9e768c8de8",
+      "name": "Section FA-07b",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        2120
+      ],
+      "parameters": {
+        "content": "## FA-07b: On-Demand Communications\nWebhook trigger -> route by channel (email/WhatsApp/Teams) -> send -> log to audit trail",
+        "width": 700,
+        "height": 260,
+        "color": 3
+      }
+    },
+    {
+      "id": "fcc67980-c318-4399-b79c-d14d7b8423ef",
+      "name": "07b Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        40,
+        2300
+      ],
+      "parameters": {
+        "path": "advisory/send-comm",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "abd080d9-6266-4166-accd-16015fa7d058",
+      "name": "07b Route Channel",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        260,
+        2300
+      ],
+      "parameters": {
+        "rules": {
+          "values": []
+        },
+        "options": {}
+      },
+      "notes": "email | whatsapp | teams"
+    },
+    {
+      "id": "dc1dc6f0-408c-476a-8170-cb0f71b89614",
+      "name": "07b Send Email",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        480,
+        2260
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Outlook OAuth2 FA"
+        }
+      }
+    },
+    {
+      "id": "930fcfd9-d653-46af-93f6-888b8c71ebc5",
+      "name": "07b Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        2340
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "WhatsApp Cloud API",
+        "options": {}
+      }
+    },
+    {
+      "id": "5944f61b-9267-4a2e-a2d6-fa6726c76e08",
+      "name": "07b Log Comms",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        2420
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Supabase: fa_communications",
+        "options": {}
+      }
+    },
+    {
+      "id": "490ec451-883f-464a-98c2-bbcbc3c6ad96",
+      "name": "Section FA-09",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        760,
+        2120
+      ],
+      "parameters": {
+        "content": "## FA-09: Document Management\nUpload webhook -> AI classification -> FICA check -> auto-verify if complete -> notify adviser",
+        "width": 700,
+        "height": 260,
+        "color": 4
+      }
+    },
+    {
+      "id": "fea384c9-8125-45a5-b1b3-e5237a75805b",
+      "name": "09 Upload Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        820,
+        2300
+      ],
+      "parameters": {
+        "path": "advisory/document-upload",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "e6195582-549f-492b-96b1-8281249c9e66",
+      "name": "09 Store File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        2280
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Supabase Storage: fa-documents/{client}/{type}",
+        "options": {}
+      },
+      "notes": "Private bucket"
+    },
+    {
+      "id": "dfecc8ad-fda8-44e4-8fb5-ed54b26c059e",
+      "name": "09 AI Classify",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        2400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "OpenRouter: Claude Sonnet\n\"Classify document type\"",
+        "options": {}
+      },
+      "notes": "16 document types"
+    },
+    {
+      "id": "291d4548-4ac0-4205-a113-114c92ba148c",
+      "name": "09 FICA Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        2280
+      ],
+      "parameters": {
+        "jsCode": "// Check: ID + proof_of_address + bank_statement\n// If all 3 present -> fica_status = verified",
+        "mode": "runOnceForAllItems"
+      },
+      "notes": "Auto-verify"
+    },
+    {
+      "id": "4d6e8493-5e33-4b91-b6bc-6f62f0b58886",
+      "name": "09 Notify Adviser",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        2400
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Outlook OAuth2 FA"
+        }
+      }
+    },
+    {
+      "id": "140f9cfa-c3db-4525-89cf-c2409261e3f3",
+      "name": "Section FA-08",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        2500
+      ],
+      "parameters": {
+        "content": "## FA-08: Compliance & Audit Engine\nDaily scan: POPIA consent, FAIS disclosure, FICA verification, overdue tasks, pricing changes -> AI report -> alert on critical issues",
+        "width": 700,
+        "height": 280,
+        "color": 7
+      }
+    },
+    {
+      "id": "d29d38b9-45c8-4526-b176-7970219143b8",
+      "name": "08 Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        2680
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "4fb0c438-6717-4b67-b97a-9a0bc6ec3d71",
+      "name": "08 Compliance RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        2680
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Supabase RPC: fa_get_compliance_summary",
+        "options": {}
+      },
+      "notes": "6 compliance metrics"
+    },
+    {
+      "id": "19bca801-894d-4c04-9f31-745af766df6c",
+      "name": "08 AI Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        2680
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "OpenRouter: Claude Sonnet\n\"Rate: OK / WARNING / CRITICAL\"",
+        "options": {}
+      },
+      "notes": "Severity analysis"
+    },
+    {
+      "id": "f6c689f4-262d-437c-8ea1-9a2f8d06808f",
+      "name": "08 Email Report",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        440,
+        2800
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Outlook OAuth2 FA"
+        }
+      },
+      "notes": "To compliance officer"
+    },
+    {
+      "id": "2ba7fac2-5517-467b-9002-6ac719ff56a6",
+      "name": "08 Teams Alert",
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 2,
+      "position": [
+        640,
+        2800
+      ],
+      "parameters": {
+        "resource": "chatMessage",
+        "operation": "create"
+      },
+      "credentials": {
+        "microsoftTeamsOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Teams OAuth2 FA"
+        }
+      },
+      "notes": "If CRITICAL"
+    },
+    {
+      "id": "947c74ae-8d06-400b-9c17-ae50c753cc31",
+      "name": "Section FA-10",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        760,
+        2500
+      ],
+      "parameters": {
+        "content": "## FA-10: Weekly Reporting & Analytics\nMonday 07:00: pipeline summary, meeting stats, task completion, compliance score -> AI executive summary -> email + Airtable sync",
+        "width": 700,
+        "height": 280,
+        "color": 1
+      }
+    },
+    {
+      "id": "612d3bbd-8ba4-4ef4-aa97-a1d1f9f419c4",
+      "name": "10 Weekly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        820,
+        2680
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cb769f53-962c-4907-9eff-32e6491ef128",
+      "name": "10 Pipeline Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        2660
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "Supabase RPC: fa_get_pipeline_summary",
+        "options": {}
+      },
+      "notes": "11 pipeline stages"
+    },
+    {
+      "id": "5b0c5d5a-fbed-473b-b467-ed806049b375",
+      "name": "10 Aggregate Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        2780
+      ],
+      "parameters": {
+        "jsCode": "// Meetings: booked, completed, no-shows\n// Tasks: completed, overdue\n// New clients, compliance score",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "99c458fa-c9f8-49a2-aaa1-ecd35a1e47a1",
+      "name": "10 AI Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        2660
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "OpenRouter: Claude Sonnet\n\"Weekly executive summary\"",
+        "options": {}
+      },
+      "notes": "Highlights + concerns"
+    },
+    {
+      "id": "ea5bb68c-d395-4d94-8fa0-c8acdaf487af",
+      "name": "10 Email Report",
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        2780
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send"
+      },
+      "credentials": {
+        "microsoftOutlookOAuth2Api": {
+          "id": "PLACEHOLDER",
+          "name": "Outlook OAuth2 FA"
+        }
+      },
+      "notes": "To firm admin"
+    },
+    {
+      "id": "09bc38fc-bd25-40e6-b1e8-6bb75defaf5a",
+      "name": "Architecture",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -20,
+        2880
+      ],
+      "parameters": {
+        "content": "# System Architecture\n\n```\nCLIENT PORTAL (Next.js + Supabase)\n  /portal/advisory/* — Client dashboard, meetings, tasks, documents, pricing\n  /admin/advisory/*  — Adviser pipeline, compliance, analytics\n  /api/advisory/*    — 14 REST endpoints with role-based access\n\nDATABASE (Supabase PostgreSQL)\n  16 fa_* tables | Row-Level Security | Audit triggers\n  3 RPC functions | Storage bucket for documents\n\nINTEGRATIONS\n  Microsoft: Outlook Email + Calendar + Teams Meetings + Graph API Transcripts\n  WhatsApp: Cloud API template messages (confirmations, reminders)\n  AI: OpenRouter -> Claude Sonnet (briefings, transcripts, compliance, research)\n  Airtable: Operational dashboards (pipeline, metrics, compliance log)\n```\n\n**Compliance:** FAIS Act (Record of Advice, Fee Disclosure) + POPIA (Consent Management, Data Protection)\n\n**Multi-Tenant:** Each advisory firm isolated by firm_id across all tables",
+        "width": 1480,
+        "height": 420,
+        "color": 5
+      }
+    }
+  ],
+  "connections": {
+    "01 Intake Webhook": {
+      "main": [
+        [
+          {
+            "node": "01 Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 Validate Input": {
+      "main": [
+        [
+          {
+            "node": "01 Check Existing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 Check Existing": {
+      "main": [
+        [
+          {
+            "node": "01 Create Client",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "01 Update Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 Create Client": {
+      "main": [
+        [
+          {
+            "node": "01 Record POPIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 Update Client": {
+      "main": [
+        [
+          {
+            "node": "01 Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 Record POPIA": {
+      "main": [
+        [
+          {
+            "node": "01 Teams Notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "01 Schedule Discovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 Teams Notify": {
+      "main": [
+        [
+          {
+            "node": "01 Schedule Discovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Sub-Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "02 Fetch Adviser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Fetch Adviser": {
+      "main": [
+        [
+          {
+            "node": "02 Check Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Check Calendar": {
+      "main": [
+        [
+          {
+            "node": "02 Find Slot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Find Slot": {
+      "main": [
+        [
+          {
+            "node": "02 Create Teams Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Create Teams Meeting": {
+      "main": [
+        [
+          {
+            "node": "02 Store Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Store Meeting": {
+      "main": [
+        [
+          {
+            "node": "02 Confirm Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "02 WhatsApp Confirm",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 Schedule (Hourly)": {
+      "main": [
+        [
+          {
+            "node": "03 Upcoming Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 Upcoming Meetings": {
+      "main": [
+        [
+          {
+            "node": "03 Fetch Profile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 Fetch Profile": {
+      "main": [
+        [
+          {
+            "node": "03 AI Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 AI Briefing": {
+      "main": [
+        [
+          {
+            "node": "03 Email Briefing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07a Schedule (30min)": {
+      "main": [
+        [
+          {
+            "node": "07a 24h Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07a 24h Reminder": {
+      "main": [
+        [
+          {
+            "node": "07a 1h Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 Schedule (15min)": {
+      "main": [
+        [
+          {
+            "node": "04 Completed Meetings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 Completed Meetings": {
+      "main": [
+        [
+          {
+            "node": "04 Resolve Meeting ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 Resolve Meeting ID": {
+      "main": [
+        [
+          {
+            "node": "04 Get Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 Get Transcript": {
+      "main": [
+        [
+          {
+            "node": "04 AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "04 Store Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 Store Insights": {
+      "main": [
+        [
+          {
+            "node": "04 Call Post-Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 Trigger": {
+      "main": [
+        [
+          {
+            "node": "05 AI Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 AI Summary": {
+      "main": [
+        [
+          {
+            "node": "05 Email Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "05 Create Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 Trigger": {
+      "main": [
+        [
+          {
+            "node": "06 AI Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 AI Research": {
+      "main": [
+        [
+          {
+            "node": "06 Record of Advice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 Record of Advice": {
+      "main": [
+        [
+          {
+            "node": "06 Create Pricing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 Create Pricing": {
+      "main": [
+        [
+          {
+            "node": "06 Schedule Presentation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07b Webhook": {
+      "main": [
+        [
+          {
+            "node": "07b Route Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07b Route Channel": {
+      "main": [
+        [
+          {
+            "node": "07b Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "07b Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "07b Log Comms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 Upload Webhook": {
+      "main": [
+        [
+          {
+            "node": "09 Store File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 Store File": {
+      "main": [
+        [
+          {
+            "node": "09 AI Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 AI Classify": {
+      "main": [
+        [
+          {
+            "node": "09 FICA Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 FICA Check": {
+      "main": [
+        [
+          {
+            "node": "09 Notify Adviser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "08 Compliance RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 Compliance RPC": {
+      "main": [
+        [
+          {
+            "node": "08 AI Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 AI Report": {
+      "main": [
+        [
+          {
+            "node": "08 Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 Email Report": {
+      "main": [
+        [
+          {
+            "node": "08 Teams Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 Weekly Schedule": {
+      "main": [
+        [
+          {
+            "node": "10 Pipeline Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 Pipeline Summary": {
+      "main": [
+        [
+          {
+            "node": "10 Aggregate Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 Aggregate Stats": {
+      "main": [
+        [
+          {
+            "node": "10 AI Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 AI Summary": {
+      "main": [
+        [
+          {
+            "node": "10 Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}
