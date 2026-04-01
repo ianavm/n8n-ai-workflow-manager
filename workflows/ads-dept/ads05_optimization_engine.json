@@ -2,7 +2,7 @@
   "name": "AVM Ads: Optimization Engine",
   "nodes": [
     {
-      "id": "055c047e-90ba-4d1e-803e-433766f4f63a",
+      "id": "4f96d70d-0650-47d5-a1bc-a433a9492724",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "b948e141-e2c7-4080-a68b-6c012845b5c3",
+      "id": "21bd5edd-2b1b-453a-8799-4d4b0857ffb1",
       "name": "Read 7-Day Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "a4f5a1c2-fac8-4d17-908d-54b66bf6688d",
+      "id": "e75d4664-5af0-49bc-9199-11056f014b8d",
       "name": "Read Budgets",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -84,7 +84,7 @@
       }
     },
     {
-      "id": "e8390ac9-1253-48d2-ba80-fb4283233fdf",
+      "id": "78be137c-5f8a-483c-b9e7-a1de5daba6f9",
       "name": "Compute Signals",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -97,7 +97,7 @@
       }
     },
     {
-      "id": "5e47e9c2-a73e-42af-a086-f62950881d16",
+      "id": "c39adb8a-4e8a-422a-b3df-6e35384caeb3",
       "name": "Merge Data",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -110,7 +110,20 @@
       }
     },
     {
-      "id": "29f4f750-2b8e-441e-b253-91fbff5d72fc",
+      "id": "79372a9b-c4cf-41af-a37f-ac59df435f8c",
+      "name": "Aggregate Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1125,
+        350
+      ],
+      "parameters": {
+        "jsCode": "\n// Collect all merged items into structured context\nconst items = $input.all();\nconst performance = [];\nconst budgets = [];\n\nfor (const item of items) {\n  const d = item.json;\n  if (d['Allocation Name'] || d['Daily Budget ZAR'] !== undefined) {\n    budgets.push(d);\n  } else {\n    performance.push(d);\n  }\n}\n\nreturn [{json: {\n  performance_data: performance,\n  budget_data: budgets,\n  timestamp: new Date().toISOString(),\n}}];\n"
+      }
+    },
+    {
+      "id": "99984787-f9b5-4d98-bdf5-fb4dcef759cd",
       "name": "AI Optimizer",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -145,7 +158,7 @@
       }
     },
     {
-      "id": "df1a5243-983e-4f51-9e77-8b5279654cb2",
+      "id": "e30b368a-df66-483f-99ca-25129993df55",
       "name": "Parse Optimizations",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -158,7 +171,7 @@
       }
     },
     {
-      "id": "14aa654d-6ead-489f-8734-5835581ec6d0",
+      "id": "bcf13abc-a65c-43c7-b2f3-41f44727fff3",
       "name": "Log Auto Changes",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -184,11 +197,15 @@
           "mode": "id",
           "value": "tblov57B8uj09ZF2k"
         },
-        "options": {}
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
       }
     },
     {
-      "id": "7142f38e-5677-4a15-a7ff-9e7d4bc31249",
+      "id": "37abdbb3-2179-4833-9590-c0d67c0efd74",
       "name": "Create Approval Requests",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -214,11 +231,15 @@
           "mode": "id",
           "value": "tblov57B8uj09ZF2k"
         },
-        "options": {}
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
       }
     },
     {
-      "id": "5a5f431c-0f6f-4dde-ad8f-e758d43980a7",
+      "id": "e28601ec-01d5-4313-a57b-521e35d155f9",
       "name": "Email Optimization Summary",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -295,6 +316,17 @@
       "main": [
         [
           {
+            "node": "Aggregate Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Data": {
+      "main": [
+        [
+          {
             "node": "AI Optimizer",
             "type": "main",
             "index": 0
@@ -354,15 +386,9 @@
       ]
     }
   },
-  "active": false,
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
     "callerPolicy": "workflowsFromSameOwner"
-  },
-  "tags": [
-    "ads-dept",
-    "optimization",
-    "phase-2"
-  ]
+  }
 }

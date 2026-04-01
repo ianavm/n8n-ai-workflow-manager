@@ -1,0 +1,472 @@
+{
+  "name": "LI-09 CRM Sync",
+  "nodes": [
+    {
+      "id": "3642f2cc-43ac-4f52-a038-fce0b29220be",
+      "name": "Note LI-09",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "LI-09: CRM Sync & Dashboard\nCreates pipeline records for finalised leads",
+        "width": 400,
+        "height": 120,
+        "color": 4
+      }
+    },
+    {
+      "id": "1bbed4c3-7070-47d5-8f35-63fc43af300d",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "a942bd55-b984-49a5-bbf9-ddbf496d2178",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "afcfe18d-f990-4d24-986f-a3e257b11e95",
+      "name": "Load Finalized Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "filterByFormula": "=OR({Status}='Approved',{Status}='Awaiting_Review')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "fe7a0065-841d-4637-911b-cddf98a9127b",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id !== undefined }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "41a6ee34-6c35-4ff1-9165-a5884443c1a3",
+      "name": "No Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "bdbd4df9-53cc-48a8-adee-181bd99634e2",
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        940,
+        400
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "4534c766-5c1c-4993-8bc3-da844c607ab3",
+      "name": "Build Pipeline Entry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\nconst pipelineId = `PL-${Date.now().toString(36)}`.toUpperCase();\nconst lane = lead.routing_lane || 'Awaiting_Review';\nreturn {\n  json: {\n    pipeline_id: pipelineId,\n    lead_id: lead.lead_id || lead['Lead ID'] || '',\n    stage: lane === 'High_Priority' ? 'Approved' : 'Awaiting_Review',\n    previous_stage: lead.status || 'Qualified',\n    stage_changed_at: new Date().toISOString(),\n    days_in_stage: 0,\n    owner: 'Ian Immelman',\n    notes: `Auto-qualified. ICP: ${lead.icp_score || lead['ICP Score'] || 0}, Priority: ${lead.final_priority_score || 0}`,\n    next_action: lane === 'High_Priority' ? 'Send connection request' : 'Manual review required',\n    next_action_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],\n  }\n};"
+      }
+    },
+    {
+      "id": "31113b67-344a-4340-981b-80cd5368b56b",
+      "name": "Create Pipeline Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1420,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbltIjDzpd2mRSJsv",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "555b06d9-4e43-42ad-8ea5-162165e8a3ab",
+      "name": "Update Lead Master",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1660,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "Lead ID"
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "f3c31d8a-ab50-4b6a-9dd5-4c11a40f96a1",
+      "name": "Log CRM Sync",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1900,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "9103e362-6573-41c7-af1e-cec97149a95c",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "89110b36-7fc1-49da-ae5e-579245c84e7e",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconst workflowName = error.workflow?.name || 'Unknown';\nconst errorMsg = error.execution?.error?.message || 'Unknown error';\nconst lastNode = error.execution?.lastNodeExecuted || 'Unknown';\nconst execUrl = error.execution?.url || '';\nconst now = new Date().toISOString();\nreturn {\n  json: {\n    log_id: `ERR-${Date.now().toString(36)}`.toUpperCase(),\n    workflow: workflowName,\n    lead_id: '',\n    action: 'Error',\n    status: 'Failed',\n    error_message: errorMsg.substring(0, 1000),\n    input_summary: `Last node: ${lastNode}`,\n    output_summary: `Execution: ${execUrl}`,\n    tokens_used: 0,\n    duration_ms: 0,\n    execution_id: error.execution?.id || '',\n    timestamp: now,\n    telegram_message: `<b>LinkedIn Agent Error</b>\\n\\nWorkflow: ${workflowName}\\nNode: ${lastNode}\\nError: ${errorMsg.substring(0, 200)}\\n\\n<a href=\"${execUrl}\">View Execution</a>`,\n  }\n};"
+      }
+    },
+    {
+      "id": "745d7f79-916e-4417-9b8e-5cafda543371",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        800
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "ed265534-94ed-4bee-ba2b-e28eccf329c1",
+      "name": "Telegram Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        1000
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Finalized Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Finalized Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Finalized Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [
+          {
+            "node": "Build Pipeline Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Pipeline Entry": {
+      "main": [
+        [
+          {
+            "node": "Create Pipeline Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Pipeline Record": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Master",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Master": {
+      "main": [
+        [
+          {
+            "node": "Log CRM Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log CRM Sync": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Telegram Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

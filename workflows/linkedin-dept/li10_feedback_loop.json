@@ -1,0 +1,758 @@
+{
+  "name": "LI-10 Feedback Loop",
+  "nodes": [
+    {
+      "id": "bff9e633-abb2-49bb-b1ac-b5cea84a4478",
+      "name": "Note LI-10",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "LI-10: Feedback & Learning Loop\nWebhook for outcome feedback + monthly AI analysis of win/loss patterns",
+        "width": 500,
+        "height": 120,
+        "color": 6
+      }
+    },
+    {
+      "id": "42735cac-fcd0-46ba-b2e3-a420cc93ad8e",
+      "name": "Webhook Feedback",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "add74b51-4224-40ef-8568-702d3fc4c570",
+      "parameters": {
+        "path": "linkedin/feedback",
+        "httpMethod": "POST",
+        "responseMode": "lastNode"
+      }
+    },
+    {
+      "id": "9815c27f-de28-448c-9b51-75342f7adec9",
+      "name": "Monthly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        500
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 1 * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f77a1141-36ae-4b0e-b334-944a3d6ac73b",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        700
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "bd02dfca-565e-4dfe-81bf-fa566ee7a20b",
+      "name": "Route by Trigger",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        460,
+        500
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $executionId ? ($input.first().json.body ? 'webhook' : 'schedule') : 'schedule' }}",
+                    "rightValue": "webhook",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $executionId ? ($input.first().json.body ? 'webhook' : 'schedule') : 'schedule' }}",
+                    "rightValue": "schedule",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e0a5cc42-28ba-42a7-b51e-79dcdc674e0e",
+      "name": "Validate Feedback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst required = ['lead_id', 'outcome'];\nconst missing = required.filter(f => !input[f]);\nif (missing.length > 0) {\n  return {json: {valid: false, error: `Missing fields: ${missing.join(', ')}`}};\n}\nconst validOutcomes = ['No_Reply','Replied_Positive','Replied_Negative','Meeting_Booked','Proposal_Sent','Deal_Won','Deal_Lost','Nurture'];\nif (!validOutcomes.includes(input.outcome)) {\n  return {json: {valid: false, error: `Invalid outcome: ${input.outcome}. Valid: ${validOutcomes.join(', ')}`}};\n}\nreturn {\n  json: {\n    valid: true,\n    feedback_id: `FB-${Date.now().toString(36)}`.toUpperCase(),\n    lead_id: input.lead_id,\n    outcome: input.outcome,\n    revenue_zar: parseFloat(input.revenue_zar || 0),\n    package_sold: input.package_sold || '',\n    feedback_notes: input.feedback_notes || '',\n    icp_score_at_contact: parseInt(input.icp_score_at_contact || 0),\n    priority_band_at_contact: input.priority_band_at_contact || '',\n    recorded_at: new Date().toISOString(),\n  }\n};"
+      }
+    },
+    {
+      "id": "38d0ae1a-c478-4c73-bc0e-febc3aa58329",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        940,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.valid === true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b2d323d3-9031-4f06-903c-24bbbd646097",
+      "name": "Respond Invalid",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        940,
+        500
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "c74016d3-842c-4ef3-8441-773b150c494d",
+      "name": "Store Feedback",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1180,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbly1xZaTAHucdnaK",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "24761f5e-82ef-4bd7-b584-66dfe7240bb3",
+      "name": "Update Lead Status",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1420,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "Lead ID"
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "62005974-ccd7-49cc-b778-dd51934c5df2",
+      "name": "Update Pipeline",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1660,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbltIjDzpd2mRSJsv",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "Lead ID"
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "ad73f338-b197-48c3-92f1-45044efadf80",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1900,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    },
+    {
+      "id": "1a833437-4b88-4ef3-aba4-250c3e7b4a25",
+      "name": "Load All Feedback",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        700
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbly1xZaTAHucdnaK",
+          "mode": "id"
+        },
+        "filterByFormula": "=NOT({Outcome}='')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "2d5054ff-d92e-4ed3-85fe-16b1fc5804be",
+      "name": "Has Data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        940,
+        700
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id !== undefined }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "650a6a13-7afe-4763-b511-f94adf3816c7",
+      "name": "No Data",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        940,
+        900
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "db04f8ae-1b3d-4d24-9776-bdc6810bc1ad",
+      "name": "AI Pattern Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1180,
+        700
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000, \"temperature\": 0.3, \"messages\": [{\"role\": \"system\", \"content\": \"You are a sales intelligence analyst for AnyVision Media.\\n\\nAnalyze lead outcome records to identify patterns in successful vs lost leads.\\n\\nAnalyze:\\n1. Which ICP score ranges correlate with wins vs losses?\\n2. Which industries have highest conversion rates?\\n3. Which pain point categories lead to deals most often?\\n4. Which package tiers are most popular?\\n5. What outreach messages got the best response rates?\\n6. Are there any red flags to add to the ICP?\\n7. Are there scoring weight adjustments needed?\\n\\nOutput (JSON only, no markdown fences):\\n{\\\"win_patterns\\\":[\\\"pattern\\\"],\\\"loss_patterns\\\":[\\\"pattern\\\"],\\\"icp_refinements\\\":[{\\\"field\\\":\\\"industry\\\",\\\"suggestion\\\":\\\"Add hospitality\\\",\\\"evidence\\\":\\\"3/5 wins\\\"}],\\\"scoring_adjustments\\\":[{\\\"weight\\\":\\\"pain_indicators\\\",\\\"current\\\":20,\\\"suggested\\\":25,\\\"reasoning\\\":\\\"...\\\"}],\\\"top_performing_industries\\\":[\\\"industry\\\"],\\\"recommended_actions\\\":[\\\"action\\\"],\\\"summary\\\":\\\"executive summary\\\"}\"}, {\"role\": \"user\", \"content\": \"={{ JSON.stringify($input.all().map(i => ({outcome: i.json.outcome || i.json['Outcome'], industry: i.json.industry || '', icp_score: i.json.icp_score_at_contact || i.json['ICP Score At Contact'] || 0, package: i.json.package_sold || i.json['Package Sold'] || '', revenue: i.json.revenue_zar || i.json['Revenue ZAR'] || 0})))}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "475e3ee7-5755-41f7-bc00-1cb39b7aabd7",
+      "name": "Parse Learning",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        700
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet parsed = {};\ntry {\n  const content = raw.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = {win_patterns: [], loss_patterns: [], summary: 'Parse error: ' + e.message};\n}\nreturn {\n  json: {\n    feedback_id: `LEARN-${Date.now().toString(36)}`.toUpperCase(),\n    lead_id: 'SYSTEM',\n    outcome: 'Nurture',\n    learning_insights: JSON.stringify(parsed, null, 2),\n    feedback_notes: parsed.summary || '',\n    recorded_at: new Date().toISOString(),\n    email_subject: 'LinkedIn Lead Intelligence - Monthly Learning Report',\n    email_body: `<div style=\"font-family:Arial;max-width:600px\"><div style=\"background:#FF6D5A;padding:15px\"><h2 style=\"color:white;margin:0\">Monthly Learning Report</h2></div><div style=\"padding:20px\"><h3>Win Patterns</h3><ul>${(parsed.win_patterns||[]).map(p=>'<li>'+p+'</li>').join('')}</ul><h3>Loss Patterns</h3><ul>${(parsed.loss_patterns||[]).map(p=>'<li>'+p+'</li>').join('')}</ul><h3>Recommendations</h3><ul>${(parsed.recommended_actions||[]).map(p=>'<li>'+p+'</li>').join('')}</ul><p><b>Summary:</b> ${parsed.summary||''}</p></div></div>`,\n  }\n};"
+      }
+    },
+    {
+      "id": "72cfb889-21d3-4c7d-88d3-8ba58d52f3b5",
+      "name": "Store Insights",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1660,
+        700
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbly1xZaTAHucdnaK",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "cf004a37-de19-4d2e-b9aa-bbfcd017c328",
+      "name": "Send Insights Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1900,
+        700
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.email_subject }}",
+        "emailType": "html",
+        "message": "={{ $json.email_body }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "87bf16ef-6eb3-47c8-8dfe-e2a1b8e9af4e",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        1100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "104d1a5d-1729-4fd1-8cd9-e0037f87a031",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        1100
+      ],
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconst workflowName = error.workflow?.name || 'Unknown';\nconst errorMsg = error.execution?.error?.message || 'Unknown error';\nconst lastNode = error.execution?.lastNodeExecuted || 'Unknown';\nconst execUrl = error.execution?.url || '';\nconst now = new Date().toISOString();\nreturn {\n  json: {\n    log_id: `ERR-${Date.now().toString(36)}`.toUpperCase(),\n    workflow: workflowName,\n    lead_id: '',\n    action: 'Error',\n    status: 'Failed',\n    error_message: errorMsg.substring(0, 1000),\n    input_summary: `Last node: ${lastNode}`,\n    output_summary: `Execution: ${execUrl}`,\n    tokens_used: 0,\n    duration_ms: 0,\n    execution_id: error.execution?.id || '',\n    timestamp: now,\n    telegram_message: `<b>LinkedIn Agent Error</b>\\n\\nWorkflow: ${workflowName}\\nNode: ${lastNode}\\nError: ${errorMsg.substring(0, 200)}\\n\\n<a href=\"${execUrl}\">View Execution</a>`,\n  }\n};"
+      }
+    },
+    {
+      "id": "f15a3b46-f729-4729-93b8-b85e3b0c28c6",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        1100
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "e840af8c-93e3-4395-8010-3e942af55e1a",
+      "name": "Telegram Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        1300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Feedback": {
+      "main": [
+        [
+          {
+            "node": "Route by Trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monthly Schedule": {
+      "main": [
+        [
+          {
+            "node": "Route by Trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Route by Trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load All Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Feedback": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Store Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Feedback": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Status": {
+      "main": [
+        [
+          {
+            "node": "Update Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Pipeline": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load All Feedback": {
+      "main": [
+        [
+          {
+            "node": "Has Data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Data?": {
+      "main": [
+        [
+          {
+            "node": "AI Pattern Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Pattern Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse Learning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Learning": {
+      "main": [
+        [
+          {
+            "node": "Store Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Insights": {
+      "main": [
+        [
+          {
+            "node": "Send Insights Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Telegram Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

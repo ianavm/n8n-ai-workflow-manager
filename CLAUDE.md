@@ -61,6 +61,15 @@ GitHub, Supabase, Airtable, Playwright, Context7 (live API docs), n8n (workflow 
 
 ## Active Departments
 
+### LinkedIn Lead Intelligence (10 workflows)
+- Multi-agent AI pipeline: discovery → enrichment → ICP scoring → pain detection → opportunity mapping → outreach → prioritization → CRM sync
+- Pipeline: LI-01 Orchestrator (Mon 07:00 SAST) calls LI-02 through LI-09 sequentially, LI-10 (feedback) runs independently
+- AI: Claude Sonnet 4 via OpenRouter (6 AI nodes across LI-03 to LI-07 + LI-10)
+- Storage: Google Sheets (`133K-AiWyvCaeD8Y_SCzDT7Huxz-TrBY6CXn10jY81uE`) with 10 tabs
+- Notifications: Telegram (@AVMCRMBot, chat 6311361442) + Gmail summary
+- Deploy: `python tools/deploy_linkedin_dept.py build|deploy|activate`
+- Setup: `python tools/setup_linkedin_airtable.py` (original Airtable setup, replaced by Google Sheets)
+
 ### Accounting (7 workflows)
 - Full AP/AR: invoicing → collections → payments → supplier bills → month-end → audit → exceptions
 - Integrations: QuickBooks (OAuth), Airtable, Gmail, HTML email templates

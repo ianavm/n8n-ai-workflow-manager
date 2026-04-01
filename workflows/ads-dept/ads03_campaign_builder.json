@@ -2,7 +2,7 @@
   "name": "AVM Ads: Campaign Builder",
   "nodes": [
     {
-      "id": "89d2ed33-c152-485f-ad29-e151d9bbae99",
+      "id": "d2487156-6351-439a-a296-916cd0e53be4",
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -10,7 +10,7 @@
         250,
         300
       ],
-      "webhookId": "c0d08efb-31ce-4895-bdc6-9364a87b7c55",
+      "webhookId": "418f7c30-67e4-4a3b-ac0a-a2c1f61fb063",
       "parameters": {
         "path": "ads-build-campaign",
         "httpMethod": "POST",
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "f6dd746d-a7c6-4a87-b013-7db10e41931f",
+      "id": "38d2f3c5-69c5-420e-82ab-11b145f0e36f",
       "name": "Read Approved Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -49,7 +49,7 @@
       }
     },
     {
-      "id": "8731a965-5a01-44ce-b5c1-622d62c3ffc4",
+      "id": "07caca8d-b964-423f-8c4a-4ceb98fad5ff",
       "name": "Read Creatives",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -80,7 +80,7 @@
       }
     },
     {
-      "id": "43a7af58-d9a8-49a3-99d9-0a03a7fd941b",
+      "id": "25202175-2bf3-4412-a977-58dc6d6abd41",
       "name": "Budget Safety Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -93,7 +93,7 @@
       }
     },
     {
-      "id": "251825bb-b172-44c0-9ad1-caabd3633c6c",
+      "id": "37896c70-5318-43e6-bbcd-3b9372f1548e",
       "name": "Budget Safe?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -123,7 +123,7 @@
       }
     },
     {
-      "id": "fba2738d-0699-42ed-bfa6-5f1e1c23f3da",
+      "id": "031edf5f-c535-41ad-bec7-41eae05b636c",
       "name": "Build Google Campaign",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -136,7 +136,7 @@
       }
     },
     {
-      "id": "e7ce0297-f1d0-4380-9180-146b1de6609c",
+      "id": "23ae0743-959a-4373-8888-33916fcf464e",
       "name": "Build Meta Campaign",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -149,7 +149,7 @@
       }
     },
     {
-      "id": "a3bd5f6a-377e-4578-8d91-ebbfd475be3f",
+      "id": "ba4b297c-5cb1-401a-8d3e-eb607020a2bf",
       "name": "Create Google Campaign",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -159,20 +159,20 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://googleads.googleapis.com/v20/customers/REPLACE/campaigns:mutate",
+        "url": "https://googleads.googleapis.com/v20/customers/6925797193/campaigns:mutate",
         "options": {
           "timeout": 30000
         }
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "REPLACE_AFTER_SETUP",
+          "id": "5au55TkIyGEnuZvD",
           "name": "Google Ads OAuth2"
         }
       }
     },
     {
-      "id": "07d72388-b983-476d-b69b-8e291a831274",
+      "id": "908ba2a6-e369-40d4-b369-e5c7b73d29c9",
       "name": "Create Meta Campaign",
       "type": "n8n-nodes-base.facebookGraphApi",
       "typeVersion": 1,
@@ -182,19 +182,44 @@
       ],
       "credentials": {
         "facebookGraphApi": {
-          "id": "REPLACE_AFTER_SETUP",
+          "id": "4UZH1VRXvVufgvrI",
           "name": "Meta Ads Graph API"
         }
       },
       "parameters": {
         "httpRequestMethod": "POST",
         "graphApiVersion": "v21.0",
-        "node": "=act_REPLACE/campaigns",
-        "options": {}
+        "node": "=act_26395704183451218/campaigns",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "name",
+                "value": "={{$json.name}}"
+              },
+              {
+                "name": "objective",
+                "value": "={{$json.objective}}"
+              },
+              {
+                "name": "status",
+                "value": "={{$json.status}}"
+              },
+              {
+                "name": "daily_budget",
+                "value": "={{$json.daily_budget}}"
+              },
+              {
+                "name": "special_ad_categories",
+                "value": "={{JSON.stringify($json.special_ad_categories || [])}}"
+              }
+            ]
+          }
+        }
       }
     },
     {
-      "id": "e829ef39-3536-46c5-9e12-ef1b3a59b2a2",
+      "id": "db839670-d3ee-459b-a09d-1eb6098908d0",
       "name": "Merge Results",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -207,7 +232,7 @@
       }
     },
     {
-      "id": "a7fe30eb-ca1b-43ac-9d8b-69d8f21105cf",
+      "id": "ff249f3f-03a5-47a7-b9fc-b6f294852287",
       "name": "Update Status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -220,7 +245,7 @@
       }
     },
     {
-      "id": "2e97a0cd-c683-4561-b3f9-60280cb6ee03",
+      "id": "d8c83372-7b9b-4b90-9564-42c7c07d7d2b",
       "name": "Budget Rejected Alert",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -243,7 +268,7 @@
       }
     },
     {
-      "id": "cf8ef229-7f03-47ea-ab2f-acb45011f475",
+      "id": "e0d8526b-7d6c-4a43-be3c-cb9eaf759d0e",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
@@ -392,15 +417,9 @@
       ]
     }
   },
-  "active": false,
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
     "callerPolicy": "workflowsFromSameOwner"
-  },
-  "tags": [
-    "ads-dept",
-    "publishing",
-    "phase-3"
-  ]
+  }
 }

@@ -1,0 +1,596 @@
+{
+  "name": "LI-03 Data Enrichment",
+  "nodes": [
+    {
+      "id": "5fc98a66-b0a9-48a0-87bc-7edead2efe40",
+      "name": "Note LI-03",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "LI-03: Data Enrichment\nScrapes company websites, AI extracts business intelligence",
+        "width": 400,
+        "height": 120,
+        "color": 5
+      }
+    },
+    {
+      "id": "0707629a-ff21-43de-97a2-31627ba1c21d",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "97969684-d04f-48ec-a964-65bb09591f58",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "0e20b3c8-449d-4e92-ae76-d13c07034946",
+      "name": "Load New Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Status}='New')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "574d1605-f2ed-4dd7-829f-108641edcce4",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id !== undefined }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d13a44f2-7309-490b-a7fb-847bc533cd91",
+      "name": "No Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "68bf4ae0-a6e2-4d83-8f16-1b73e8f634bd",
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        940,
+        400
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "b70dcb6b-4dca-48ea-9173-fcef95c8518e",
+      "name": "Load Lead + Enrichment Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\nconst company = lead.company_name || '';\nconst query = encodeURIComponent(company + ' official website');\nreturn {\n  json: {\n    ...lead,\n    search_url: `https://www.google.com/search?q=${query}&num=3`,\n  }\n};"
+      }
+    },
+    {
+      "id": "bd3597a9-9b2b-46fb-b4e2-715eba34a546",
+      "name": "Scrape Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        400
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.company_website || $json.search_url }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "4585254f-c235-4654-9f99-78176decb8bd",
+      "name": "Wait 3s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1660,
+        400
+      ],
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "255481e6-f2b4-4c9f-bbc1-4bb8abb90092",
+      "name": "AI Enrichment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1900,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500, \"temperature\": 0.2, \"messages\": [{\"role\": \"system\", \"content\": \"You are a business intelligence analyst for AnyVision Media, an AI automation agency in South Africa.\\n\\nGiven raw HTML content from a company website, extract structured business intelligence.\\n\\nExtract These Fields:\\n1. company_description: 2-3 sentence summary of what the company does\\n2. key_services: array of main services/products offered\\n3. business_model: one of \\\"B2B\\\", \\\"B2C\\\", \\\"B2B2C\\\", \\\"Marketplace\\\", \\\"SaaS\\\", \\\"Agency\\\", \\\"Retail\\\", \\\"Manufacturing\\\", \\\"Services\\\", \\\"Unknown\\\"\\n4. employee_estimate: one of \\\"1-10\\\", \\\"11-50\\\", \\\"51-200\\\", \\\"201-500\\\", \\\"500+\\\"\\n5. tech_stack_hints: array of technologies detected (CMS, analytics, chat widgets, etc.)\\n6. has_blog: boolean\\n7. social_presence: object with boolean for each platform {linkedin, facebook, instagram, twitter, youtube}\\n8. digital_presence_score: 0-100 based on website quality, social links, blog, contact forms\\n9. website_quality_score: 0-100\\n\\nScoring Rubric for digital_presence_score:\\n- Has modern website: +20\\n- Has blog/content: +15\\n- Has 3+ social media links: +15\\n- Has contact form: +10\\n- Has chat widget: +10\\n- Has SSL (https): +10\\n- Has clear service pages: +10\\n- Has testimonials/case studies: +10\\n\\nOutput Format (JSON only, no markdown fences):\\n{\\\"company_description\\\":\\\"...\\\",\\\"key_services\\\":[...],\\\"business_model\\\":\\\"...\\\",\\\"employee_estimate\\\":\\\"...\\\",\\\"tech_stack_hints\\\":[...],\\\"has_blog\\\":true,\\\"social_presence\\\":{\\\"linkedin\\\":true},\\\"digital_presence_score\\\":75,\\\"website_quality_score\\\":60}\"}, {\"role\": \"user\", \"content\": \"={{ JSON.stringify({company_name: $json.company_name, html_snippet: ($json.data || '').substring(0, 3000)})}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "e56ae6dc-eb72-4575-99ce-62c7b170711f",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2140,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet parsed = {};\ntry {\n  const content = raw.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = {\n    company_description: '',\n    key_services: [],\n    business_model: 'Unknown',\n    employee_estimate: '',\n    tech_stack_hints: [],\n    has_blog: false,\n    social_presence: {},\n    digital_presence_score: 0,\n    website_quality_score: 0,\n    parse_error: e.message,\n  };\n}\nconst lead = $('Load Lead + Enrichment Data').first().json;\nreturn {\n  json: {\n    ...lead,\n    ...parsed,\n    enrichment_id: `EN-${Date.now().toString(36)}`.toUpperCase(),\n    enriched_at: new Date().toISOString(),\n  }\n};"
+      }
+    },
+    {
+      "id": "99688e14-6fa2-4070-9d84-c3888e6c4972",
+      "name": "Create Enrichment",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2380,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl4fNRZ0iEe2SIov",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "7321094b-638b-4bbc-a083-5a57bb07d4d1",
+      "name": "Update Lead Status",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2620,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "Lead ID"
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "469aba51-59bb-44b8-891f-ecd7744aabdc",
+      "name": "Log Enrichment",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2860,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "daae0e66-9894-42ec-8009-2ed178b8a538",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "ef3ac112-b5a9-4a1d-b5bd-445c09e1968f",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconst workflowName = error.workflow?.name || 'Unknown';\nconst errorMsg = error.execution?.error?.message || 'Unknown error';\nconst lastNode = error.execution?.lastNodeExecuted || 'Unknown';\nconst execUrl = error.execution?.url || '';\nconst now = new Date().toISOString();\nreturn {\n  json: {\n    log_id: `ERR-${Date.now().toString(36)}`.toUpperCase(),\n    workflow: workflowName,\n    lead_id: '',\n    action: 'Error',\n    status: 'Failed',\n    error_message: errorMsg.substring(0, 1000),\n    input_summary: `Last node: ${lastNode}`,\n    output_summary: `Execution: ${execUrl}`,\n    tokens_used: 0,\n    duration_ms: 0,\n    execution_id: error.execution?.id || '',\n    timestamp: now,\n    telegram_message: `<b>LinkedIn Agent Error</b>\\n\\nWorkflow: ${workflowName}\\nNode: ${lastNode}\\nError: ${errorMsg.substring(0, 200)}\\n\\n<a href=\"${execUrl}\">View Execution</a>`,\n  }\n};"
+      }
+    },
+    {
+      "id": "b485f6b9-95b1-400f-80c9-60057af560d2",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        800
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "72c590cd-a5d7-4631-b884-a610dad12135",
+      "name": "Telegram Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        1000
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load New Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [
+          {
+            "node": "Load Lead + Enrichment Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Lead + Enrichment Data": {
+      "main": [
+        [
+          {
+            "node": "Scrape Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Website": {
+      "main": [
+        [
+          {
+            "node": "Wait 3s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3s": {
+      "main": [
+        [
+          {
+            "node": "AI Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Create Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Update Lead Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead Status": {
+      "main": [
+        [
+          {
+            "node": "Log Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Telegram Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

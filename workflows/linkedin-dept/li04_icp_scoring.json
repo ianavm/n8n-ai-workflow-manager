@@ -1,0 +1,585 @@
+{
+  "name": "LI-04 ICP Scoring",
+  "nodes": [
+    {
+      "id": "642d97c4-3772-47c4-a952-b8d294a7b906",
+      "name": "Note LI-04",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "LI-04: ICP Scoring\nAI scores leads against Ideal Customer Profile",
+        "width": 350,
+        "height": 120,
+        "color": 5
+      }
+    },
+    {
+      "id": "6b0c0d57-c097-4d5b-aaab-a9a19d3b7660",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "e50fc799-4305-4993-9cec-0fe2a7750061",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "9f826e9b-6a48-46e4-8fc2-c3d4ea45bd1b",
+      "name": "Load Enriched Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "filterByFormula": "={Status}='Enriched'",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "0e9c965b-b5c4-4162-8c34-90dd84c0ad09",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id !== undefined }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7a91026a-b69d-480a-b066-953079b67169",
+      "name": "No Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "bb42d851-7197-4f36-8d62-a6479dc37ff9",
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        940,
+        400
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "ea68d418-413d-4df6-b2c8-16669a4997c4",
+      "name": "Load Enrichment Data",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1180,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl4fNRZ0iEe2SIov",
+          "mode": "id"
+        },
+        "filterByFormula": "={{ '{Lead ID}=\"' + ($json.lead_id || $json['Lead ID'] || '') + '\"' }}",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "49b67c05-4fec-4f48-89cb-870e74a97856",
+      "name": "Build Scoring Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\nconst enrichment = $('Load Enrichment Data').first().json;\nconst config = $('Trigger').first().json;\nconst context = {\n  lead: {\n    full_name: lead.full_name || lead['Full Name'] || '',\n    title: lead.title || lead['Title'] || '',\n    company_name: lead.company_name || lead['Company Name'] || '',\n    industry: lead.industry || lead['Industry'] || '',\n    location: lead.location || lead['Location'] || '',\n    linkedin_url: lead.linkedin_url || lead['LinkedIn URL'] || '',\n    employee_count: lead.employee_count || lead['Employee Count'] || '',\n  },\n  enrichment: {\n    company_description: enrichment.company_description || enrichment['Company Description'] || '',\n    key_services: enrichment.key_services || enrichment['Key Services'] || '',\n    business_model: enrichment.business_model || enrichment['Business Model'] || '',\n    digital_presence_score: enrichment.digital_presence_score || enrichment['Digital Presence Score'] || 0,\n    website_quality_score: enrichment.website_quality_score || enrichment['Website Quality Score'] || 0,\n  },\n  icp_config: {\n    titles: config.icp_titles || [],\n    industries: config.icp_industries || [],\n    company_size: config.icp_company_size || '10-500',\n  },\n};\nreturn {json: {scoring_context: JSON.stringify(context, null, 2), lead_id: lead.lead_id || lead['Lead ID'] || ''}};"
+      }
+    },
+    {
+      "id": "aac02b60-9ef7-4df1-81c9-a69eca06d811",
+      "name": "AI ICP Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1660,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500, \"temperature\": 0.2, \"messages\": [{\"role\": \"system\", \"content\": \"You are an ICP (Ideal Customer Profile) scoring specialist for AnyVision Media, an AI workflow automation agency in South Africa.\\n\\nAnyVision Media ICP:\\n- Decision-makers (CEO, COO, CTO, MD, Operations Director, Marketing Director) at SMBs\\n- Company size: 10-500 employees\\n- Industries: Professional services, real estate, e-commerce, healthcare admin, logistics, finance, hospitality, education\\n- Located in South Africa (Johannesburg/Gauteng preferred) or SADC region\\n- Shows signs of manual processes, scaling challenges, or tech adoption interest\\n- NOT: competitors (agencies, dev shops), job seekers, students, enterprise (5000+ employees)\\n\\nScoring Weights:\\n- Decision Maker Role (20%): CEO/MD/COO=20, Director/VP=16, Manager=12, Other=5\\n- Company Size Fit (15%): Sweet spot 20-200 employees=15, 10-20 or 200-500=10, outside=3\\n- Industry Fit (15%): Core industries=15, Adjacent=10, Poor fit=3\\n- Pain Indicators (20%): Strong signals=20, Moderate=12, Weak=5\\n- Automation Potential (20%): High=20, Medium=12, Low=5\\n- Engagement Likelihood (10%): Active LinkedIn presence=10, Moderate=6, Low=2\\n\\nRed Flags (auto-disqualify or reduce score):\\n- Competitor (digital agency, automation company): DISQUALIFY\\n- Job seeker / \\\"Open to Work\\\": DISQUALIFY\\n- Student / intern: DISQUALIFY\\n- Enterprise (>5000 employees): reduce by 50%\\n- No company website: reduce by 20%\\n- Non-South African without SADC presence: reduce by 30%\\n\\nOutput Format (JSON only, no markdown fences):\\n{\\\"total_score\\\":78,\\\"decision_maker_score\\\":16,\\\"company_size_score\\\":15,\\\"industry_score\\\":12,\\\"pain_indicator_score\\\":15,\\\"automation_potential_score\\\":12,\\\"engagement_likelihood_score\\\":8,\\\"confidence\\\":0.82,\\\"priority_band\\\":\\\"High\\\",\\\"red_flags\\\":[],\\\"reasoning\\\":\\\"explanation\\\",\\\"disqualified\\\":false,\\\"disqualify_reason\\\":null}\"}, {\"role\": \"user\", \"content\": \"={{ $json.scoring_context}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "dba068df-1431-4b6d-81bc-76e835e2bcf7",
+      "name": "Parse Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet parsed = {};\ntry {\n  const content = raw.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = {total_score: 0, confidence: 0, priority_band: 'Low', red_flags: [], reasoning: 'Parse error: ' + e.message, disqualified: false};\n}\nconst context = $('Build Scoring Context').first().json;\nreturn {\n  json: {\n    score_id: `SC-${Date.now().toString(36)}`.toUpperCase(),\n    lead_id: context.lead_id,\n    score_type: 'ICP',\n    ...parsed,\n    scored_at: new Date().toISOString(),\n  }\n};"
+      }
+    },
+    {
+      "id": "c4cc34f5-560d-4aa0-a666-db0f360fb935",
+      "name": "Create Score",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2140,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblllzt2Ub1aabriZ",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "5959c8ed-71bd-488f-bba0-9de1e08dd286",
+      "name": "Update Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2380,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "Lead ID"
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "59b5c0d4-ebc3-4671-b21d-2ecfc1824ce3",
+      "name": "Log Scoring",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2620,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "6775c3d9-1197-40b1-8a94-dd2c1ae506b1",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "0f67889d-0600-40e6-b8a1-62e6ffce5e75",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconst workflowName = error.workflow?.name || 'Unknown';\nconst errorMsg = error.execution?.error?.message || 'Unknown error';\nconst lastNode = error.execution?.lastNodeExecuted || 'Unknown';\nconst execUrl = error.execution?.url || '';\nconst now = new Date().toISOString();\nreturn {\n  json: {\n    log_id: `ERR-${Date.now().toString(36)}`.toUpperCase(),\n    workflow: workflowName,\n    lead_id: '',\n    action: 'Error',\n    status: 'Failed',\n    error_message: errorMsg.substring(0, 1000),\n    input_summary: `Last node: ${lastNode}`,\n    output_summary: `Execution: ${execUrl}`,\n    tokens_used: 0,\n    duration_ms: 0,\n    execution_id: error.execution?.id || '',\n    timestamp: now,\n    telegram_message: `<b>LinkedIn Agent Error</b>\\n\\nWorkflow: ${workflowName}\\nNode: ${lastNode}\\nError: ${errorMsg.substring(0, 200)}\\n\\n<a href=\"${execUrl}\">View Execution</a>`,\n  }\n};"
+      }
+    },
+    {
+      "id": "c1a2ffb0-f983-471d-83ae-baa93e3b9a13",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        800
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "1ebcc4a1-3124-437e-8a66-cac7217fbb97",
+      "name": "Telegram Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        1000
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Enriched Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Enriched Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Enriched Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [
+          {
+            "node": "Load Enrichment Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Enrichment Data": {
+      "main": [
+        [
+          {
+            "node": "Build Scoring Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scoring Context": {
+      "main": [
+        [
+          {
+            "node": "AI ICP Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI ICP Score": {
+      "main": [
+        [
+          {
+            "node": "Parse Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Score": {
+      "main": [
+        [
+          {
+            "node": "Create Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Score": {
+      "main": [
+        [
+          {
+            "node": "Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead": {
+      "main": [
+        [
+          {
+            "node": "Log Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Scoring": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Telegram Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

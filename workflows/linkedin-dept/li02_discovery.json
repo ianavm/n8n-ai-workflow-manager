@@ -1,0 +1,565 @@
+{
+  "name": "LI-02 Lead Discovery",
+  "nodes": [
+    {
+      "id": "476344ad-66a1-475f-847c-f12374ec2319",
+      "name": "Note LI-02",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "LI-02: Lead Discovery & Collection\nLoads CSV-uploaded leads, normalises, deduplicates, stores in Airtable",
+        "width": 400,
+        "height": 120,
+        "color": 4
+      }
+    },
+    {
+      "id": "576abda9-5055-4fb3-a1e6-3fbe342f5162",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "a2e7fd3b-6ce9-4af6-8185-454600528ed0",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "a6d2464f-6ae0-4833-ae16-d591405f8739",
+      "name": "Load Pending CSV",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Source}='CSV_Upload',{Status}='New')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "ef389744-e99f-4b40-b042-11c68128ec35",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id !== undefined }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "664528c2-d64b-4e97-9eea-c84e0ed5230f",
+      "name": "No Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "fcdf2c30-eb74-4732-85c9-bca65306de6d",
+      "name": "Normalize Lead Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\nfor (const item of items) {\n  const d = item.json;\n  const leadId = `LI-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`.toUpperCase();\n  results.push({\n    json: {\n      lead_id: leadId,\n      full_name: d.fullName || d.full_name || ((d.firstName || '') + ' ' + (d.lastName || '')).trim() || '',\n      first_name: d.firstName || d.first_name || (d.fullName || d.full_name || '').split(' ')[0] || '',\n      last_name: d.lastName || d.last_name || (d.fullName || d.full_name || '').split(' ').slice(1).join(' ') || '',\n      title: d.title || d.headline || d.jobTitle || d.job_title || '',\n      company_name: d.companyName || d.company || d.company_name || '',\n      industry: d.industry || '',\n      location: d.location || d.city || '',\n      linkedin_url: d.linkedinUrl || d.linkedin_url || d.profileUrl || d.profile_url || '',\n      email: d.email || '',\n      phone: d.phone || '',\n      company_website: d.companyUrl || d.company_website || d.website || '',\n      company_linkedin: d.companyLinkedinUrl || d.company_linkedin || '',\n      employee_count: String(d.employeeCount || d.employee_count || ''),\n      source: d.source || 'CSV_Upload',\n      source_metadata: JSON.stringify({imported_at: new Date().toISOString(), original_fields: Object.keys(d)}),\n      status: 'New',\n      created_at: new Date().toISOString(),\n    }\n  });\n}\nreturn results;"
+      }
+    },
+    {
+      "id": "27f12d0f-98df-45d0-a4cc-f58ef1d9fc09",
+      "name": "Rate Limit Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst config = $('Trigger').first().json;\nconst hourlyLimit = config.hourly_limit || 100;\nconst limited = items.slice(0, hourlyLimit);\nreturn limited.map(item => ({json: item.json}));"
+      }
+    },
+    {
+      "id": "29f7d268-76e9-4f7d-88c5-6f6f4785ca17",
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1420,
+        400
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "4d3c20a9-e52d-43c9-ba6d-58d95a0a9e0c",
+      "name": "Check Duplicate",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1660,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "filterByFormula": "={{ '{LinkedIn URL}=\"' + $json.linkedin_url + '\"' }}",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "686452ce-e7ca-47d4-a0a1-6e7ab9a8d2b9",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1900,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id !== undefined }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "9c1b7797-45d3-447f-9003-2ef5c2d47b00",
+      "name": "Skip Duplicate",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1900,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "2932bae6-05a3-4f82-9d1e-b10264d35e90",
+      "name": "Create Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2140,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "df8a4405-ba98-4018-aba4-4434276eb6d5",
+      "name": "Log Discovery",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2380,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "fef27e15-beb6-4124-9652-2e7179c34d91",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "53e117a1-1d0a-40d1-b042-9dfe7b66370a",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconst workflowName = error.workflow?.name || 'Unknown';\nconst errorMsg = error.execution?.error?.message || 'Unknown error';\nconst lastNode = error.execution?.lastNodeExecuted || 'Unknown';\nconst execUrl = error.execution?.url || '';\nconst now = new Date().toISOString();\nreturn {\n  json: {\n    log_id: `ERR-${Date.now().toString(36)}`.toUpperCase(),\n    workflow: workflowName,\n    lead_id: '',\n    action: 'Error',\n    status: 'Failed',\n    error_message: errorMsg.substring(0, 1000),\n    input_summary: `Last node: ${lastNode}`,\n    output_summary: `Execution: ${execUrl}`,\n    tokens_used: 0,\n    duration_ms: 0,\n    execution_id: error.execution?.id || '',\n    timestamp: now,\n    telegram_message: `<b>LinkedIn Agent Error</b>\\n\\nWorkflow: ${workflowName}\\nNode: ${lastNode}\\nError: ${errorMsg.substring(0, 200)}\\n\\n<a href=\"${execUrl}\">View Execution</a>`,\n  }\n};"
+      }
+    },
+    {
+      "id": "d60c91f2-6aac-46ed-b204-b3c75deb50c8",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        800
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "2304d177-d918-4ce7-b6ed-d075b4dd02fb",
+      "name": "Telegram Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        1000
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Pending CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Pending CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Pending CSV": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Normalize Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Gate": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Is Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Skip Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Duplicate": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Lead": {
+      "main": [
+        [
+          {
+            "node": "Log Discovery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Discovery": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Telegram Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

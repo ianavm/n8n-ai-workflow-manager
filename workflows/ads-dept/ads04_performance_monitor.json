@@ -2,7 +2,7 @@
   "name": "AVM Ads: Performance Monitor",
   "nodes": [
     {
-      "id": "920b139f-fd81-475e-bdc2-f921595e2be5",
+      "id": "d9c39ef8-79db-4b5b-bf9b-19212878dd53",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "c705791b-65e5-4631-bcbf-0248b5139ace",
+      "id": "7999a6bc-6ab6-40ea-afa3-d6d023d1db93",
       "name": "Read Active Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "de7f2014-6beb-4e4c-85df-1f57ff4e3ae7",
+      "id": "1c1513a0-7817-478f-a4e8-3f5de3d9e482",
       "name": "Google Ads Get Campaigns",
       "type": "n8n-nodes-base.googleAds",
       "typeVersion": 1,
@@ -63,20 +63,20 @@
       ],
       "credentials": {
         "googleAdsOAuth2Api": {
-          "id": "REPLACE_AFTER_SETUP",
+          "id": "5au55TkIyGEnuZvD",
           "name": "Google Ads OAuth2"
         }
       },
       "parameters": {
         "resource": "campaign",
         "operation": "getAll",
-        "customerId": "REPLACE",
+        "customerId": "6925797193",
         "returnAll": true,
         "additionalFields": {}
       }
     },
     {
-      "id": "4ae1ff61-b5dc-48ea-ab21-bc4802cb9767",
+      "id": "de8f3f37-da41-406c-a4f9-23e78c2f630e",
       "name": "Transform Google Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -89,7 +89,7 @@
       }
     },
     {
-      "id": "3c0bd9db-bf0b-4ed6-aa0a-265be7ef7e13",
+      "id": "d6044825-b965-4913-ac41-8a009d0ee01f",
       "name": "Meta Ads Get Insights",
       "type": "n8n-nodes-base.facebookGraphApi",
       "typeVersion": 1,
@@ -99,20 +99,28 @@
       ],
       "credentials": {
         "facebookGraphApi": {
-          "id": "REPLACE_AFTER_SETUP",
+          "id": "4UZH1VRXvVufgvrI",
           "name": "Meta Ads Graph API"
         }
       },
       "parameters": {
         "httpRequestMethod": "GET",
         "graphApiVersion": "v21.0",
-        "node": "=REPLACE/insights",
+        "node": "=act_26395704183451218/insights",
         "options": {
           "queryParameters": {
             "parameter": [
               {
                 "name": "fields",
-                "value": "campaign_id,campaign_name,impressions,clicks,spend,actions,cpc,cpm,ctr,reach,video_views&date_preset=today&level=campaign"
+                "value": "campaign_id,campaign_name,impressions,clicks,spend,actions,cpc,cpm,ctr,reach,video_views"
+              },
+              {
+                "name": "date_preset",
+                "value": "today"
+              },
+              {
+                "name": "level",
+                "value": "campaign"
               }
             ]
           }
@@ -120,7 +128,7 @@
       }
     },
     {
-      "id": "a4420f53-9b1c-4e52-bdd2-661109eb9c77",
+      "id": "11b0702e-3b15-4e43-b03a-50500716055c",
       "name": "Transform Meta Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -133,7 +141,7 @@
       }
     },
     {
-      "id": "0bf1ab65-66e5-4ea3-9940-42feb9f1b2ff",
+      "id": "84936068-d985-456f-a136-6e5421995f5b",
       "name": "TikTok Ads Get Report",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -153,13 +161,13 @@
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "REPLACE_AFTER_SETUP",
+          "id": "lJEEpPu9zE24Z38r",
           "name": "TikTok Ads HTTP Auth"
         }
       }
     },
     {
-      "id": "798231d1-996d-4c29-b89a-c2780633615a",
+      "id": "68503081-c4c0-4821-b5a6-019b033723ac",
       "name": "Merge All Metrics",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -172,7 +180,7 @@
       }
     },
     {
-      "id": "e39972b3-24c6-4fa8-9251-eccf083ab630",
+      "id": "4099d10a-c4f0-42a5-9b27-0009b1ba38ee",
       "name": "Filter Valid Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -185,7 +193,7 @@
       }
     },
     {
-      "id": "3f632da4-5964-45bb-9722-b120231f93ea",
+      "id": "7dd5270a-bed8-403e-8978-9d95cae74aa9",
       "name": "Write Ad Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -211,11 +219,15 @@
           "mode": "id",
           "value": "tblH1ztufqk5Kkkln"
         },
-        "options": {}
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
       }
     },
     {
-      "id": "95e8aaab-fa27-460b-9648-c72fc028fe9c",
+      "id": "d0cb54c0-e51b-463a-8b97-238d8b9bbe13",
       "name": "Anomaly Detection",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -228,7 +240,7 @@
       }
     },
     {
-      "id": "9f3babbb-9881-40c6-93fa-509a1fb52118",
+      "id": "7d797a2f-e687-4c33-800d-ddb5201d4d80",
       "name": "Has Anomalies",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -258,7 +270,7 @@
       }
     },
     {
-      "id": "f3ac97ff-2960-4ad1-a90d-149dca276b41",
+      "id": "379b7e9c-9017-47d8-b0de-c513ed977b37",
       "name": "Send Anomaly Alert",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -281,7 +293,7 @@
       }
     },
     {
-      "id": "b6d8d276-dd81-4273-8e07-56f4f679bdc3",
+      "id": "8d4f33b7-4ab7-4888-b53e-52301c8918d2",
       "name": "No Anomalies",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -443,15 +455,9 @@
       ]
     }
   },
-  "active": false,
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
     "callerPolicy": "workflowsFromSameOwner"
-  },
-  "tags": [
-    "ads-dept",
-    "monitoring",
-    "phase-1"
-  ]
+  }
 }

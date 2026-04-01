@@ -623,7 +623,12 @@ def build_airtable_search(name, base_id, table_id, formula, position, sort_field
 
 
 def build_airtable_create(name, base_id, table_id, position):
-    """Build an Airtable create node (maps incoming JSON fields to Airtable)."""
+    """Build an Airtable create node (auto-maps incoming JSON fields to Airtable).
+
+    CRITICAL: The ``columns`` parameter with ``mappingMode`` is REQUIRED for
+    Airtable v2.1 create.  Without it the API request body has no ``fields``
+    key and Airtable returns "Could not find field 'fields'".
+    """
     return {
         "id": uid(),
         "name": name,
@@ -635,6 +640,10 @@ def build_airtable_create(name, base_id, table_id, position):
             "operation": "create",
             "base": {"__rl": True, "mode": "id", "value": base_id},
             "table": {"__rl": True, "mode": "id", "value": table_id},
+            "columns": {
+                "mappingMode": "autoMapInputData",
+                "value": None,
+            },
             "options": {},
         },
     }
@@ -842,7 +851,16 @@ def build_facebook_graph_api(name, method, endpoint, position, fields=None):
         "options": {},
     }
     if fields:
-        params["options"]["queryParameters"] = {"parameter": [{"name": "fields", "value": fields}]}
+        # Split fields into separate query parameters if they contain & (e.g. date_preset, level)
+        if "&" in fields:
+            parts = fields.split("&")
+            query_params = [{"name": "fields", "value": parts[0]}]
+            for part in parts[1:]:
+                k, v = part.split("=", 1)
+                query_params.append({"name": k, "value": v})
+            params["options"]["queryParameters"] = {"parameter": query_params}
+        else:
+            params["options"]["queryParameters"] = {"parameter": [{"name": "fields", "value": fields}]}
 
     return {
         "id": uid(),
@@ -1201,6 +1219,33 @@ def build_ads01_nodes():
     # 5. Merge context data
     nodes.append(build_merge_node("Merge Context", [750, 300]))
 
+    # 5b. Aggregate all merged items into structured context for AI
+    nodes.append(build_code_node("Aggregate Context", r"""
+// Collect all merged items into structured context
+const items = $input.all();
+const research = [];
+const campaigns = [];
+const budgets = [];
+
+for (const item of items) {
+  const d = item.json;
+  if (d['Campaign Name'] && (d.Status === 'Active' || d.Status === 'Launched' || d.Status === 'Planned')) {
+    campaigns.push(d);
+  } else if (d['Allocation Name'] || d['Daily Budget ZAR'] !== undefined) {
+    budgets.push(d);
+  } else {
+    research.push(d);
+  }
+}
+
+return [{json: {
+  research_insights: research,
+  current_campaigns: campaigns,
+  budget_allocation: budgets,
+  timestamp: new Date().toISOString(),
+}}];
+""", [875, 300]))
+
     # 6. AI Strategy Generator
     prompt = ADS01_STRATEGY_PROMPT.replace(
         "{research_data}", "{{JSON.stringify($json)}}"
@@ -1255,6 +1300,9 @@ def build_ads01_connections(nodes):
             {"node": "Merge Context", "type": "main", "index": 2},
         ]]},
         "Merge Context": {"main": [[
+            {"node": "Aggregate Context", "type": "main", "index": 0},
+        ]]},
+        "Aggregate Context": {"main": [[
             {"node": "AI Strategy Generator", "type": "main", "index": 0},
         ]]},
         "AI Strategy Generator": {"main": [[
@@ -1711,11 +1759,24 @@ def build_ads03_nodes():
     ))
 
     # 9. Meta Ads (create campaign via Graph API)
-    nodes.append(build_facebook_graph_api(
+    meta_campaign_node = build_facebook_graph_api(
         "Create Meta Campaign", "POST",
-        f"=act_{META_ADS_ACCOUNT_ID}/campaigns",
+        f"={META_ADS_ACCOUNT_ID}/campaigns",
         [1500, 300],
-    ))
+    )
+    # Add campaign data as query parameters (Facebook Marketing API accepts these)
+    meta_campaign_node["parameters"]["options"] = {
+        "queryParameters": {
+            "parameter": [
+                {"name": "name", "value": "={{$json.name}}"},
+                {"name": "objective", "value": "={{$json.objective}}"},
+                {"name": "status", "value": "={{$json.status}}"},
+                {"name": "daily_budget", "value": "={{$json.daily_budget}}"},
+                {"name": "special_ad_categories", "value": "={{JSON.stringify($json.special_ad_categories || [])}}"},
+            ]
+        }
+    }
+    nodes.append(meta_campaign_node)
 
     # 10. Merge results
     nodes.append(build_merge_node("Merge Results", [1750, 200]))
@@ -1914,6 +1975,29 @@ def build_ads05_nodes():
     # 5. Merge with budget data
     nodes.append(build_merge_node("Merge Data", [1000, 400]))
 
+    # 5b. Aggregate merged performance + budget data for AI
+    nodes.append(build_code_node("Aggregate Data", r"""
+// Collect all merged items into structured context
+const items = $input.all();
+const performance = [];
+const budgets = [];
+
+for (const item of items) {
+  const d = item.json;
+  if (d['Allocation Name'] || d['Daily Budget ZAR'] !== undefined) {
+    budgets.push(d);
+  } else {
+    performance.push(d);
+  }
+}
+
+return [{json: {
+  performance_data: performance,
+  budget_data: budgets,
+  timestamp: new Date().toISOString(),
+}}];
+""", [1125, 350]))
+
     # 6. AI Optimizer
     prompt = ADS05_OPTIMIZATION_PROMPT.replace(
         "{performance_data}", "{{JSON.stringify($json)}}"
@@ -1965,6 +2049,9 @@ def build_ads05_connections(nodes):
             {"node": "Merge Data", "type": "main", "index": 1},
         ]]},
         "Merge Data": {"main": [[
+            {"node": "Aggregate Data", "type": "main", "index": 0},
+        ]]},
+        "Aggregate Data": {"main": [[
             {"node": "AI Optimizer", "type": "main", "index": 0},
         ]]},
         "AI Optimizer": {"main": [[
@@ -2261,16 +2348,20 @@ def build_ads07_nodes():
     nodes.append(build_schedule_trigger("Schedule Trigger", "0 4 * * *", [250, 300]))
 
     # 2. Read Ad Performance (last 7 days)
-    nodes.append(build_airtable_search(
+    ad_perf_node = build_airtable_search(
         "Read Ad Performance", MARKETING_BASE_ID, TABLE_PERFORMANCE,
         "=IS_AFTER({Date}, DATEADD(TODAY(), -7, 'days'))", [500, 200],
-    ))
+    )
+    ad_perf_node["alwaysOutputData"] = True
+    nodes.append(ad_perf_node)
 
     # 3. Read Organic Performance (Distribution Log)
-    nodes.append(build_airtable_search(
+    org_perf_node = build_airtable_search(
         "Read Organic Performance", MARKETING_BASE_ID, TABLE_DISTRIBUTION_LOG,
         "=IS_AFTER({Published At}, DATEADD(TODAY(), -7, 'days'))", [500, 400],
-    ))
+    )
+    org_perf_node["alwaysOutputData"] = True
+    nodes.append(org_perf_node)
 
     # 4. Compute Attribution
     nodes.append(build_code_node("Compute Attribution", ADS07_COMPUTE_ATTRIBUTION_CODE, [750, 300]))
@@ -2283,9 +2374,9 @@ def build_ads07_nodes():
         "AI Attribution Analyst", prompt, "JSON.stringify($json)", [1000, 300], max_tokens=1500,
     ))
 
-    # 6. Write attribution data to Budget Allocations
+    # 6. Write attribution data to Operations Events table
     nodes.append(build_airtable_create(
-        "Write Attribution", MARKETING_BASE_ID, TABLE_BUDGET_ALLOC, [1250, 300],
+        "Write Attribution", ORCH_BASE_ID, TABLE_ORCH_EVENTS, [1250, 300],
     ))
 
     # 7. Email attribution report
@@ -2398,13 +2489,11 @@ def build_workflow(key):
         "name": spec["name"],
         "nodes": nodes,
         "connections": connections,
-        "active": False,
         "settings": {
             "executionOrder": "v1",
             "saveManualExecutions": True,
             "callerPolicy": "workflowsFromSameOwner",
         },
-        "tags": spec.get("tags", []),
     }
 
 

@@ -1,0 +1,584 @@
+{
+  "name": "LI-07 Outreach Personalization",
+  "nodes": [
+    {
+      "id": "da1c53fe-3587-4203-8d44-9cb7c324069b",
+      "name": "Note LI-07",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "LI-07: Outreach Personalization\nAI generates personalised connection messages, follow-ups, pitches",
+        "width": 450,
+        "height": 120,
+        "color": 2
+      }
+    },
+    {
+      "id": "f2dbfb16-1278-4787-b091-d6c5ffe59740",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "5104bdc5-2893-4e6e-866e-4be6baf00edd",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "409f1c99-1ca9-4b3b-8287-66300206694f",
+      "name": "Load Qualified Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Status}='Scored',{ICP Score}>=40)",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "645c54ec-593c-4579-bc11-4041a746e0c7",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id !== undefined }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "50327213-17cc-474c-8911-82a9b62b0240",
+      "name": "No Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "cd865734-8fc7-443a-88e2-3d7637319c9f",
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        940,
+        400
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "c2b20fd5-ee5c-4deb-b203-43426ca8313d",
+      "name": "Load Opportunities",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1180,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblgO5e7NlyjpHugl",
+          "mode": "id"
+        },
+        "filterByFormula": "={{ '{Lead ID}=\"' + ($json.lead_id || $json['Lead ID'] || '') + '\"' }}",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "f5fe53e7-734e-48f6-86af-0a2785a46d3f",
+      "name": "Load Pain Points",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1180,
+        600
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblSkSIsIpIU9EVq2",
+          "mode": "id"
+        },
+        "filterByFormula": "={{ '{Lead ID}=\"' + ($('Loop Over Leads').first().json.lead_id || $('Loop Over Leads').first().json['Lead ID'] || '') + '\"' }}",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "708a3a6e-f2fe-4926-af81-f147e46a51ae",
+      "name": "Build Outreach Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const lead = $('Loop Over Leads').first().json;\nconst opps = $('Load Opportunities').all();\nconst pains = $('Load Pain Points').all();\nconst oppList = opps.map(o => {\n  const d = o.json;\n  return {\n    solution: d.solution_name || d['Solution Name'] || '',\n    package: d.suggested_package || d['Suggested Package'] || '',\n    roi: d.roi_hypothesis || d['ROI Hypothesis'] || '',\n  };\n});\nconst painList = pains.map(p => {\n  const d = p.json;\n  return {\n    pain: d.pain_point || d['Pain Point'] || '',\n    category: d.category || d['Category'] || '',\n    severity: d.severity || d['Severity'] || 5,\n  };\n});\nconst context = {\n  lead: {\n    full_name: lead.full_name || lead['Full Name'] || '',\n    first_name: lead.first_name || lead['First Name'] || '',\n    title: lead.title || lead['Title'] || '',\n    company_name: lead.company_name || lead['Company Name'] || '',\n    industry: lead.industry || lead['Industry'] || '',\n    location: lead.location || lead['Location'] || '',\n  },\n  opportunities: oppList,\n  pain_points: painList,\n};\nreturn {json: {outreach_context: JSON.stringify(context, null, 2), lead_id: lead.lead_id || lead['Lead ID'] || ''}};"
+      }
+    },
+    {
+      "id": "185b81ee-a141-4638-b857-a13e43ec382b",
+      "name": "AI Outreach",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1660,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000, \"temperature\": 0.4, \"messages\": [{\"role\": \"system\", \"content\": \"You are a B2B outreach copywriter for AnyVision Media, an AI automation agency in South Africa founded by Ian Immelman.\\n\\nTone Guidelines:\\n- Professional and conversational (NOT salesy or spammy)\\n- Value-first: lead with insight, not a pitch\\n- Specific: reference their company, role, or industry\\n- No buzzwords: avoid \\\"synergy\\\", \\\"leverage\\\", \\\"revolutionize\\\"\\n- South African English (organised, behaviour, colour)\\n\\nGenerate:\\n1. connection_message (STRICT MAX 300 characters including spaces): observation + pain point + soft CTA\\n2. follow_up_1 (max 500 chars): thank + insight + case study mention + soft CTA\\n3. follow_up_2 (max 500 chars): different angle + value offer (free audit, guide)\\n4. short_pitch (100-200 words): Problem -> Solution -> Proof -> CTA\\n5. email_draft: subject line + body (200-300 words), specific ROI mention, clear CTA\\n6. personalization_score (0-100)\\n\\nOutput (JSON only, no markdown fences):\\n{\\\"connection_message\\\":\\\"...\\\",\\\"follow_up_1\\\":\\\"...\\\",\\\"follow_up_2\\\":\\\"...\\\",\\\"short_pitch\\\":\\\"...\\\",\\\"email_draft\\\":{\\\"subject\\\":\\\"...\\\",\\\"body\\\":\\\"...\\\"},\\\"personalization_score\\\":82}\"}, {\"role\": \"user\", \"content\": \"={{ $json.outreach_context}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "85295618-48f7-4ce9-936b-e2eadc81460d",
+      "name": "Validate Outreach",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet parsed = {};\ntry {\n  const content = raw.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = {connection_message: '', follow_up_1: '', follow_up_2: '', short_pitch: '', email_draft: {subject: '', body: ''}, personalization_score: 0};\n}\nlet connMsg = (parsed.connection_message || '').substring(0, 300);\nconst lead = $('Loop Over Leads').first().json;\nconst leadId = lead.lead_id || lead['Lead ID'] || '';\nreturn {\n  json: {\n    outreach_id: `OUT-${Date.now().toString(36)}`.toUpperCase(),\n    lead_id: leadId,\n    connection_message: connMsg,\n    follow_up_1: (parsed.follow_up_1 || '').substring(0, 500),\n    follow_up_2: (parsed.follow_up_2 || '').substring(0, 500),\n    short_pitch: parsed.short_pitch || '',\n    email_draft: parsed.email_draft?.body || '',\n    email_subject: parsed.email_draft?.subject || '',\n    status: 'Draft',\n    personalization_score: parsed.personalization_score || 0,\n    generated_at: new Date().toISOString(),\n  }\n};"
+      }
+    },
+    {
+      "id": "a568e694-658c-4eb5-8094-b807747c4692",
+      "name": "Store Outreach",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2140,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblF8vhAoxHu4kKcl",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "d55b7010-81c8-49cf-b330-3d7ad404bbf2",
+      "name": "Log Outreach",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2380,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "28685d57-3904-4b72-860f-d94ddce62b93",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "86d66aa1-fdab-44d9-83b7-fc9c1c3ac945",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconst workflowName = error.workflow?.name || 'Unknown';\nconst errorMsg = error.execution?.error?.message || 'Unknown error';\nconst lastNode = error.execution?.lastNodeExecuted || 'Unknown';\nconst execUrl = error.execution?.url || '';\nconst now = new Date().toISOString();\nreturn {\n  json: {\n    log_id: `ERR-${Date.now().toString(36)}`.toUpperCase(),\n    workflow: workflowName,\n    lead_id: '',\n    action: 'Error',\n    status: 'Failed',\n    error_message: errorMsg.substring(0, 1000),\n    input_summary: `Last node: ${lastNode}`,\n    output_summary: `Execution: ${execUrl}`,\n    tokens_used: 0,\n    duration_ms: 0,\n    execution_id: error.execution?.id || '',\n    timestamp: now,\n    telegram_message: `<b>LinkedIn Agent Error</b>\\n\\nWorkflow: ${workflowName}\\nNode: ${lastNode}\\nError: ${errorMsg.substring(0, 200)}\\n\\n<a href=\"${execUrl}\">View Execution</a>`,\n  }\n};"
+      }
+    },
+    {
+      "id": "2b9876a5-46bb-4075-aed0-0951040e52ab",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        800
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "39d818b5-e092-4509-9162-5b3125981bfc",
+      "name": "Telegram Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        1000
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Qualified Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Qualified Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Qualified Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [
+          {
+            "node": "Load Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Load Pain Points",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Pain Points": {
+      "main": [
+        [
+          {
+            "node": "Build Outreach Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Outreach Context": {
+      "main": [
+        [
+          {
+            "node": "AI Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Outreach": {
+      "main": [
+        [
+          {
+            "node": "Validate Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Outreach": {
+      "main": [
+        [
+          {
+            "node": "Store Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Outreach": {
+      "main": [
+        [
+          {
+            "node": "Log Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Outreach": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Telegram Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

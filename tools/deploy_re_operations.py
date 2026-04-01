@@ -198,16 +198,27 @@ def build_airtable_search(name, base_id, table_id, formula, position,
 def build_airtable_create(name, base_id, table_id, position, columns=None):
     """Build an Airtable create node.
 
-    If columns is provided, it sets explicit field mappings.
-    Otherwise the node maps incoming JSON fields automatically.
+    If columns is provided, it sets explicit field mappings (defineBelow).
+    Otherwise the node auto-maps all incoming JSON fields to Airtable columns.
+
+    CRITICAL: The ``columns`` parameter with ``mappingMode`` is REQUIRED for
+    Airtable v2.1 create.  Without it the API request body has no ``fields``
+    key and Airtable returns "Could not find field 'fields'".
     """
     params = {
         "operation": "create",
         **airtable_ref(base_id, table_id),
+        "columns": {
+            "mappingMode": "autoMapInputData",
+            "value": None,
+        },
         "options": {},
     }
     if columns:
-        params["columns"] = {"value": columns}
+        params["columns"] = {
+            "mappingMode": "defineBelow",
+            "value": columns,
+        }
 
     return {
         "id": uid(),

@@ -2,7 +2,7 @@
   "name": "AVM Ads: Strategy Generator",
   "nodes": [
     {
-      "id": "c2248f6e-56ef-45c8-8b84-ab3f0759e3df",
+      "id": "627d1ef3-2174-44ae-aaf1-9c56423ecc90",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "97174042-86ec-4ed2-a193-6a845869aa69",
+      "id": "fb76afb2-5d58-4fe1-8138-bb830c5803c9",
       "name": "Read Research Insights",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "0f082849-b482-4723-b6bb-74295a8f4944",
+      "id": "d7b2ea92-e0b7-434a-8084-fae5c1ec90d4",
       "name": "Read Current Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -84,7 +84,7 @@
       }
     },
     {
-      "id": "67bc9c54-c4a6-48c2-b681-428775da7b06",
+      "id": "f8865b91-05a2-4cc7-b973-44f55fc4dffc",
       "name": "Read Budget Data",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "54c223fb-190b-44ec-a958-0b133c3f8a3e",
+      "id": "53b4bead-f232-4095-9510-52076e22ca58",
       "name": "Merge Context",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -128,7 +128,20 @@
       }
     },
     {
-      "id": "5a425bc0-22ac-4813-ac43-af389a2a5fdc",
+      "id": "d345698d-3abb-4529-be7f-64e75ee52267",
+      "name": "Aggregate Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        875,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Collect all merged items into structured context\nconst items = $input.all();\nconst research = [];\nconst campaigns = [];\nconst budgets = [];\n\nfor (const item of items) {\n  const d = item.json;\n  if (d['Campaign Name'] && (d.Status === 'Active' || d.Status === 'Launched' || d.Status === 'Planned')) {\n    campaigns.push(d);\n  } else if (d['Allocation Name'] || d['Daily Budget ZAR'] !== undefined) {\n    budgets.push(d);\n  } else {\n    research.push(d);\n  }\n}\n\nreturn [{json: {\n  research_insights: research,\n  current_campaigns: campaigns,\n  budget_allocation: budgets,\n  timestamp: new Date().toISOString(),\n}}];\n"
+      }
+    },
+    {
+      "id": "29b50183-8029-4998-b75a-0da9e5da8771",
       "name": "AI Strategy Generator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -163,7 +176,7 @@
       }
     },
     {
-      "id": "e5e3f779-8999-4aa3-97da-1d96c763c48c",
+      "id": "5cda3c99-81b2-4f56-bbf9-b5206481a3e6",
       "name": "Parse Strategy",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -176,7 +189,7 @@
       }
     },
     {
-      "id": "a311c4a7-ee7e-44c4-9f31-58afcae44b77",
+      "id": "e8927a23-3280-40c2-8cdd-3298841a5847",
       "name": "Filter Valid",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -189,7 +202,7 @@
       }
     },
     {
-      "id": "e3416b23-3cc7-402f-9dfc-7b99ae3909ae",
+      "id": "f27caade-6173-4b1c-bff2-2b9241fadfe1",
       "name": "Write Planned Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -215,11 +228,15 @@
           "mode": "id",
           "value": "tblon2FDqfifeF1Iv"
         },
-        "options": {}
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
       }
     },
     {
-      "id": "b0e2ad45-d8c2-4b08-9122-0c0601f387ad",
+      "id": "46ff54dc-0dd4-4853-b2c9-5559c2da1812",
       "name": "Email Strategy Summary",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -301,6 +318,17 @@
       "main": [
         [
           {
+            "node": "Aggregate Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Context": {
+      "main": [
+        [
+          {
             "node": "AI Strategy Generator",
             "type": "main",
             "index": 0
@@ -353,15 +381,9 @@
       ]
     }
   },
-  "active": false,
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
     "callerPolicy": "workflowsFromSameOwner"
-  },
-  "tags": [
-    "ads-dept",
-    "strategy",
-    "phase-2"
-  ]
+  }
 }

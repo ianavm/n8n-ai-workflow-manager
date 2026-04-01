@@ -1,0 +1,723 @@
+{
+  "name": "LI-08 Prioritization QA",
+  "nodes": [
+    {
+      "id": "3656e999-fdb6-4749-86cb-d7517c64aabd",
+      "name": "Note LI-08",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "LI-08: Lead Prioritization & QA\nAggregates scores, calculates priority, validates quality, routes leads",
+        "width": 450,
+        "height": 120,
+        "color": 4
+      }
+    },
+    {
+      "id": "58c0b1d2-6b7d-43fe-88ee-7a1bdea49814",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "79ba61c9-c7ac-49e1-b2dc-021acc8c93b7",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "881ece95-030d-444d-8778-b54a2011117c",
+      "name": "Load Leads to Prioritize",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Status}='Scored',{ICP Score}>=40)",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "74353ec5-97ac-46d7-8cd9-9b6ad0d2f61f",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id !== undefined }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e957b333-5665-44cb-b42b-54d64ba3b9ee",
+      "name": "No Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "ada299c5-eb24-47e4-bcab-9cf2da0e5f91",
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        940,
+        400
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "7087a779-8b46-4223-91cb-00206220edda",
+      "name": "Aggregate Scores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\nconst leadId = lead.lead_id || lead['Lead ID'] || '';\nconst icpScore = parseInt(lead.icp_score || lead['ICP Score'] || lead.total_score || 0);\nconst painSeverity = parseFloat(lead.avg_pain_severity || lead['Avg Pain Severity'] || 5);\nconst oppConfidence = parseFloat(lead.avg_opp_confidence || lead['Avg Opp Confidence'] || 0.5);\nconst personalization = parseInt(lead.personalization_score || lead['Personalization Score'] || 50);\nreturn {\n  json: {\n    ...lead,\n    lead_id: leadId,\n    icp_score: icpScore,\n    avg_pain_severity: painSeverity,\n    avg_opp_confidence: oppConfidence,\n    personalization_score: personalization,\n  }\n};"
+      }
+    },
+    {
+      "id": "831237cc-65c7-4791-aa24-05ca3ff65202",
+      "name": "Calculate Priority",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\nfor (const item of items) {\n  const d = item.json;\n  const icpScore = parseInt(d.icp_score || d['ICP Score'] || 0);\n  const painAvg = parseFloat(d.avg_pain_severity || 5);\n  const oppConfidence = parseFloat(d.avg_opp_confidence || 0.5);\n  const outreachScore = parseInt(d.personalization_score || d['Personalization Score'] || 50);\n  const finalScore = Math.round(\n    icpScore * 0.40 +\n    painAvg * 10 * 0.25 +\n    oppConfidence * 100 * 0.20 +\n    outreachScore * 0.15\n  );\n  results.push({\n    json: {\n      ...d,\n      final_priority_score: Math.min(finalScore, 100),\n    }\n  });\n}\nreturn results;"
+      }
+    },
+    {
+      "id": "c6d68a9b-4c70-47e8-b469-75adde1df71e",
+      "name": "QA Validation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\nconst issues = [];\nif (!lead.full_name && !lead['Full Name']) issues.push('MISSING: full_name');\nif (!lead.company_name && !lead['Company Name']) issues.push('MISSING: company_name');\nif (!lead.linkedin_url && !lead['LinkedIn URL']) issues.push('MISSING: linkedin_url');\nif (!lead.connection_message && !lead['Connection Message']) issues.push('MISSING: outreach');\nconst icpScore = parseInt(lead.icp_score || lead['ICP Score'] || 0);\nconst redFlags = lead.red_flags || lead['Red Flags'] || '';\nif (icpScore > 80 && redFlags && redFlags.length > 2) {\n  issues.push('CONTRADICTION: High ICP score with red flags');\n}\nconst desc = lead.company_description || lead['Company Description'] || '';\nif (desc.includes('I cannot') || desc.includes('As an AI') || desc.includes('I don\\'t have')) {\n  issues.push('HALLUCINATION: AI refusal in company description');\n}\nconst connMsg = lead.connection_message || lead['Connection Message'] || '';\nif (connMsg.length > 300) issues.push('VIOLATION: Connection message exceeds 300 chars');\nconst score = lead.final_priority_score || 0;\nconst disqualified = lead.disqualified === true;\nlet lane;\nif (disqualified || score < 20) lane = 'Ignore';\nelse if (score < 45) lane = 'Nurture';\nelse if (score < 70 || issues.length > 0) lane = 'Manual_Review';\nelse lane = 'High_Priority';\nreturn {\n  json: {\n    ...lead,\n    qa_issues: issues,\n    qa_passed: issues.length === 0,\n    routing_lane: lane,\n    qa_timestamp: new Date().toISOString(),\n  }\n};"
+      }
+    },
+    {
+      "id": "d3ac0ed5-c1c8-44cc-b1b2-b68ac53a92bc",
+      "name": "Route by Lane",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1900,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routing_lane }}",
+                    "rightValue": "Ignore",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routing_lane }}",
+                    "rightValue": "Nurture",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routing_lane }}",
+                    "rightValue": "Manual_Review",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.routing_lane }}",
+                    "rightValue": "High_Priority",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b4938b46-e586-45f4-b690-8fbf72ab71b3",
+      "name": "Update Ignore",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2140,
+        200
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "Lead ID"
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "b88cd807-c38f-47ac-84ee-4a1e233e01ea",
+      "name": "Update Nurture",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2140,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "Lead ID"
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "1863b690-b062-475a-be5b-abe41a41cca9",
+      "name": "Update Manual Review",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2140,
+        600
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "Lead ID"
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "c8e687fc-2bc8-4e9f-b59d-d08a40a2cf79",
+      "name": "Update High Priority",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2140,
+        800
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "matchingColumns": [
+          "Lead ID"
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "40cbe88f-65c5-4bfa-95f2-6aa2c6662bd7",
+      "name": "Telegram High Priority",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2380,
+        800
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "=<b>High Priority Lead</b>\n\nName: {{ $json.full_name || $json['Full Name'] }}\nCompany: {{ $json.company_name || $json['Company Name'] }}\nICP Score: {{ $json.icp_score || $json['ICP Score'] }}\nPriority: {{ $json.final_priority_score }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    },
+    {
+      "id": "c935b5bd-aaa9-4ebc-9c6c-656bde9264c2",
+      "name": "Converge",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2380,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c2a7d57b-c4fa-458f-be4d-c966ec4e99f9",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "83a226ce-cacb-44df-843d-ba5c82188ccf",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconst workflowName = error.workflow?.name || 'Unknown';\nconst errorMsg = error.execution?.error?.message || 'Unknown error';\nconst lastNode = error.execution?.lastNodeExecuted || 'Unknown';\nconst execUrl = error.execution?.url || '';\nconst now = new Date().toISOString();\nreturn {\n  json: {\n    log_id: `ERR-${Date.now().toString(36)}`.toUpperCase(),\n    workflow: workflowName,\n    lead_id: '',\n    action: 'Error',\n    status: 'Failed',\n    error_message: errorMsg.substring(0, 1000),\n    input_summary: `Last node: ${lastNode}`,\n    output_summary: `Execution: ${execUrl}`,\n    tokens_used: 0,\n    duration_ms: 0,\n    execution_id: error.execution?.id || '',\n    timestamp: now,\n    telegram_message: `<b>LinkedIn Agent Error</b>\\n\\nWorkflow: ${workflowName}\\nNode: ${lastNode}\\nError: ${errorMsg.substring(0, 200)}\\n\\n<a href=\"${execUrl}\">View Execution</a>`,\n  }\n};"
+      }
+    },
+    {
+      "id": "81f8839c-f315-4c21-b698-7e3c85c31522",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        800
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "0e5719dd-cbf2-4716-b2f0-d9c885d56bcd",
+      "name": "Telegram Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        1000
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Leads to Prioritize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Leads to Prioritize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Leads to Prioritize": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Scores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Scores": {
+      "main": [
+        [
+          {
+            "node": "Calculate Priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Priority": {
+      "main": [
+        [
+          {
+            "node": "QA Validation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QA Validation": {
+      "main": [
+        [
+          {
+            "node": "Route by Lane",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Lane": {
+      "main": [
+        [
+          {
+            "node": "Update Ignore",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Nurture",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Manual Review",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update High Priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Ignore": {
+      "main": [
+        [
+          {
+            "node": "Converge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Nurture": {
+      "main": [
+        [
+          {
+            "node": "Converge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Manual Review": {
+      "main": [
+        [
+          {
+            "node": "Converge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update High Priority": {
+      "main": [
+        [
+          {
+            "node": "Telegram High Priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram High Priority": {
+      "main": [
+        [
+          {
+            "node": "Converge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converge": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Telegram Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

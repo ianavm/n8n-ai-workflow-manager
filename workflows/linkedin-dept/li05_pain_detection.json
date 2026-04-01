@@ -1,0 +1,517 @@
+{
+  "name": "LI-05 Pain Detection",
+  "nodes": [
+    {
+      "id": "1e6decc5-e160-4ebe-aa39-b2bd3f62c8f3",
+      "name": "Note LI-05",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "LI-05: Pain Point Detection\nAI identifies 3-7 operational pain points per lead",
+        "width": 400,
+        "height": 120,
+        "color": 6
+      }
+    },
+    {
+      "id": "7f8904a1-5d65-4cf5-85e5-e742e64b6d0f",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        220,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "680227a3-002b-4434-8d47-4da3147a4473",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c1fcf44b-64e6-4cf4-ba06-56f81ff04d8c",
+      "name": "Load Scored Leads",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblUPHGVj3NdkeNLX",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Status}='Scored',{ICP Score}>=40)",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "b4e52fd2-6463-4abb-a9a2-83504382dcd3",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id !== undefined }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "472bc2da-78d8-4282-a0e3-43e0d3fe41f7",
+      "name": "No Leads",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "bf606385-3872-4753-a71a-4aa220de74e0",
+      "name": "Loop Over Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        940,
+        400
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "2751b8a8-2499-422b-8c53-d88303d6ea06",
+      "name": "Load Lead Enrichment",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1180,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl4fNRZ0iEe2SIov",
+          "mode": "id"
+        },
+        "filterByFormula": "={{ '{Lead ID}=\"' + ($json.lead_id || $json['Lead ID'] || '') + '\"' }}",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "312ebfcc-dc48-4845-a5d7-ebd80aabfd8c",
+      "name": "AI Pain Detection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000, \"temperature\": 0.3, \"messages\": [{\"role\": \"system\", \"content\": \"You are a business operations analyst specializing in identifying automation opportunities for South African SMBs.\\n\\nGiven a lead's profile and their company's enrichment data, identify 3-7 likely operational pain points that AnyVision Media's AI automation services could address.\\n\\nPain Point Categories:\\n1. Manual_Processes: Repetitive data entry, manual reporting, paper-based workflows\\n2. Data_Silos: Disconnected systems, manual data transfer between platforms\\n3. Customer_Experience: Slow response times, inconsistent communication, no self-service\\n4. Reporting_Visibility: No real-time dashboards, manual report generation\\n5. Communication_Gaps: Internal miscommunication, missed follow-ups, no CRM\\n6. Scaling_Bottleneck: Processes that don't scale, hiring to solve process problems\\n7. Cost_Inefficiency: Overstaffing for admin tasks, duplicate tool subscriptions\\n\\nOutput (JSON only, no markdown fences):\\n{\\\"pain_points\\\":[{\\\"pain_point\\\":\\\"description\\\",\\\"category\\\":\\\"Manual_Processes\\\",\\\"severity\\\":8,\\\"confidence\\\":0.75,\\\"evidence\\\":\\\"data suggesting this\\\",\\\"automation_category\\\":\\\"workflow_automation\\\"}],\\\"summary\\\":\\\"overall pain assessment\\\"}\"}, {\"role\": \"user\", \"content\": \"={{ JSON.stringify({lead: {full_name: $json.full_name || $json['Full Name'], title: $json.title || $json['Title'], company: $json.company_name || $json['Company Name'], industry: $json.industry || $json['Industry']}, enrichment: {description: $('Load Lead Enrichment').first().json.company_description || '', services: $('Load Lead Enrichment').first().json.key_services || '', model: $('Load Lead Enrichment').first().json.business_model || ''}})}}\"}]}",
+        "options": {
+          "timeout": 60000
+        }
+      }
+    },
+    {
+      "id": "ac1c48af-f66c-43b8-85e5-74071c4a709c",
+      "name": "Parse Pain Points",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nlet parsed = {pain_points: [], summary: ''};\ntry {\n  const content = raw.choices[0].message.content;\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = {pain_points: [], summary: 'Parse error: ' + e.message};\n}\nconst lead = $('Loop Over Leads').first().json;\nconst leadId = lead.lead_id || lead['Lead ID'] || '';\nconst results = parsed.pain_points.map((pp, i) => ({\n  json: {\n    pain_point_id: `PP-${Date.now().toString(36)}-${i}`.toUpperCase(),\n    lead_id: leadId,\n    pain_point: pp.pain_point || '',\n    category: pp.category || 'Manual_Processes',\n    severity: pp.severity || 5,\n    confidence: pp.confidence || 0.5,\n    evidence: pp.evidence || '',\n    automation_category: pp.automation_category || '',\n    detected_at: new Date().toISOString(),\n  }\n}));\nif (results.length === 0) {\n  results.push({json: {lead_id: leadId, pain_point: 'No pain points detected', severity: 0, detected_at: new Date().toISOString()}});\n}\nreturn results;"
+      }
+    },
+    {
+      "id": "f19ba0c0-cc3e-4aa4-96a6-0d3e3319c0b1",
+      "name": "Store Pain Points",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1900,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblSkSIsIpIU9EVq2",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "9a51ec67-8229-4ea8-ad3f-b026afc9b00b",
+      "name": "Log Pain Detection",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2140,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "2c8427da-2179-4b37-95f0-33062a9c34c0",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "da2d03c5-9256-4bb5-b7a2-8e8c2198a829",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconst workflowName = error.workflow?.name || 'Unknown';\nconst errorMsg = error.execution?.error?.message || 'Unknown error';\nconst lastNode = error.execution?.lastNodeExecuted || 'Unknown';\nconst execUrl = error.execution?.url || '';\nconst now = new Date().toISOString();\nreturn {\n  json: {\n    log_id: `ERR-${Date.now().toString(36)}`.toUpperCase(),\n    workflow: workflowName,\n    lead_id: '',\n    action: 'Error',\n    status: 'Failed',\n    error_message: errorMsg.substring(0, 1000),\n    input_summary: `Last node: ${lastNode}`,\n    output_summary: `Execution: ${execUrl}`,\n    tokens_used: 0,\n    duration_ms: 0,\n    execution_id: error.execution?.id || '',\n    timestamp: now,\n    telegram_message: `<b>LinkedIn Agent Error</b>\\n\\nWorkflow: ${workflowName}\\nNode: ${lastNode}\\nError: ${errorMsg.substring(0, 200)}\\n\\n<a href=\"${execUrl}\">View Execution</a>`,\n  }\n};"
+      }
+    },
+    {
+      "id": "837c815e-c715-40f2-bfa2-4586a27da7fe",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        800
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "fbc54a0b-1307-4ebb-98db-2013b0d150b9",
+      "name": "Telegram Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        1000
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Scored Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Scored Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Scored Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Leads": {
+      "main": [
+        [
+          {
+            "node": "Load Lead Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Lead Enrichment": {
+      "main": [
+        [
+          {
+            "node": "AI Pain Detection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Pain Detection": {
+      "main": [
+        [
+          {
+            "node": "Parse Pain Points",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Pain Points": {
+      "main": [
+        [
+          {
+            "node": "Store Pain Points",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Pain Points": {
+      "main": [
+        [
+          {
+            "node": "Log Pain Detection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Pain Detection": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Telegram Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

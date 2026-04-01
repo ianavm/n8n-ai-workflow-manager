@@ -581,7 +581,12 @@ def build_airtable_search(name, table_id, filter_formula, position, always_outpu
 
 
 def build_airtable_create(name, table_id, fields_expr, position):
-    """Build Airtable create node (v2.1). NEVER includes matchingColumns."""
+    """Build Airtable create node (v2.1). NEVER includes matchingColumns.
+
+    CRITICAL: The ``columns`` parameter with ``mappingMode`` is REQUIRED for
+    Airtable v2.1 create.  Without it the API request body has no ``fields``
+    key and Airtable returns "Could not find field 'fields'".
+    """
     return {
         "id": uid(),
         "name": name,
@@ -592,7 +597,10 @@ def build_airtable_create(name, table_id, fields_expr, position):
             "operation": "create",
             "application": ORDER_BASE_ID,
             "table": table_id,
-            "columns": {"value": fields_expr},
+            "columns": {
+                "mappingMode": "defineBelow",
+                "value": fields_expr,
+            },
             "options": {},
         },
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},

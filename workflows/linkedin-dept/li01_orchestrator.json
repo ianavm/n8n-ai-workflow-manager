@@ -1,0 +1,832 @@
+{
+  "name": "LI-01 Lead Orchestrator",
+  "nodes": [
+    {
+      "id": "b3de68a8-1c78-4ba7-98a3-ca827f1857c5",
+      "name": "Note LI-01",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "content": "LI-01: Lead Orchestrator\nLoads campaign config, checks pause/limits, coordinates sub-workflows",
+        "width": 350,
+        "height": 120,
+        "color": 2
+      }
+    },
+    {
+      "id": "7a7a8ca5-f380-493a-a2b1-e3bc9f523be4",
+      "name": "Weekly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "9cde3a5d-bddf-4f49-adb6-3464c4ac81a9",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        500
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "e3f09eb1-eea9-45a7-a8d7-b7a4a5dda981",
+      "name": "Load Campaign Config",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9B5B7tXeQfl66D",
+          "mode": "id"
+        },
+        "filterByFormula": "={Status}='Active'",
+        "options": {}
+      }
+    },
+    {
+      "id": "66c2feba-2406-474a-bcf4-4299b8c8ccff",
+      "name": "Has Active Campaign?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.id !== undefined }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "9fc2a4eb-eb3a-4d1c-a510-8c48ab9fd4c0",
+      "name": "No Campaign",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "a6490535-39f6-465c-ba37-a6d7fc6dd4f6",
+      "name": "Emergency Pause?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        940,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json['Emergency Pause'] === true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d11a517b-3d16-4cd7-8840-8870ac9e5530",
+      "name": "System Paused",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        600
+      ],
+      "parameters": {
+        "jsCode": "return {json: {telegram_message: '<b>LinkedIn System PAUSED</b>\\n\\nEmergency pause is enabled. Disable in Airtable to resume.'}};"
+      }
+    },
+    {
+      "id": "801c849b-ca61-401c-a520-fdeb6191b62d",
+      "name": "Telegram Pause Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1180,
+        600
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    },
+    {
+      "id": "837b8e63-a9c7-425c-aee6-7322c31e56fd",
+      "name": "Load Rate Limits",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const campaign = $input.first().json;\nconst f = campaign.fields || campaign;\nconst now = new Date().toISOString();\nreturn {\n  json: {\n    campaign_id: f['Campaign Name'] || 'default',\n    batch_size: parseInt(f['Batch Size'] || 50),\n    daily_limit: parseInt(f['Daily Action Limit'] || 200),\n    hourly_limit: parseInt(f['Hourly Rate Limit'] || 100),\n    token_budget: parseInt(f['Token Budget Daily'] || 30000),\n    icp_titles: JSON.parse(f['ICP Titles'] || '[]'),\n    icp_industries: JSON.parse(f['ICP Industries'] || '[]'),\n    icp_company_size: f['ICP Company Size'] || '10-500',\n    icp_locations: JSON.parse(f['ICP Locations'] || '[]'),\n    icp_keywords: JSON.parse(f['ICP Keywords'] || '[]'),\n    red_flag_keywords: JSON.parse(f['Red Flag Keywords'] || '[]'),\n    run_started_at: now,\n  }\n};"
+      }
+    },
+    {
+      "id": "c46fd472-0b11-4198-a5da-86febfe47776",
+      "name": "Check Daily Actions",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1420,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "filterByFormula": "=AND({Timestamp}>TODAY(),{Status}='Success')",
+        "options": {}
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "621c81f1-49a6-466d-8cda-a09051c62515",
+      "name": "Under Daily Limit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1660,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Check Daily Actions').all().length }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ac05288d-32b8-4123-90f0-e399308d6d9e",
+      "name": "Daily Limit Hit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1660,
+        600
+      ],
+      "parameters": {
+        "jsCode": "return {json: {telegram_message: '<b>LinkedIn Daily Limit Reached</b>\\n\\nActions today: ' + $('Check Daily Actions').all().length}};"
+      }
+    },
+    {
+      "id": "78a10629-1fb1-4312-8c8d-aa4f981b93c5",
+      "name": "Telegram Limit Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1900,
+        600
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    },
+    {
+      "id": "171aebe2-6787-4a63-bb3c-d912a6d3a537",
+      "name": "Run LI-02 Discovery",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1900,
+        400
+      ],
+      "parameters": {
+        "workflowId": "REPLACE_LI02_ID",
+        "options": {}
+      }
+    },
+    {
+      "id": "ada48671-a10e-46ab-97e5-2bbda3e953db",
+      "name": "Run LI-03 Enrichment",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2140,
+        400
+      ],
+      "parameters": {
+        "workflowId": "REPLACE_LI03_ID",
+        "options": {}
+      }
+    },
+    {
+      "id": "e523e385-6efc-4fd2-bfad-7c5725bcd865",
+      "name": "Run LI-04 Scoring",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2380,
+        400
+      ],
+      "parameters": {
+        "workflowId": "REPLACE_LI04_ID",
+        "options": {}
+      }
+    },
+    {
+      "id": "6537b375-8c8e-4bf1-8677-39996250ca21",
+      "name": "Run LI-05 Pain Detection",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2620,
+        400
+      ],
+      "parameters": {
+        "workflowId": "REPLACE_LI05_ID",
+        "options": {}
+      }
+    },
+    {
+      "id": "264b7892-e8ac-4317-b0cc-4225d3c0cf84",
+      "name": "Run LI-06 Opportunities",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        2860,
+        400
+      ],
+      "parameters": {
+        "workflowId": "REPLACE_LI06_ID",
+        "options": {}
+      }
+    },
+    {
+      "id": "c7e70ae8-a888-4374-bb89-7868c22bc215",
+      "name": "Run LI-07 Outreach",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3100,
+        400
+      ],
+      "parameters": {
+        "workflowId": "REPLACE_LI07_ID",
+        "options": {}
+      }
+    },
+    {
+      "id": "eb9ad7ba-8f7a-4f1e-b1c9-05debdb2efd8",
+      "name": "Run LI-08 Prioritization",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3340,
+        400
+      ],
+      "parameters": {
+        "workflowId": "REPLACE_LI08_ID",
+        "options": {}
+      }
+    },
+    {
+      "id": "8fbe860d-419b-459b-8325-70efd8d0a6b0",
+      "name": "Run LI-09 CRM Sync",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3580,
+        400
+      ],
+      "parameters": {
+        "workflowId": "REPLACE_LI09_ID",
+        "options": {}
+      }
+    },
+    {
+      "id": "63829f7d-b97d-4ecb-a027-e35e14f3c03c",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3820,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst now = new Date().toISOString();\nconst stats = {\n  total_processed: items.length,\n  run_completed_at: now,\n  status: 'completed',\n};\nconst msg = `<b>LinkedIn Lead Intelligence - Batch Complete</b>\\n\\nLeads processed: ${stats.total_processed}\\nCompleted: ${now}\\n\\nCheck Airtable for details.`;\nreturn {\n  json: {\n    ...stats,\n    email_subject: 'LinkedIn Lead Intelligence - Weekly Summary',\n    email_body: `<div style=\"font-family:Arial;max-width:600px\"><div style=\"background:#FF6D5A;padding:15px\"><h2 style=\"color:white;margin:0\">LinkedIn Lead Intelligence</h2></div><div style=\"padding:20px\"><p>Batch processing complete.</p><p><b>Leads processed:</b> ${stats.total_processed}</p><p><b>Completed:</b> ${now}</p><p>Review leads in Airtable.</p></div></div>`,\n    telegram_message: msg,\n  }\n};"
+      }
+    },
+    {
+      "id": "a9b9b83f-ed89-4570-9ced-a3e53787db78",
+      "name": "Send Summary Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        4060,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ $json.email_subject }}",
+        "emailType": "html",
+        "message": "={{ $json.email_body }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "95f79be8-9848-4a45-a6e3-86ad00586e1c",
+      "name": "Send Summary Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4060,
+        500
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    },
+    {
+      "id": "82064729-bbd9-4584-b6ad-9f767fc14b48",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        800
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "4a9e8ec8-3d7f-46ce-af61-e92f5f02d638",
+      "name": "Error Handler",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        800
+      ],
+      "parameters": {
+        "jsCode": "const error = $input.first().json;\nconst workflowName = error.workflow?.name || 'Unknown';\nconst errorMsg = error.execution?.error?.message || 'Unknown error';\nconst lastNode = error.execution?.lastNodeExecuted || 'Unknown';\nconst execUrl = error.execution?.url || '';\nconst now = new Date().toISOString();\nreturn {\n  json: {\n    log_id: `ERR-${Date.now().toString(36)}`.toUpperCase(),\n    workflow: workflowName,\n    lead_id: '',\n    action: 'Error',\n    status: 'Failed',\n    error_message: errorMsg.substring(0, 1000),\n    input_summary: `Last node: ${lastNode}`,\n    output_summary: `Execution: ${execUrl}`,\n    tokens_used: 0,\n    duration_ms: 0,\n    execution_id: error.execution?.id || '',\n    timestamp: now,\n    telegram_message: `<b>LinkedIn Agent Error</b>\\n\\nWorkflow: ${workflowName}\\nNode: ${lastNode}\\nError: ${errorMsg.substring(0, 200)}\\n\\n<a href=\"${execUrl}\">View Execution</a>`,\n  }\n};"
+      }
+    },
+    {
+      "id": "44481c07-8d58-4ab1-a1e5-faa551a2e8bc",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        800
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblpVwECLAV3GSjbt",
+          "mode": "id"
+        },
+        "options": {},
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        }
+      }
+    },
+    {
+      "id": "6a0e8567-550b-4f91-965e-e8ee44004d9f",
+      "name": "Telegram Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        700,
+        1000
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "37DtsPS5RQYxY2i1",
+          "name": "Telegram RE Operations Bot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "REPLACE_AFTER_SETUP",
+        "text": "={{ $json.telegram_message }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Weekly Schedule": {
+      "main": [
+        [
+          {
+            "node": "Load Campaign Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Campaign Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Campaign Config": {
+      "main": [
+        [
+          {
+            "node": "Has Active Campaign?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Active Campaign?": {
+      "main": [
+        [
+          {
+            "node": "Emergency Pause?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Emergency Pause?": {
+      "main": [
+        [
+          {
+            "node": "System Paused",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load Rate Limits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Paused": {
+      "main": [
+        [
+          {
+            "node": "Telegram Pause Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Rate Limits": {
+      "main": [
+        [
+          {
+            "node": "Check Daily Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Daily Actions": {
+      "main": [
+        [
+          {
+            "node": "Under Daily Limit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Under Daily Limit?": {
+      "main": [
+        [
+          {
+            "node": "Run LI-02 Discovery",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Daily Limit Hit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Limit Hit": {
+      "main": [
+        [
+          {
+            "node": "Telegram Limit Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run LI-02 Discovery": {
+      "main": [
+        [
+          {
+            "node": "Run LI-03 Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run LI-03 Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Run LI-04 Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run LI-04 Scoring": {
+      "main": [
+        [
+          {
+            "node": "Run LI-05 Pain Detection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run LI-05 Pain Detection": {
+      "main": [
+        [
+          {
+            "node": "Run LI-06 Opportunities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run LI-06 Opportunities": {
+      "main": [
+        [
+          {
+            "node": "Run LI-07 Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run LI-07 Outreach": {
+      "main": [
+        [
+          {
+            "node": "Run LI-08 Prioritization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run LI-08 Prioritization": {
+      "main": [
+        [
+          {
+            "node": "Run LI-09 CRM Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run LI-09 CRM Sync": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Summary Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Summary Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Telegram Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
