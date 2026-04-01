@@ -9,7 +9,7 @@ interface FATask {
   id: string;
   title: string;
   description: string | null;
-  type: string;
+  source: string;
   priority: string;
   status: string;
   due_date: string | null;
@@ -212,7 +212,7 @@ export default function TasksPage() {
                             {t.title}
                           </span>
                           <span className="text-xs text-[#6B7280]">
-                            {t.type.replace("_", " ")}
+                            {t.source.replace("_", " ")}
                           </span>
                         </div>
                       </div>

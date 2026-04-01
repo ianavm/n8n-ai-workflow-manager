@@ -18,7 +18,6 @@ const clientUpdateSchema = z.object({
   occupation: z.string().optional(),
   source: z.string().optional(),
   pipeline_stage: z.string().optional(),
-  assigned_adviser_id: z.string().uuid().optional(),
   health_score: z.number().min(0).max(100).optional(),
   notes: z.string().optional(),
 });
@@ -53,7 +52,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
   const { data, error } = await supabase
     .from("fa_clients")
     .select(
-      "*, assigned_adviser:fa_advisers!fa_clients_assigned_adviser_id_fkey(id, full_name, email)"
+      "*"
     )
     .eq("id", id)
     .single();
@@ -153,12 +152,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   // Audit log
   await supabase.from("fa_audit_log").insert({
     firm_id: existing.firm_id,
-    actor_id: session.profileId,
-    actor_type: session.role,
-    action: "client_updated",
+    performed_by: session.id,
+    performed_by_type: session.role === "client" ? "client" : "adviser",
+    action: "updated",
     entity_type: "fa_clients",
     entity_id: id,
-    details: { updated_fields: Object.keys(updateData) },
+    new_value: { updated_fields: Object.keys(updateData) },
   });
 
   return NextResponse.json({ success: true, data });

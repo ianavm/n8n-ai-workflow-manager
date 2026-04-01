@@ -7,13 +7,13 @@ import { format } from "date-fns";
 
 interface FAMeeting {
   id: string;
-  type: string;
+  meeting_type: string;
   status: string;
   scheduled_at: string;
   duration_minutes: number;
-  location: string | null;
-  video_link: string | null;
-  agenda: string | null;
+  location_type: string | null;
+  teams_meeting_url: string | null;
+  title: string | null;
   client: {
     id: string;
     first_name: string;
@@ -163,23 +163,23 @@ export default function MeetingsPage() {
                     <div className="flex items-center gap-4 text-xs text-[#6B7280]">
                       <span className="flex items-center gap-1">
                         <Calendar size={12} />
-                        {typeLabel(m.type)}
+                        {typeLabel(m.meeting_type)}
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock size={12} />
                         {format(new Date(m.scheduled_at), "HH:mm")} (
                         {m.duration_minutes}min)
                       </span>
-                      {m.video_link && (
+                      {m.teams_meeting_url && (
                         <span className="flex items-center gap-1 text-[#00A651]">
                           <Video size={12} />
                           Video
                         </span>
                       )}
-                      {m.location && (
+                      {m.location_type && (
                         <span className="flex items-center gap-1">
                           <MapPin size={12} />
-                          {m.location}
+                          {m.location_type}
                         </span>
                       )}
                     </div>

@@ -34,25 +34,35 @@ export async function getSession(): Promise<SessionUser | null> {
     .from("admin_users")
     .select("id, email, full_name, role")
     .eq("auth_user_id", user.id)
-    .single();
+    .maybeSingle();
 
   if (adminUser) {
+    // Also check if this admin is an FA adviser (dual-role user)
+    const { data: adviserData } = await supabase
+      .from("fa_advisers")
+      .select("id, firm_id")
+      .eq("auth_user_id", user.id)
+      .eq("active", true)
+      .maybeSingle();
+
     return {
       id: user.id,
       email: adminUser.email,
       role: adminUser.role as UserRole,
       profileId: adminUser.id,
       fullName: adminUser.full_name,
+      firmId: adviserData?.firm_id,
+      adviserId: adviserData?.id,
     };
   }
 
-  // Check if financial adviser
+  // Check if financial adviser (not also an admin)
   const { data: adviser } = await supabase
     .from("fa_advisers")
     .select("id, email, full_name, role, firm_id")
     .eq("auth_user_id", user.id)
     .eq("active", true)
-    .single();
+    .maybeSingle();
 
   if (adviser) {
     return {
@@ -71,7 +81,7 @@ export async function getSession(): Promise<SessionUser | null> {
     .from("clients")
     .select("id, email, full_name")
     .eq("auth_user_id", user.id)
-    .single();
+    .maybeSingle();
 
   if (clientUser) {
     // Check if linked to a financial advisory client
@@ -79,7 +89,7 @@ export async function getSession(): Promise<SessionUser | null> {
       .from("fa_clients")
       .select("id, firm_id")
       .eq("portal_client_id", clientUser.id)
-      .single();
+      .maybeSingle();
 
     return {
       id: user.id,
