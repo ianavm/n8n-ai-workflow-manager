@@ -671,10 +671,12 @@ def build_openrouter_request(name, system_prompt, user_message_expr, position, m
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": position,
-        "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
+        "credentials": {"openRouterApi": CRED_OPENROUTER},
         "parameters": {
             "method": "POST",
             "url": "https://openrouter.ai/api/v1/chat/completions",
+            "authentication": "predefinedCredentialType",
+            "nodeCredentialType": "openRouterApi",
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
