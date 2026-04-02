@@ -75,14 +75,14 @@ WORKFLOWS = {
     # ============================================================
     # Ads Department (8 workflows)
     # ============================================================
-    "ADS_01": "LZ2ZXwra1ep3IEQH",     # Campaign Strategy Generator
-    "ADS_02": "Ygvv6yGVqqOGDYgV",     # Ad Copy & Creative Generator
-    "ADS_03": "KAkjBo273HOMbVEP",     # Campaign Builder & Publisher
-    "ADS_04": "3U4ZXsWW7255zoFm",     # Performance Monitor
-    "ADS_05": "cwdYl8T8GRSmrWjp",     # Optimization Engine
-    "ADS_06": "uU3OLLP5vtLpD5uM",     # Creative Recycler
-    "ADS_07": "h3YGMAPAcCx3Y51G",     # Cross-Channel Attribution
-    "ADS_08": "6cDCfVjuAcZQKStK",     # Reporting Dashboard
+    "ADS_01": "MotNj5FeH4gOoADg",     # Campaign Strategy Generator
+    "ADS_02": "cYkaNVG10Pnvjjcy",     # Ad Copy & Creative Generator
+    "ADS_03": "0CTAnjA2R05JHJwQ",     # Campaign Builder & Publisher
+    "ADS_04": "BRe2QmohEsnIYqPi",     # Performance Monitor
+    "ADS_05": "D51N98bhjjahd0ed",     # Optimization Engine
+    "ADS_06": "6okBtJubjoPfoOvF",     # Creative Recycler
+    "ADS_07": "bT4hWPLioD4HefU8",     # Cross-Channel Attribution
+    "ADS_08": "jkP78rX7RNqjVzXA",     # Reporting Dashboard
 
     # ============================================================
     # Support (4 workflows)

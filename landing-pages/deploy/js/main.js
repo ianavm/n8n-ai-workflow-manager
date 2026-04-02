@@ -205,6 +205,13 @@
                                 currency: 'ZAR',
                                 value: 5000
                             });
+                            /* Meta Pixel Lead conversion */
+                            if (typeof fbq === 'function') {
+                                fbq('track', 'Lead', {
+                                    currency: 'ZAR',
+                                    value: 5000
+                                });
+                            }
 
                             /* POST to n8n webhooks for lead capture pipeline */
                             var leadPayload = JSON.stringify({

@@ -12,6 +12,22 @@
         gtag('config', 'G-DQJWY0KVS8');
         gtag('config', 'AW-11359193832');
     </script>
+    <!-- Meta Pixel Code -->
+    <script>
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '2503365216786353');
+    fbq('track', 'PageView');
+    </script>
+    <noscript><img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id=2503365216786353&ev=PageView&noscript=1"
+    /></noscript>
+    <!-- End Meta Pixel Code -->
     <meta name="description" content="Get a free AI readiness assessment for your South African business. Discover automation opportunities, estimated savings, and a personalized AI roadmap. Results within 24 hours.">
     <title>Free AI Readiness Assessment | AnyVision Media</title>
 
@@ -1193,14 +1209,14 @@
 
                 var fd = new FormData(form);
 
-                fetch('https://ianimmelman89.app.n8n.cloud/webhook/seo-social/lead-capture', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+                var leadPayload = JSON.stringify({
                         name: fd.get('name'),
+                        firstName: fd.get('name').split(' ')[0],
+                        lastName: fd.get('name').split(' ').slice(1).join(' '),
                         email: fd.get('email'),
                         company: fd.get('company'),
                         industry: fd.get('industry'),
+                        interest: 'AI Readiness Assessment',
                         pain_point: fd.get('pain_point'),
                         phone: '',
                         message: 'AI Readiness Assessment Request | Industry: ' + fd.get('industry') + ' | Pain Point: ' + fd.get('pain_point'),
@@ -1210,13 +1226,30 @@
                         utm_campaign: fd.get('utm_campaign') || 'lead-magnet',
                         utm_term: fd.get('utm_term') || '',
                         utm_content: fd.get('utm_content') || ''
-                    })
+                    });
+                fetch('https://ianimmelman89.app.n8n.cloud/webhook/website-contact-form', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: leadPayload
                 })
                 .then(function(response) {
                     if (!response.ok) {
                         throw new Error('Server returned ' + response.status);
                     }
                     // Hide form, show success
+                    /* Google Ads conversion */
+                    if (typeof gtag === 'function') {
+                        gtag('event', 'conversion', {
+                            send_to: 'AW-11359193832/qaz_CIfuooccEOiVvqgq',
+                            value: 1.0,
+                            currency: 'ZAR'
+                        });
+                        gtag('event', 'generate_lead', { currency: 'ZAR', value: 5000 });
+                    }
+                    /* Meta Pixel Lead event */
+                    if (typeof fbq === 'function') {
+                        fbq('track', 'Lead', { currency: 'ZAR', value: 5000 });
+                    }
                     form.style.display = 'none';
                     document.getElementById('successMessage').classList.add('show');
                 })
