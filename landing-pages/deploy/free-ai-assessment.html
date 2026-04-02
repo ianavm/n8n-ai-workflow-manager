@@ -965,7 +965,8 @@
                 <!-- Right: Form -->
                 <div class="reveal reveal-delay-2">
                     <div class="form-card" id="formCard">
-                        <form id="assessmentForm" novalidate>
+                        <form id="assessmentForm" name="ai-assessment" method="POST" data-netlify="true" novalidate>
+                            <input type="hidden" name="form-name" value="ai-assessment">
                             <h2>Get Your Free Assessment</h2>
                             <p class="form-subtitle">Fill in the form below and we'll deliver your personalized AI readiness report within 24 hours.</p>
 
@@ -1209,34 +1210,17 @@
 
                 var fd = new FormData(form);
 
-                var leadPayload = JSON.stringify({
-                        name: fd.get('name'),
-                        firstName: fd.get('name').split(' ')[0],
-                        lastName: fd.get('name').split(' ').slice(1).join(' '),
-                        email: fd.get('email'),
-                        company: fd.get('company'),
-                        industry: fd.get('industry'),
-                        interest: 'AI Readiness Assessment',
-                        pain_point: fd.get('pain_point'),
-                        phone: '',
-                        message: 'AI Readiness Assessment Request | Industry: ' + fd.get('industry') + ' | Pain Point: ' + fd.get('pain_point'),
-                        page_url: fd.get('page_url'),
-                        utm_source: fd.get('utm_source') || 'organic',
-                        utm_medium: fd.get('utm_medium') || 'website',
-                        utm_campaign: fd.get('utm_campaign') || 'lead-magnet',
-                        utm_term: fd.get('utm_term') || '',
-                        utm_content: fd.get('utm_content') || ''
-                    });
-                fetch('https://ianimmelman89.app.n8n.cloud/webhook/website-contact-form', {
+                // Submit to Netlify Forms first (reliable)
+                fetch('/free-ai-assessment.html', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: leadPayload
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams(fd).toString()
                 })
                 .then(function(response) {
                     if (!response.ok) {
                         throw new Error('Server returned ' + response.status);
                     }
-                    // Hide form, show success
+
                     /* Google Ads conversion */
                     if (typeof gtag === 'function') {
                         gtag('event', 'conversion', {
@@ -1250,6 +1234,31 @@
                     if (typeof fbq === 'function') {
                         fbq('track', 'Lead', { currency: 'ZAR', value: 5000 });
                     }
+
+                    /* Fire n8n webhook in background (fire-and-forget) */
+                    var leadPayload = JSON.stringify({
+                        name: fd.get('name'),
+                        firstName: fd.get('name').split(' ')[0],
+                        lastName: fd.get('name').split(' ').slice(1).join(' '),
+                        email: fd.get('email'),
+                        company: fd.get('company'),
+                        industry: fd.get('industry'),
+                        interest: 'AI Readiness Assessment',
+                        pain_point: fd.get('pain_point'),
+                        message: 'AI Readiness Assessment Request | Industry: ' + fd.get('industry') + ' | Pain Point: ' + fd.get('pain_point'),
+                        page_url: fd.get('page_url'),
+                        utm_source: fd.get('utm_source') || 'organic',
+                        utm_medium: fd.get('utm_medium') || 'website',
+                        utm_campaign: fd.get('utm_campaign') || 'lead-magnet',
+                        utm_term: fd.get('utm_term') || '',
+                        utm_content: fd.get('utm_content') || ''
+                    });
+                    fetch('https://ianimmelman89.app.n8n.cloud/webhook/website-contact-form', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: leadPayload
+                    }).catch(function() { /* silent - Netlify already captured */ });
+
                     form.style.display = 'none';
                     document.getElementById('successMessage').classList.add('show');
                 })
