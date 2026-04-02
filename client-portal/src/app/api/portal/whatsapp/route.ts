@@ -30,20 +30,25 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Step 1: Exchange auth code for access token
+    // Step 1: Exchange auth code for access token (POST body, not query params)
     const tokenResponse = await fetch(
-      `https://graph.facebook.com/v18.0/oauth/access_token?` +
-        `client_id=${META_APP_ID}` +
-        `&client_secret=${META_APP_SECRET}` +
-        `&code=${code}`,
-      { method: "GET" }
+      `https://graph.facebook.com/v18.0/oauth/access_token`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: META_APP_ID,
+          client_secret: META_APP_SECRET,
+          code,
+        }),
+      }
     );
 
     const tokenData = await tokenResponse.json();
 
     if (!tokenResponse.ok || !tokenData.access_token) {
       return NextResponse.json(
-        { error: tokenData.error?.message || "Failed to exchange code" },
+        { error: "Failed to exchange authorization code" },
         { status: 400 }
       );
     }

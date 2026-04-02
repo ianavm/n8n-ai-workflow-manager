@@ -110,12 +110,20 @@ async function forwardToSelfHealing(
   body: { subject?: string; body?: string },
   clientEmail: string
 ) {
-  const webhookUrl = process.env.N8N_SELFHEALING_WEBHOOK_URL
-    || "https://ianimmelman89.app.n8n.cloud/webhook/self-healing/report";
+  const webhookUrl = process.env.N8N_SELFHEALING_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.warn("[portal/support] N8N_SELFHEALING_WEBHOOK_URL not configured — skipping webhook");
+    return;
+  }
 
   await fetch(webhookUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(process.env.N8N_WEBHOOK_SECRET
+        ? { "X-Webhook-Secret": process.env.N8N_WEBHOOK_SECRET }
+        : {}),
+    },
     body: JSON.stringify({
       error_message: `[${ticketId}] ${body.subject || "No subject"}: ${body.body || "No details"}`,
       workflow_name: "Client Portal Support",

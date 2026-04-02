@@ -15,7 +15,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/portal/login" || pathname === "/admin/login" || pathname === "/portal/signup";
   const isAuthApi = pathname.startsWith("/api/auth/");
 
-  if ((isLoginPath || isAuthApi) && request.method === "POST") {
+  if (isLoginPath || isAuthApi) {
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
       "unknown";

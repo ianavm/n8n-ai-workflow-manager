@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 
 export type UserRole =
   | "owner"
@@ -7,7 +7,8 @@ export type UserRole =
   | "adviser"
   | "compliance_officer"
   | "office_manager"
-  | "super_admin";
+  | "super_admin"
+  | "admin";
 
 export interface SessionUser {
   id: string;
@@ -29,8 +30,11 @@ export async function getSession(): Promise<SessionUser | null> {
 
   if (!user) return null;
 
+  // Use service role client for role lookups to avoid RLS dependency
+  const svc = await createServiceRoleClient();
+
   // Check if admin
-  const { data: adminUser } = await supabase
+  const { data: adminUser } = await svc
     .from("admin_users")
     .select("id, email, full_name, role")
     .eq("auth_user_id", user.id)
@@ -38,7 +42,7 @@ export async function getSession(): Promise<SessionUser | null> {
 
   if (adminUser) {
     // Also check if this admin is an FA adviser (dual-role user)
-    const { data: adviserData } = await supabase
+    const { data: adviserData } = await svc
       .from("fa_advisers")
       .select("id, firm_id")
       .eq("auth_user_id", user.id)
@@ -57,7 +61,7 @@ export async function getSession(): Promise<SessionUser | null> {
   }
 
   // Check if financial adviser (not also an admin)
-  const { data: adviser } = await supabase
+  const { data: adviser } = await svc
     .from("fa_advisers")
     .select("id, email, full_name, role, firm_id")
     .eq("auth_user_id", user.id)
@@ -65,10 +69,12 @@ export async function getSession(): Promise<SessionUser | null> {
     .maybeSingle();
 
   if (adviser) {
+    // Normalize 'admin' role to 'super_admin' for consistency
+    const role = adviser.role === "admin" ? "super_admin" : adviser.role;
     return {
       id: user.id,
       email: adviser.email,
-      role: adviser.role as UserRole,
+      role: role as UserRole,
       profileId: adviser.id,
       fullName: adviser.full_name,
       firmId: adviser.firm_id,
@@ -77,7 +83,7 @@ export async function getSession(): Promise<SessionUser | null> {
   }
 
   // Check if client
-  const { data: clientUser } = await supabase
+  const { data: clientUser } = await svc
     .from("clients")
     .select("id, email, full_name")
     .eq("auth_user_id", user.id)
@@ -85,7 +91,7 @@ export async function getSession(): Promise<SessionUser | null> {
 
   if (clientUser) {
     // Check if linked to a financial advisory client
-    const { data: faClient } = await supabase
+    const { data: faClient } = await svc
       .from("fa_clients")
       .select("id, firm_id")
       .eq("portal_client_id", clientUser.id)
