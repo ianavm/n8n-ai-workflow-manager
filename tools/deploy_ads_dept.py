@@ -709,6 +709,7 @@ def build_gmail_send(name, to, subject_expr, body_expr, position, is_html=True):
         "position": position,
         "credentials": {"gmailOAuth2": CRED_GMAIL},
         "parameters": {
+            "operation": "send",
             "sendTo": to,
             "subject": subject_expr,
             "emailType": "html" if is_html else "text",
@@ -743,6 +744,7 @@ def build_if_node(name, condition_expr, position, negate=False):
                     "typeValidation": "strict",
                     "version": 2,
                 },
+                "combinator": "and",
                 "conditions": [
                     {
                         "leftValue": condition_expr,
@@ -837,7 +839,8 @@ def build_google_ads_node(name, position, operation="getAll"):
         "parameters": {
             "resource": "campaign",
             "operation": operation,
-            "customerId": GOOGLE_ADS_CUSTOMER_ID,
+            "managerCustomerId": GOOGLE_ADS_MANAGER_ID,
+            "clientCustomerId": GOOGLE_ADS_CUSTOMER_ID,
             "returnAll": True,
             "additionalFields": {},
         },
@@ -946,24 +949,10 @@ def build_ads04_nodes():
         "Transform Meta Data", ADS04_TRANSFORM_META_CODE, [1000, 300]
     ))
 
-    # 7. TikTok Ads - Get Report (HTTP Request)
-    nodes.append(build_http_request(
-        "TikTok Ads Get Report", "POST",
-        "https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/",
-        [750, 500],
-        auth_cred=CRED_TIKTOK_ADS,
-        body={
-            "advertiser_id": TIKTOK_ADS_ADVERTISER_ID,
-            "report_type": "BASIC",
-            "data_level": "AUCTION_CAMPAIGN",
-            "dimensions": ["campaign_id"],
-            "metrics": ["campaign_name", "impressions", "clicks", "spend", "conversion", "cpc", "cpm", "ctr"],
-            "start_date": "={{$now.minus({days: 1}).toFormat('yyyy-MM-dd')}}",
-            "end_date": "={{$now.toFormat('yyyy-MM-dd')}}",
-        },
-    ))
+    # 7. TikTok Ads - REMOVED (not configured yet)
+    # To re-add TikTok: add TikTok HTTP node here and chain via a second Merge node
 
-    # 8. Merge All Platform Data
+    # 8. Merge All Platform Data (Google + Meta only)
     nodes.append(build_merge_node("Merge All Metrics", [1250, 300]))
 
     # 9. Filter out skip items
@@ -1010,7 +999,6 @@ def build_ads04_connections(nodes):
         "Read Active Campaigns": {"main": [[
             {"node": "Google Ads Get Campaigns", "type": "main", "index": 0},
             {"node": "Meta Ads Get Insights", "type": "main", "index": 0},
-            {"node": "TikTok Ads Get Report", "type": "main", "index": 0},
         ]]},
         "Google Ads Get Campaigns": {"main": [[
             {"node": "Transform Google Data", "type": "main", "index": 0},
@@ -1023,9 +1011,6 @@ def build_ads04_connections(nodes):
         ]]},
         "Transform Meta Data": {"main": [[
             {"node": "Merge All Metrics", "type": "main", "index": 1},
-        ]]},
-        "TikTok Ads Get Report": {"main": [[
-            {"node": "Merge All Metrics", "type": "main", "index": 2},
         ]]},
         "Merge All Metrics": {"main": [[
             {"node": "Filter Valid Data", "type": "main", "index": 0},

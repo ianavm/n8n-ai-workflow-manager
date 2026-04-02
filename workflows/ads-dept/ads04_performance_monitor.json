@@ -2,7 +2,7 @@
   "name": "AVM Ads: Performance Monitor",
   "nodes": [
     {
-      "id": "f1206f0c-382b-444f-89ee-bae2c45673e7",
+      "id": "cf370d09-25ca-4890-87a3-e34c2b8aadfa",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "026305f7-8481-4d67-98de-f6aedd847e73",
+      "id": "daaeb5d3-c9ea-417b-90cc-cd4717ed0f5a",
       "name": "Read Active Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "760f74e3-08da-4df9-be42-13a7629faf90",
+      "id": "0b9ba5bd-6d12-457e-b429-3ac27f48db36",
       "name": "Google Ads Get Campaigns",
       "type": "n8n-nodes-base.googleAds",
       "typeVersion": 1,
@@ -70,13 +70,14 @@
       "parameters": {
         "resource": "campaign",
         "operation": "getAll",
-        "customerId": "6925797193",
+        "managerCustomerId": "8709868142",
+        "clientCustomerId": "6925797193",
         "returnAll": true,
         "additionalFields": {}
       }
     },
     {
-      "id": "1356d867-2177-4671-b555-bd4edc4f8212",
+      "id": "b7617d1b-7a4f-43f9-9bfd-e99af9404308",
       "name": "Transform Google Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -89,7 +90,7 @@
       }
     },
     {
-      "id": "f2b0819b-3d23-4887-9ce8-178b4e1bb276",
+      "id": "9fcb55ec-ebc9-4e6f-9d45-5c9dd235daaf",
       "name": "Meta Ads Get Insights",
       "type": "n8n-nodes-base.facebookGraphApi",
       "typeVersion": 1,
@@ -128,7 +129,7 @@
       }
     },
     {
-      "id": "90b99de1-4560-437c-80a0-0fe7e3aaa1fe",
+      "id": "272b4eba-5c8d-4a17-a9a2-f8e93d850375",
       "name": "Transform Meta Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -141,33 +142,7 @@
       }
     },
     {
-      "id": "02735e01-b016-4cf7-8dc8-9844440995a3",
-      "name": "TikTok Ads Get Report",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        750,
-        500
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/",
-        "options": {
-          "timeout": 30000
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\"advertiser_id\": \"REPLACE\", \"report_type\": \"BASIC\", \"data_level\": \"AUCTION_CAMPAIGN\", \"dimensions\": [\"campaign_id\"], \"metrics\": [\"campaign_name\", \"impressions\", \"clicks\", \"spend\", \"conversion\", \"cpc\", \"cpm\", \"ctr\"], \"start_date\": \"={{$now.minus({days: 1}).toFormat('yyyy-MM-dd')}}\", \"end_date\": \"={{$now.toFormat('yyyy-MM-dd')}}\"}"
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "lJEEpPu9zE24Z38r",
-          "name": "TikTok Ads HTTP Auth"
-        }
-      }
-    },
-    {
-      "id": "61dc66b3-f178-4b00-a5f0-3ac54ee4ed3a",
+      "id": "994dd9ca-86d0-4c5d-84c9-aba51ae9d8c3",
       "name": "Merge All Metrics",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -180,7 +155,7 @@
       }
     },
     {
-      "id": "f4348691-3064-4e49-ac17-5a10506efb76",
+      "id": "56ff15a8-0dc1-43ba-8888-9d9fbf5df159",
       "name": "Filter Valid Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -193,7 +168,7 @@
       }
     },
     {
-      "id": "828928ec-a1fe-4a8e-9342-0036427887bb",
+      "id": "799c882f-7bc1-4110-b681-737e832a27c6",
       "name": "Write Ad Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -227,7 +202,7 @@
       }
     },
     {
-      "id": "726aa00c-7677-49d6-b69b-e8de5b9dea55",
+      "id": "7adaff09-a713-4998-9155-32317ea80c69",
       "name": "Anomaly Detection",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -240,7 +215,7 @@
       }
     },
     {
-      "id": "45cf65c3-5138-43a8-915a-66a57fe48aaa",
+      "id": "6b7f80ba-cf9c-4672-92e6-f09c645dd186",
       "name": "Has Anomalies",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -256,6 +231,7 @@
             "typeValidation": "strict",
             "version": 2
           },
+          "combinator": "and",
           "conditions": [
             {
               "leftValue": "={{$json.noAnomalies}}",
@@ -270,7 +246,7 @@
       }
     },
     {
-      "id": "4d043099-eaab-4266-b5e4-82efdd5246b1",
+      "id": "9531587c-dc9f-4231-a383-e71bc61192c3",
       "name": "Send Anomaly Alert",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -285,6 +261,7 @@
         }
       },
       "parameters": {
+        "operation": "send",
         "sendTo": "ian@anyvisionmedia.com",
         "subject": "AVM Ads ALERT - Anomaly Detected",
         "emailType": "html",
@@ -293,7 +270,7 @@
       }
     },
     {
-      "id": "e5134f87-0f7b-44ad-94e4-2a7ebe3f0881",
+      "id": "d439f8f9-bca5-4c09-84b6-ff529b99b93a",
       "name": "No Anomalies",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -326,11 +303,6 @@
           },
           {
             "node": "Meta Ads Get Insights",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "TikTok Ads Get Report",
             "type": "main",
             "index": 0
           }
@@ -377,17 +349,6 @@
             "node": "Merge All Metrics",
             "type": "main",
             "index": 1
-          }
-        ]
-      ]
-    },
-    "TikTok Ads Get Report": {
-      "main": [
-        [
-          {
-            "node": "Merge All Metrics",
-            "type": "main",
-            "index": 2
           }
         ]
       ]
