@@ -1093,7 +1093,26 @@ def build_ads08_nodes():
         [1500, 300],
     ))
 
-    # 9. Log to orchestrator
+    # 9a. Format Gmail response into Orchestrator Events fields
+    nodes.append(build_code_node("Format Report Log", r"""
+// Transform Gmail send response into Orchestrator Events fields
+const gmailResp = $input.first().json;
+
+return [{json: {
+  'Event Type': 'weekly_ads_report',
+  'Source Agent': 'ADS-08',
+  'Priority': 'P4',
+  'Status': 'Completed',
+  'Payload': JSON.stringify({
+    messageId: gmailResp.id || '',
+    threadId: gmailResp.threadId || '',
+    sentAt: new Date().toISOString(),
+  }),
+  'Created At': new Date().toISOString(),
+}}];
+""", [1625, 300]))
+
+    # 9b. Log to orchestrator
     nodes.append(build_airtable_create(
         "Log Report Event", ORCH_BASE_ID, TABLE_ORCH_EVENTS, [1750, 300]
     ))
@@ -1128,6 +1147,9 @@ def build_ads08_connections(nodes):
             {"node": "Send Weekly Report", "type": "main", "index": 0},
         ]]},
         "Send Weekly Report": {"main": [[
+            {"node": "Format Report Log", "type": "main", "index": 0},
+        ]]},
+        "Format Report Log": {"main": [[
             {"node": "Log Report Event", "type": "main", "index": 0},
         ]]},
     }
@@ -1509,10 +1531,32 @@ def build_ads02_nodes():
         "Write Creatives", MARKETING_BASE_ID, TABLE_CREATIVES, [2000, 300],
     ))
 
-    # 11. Create approval request
-    nodes.append(build_airtable_create(
-        "Create Approval Request", MARKETING_BASE_ID, TABLE_APPROVALS, [2250, 300],
-    ))
+    # 11. Create approval request (defineBelow — singleSelect must match exactly)
+    nodes.append({
+        "id": uid(),
+        "name": "Create Approval Request",
+        "type": "n8n-nodes-base.airtable",
+        "typeVersion": 2.1,
+        "position": [2250, 300],
+        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "parameters": {
+            "operation": "create",
+            "base": {"__rl": True, "mode": "id", "value": MARKETING_BASE_ID},
+            "table": {"__rl": True, "mode": "id", "value": TABLE_APPROVALS},
+            "columns": {
+                "mappingMode": "defineBelow",
+                "value": {
+                    "Campaign Name": "={{ $json.fields ? $json.fields['Campaign Name'] : $json['Campaign Name'] }}",
+                    "Request Type": "Creative_Update",
+                    "Requested By": "ADS-02",
+                    "Status": "Pending",
+                    "Details": "={{ ($json.fields ? $json.fields['Creative Name'] : $json['Creative Name']) + ' (' + ($json.fields ? $json.fields['Platform'] : $json['Platform']) + ')' }}",
+                    "Created At": "={{ new Date().toISOString().split('T')[0] }}",
+                },
+            },
+            "options": {},
+        },
+    })
 
     # 12. Email approval notification
     nodes.append(build_gmail_send(
@@ -1638,6 +1682,7 @@ for (const item of items) {
           name: d['Campaign Name'],
           advertisingChannelType: d.Objective === 'Video_Views' ? 'VIDEO' : 'SEARCH',
           status: 'PAUSED',
+          containsEuPoliticalAdvertising: false,
           campaignBudget: {
             amountMicros: dailyBudgetMicros,
             deliveryMethod: 'STANDARD',
@@ -1913,19 +1958,38 @@ try {
   const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
   recommendations = JSON.parse(cleaned);
 } catch (e) {
-  return [{json: {error: 'Failed to parse optimization response', raw: content}}];
+  // Return skip items for both outputs — do NOT output error/raw fields
+  return [
+    [{json: {skip: true, _noData: true}}],
+    [{json: {skip: true, _noData: true}}],
+  ];
 }
 
 if (!Array.isArray(recommendations)) recommendations = [recommendations];
+if (recommendations.length === 0) {
+  return [
+    [{json: {skip: true, _noData: true}}],
+    [{json: {skip: true, _noData: true}}],
+  ];
+}
 
 const autoApply = [];
 const needsApproval = [];
+const now = new Date().toISOString().split('T')[0];
 
 for (const rec of recommendations) {
+  const record = {
+    'Campaign Name': rec.campaign_name || rec.campaign || 'Unknown',
+    'Request Type': 'Optimization',
+    'Requested By': 'ADS-05',
+    'Details': JSON.stringify(rec),
+    'Created At': now,
+  };
+
   if (rec.auto_approvable) {
-    autoApply.push({json: {...rec, _action: 'auto_apply'}});
+    autoApply.push({json: {...record, 'Status': 'Approved'}});
   } else {
-    needsApproval.push({json: {...rec, _action: 'needs_approval'}});
+    needsApproval.push({json: {...record, 'Status': 'Pending'}});
   }
 }
 
@@ -2114,7 +2178,7 @@ try {
   const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
   variants = JSON.parse(cleaned);
 } catch (e) {
-  return [{json: {error: 'Failed to parse variants', raw: content}}];
+  return [{json: {skip: true}}];
 }
 
 if (!Array.isArray(variants)) variants = [variants];
@@ -2361,7 +2425,23 @@ def build_ads07_nodes():
         "AI Attribution Analyst", prompt, "JSON.stringify($json)", [1000, 300], max_tokens=1500,
     ))
 
-    # 6. Write attribution data to Operations Events table
+    # 6a. Format AI response into Orchestrator Events fields
+    nodes.append(build_code_node("Format Attribution Data", r"""
+// Transform AI Attribution Analyst response into Orchestrator Events fields
+const aiResp = $input.first().json;
+const content = aiResp.choices?.[0]?.message?.content || JSON.stringify(aiResp);
+
+return [{json: {
+  'Event Type': 'attribution_report',
+  'Source Agent': 'ADS-07',
+  'Priority': 'P3',
+  'Status': 'Completed',
+  'Payload': typeof content === 'string' ? content : JSON.stringify(content),
+  'Created At': new Date().toISOString(),
+}}];
+""", [1125, 300]))
+
+    # 6b. Write attribution data to Operations Events table
     nodes.append(build_airtable_create(
         "Write Attribution", ORCH_BASE_ID, TABLE_ORCH_EVENTS, [1250, 300],
     ))
@@ -2394,6 +2474,9 @@ def build_ads07_connections(nodes):
             {"node": "AI Attribution Analyst", "type": "main", "index": 0},
         ]]},
         "AI Attribution Analyst": {"main": [[
+            {"node": "Format Attribution Data", "type": "main", "index": 0},
+        ]]},
+        "Format Attribution Data": {"main": [[
             {"node": "Write Attribution", "type": "main", "index": 0},
         ]]},
         "Write Attribution": {"main": [[
