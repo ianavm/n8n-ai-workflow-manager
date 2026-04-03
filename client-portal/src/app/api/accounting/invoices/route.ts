@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
+  const clientId = url.searchParams.get("client_id");
   const page = parseInt(url.searchParams.get("page") ?? "1", 10);
   const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
   const offset = (page - 1) * limit;
@@ -18,6 +19,10 @@ export async function GET(req: NextRequest) {
     .select("*, acct_customers(id, legal_name, email)", { count: "exact" })
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
+
+  if (clientId) {
+    query = query.eq("client_id", clientId);
+  }
 
   if (status) {
     query = query.eq("status", status);
@@ -34,6 +39,7 @@ export async function GET(req: NextRequest) {
 }
 
 const createInvoiceSchema = z.object({
+  client_id: z.string().uuid().optional(),
   customer_id: z.string().uuid(),
   line_items: z.array(z.object({
     item_code: z.string(),
@@ -67,14 +73,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid payload", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { customer_id, line_items, due_date, reference, notes } = parsed.data;
+  const { client_id: requestedClientId, customer_id, line_items, due_date, reference, notes } = parsed.data;
 
-  // Get client_id from config
-  const { data: config } = await supabase
-    .from("acct_config")
-    .select("client_id, vat_rate")
-    .limit(1)
-    .maybeSingle();
+  // Get config for specified client or first available
+  let configQuery = supabase.from("acct_config").select("client_id, vat_rate");
+  if (requestedClientId) {
+    configQuery = configQuery.eq("client_id", requestedClientId);
+  } else {
+    configQuery = configQuery.order("created_at", { ascending: true }).limit(1);
+  }
+  const { data: config } = await configQuery.maybeSingle();
 
   if (!config) {
     return NextResponse.json({ error: "Accounting not configured" }, { status: 400 });

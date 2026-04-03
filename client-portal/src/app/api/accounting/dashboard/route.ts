@@ -1,7 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-export async function GET() {
+const EMPTY_KPIS = {
+  total_receivables: 0, total_payables: 0, overdue_amount: 0,
+  overdue_invoices: 0, cash_received_month: 0, pending_approvals: 0,
+  reconciliation_pending: 0, workflow_failures: 0, invoices_sent_today: 0,
+  cash_received_today: 0, bills_awaiting_approval: 0, bills_due_this_week: 0,
+};
+
+export async function GET(req: NextRequest) {
   const supabase = await createServerSupabaseClient();
 
   const {
@@ -12,6 +19,9 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const url = new URL(req.url);
+  const requestedClientId = url.searchParams.get("client_id");
+
   // Check if admin
   const { data: admin } = await supabase
     .from("admin_users")
@@ -19,17 +29,24 @@ export async function GET() {
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
-  // Get client_id (admin sees first client, portal user sees own)
   let clientId: string | null = null;
 
   if (admin) {
-    const { data: firstClient } = await supabase
-      .from("acct_config")
-      .select("client_id")
-      .limit(1)
-      .maybeSingle();
-    clientId = firstClient?.client_id ?? null;
+    if (requestedClientId) {
+      // Admin selected specific client
+      clientId = requestedClientId;
+    } else {
+      // Default to first configured client
+      const { data: firstClient } = await supabase
+        .from("acct_config")
+        .select("client_id")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      clientId = firstClient?.client_id ?? null;
+    }
   } else {
+    // Portal client sees own data only
     const { data: client } = await supabase
       .from("clients")
       .select("id")
@@ -39,14 +56,7 @@ export async function GET() {
   }
 
   if (!clientId) {
-    return NextResponse.json({
-      data: {
-        total_receivables: 0, total_payables: 0, overdue_amount: 0,
-        overdue_invoices: 0, cash_received_month: 0, pending_approvals: 0,
-        reconciliation_pending: 0, workflow_failures: 0, invoices_sent_today: 0,
-        cash_received_today: 0, bills_awaiting_approval: 0, bills_due_this_week: 0,
-      },
-    });
+    return NextResponse.json({ data: EMPTY_KPIS });
   }
 
   const { data, error } = await supabase.rpc("acct_get_dashboard_kpis", {
@@ -57,5 +67,5 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ data });
+  return NextResponse.json({ data, client_id: clientId });
 }

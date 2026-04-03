@@ -39,16 +39,16 @@ export default function SettingsPage() {
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from("acct_config")
-        .select("*")
-        .limit(1)
-        .maybeSingle();
-      if (data) setConfig(data as AcctConfig);
+      // Use config API which respects client selector session
+      const stored = sessionStorage.getItem("acct_active_client_id");
+      const params = stored ? `?client_id=${stored}` : "";
+      const resp = await fetch(`/api/accounting/config${params}`);
+      const result = await resp.json();
+      if (result.data) setConfig(result.data as AcctConfig);
       setLoading(false);
     }
     load();
-  }, [supabase]);
+  }, []);
 
   async function handleSave() {
     if (!config) return;

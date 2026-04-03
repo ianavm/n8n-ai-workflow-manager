@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { FinanceKPIGrid } from "@/components/accounting/FinanceKPIGrid";
 import { InvoiceStatusBadge } from "@/components/accounting/InvoiceStatusBadge";
+import { ClientSelector } from "@/components/accounting/ClientSelector";
 import { Clock, AlertTriangle, TrendingUp } from "lucide-react";
 
 interface KPIData {
@@ -49,31 +50,51 @@ export default function AccountingDashboard() {
   const [recentInvoices, setRecentInvoices] = useState<RecentInvoice[]>([]);
   const [openTasks, setOpenTasks] = useState<RecentTask[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeClientId, setActiveClientId] = useState<string>("");
+
+  const loadData = useCallback(async (clientId: string) => {
+    setLoading(true);
+    const params = clientId ? `?client_id=${clientId}` : "";
+    const [kpiRes, invRes, taskRes] = await Promise.all([
+      fetch(`/api/accounting/dashboard${params}`).then((r) => r.json()),
+      supabase
+        .from("acct_invoices")
+        .select("id, invoice_number, total, status, due_date, acct_customers(legal_name)")
+        .eq("client_id", clientId)
+        .order("created_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("acct_tasks")
+        .select("id, title, type, priority, status, created_at")
+        .eq("client_id", clientId)
+        .in("status", ["open", "in_progress"])
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
+
+    if (kpiRes.data) setKpis(kpiRes.data);
+    if (invRes.data) setRecentInvoices(invRes.data as unknown as RecentInvoice[]);
+    if (taskRes.data) setOpenTasks(taskRes.data as unknown as RecentTask[]);
+    setLoading(false);
+  }, [supabase]);
+
+  const handleClientChange = useCallback((clientId: string) => {
+    setActiveClientId(clientId);
+    loadData(clientId);
+  }, [loadData]);
 
   useEffect(() => {
-    async function load() {
-      const [kpiRes, invRes, taskRes] = await Promise.all([
-        fetch("/api/accounting/dashboard").then((r) => r.json()),
-        supabase
-          .from("acct_invoices")
-          .select("id, invoice_number, total, status, due_date, acct_customers(legal_name)")
-          .order("created_at", { ascending: false })
-          .limit(8),
-        supabase
-          .from("acct_tasks")
-          .select("id, title, type, priority, status, created_at")
-          .in("status", ["open", "in_progress"])
-          .order("created_at", { ascending: false })
-          .limit(5),
-      ]);
-
-      if (kpiRes.data) setKpis(kpiRes.data);
-      if (invRes.data) setRecentInvoices(invRes.data as unknown as RecentInvoice[]);
-      if (taskRes.data) setOpenTasks(taskRes.data as unknown as RecentTask[]);
-      setLoading(false);
-    }
-    load();
-  }, [supabase]);
+    // Initial load — fetch config to get default client
+    fetch("/api/accounting/config").then((r) => r.json()).then((result) => {
+      const clientId = result.active_client_id;
+      if (clientId) {
+        setActiveClientId(clientId);
+        loadData(clientId);
+      } else {
+        setLoading(false);
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -99,9 +120,12 @@ export default function AccountingDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">Finance Operations</h1>
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <TrendingUp size={14} />
-          <span>Live dashboard</span>
+        <div className="flex items-center gap-4">
+          <ClientSelector onClientChange={handleClientChange} />
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <TrendingUp size={14} />
+            <span>Live dashboard</span>
+          </div>
         </div>
       </div>
 

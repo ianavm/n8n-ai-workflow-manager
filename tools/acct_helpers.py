@@ -514,6 +514,136 @@ def openrouter_ai(
 
 
 # ============================================================
+# MULTI-TENANT CONFIG NODES
+# ============================================================
+
+def load_all_configs_node(
+    name: str = "Load All Configs",
+    position: list[int] | None = None,
+) -> dict[str, Any]:
+    """Fetch ALL active client configs from acct_config. Used by schedule-triggered
+    workflows to iterate over every client. Returns array of config rows."""
+    return supabase_select(
+        name=name,
+        table="acct_config",
+        select="*",
+        filters="order=created_at.asc",
+        position=position or [400, 400],
+    )
+
+
+def load_config_for_client_node(
+    name: str = "Load Client Config",
+    position: list[int] | None = None,
+) -> dict[str, Any]:
+    """Code node that resolves config for a specific client.
+
+    For webhooks: uses client_id from the request body.
+    For schedule loops: uses client_id from the current loop item.
+    Falls back to first config if no client_id is available (single-tenant mode).
+    """
+    js = (
+        "// Resolve client_id from webhook body, loop item, or fallback\n"
+        "const input = $input.first().json;\n"
+        "const body = input.body || input;\n"
+        "const clientId = body.client_id || input.client_id || null;\n"
+        "\n"
+        "if (!clientId) {\n"
+        "  // Single-tenant fallback: pass through input as config\n"
+        "  // (assumes input IS the config from Load All Configs loop)\n"
+        "  return [{ json: { ...input, _configResolved: true } }];\n"
+        "}\n"
+        "\n"
+        "// Multi-tenant: we have a client_id, pass it forward\n"
+        "// The next node should fetch config filtered by this client_id\n"
+        "return [{ json: { ...input, client_id: clientId, _configResolved: true } }];\n"
+    )
+    return code_node(name=name, js_code=js, position=position or [500, 400])
+
+
+def client_loop_node(
+    name: str = "Loop Per Client",
+    position: list[int] | None = None,
+) -> dict[str, Any]:
+    """splitInBatches node that processes one client config at a time.
+    Connect Load All Configs -> this -> per-client workflow logic."""
+    return {
+        "parameters": {"batchSize": 1, "options": {}},
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.splitInBatches",
+        "position": position or [600, 400],
+        "typeVersion": 3,
+    }
+
+
+def resolve_config_node(
+    name: str = "Resolve Config",
+    position: list[int] | None = None,
+) -> dict[str, Any]:
+    """Code node placed after client_loop that extracts config and client_id
+    from the current loop item. Downstream nodes use $json.config.* and $json.client_id."""
+    js = (
+        "// Extract config from loop item (each item IS a config row from acct_config)\n"
+        "const config = $input.first().json;\n"
+        "return [{\n"
+        "  json: {\n"
+        "    client_id: config.client_id,\n"
+        "    config: config,\n"
+        "    vat_rate: parseFloat(config.vat_rate) || 0.15,\n"
+        "    currency: config.default_currency || 'ZAR',\n"
+        "    invoice_prefix: config.invoice_prefix || 'INV',\n"
+        "    high_value_threshold: config.high_value_threshold || 5000000,\n"
+        "    auto_approve_below: config.auto_approve_bills_below || 1000000,\n"
+        "    accounting_software: config.accounting_software || 'none',\n"
+        "    payment_gateway: config.payment_gateway || 'none',\n"
+        "    ocr_provider: config.ocr_provider || 'ai',\n"
+        "    comms_email: config.comms_email || 'gmail',\n"
+        "    comms_chat: config.comms_chat || 'none',\n"
+        "    reminder_cadence_days: config.reminder_cadence_days || [-3,0,3,7,14],\n"
+        "    escalation_after_days: config.escalation_after_days || 14,\n"
+        "    modules_enabled: config.modules_enabled || {},\n"
+        "  }\n"
+        "}];\n"
+    )
+    return code_node(name=name, js_code=js, position=position or [800, 400])
+
+
+def supabase_select_for_client(
+    name: str,
+    table: str,
+    select: str = "*",
+    extra_filters: str = "",
+    position: list[int] | None = None,
+) -> dict[str, Any]:
+    """Supabase select scoped to the current client_id from upstream.
+    Uses expression to dynamically inject client_id filter."""
+    base_filter = "client_id=eq.{{ $json.client_id }}"
+    filters = f"{base_filter}&{extra_filters}" if extra_filters else base_filter
+    url = f"={SUPABASE_URL}/rest/v1/{table}?select={select}&{filters}"
+    return {
+        "parameters": {
+            "method": "GET",
+            "url": url,
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "apikey", "value": SUPABASE_KEY},
+                    {"name": "Authorization", "value": f"Bearer {SUPABASE_KEY}"},
+                ]
+            },
+            "options": {"response": {"response": {"responseFormat": "json"}}},
+        },
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.httpRequest",
+        "position": position or [600, 400],
+        "typeVersion": 4.2,
+        "alwaysOutputData": True,
+    }
+
+
+# ============================================================
 # WORKFLOW ASSEMBLY
 # ============================================================
 
