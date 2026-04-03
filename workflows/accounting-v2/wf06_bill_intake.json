@@ -1,0 +1,1826 @@
+{
+  "name": "ACCT-06 Supplier Bill Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8-17 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "9d226578-179d-4d73-9870-e4999c9ebe89",
+      "name": "Scan Inbox Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        300
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/upload-bill",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "7d7a7363-1851-4a0e-bc13-cfa4b2634bc7",
+      "name": "Portal Bill Upload",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 2,
+      "webhookId": "ae2866b0-a052-4083-ab99-9ffe27539d42"
+    },
+    {
+      "parameters": {},
+      "id": "5c942283-3e3a-44eb-8d26-ba48da1074f4",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        900
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_config?select=*&active=eq.true",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.pgrst.object+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "533f81a1-2db2-40bb-8c15-8d48c4187f92",
+      "name": "Load Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        500,
+        300
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Fetch recent emails from Gmail via REST (schedule path only).\n// The previous node provides config with known supplier emails.\nconst config = $input.first().json;\nconst supplierEmails = (config.known_supplier_emails || '').split(',').map(e => e.trim()).filter(Boolean);\n\n// Build a Gmail search query for recent bills with attachments\nconst afterDate = new Date(Date.now() - 60 * 60 * 1000).toISOString().split('T')[0];\nconst fromFilter = supplierEmails.length > 0\n  ? `from:(${supplierEmails.join(' OR ')})`\n  : 'label:bills OR subject:invoice OR subject:bill OR subject:statement';\n\nreturn [{\n  json: {\n    searchQuery: `${fromFilter} after:${afterDate} has:attachment`,\n    supplierEmails,\n    config,\n  }\n}];\n"
+      },
+      "id": "2f88fc76-f963-4a2c-aebc-500dbdd92756",
+      "name": "Build Gmail Query",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        500,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://gmail.googleapis.com/gmail/v1/users/me/messages?q={{ encodeURIComponent($json.searchQuery) }}&maxResults=20",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "gmailOAuth2",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "b15a012e-3313-41d6-bdf9-5ff3338c5981",
+      "name": "Gmail Search Bills",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        700,
+        100
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Convert Gmail search results into individual bill items.\n// For webhook path, the body already has {client_id, attachment_url, supplier_email}.\nconst input = $input.first().json;\n\n// Webhook path \u2014 single bill upload\nif (input.client_id && input.attachment_url) {\n  return [{\n    json: {\n      source: 'portal_upload',\n      client_id: input.client_id,\n      attachment_url: input.attachment_url,\n      supplier_email: input.supplier_email || null,\n      subject: 'Portal Upload',\n      received_at: new Date().toISOString(),\n    }\n  }];\n}\n\n// Schedule path \u2014 Gmail messages list\nconst messages = input.messages || [];\nif (messages.length === 0) {\n  return [{ json: { _empty: true } }];\n}\n\nreturn messages.map(msg => ({\n  json: {\n    source: 'email_scan',\n    gmail_message_id: msg.id,\n    client_id: null,\n    attachment_url: null,\n    supplier_email: null,\n    subject: null,\n    received_at: new Date().toISOString(),\n  }\n}));\n"
+      },
+      "id": "10fb5255-63cb-4f4b-ad21-c0902626fdae",
+      "name": "Parse Email Results",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        900,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "8655b6d8-9c52-4ad6-a53a-91158ed77252",
+              "leftValue": "{{ $json._empty }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "notTrue"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "e4064e81-e5ea-4c1e-9032-761cb55e1a92",
+      "name": "Has Bills?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1100,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Prepare a new supplier bill record for Supabase insert.\nconst item = $input.first().json;\nreturn [{\n  json: {\n    client_id: item.client_id || null,\n    source: item.source,\n    supplier_email: item.supplier_email,\n    attachment_url: item.attachment_url,\n    gmail_message_id: item.gmail_message_id || null,\n    email_subject: item.subject,\n    received_at: item.received_at,\n    status: 'uploaded',\n    extraction_confidence: 0,\n    ocr_provider: null,\n    created_at: new Date().toISOString(),\n    updated_at: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "469e40ff-5590-48ad-9174-a4cef4334ead",
+      "name": "Prepare Bill Record",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1300,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_supplier_bills",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "ae7fa4b5-8c45-4e62-abbd-ae16d21c3de6",
+      "name": "Insert Bill Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1500,
+        200
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Merge bill record with config to determine OCR provider.\nconst bill = $input.first().json;\nconst config = $('Load Config').first().json;\nconst ocrProvider = config.ocr_provider || 'ai';\n\nreturn [{\n  json: {\n    ...bill,\n    ocr_provider: ocrProvider,\n    auto_approve_threshold: parseFloat(config.auto_approve_bills_below || '10000'),\n  }\n}];\n"
+      },
+      "id": "f57361fa-217a-446a-aea3-ed98888b59e2",
+      "name": "Merge Config + Bill",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1700,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ocr_provider }}",
+                    "rightValue": "azure_doc_ai",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Azure"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ocr_provider }}",
+                    "rightValue": "google_doc_ai",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Google"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ocr_provider }}",
+                    "rightValue": "ai",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "AI"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.ocr_provider }}",
+                    "rightValue": "none",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Manual"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "362e4861-0663-4941-863b-c41ec6134819",
+      "name": "OCR Provider Switch",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1900,
+        200
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.azure_endpoint || 'https://REPLACE.cognitiveservices.azure.com' }}/formrecognizer/documentModels/prebuilt-invoice:analyze?api-version=2023-07-31",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Ocp-Apim-Subscription-Key",
+              "value": "={{ $json.azure_key || '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ urlSource: $json.attachment_url }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "f0047ccb-7bc6-4608-90e4-e88618e63b19",
+      "name": "Azure Doc AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2200,
+        0
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.google_docai_endpoint || 'https://REPLACE-documentai.googleapis.com/v1/projects/PROJECT/locations/LOCATION/processors/PROCESSOR:process' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ rawDocument: { content: $json.attachment_url, mimeType: \"application/pdf\" } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "ceaa7be5-420c-43b5-a32c-99dc9b378ef9",
+      "name": "Google Doc AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2200,
+        200
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\": \"anthropic/claude-sonnet-4-20250514\", \"messages\": [{\"role\": \"system\", \"content\": \"You are a financial document extraction specialist. Extract structured data from supplier bills/invoices. Return ONLY valid JSON with these fields: supplier_name, bill_number, bill_date (YYYY-MM-DD), due_date (YYYY-MM-DD), subtotal, vat_amount, total_amount, currency (default ZAR), category (one of: office_supplies, professional_services, software, utilities, marketing, travel, equipment, other), line_items (array of {description, quantity, unit_price, amount}). If a field cannot be found, set it to null.\"}, {\"role\": \"user\", \"content\": \"{{ $json.aiPrompt || 'Extract bill data from this supplier document. Supplier email: {{ $json.supplier_email || 'unknown' }}. Email subject: {{ $json.email_subject || 'N/A' }}. Attachment URL: {{ $json.attachment_url || 'N/A' }}.' }}\"}], \"max_tokens\": 2000}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "b667002d-3dcd-40f8-b699-6f631e4438e5",
+      "name": "AI Extract Bill Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2200,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "65eaf12a-0378-4877-8752-dac7fffb67fb",
+      "name": "Manual Entry (NoOp)",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        2200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Normalize extraction results from any OCR provider.\n// Calculate confidence score as % of expected fields found.\nconst bill = $('Merge Config + Bill').first().json;\nconst raw = $input.first().json;\n\nconst EXPECTED_FIELDS = ['supplier_name', 'total_amount', 'bill_date', 'bill_number', 'due_date', 'subtotal', 'vat_amount'];\n\nlet extracted = {};\n\n// AI path: parse from OpenRouter response\nif (raw.choices && raw.choices[0]) {\n  try {\n    const content = raw.choices[0].message.content;\n    // Strip markdown code fences if present\n    const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    extracted = JSON.parse(cleaned);\n  } catch (e) {\n    extracted = { _parse_error: e.message };\n  }\n}\n// Azure path\nelse if (raw.analyzeResult) {\n  const doc = (raw.analyzeResult.documents || [])[0] || {};\n  const fields = doc.fields || {};\n  extracted = {\n    supplier_name: fields.VendorName?.content || null,\n    bill_number: fields.InvoiceId?.content || null,\n    bill_date: fields.InvoiceDate?.content || null,\n    due_date: fields.DueDate?.content || null,\n    subtotal: fields.SubTotal?.content ? parseFloat(fields.SubTotal.content) : null,\n    vat_amount: fields.TotalTax?.content ? parseFloat(fields.TotalTax.content) : null,\n    total_amount: fields.InvoiceTotal?.content ? parseFloat(fields.InvoiceTotal.content) : null,\n    currency: fields.CurrencyCode?.content || 'ZAR',\n    category: null,\n    line_items: (fields.Items?.values || []).map(li => ({\n      description: li.fields?.Description?.content || '',\n      quantity: li.fields?.Quantity?.content || 1,\n      unit_price: li.fields?.UnitPrice?.content || 0,\n      amount: li.fields?.Amount?.content || 0,\n    })),\n  };\n}\n// Google path\nelse if (raw.document) {\n  const entities = raw.document.entities || [];\n  const fieldMap = {};\n  for (const ent of entities) {\n    fieldMap[ent.type] = ent.mentionText || ent.normalizedValue?.text || null;\n  }\n  extracted = {\n    supplier_name: fieldMap.supplier_name || null,\n    bill_number: fieldMap.invoice_id || null,\n    bill_date: fieldMap.invoice_date || null,\n    due_date: fieldMap.due_date || null,\n    subtotal: fieldMap.net_amount ? parseFloat(fieldMap.net_amount) : null,\n    vat_amount: fieldMap.total_tax_amount ? parseFloat(fieldMap.total_tax_amount) : null,\n    total_amount: fieldMap.total_amount ? parseFloat(fieldMap.total_amount) : null,\n    currency: fieldMap.currency || 'ZAR',\n    category: null,\n    line_items: [],\n  };\n}\n// Manual / NoOp path\nelse {\n  extracted = {\n    supplier_name: null, bill_number: null, bill_date: null,\n    due_date: null, subtotal: null, vat_amount: null,\n    total_amount: null, currency: 'ZAR', category: null, line_items: [],\n  };\n}\n\n// Calculate confidence (0-100)\nlet found = 0;\nfor (const field of EXPECTED_FIELDS) {\n  if (extracted[field] !== null && extracted[field] !== undefined && extracted[field] !== '') {\n    found++;\n  }\n}\nconst confidence = Math.round((found / EXPECTED_FIELDS.length) * 100);\n\nreturn [{\n  json: {\n    id: bill.id,\n    client_id: bill.client_id,\n    auto_approve_threshold: bill.auto_approve_threshold,\n    supplier_email: bill.supplier_email,\n    ocr_provider: bill.ocr_provider,\n    ...extracted,\n    extraction_confidence: confidence,\n    ocr_raw: JSON.stringify(raw).substring(0, 5000),\n  }\n}];\n"
+      },
+      "id": "4a8f04da-0983-4214-8191-6077bd14ee84",
+      "name": "Parse OCR Results",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2500,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Prepare update payload for the bill record with extraction data.\nconst item = $input.first().json;\nreturn [{\n  json: {\n    id: item.id,\n    updatePayload: {\n      supplier_name: item.supplier_name,\n      bill_number: item.bill_number,\n      bill_date: item.bill_date,\n      due_date: item.due_date,\n      subtotal: item.subtotal,\n      vat_amount: item.vat_amount,\n      total_amount: item.total_amount,\n      currency: item.currency || 'ZAR',\n      category: item.category,\n      line_items: item.line_items ? JSON.stringify(item.line_items) : null,\n      extraction_confidence: item.extraction_confidence,\n      ocr_provider: item.ocr_provider,\n      ocr_raw: item.ocr_raw,\n      status: 'extracted',\n      updated_at: new Date().toISOString(),\n    },\n    // Pass through for downstream nodes\n    client_id: item.client_id,\n    supplier_name: item.supplier_name,\n    supplier_email: item.supplier_email,\n    total_amount: item.total_amount,\n    extraction_confidence: item.extraction_confidence,\n    auto_approve_threshold: item.auto_approve_threshold,\n  }\n}];\n"
+      },
+      "id": "485f5ae8-f074-4052-bffc-3c106c356b63",
+      "name": "Prepare Extracted Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2700,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_supplier_bills?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "50e2d988-1dd6-4b6e-a0c1-f48dce351476",
+      "name": "Update Bill Extracted",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2900,
+        200
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Fuzzy-match supplier by email or name against acct_suppliers.\nconst item = $input.first().json;\nconst bill = $('Prepare Extracted Update').first().json;\n\nreturn [{\n  json: {\n    ...bill,\n    bill_id: bill.id,\n    _searchEmail: bill.supplier_email || '',\n    _searchName: (bill.supplier_name || '').toLowerCase().trim(),\n  }\n}];\n"
+      },
+      "id": "31ebc7f5-fa30-4c6e-9da3-13d6341f9563",
+      "name": "Prepare Supplier Search",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3100,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_suppliers?select=id,name,email,external_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "f12db452-9cf7-48e4-85ed-81d92bc17c47",
+      "name": "Lookup Suppliers",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3300,
+        200
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Match supplier from lookup results.\nconst searchData = $('Prepare Supplier Search').first().json;\nconst suppliers = $input.all().map(i => i.json);\nconst email = searchData._searchEmail.toLowerCase();\nconst name = searchData._searchName;\n\nlet matched = null;\n\n// Exact email match\nif (email) {\n  matched = suppliers.find(s => (s.email || '').toLowerCase() === email);\n}\n\n// Fuzzy name match (contains)\nif (!matched && name && name.length > 2) {\n  matched = suppliers.find(s => {\n    const sName = (s.name || '').toLowerCase();\n    return sName.includes(name) || name.includes(sName);\n  });\n}\n\nreturn [{\n  json: {\n    ...searchData,\n    supplier_id: matched ? matched.id : null,\n    supplier_external_id: matched ? matched.external_id : null,\n    supplier_matched: !!matched,\n  }\n}];\n"
+      },
+      "id": "e18c356d-48c5-4a28-8062-2455199844f0",
+      "name": "Match Supplier Result",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3500,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "7ff3855e-a33f-4516-8246-946061f55536",
+              "leftValue": "{{ $json.supplier_matched }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "25cbdc37-5f89-4a4f-9e84-6d1d92f7040e",
+      "name": "Supplier Found?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        3700,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Update bill with matched supplier_id.\nconst item = $input.first().json;\nreturn [{\n  json: {\n    id: item.bill_id,\n    updatePayload: {\n      supplier_id: item.supplier_id,\n      updated_at: new Date().toISOString(),\n    },\n    // Pass through\n    bill_id: item.bill_id,\n    client_id: item.client_id,\n    supplier_id: item.supplier_id,\n    supplier_external_id: item.supplier_external_id,\n    supplier_matched: true,\n    total_amount: item.total_amount,\n    extraction_confidence: item.extraction_confidence,\n    auto_approve_threshold: item.auto_approve_threshold,\n  }\n}];\n"
+      },
+      "id": "0f257bb4-e344-42d3-a78b-5877f514c14d",
+      "name": "Prepare Link Supplier",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3900,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_supplier_bills?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "1317babe-a759-4a95-8ee1-dabcb4663bb9",
+      "name": "Link Supplier to Bill",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4100,
+        100
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Create a stub supplier record for unknown supplier.\nconst item = $input.first().json;\nreturn [{\n  json: {\n    name: item.supplier_name || 'Unknown Supplier',\n    email: item.supplier_email || null,\n    status: 'pending_review',\n    created_at: new Date().toISOString(),\n    updated_at: new Date().toISOString(),\n    _bill_id: item.bill_id,\n    _client_id: item.client_id,\n    _total_amount: item.total_amount,\n    _extraction_confidence: item.extraction_confidence,\n    _auto_approve_threshold: item.auto_approve_threshold,\n  }\n}];\n"
+      },
+      "id": "0f900edd-68ff-49b6-97b3-d1fd6eaa1736",
+      "name": "Prepare Stub Supplier",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3900,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_suppliers",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "82181c09-76a9-42d0-9344-7977aebe6a2e",
+      "name": "Create Stub Supplier",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4100,
+        400
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Link the newly created stub supplier back to the bill.\nconst newSupplier = $input.first().json;\nconst prev = $('Prepare Stub Supplier').first().json;\nreturn [{\n  json: {\n    id: prev._bill_id,\n    updatePayload: {\n      supplier_id: newSupplier.id,\n      updated_at: new Date().toISOString(),\n    },\n    bill_id: prev._bill_id,\n    client_id: prev._client_id,\n    supplier_id: newSupplier.id,\n    supplier_external_id: null,\n    supplier_matched: false,\n    total_amount: prev._total_amount,\n    extraction_confidence: prev._extraction_confidence,\n    auto_approve_threshold: prev._auto_approve_threshold,\n  }\n}];\n"
+      },
+      "id": "44714cf1-2343-4436-b22f-7123186d0ee3",
+      "name": "Prepare Link Stub",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4300,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_supplier_bills?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "a04ff4d4-8b2d-4d21-b227-4095216e4331",
+      "name": "Link Stub to Bill",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4500,
+        400
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Check if bill qualifies for auto-approval:\n// - total_amount < config threshold\n// - supplier is known (has external_id)\nconst item = $input.first().json;\nconst amount = parseFloat(item.total_amount) || 0;\nconst threshold = parseFloat(item.auto_approve_threshold) || 10000;\nconst knownSupplier = item.supplier_matched && !!item.supplier_external_id;\n\nreturn [{\n  json: {\n    ...item,\n    can_auto_approve: amount > 0 && amount < threshold && knownSupplier,\n    approval_reason: amount <= 0\n      ? 'no_amount'\n      : amount >= threshold\n        ? `amount_exceeds_threshold_${threshold}`\n        : !knownSupplier\n          ? 'unknown_supplier'\n          : 'auto_approved',\n  }\n}];\n"
+      },
+      "id": "f2fd82e8-05b3-4c42-96af-3158551cc1f1",
+      "name": "Auto-Approve Check",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4700,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "02dbdee0-e3d1-44a2-ba2f-5ea54c229558",
+              "leftValue": "{{ $json.can_auto_approve }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "f14c6c4c-a8c0-4daa-bece-f445a16dcf6e",
+      "name": "Can Auto-Approve?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        4900,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Mark bill as approved by system.\nconst item = $input.first().json;\nreturn [{\n  json: {\n    id: item.bill_id,\n    updatePayload: {\n      status: 'approved',\n      approver: 'system_auto',\n      approval_reason: item.approval_reason,\n      approved_at: new Date().toISOString(),\n      updated_at: new Date().toISOString(),\n    },\n    bill_id: item.bill_id,\n    client_id: item.client_id,\n    extraction_confidence: item.extraction_confidence,\n  }\n}];\n"
+      },
+      "id": "46e60b00-f8e0-4b73-b162-3ca7619c6bf7",
+      "name": "Prepare Auto-Approve",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5100,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_supplier_bills?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "a943a52e-da90-432b-9ea1-555d1860e92b",
+      "name": "Update Bill Approved",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        5300,
+        100
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Mark bill as awaiting review and create approval task.\nconst item = $input.first().json;\nreturn [{\n  json: {\n    id: item.bill_id,\n    updatePayload: {\n      status: 'awaiting_review',\n      approval_reason: item.approval_reason,\n      updated_at: new Date().toISOString(),\n    },\n    // Task to create\n    _task: {\n      client_id: item.client_id,\n      entity_type: 'supplier_bill',\n      entity_id: item.bill_id,\n      task_type: 'bill_approval',\n      title: `Review supplier bill #${item.bill_id}`,\n      description: `Bill requires manual approval. Reason: ${item.approval_reason}. Amount: ${item.total_amount || 'unknown'}`,\n      status: 'pending',\n      priority: 'normal',\n      created_at: new Date().toISOString(),\n    },\n    bill_id: item.bill_id,\n    client_id: item.client_id,\n    extraction_confidence: item.extraction_confidence,\n  }\n}];\n"
+      },
+      "id": "18561da5-85d0-49ee-ae71-67d5647db530",
+      "name": "Prepare Awaiting Review",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5100,
+        350
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_supplier_bills?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "47716da6-43bb-402f-a6a5-bb21f0aadc66",
+      "name": "Update Bill Awaiting",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        5300,
+        300
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Extract the task object for insertion.\nconst item = $('Prepare Awaiting Review').first().json;\nreturn [{ json: item._task }];\n"
+      },
+      "id": "21f3eb00-b0e9-43a1-a6dc-d338cc41496d",
+      "name": "Prepare Approval Task",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5300,
+        450
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_tasks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "578c6fe0-7589-46ea-aaa8-29e858e4a750",
+      "name": "Create Approval Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        5500,
+        450
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "4af499d1-1f8b-456e-b656-8c7bb237849d",
+              "leftValue": "{{ $json.extraction_confidence }}",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              },
+              "rightValue": "70"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "e7d6211a-8b4f-48ac-a4ac-e010b7bcae85",
+      "name": "Low Confidence?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        5500,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Create an exception review task for low-confidence extractions.\nconst item = $input.first().json;\nreturn [{\n  json: {\n    client_id: item.client_id,\n    entity_type: 'supplier_bill',\n    entity_id: item.bill_id,\n    task_type: 'exception_review',\n    title: `Low-confidence bill extraction #${item.bill_id}`,\n    description: `Extraction confidence: ${item.extraction_confidence}%. Manual review required.`,\n    status: 'pending',\n    priority: 'high',\n    created_at: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "e47701ed-fd4d-4914-a1c5-ac42dba6c8c9",
+      "name": "Prepare Exception Task",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5700,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_tasks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "dc180738-9aea-439c-93d3-53d644de757f",
+      "name": "Create Exception Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        5900,
+        100
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"bill_extracted\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "44445e40-d814-4f5a-8a2c-b33282cb3ead",
+      "name": "Portal: Bill Extracted",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        5900,
+        300
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{\n  json: {\n    client_id: item.client_id,\n    event_type: 'BILL_UPLOADED',\n    entity_type: 'supplier_bill',\n    entity_id: item.id || item.entity_id,\n    action: 'bill_uploaded',\n    actor: 'n8n_wf06',\n    result: 'success',\n    metadata: { source: 'n8n' }\n  }\n}];\n"
+      },
+      "id": "e67a6b6e-cb9e-4daa-bbb0-a10b379392a6",
+      "name": "Audit: Bill Uploaded",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1500,
+        450
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "622f8766-3493-4e82-a648-914408de58b9",
+      "name": "Insert Audit Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1700,
+        450
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{\n  json: {\n    client_id: item.client_id,\n    event_type: 'BILL_EXTRACTED',\n    entity_type: 'supplier_bill',\n    entity_id: item.id || item.entity_id,\n    action: 'bill_extracted',\n    actor: 'n8n_wf06',\n    result: 'success',\n    metadata: { source: 'n8n' }\n  }\n}];\n"
+      },
+      "id": "6750c1ad-34a8-4e77-9f09-8d596507a910",
+      "name": "Audit: Bill Extracted",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5900,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "01912ca0-ec05-4c7f-afad-03dff2f5a6b6",
+      "name": "Insert Audit Extracted",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        6100,
+        500
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "028354df-f82c-46e6-8a00-9fd6b58ae11b",
+      "name": "Respond Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        6100,
+        300
+      ],
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Scan Inbox Schedule": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portal Bill Upload": {
+      "main": [
+        [
+          {
+            "node": "Parse Email Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config": {
+      "main": [
+        [
+          {
+            "node": "Build Gmail Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Gmail Query": {
+      "main": [
+        [
+          {
+            "node": "Gmail Search Bills",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Search Bills": {
+      "main": [
+        [
+          {
+            "node": "Parse Email Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email Results": {
+      "main": [
+        [
+          {
+            "node": "Has Bills?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Bills?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Bill Record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Prepare Bill Record": {
+      "main": [
+        [
+          {
+            "node": "Insert Bill Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Bill Record": {
+      "main": [
+        [
+          {
+            "node": "Merge Config + Bill",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Audit: Bill Uploaded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit: Bill Uploaded": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Config + Bill": {
+      "main": [
+        [
+          {
+            "node": "OCR Provider Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR Provider Switch": {
+      "main": [
+        [
+          {
+            "node": "Azure Doc AI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google Doc AI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Extract Bill Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Manual Entry (NoOp)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Azure Doc AI": {
+      "main": [
+        [
+          {
+            "node": "Parse OCR Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Doc AI": {
+      "main": [
+        [
+          {
+            "node": "Parse OCR Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Extract Bill Data": {
+      "main": [
+        [
+          {
+            "node": "Parse OCR Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Entry (NoOp)": {
+      "main": [
+        [
+          {
+            "node": "Parse OCR Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse OCR Results": {
+      "main": [
+        [
+          {
+            "node": "Prepare Extracted Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Extracted Update": {
+      "main": [
+        [
+          {
+            "node": "Update Bill Extracted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Bill Extracted": {
+      "main": [
+        [
+          {
+            "node": "Prepare Supplier Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Supplier Search": {
+      "main": [
+        [
+          {
+            "node": "Lookup Suppliers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Suppliers": {
+      "main": [
+        [
+          {
+            "node": "Match Supplier Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Supplier Result": {
+      "main": [
+        [
+          {
+            "node": "Supplier Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supplier Found?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Link Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Stub Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Link Supplier": {
+      "main": [
+        [
+          {
+            "node": "Link Supplier to Bill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Link Supplier to Bill": {
+      "main": [
+        [
+          {
+            "node": "Auto-Approve Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Stub Supplier": {
+      "main": [
+        [
+          {
+            "node": "Create Stub Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Stub Supplier": {
+      "main": [
+        [
+          {
+            "node": "Prepare Link Stub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Link Stub": {
+      "main": [
+        [
+          {
+            "node": "Link Stub to Bill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Link Stub to Bill": {
+      "main": [
+        [
+          {
+            "node": "Auto-Approve Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-Approve Check": {
+      "main": [
+        [
+          {
+            "node": "Can Auto-Approve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Can Auto-Approve?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Auto-Approve",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Awaiting Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Auto-Approve": {
+      "main": [
+        [
+          {
+            "node": "Update Bill Approved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Bill Approved": {
+      "main": [
+        [
+          {
+            "node": "Low Confidence?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Awaiting Review": {
+      "main": [
+        [
+          {
+            "node": "Update Bill Awaiting",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Approval Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Bill Awaiting": {
+      "main": [
+        [
+          {
+            "node": "Low Confidence?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Approval Task": {
+      "main": [
+        [
+          {
+            "node": "Create Approval Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Low Confidence?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Exception Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Portal: Bill Extracted",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Audit: Bill Extracted",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Exception Task": {
+      "main": [
+        [
+          {
+            "node": "Create Exception Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Exception Task": {
+      "main": [
+        [
+          {
+            "node": "Portal: Bill Extracted",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Audit: Bill Extracted",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit: Bill Extracted": {
+      "main": [
+        [
+          {
+            "node": "Insert Audit Extracted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

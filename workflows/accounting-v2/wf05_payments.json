@@ -1,0 +1,1804 @@
+{
+  "name": "ACCT-05 Payment Capture & Reconciliation",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ACCT-05: Payment Capture & Reconciliation\nReceives payments via webhook (Stripe/PayFast/Yoco/manual),\nnormalizes, matches to invoices (exact + AI fuzzy),\napplies payment, sends receipt, syncs accounting software.",
+        "width": 560,
+        "height": 140,
+        "color": 4
+      },
+      "id": "e11aeaed-b654-4b01-9036-a1a159150474",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        40
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "### Matching Logic\n1. Exact reference match (invoice_number vs reference)\n2. Exact amount match (single invoice with matching balance)\n3. AI fuzzy match via OpenRouter/Claude (confidence >= 70%)\n4. Unmatched → manual reconciliation task",
+        "width": 440,
+        "height": 120,
+        "color": 6
+      },
+      "id": "b0ff3ed8-81f7-4660-9354-53c4b51add66",
+      "name": "Note - Matching",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1200,
+        40
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/payment-received",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "f533fd11-2776-428b-9b01-4bec8b0cbd6e",
+      "name": "Webhook Payment Received",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        300
+      ],
+      "typeVersion": 2,
+      "webhookId": "9c391deb-50a7-4a95-84a2-fd45606c2b6c"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/manual-payment",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "29380100-d891-4844-b293-cb3065e4c267",
+      "name": "Webhook Manual Payment",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        500
+      ],
+      "typeVersion": 2,
+      "webhookId": "61248708-1af2-4b92-9bfe-eb3f2a766924"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "9f865d64-2147-4dc9-84d2-f482a1951bab",
+      "name": "Daily Bank Recon",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        700
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "5626cc2c-9441-40d5-b04c-86935a3fc1e9",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        900
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Daily bank reconciliation: fetch unmatched payments and attempt re-matching.\n// This is a simplified trigger - actual bank statement import would be an\n// additional integration. For now, re-process any 'received' payments.\nreturn [{\n  json: {\n    trigger: 'bank_reconciliation',\n    run_at: new Date().toISOString(),\n    action: 'reprocess_unmatched',\n  }\n}];\n"
+      },
+      "id": "da8869d0-829a-4cdc-8290-cfae1d72b154",
+      "name": "Bank Recon Prep",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        440,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_payments?select=*&reconciliation_status=eq.received&order=received_at.asc&limit=50",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "e8670e81-d3e5-4766-a4a1-14d47fa93876",
+      "name": "Fetch Unmatched Payments",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        680,
+        700
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Normalize gateway-specific payload to standard payment format.\n// Supports Stripe, PayFast, Yoco webhooks and manual portal entry.\nconst raw = $input.first().json;\nconst body = raw.body || raw;\n\nlet amount = 0;        // cents\nlet referenceText = '';\nlet method = 'unknown';\nlet gatewayTransactionId = '';\nlet clientId = '';\nlet currency = 'ZAR';\nlet gateway = 'manual';\n\n// ── Stripe ──────────────────────────────────────────────\nif (body.type && body.type.startsWith('payment_intent')) {\n  const obj = body.data?.object || {};\n  amount = obj.amount || 0;\n  referenceText = obj.metadata?.invoice_ref || obj.description || '';\n  method = obj.payment_method_types?.[0] || 'card';\n  gatewayTransactionId = obj.id || '';\n  clientId = obj.metadata?.client_id || '';\n  currency = (obj.currency || 'zar').toUpperCase();\n  gateway = 'stripe';\n}\n// ── PayFast ─────────────────────────────────────────────\nelse if (body.pf_payment_id) {\n  amount = Math.round(parseFloat(body.amount_gross || '0') * 100);\n  referenceText = body.m_payment_id || body.custom_str1 || '';\n  method = 'payfast';\n  gatewayTransactionId = body.pf_payment_id;\n  clientId = body.custom_str2 || '';\n  currency = 'ZAR';\n  gateway = 'payfast';\n}\n// ── Yoco ────────────────────────────────────────────────\nelse if (body.payload?.metadata || body.type === 'payment.succeeded') {\n  const payload = body.payload || body;\n  amount = payload.amount || 0;\n  referenceText = payload.metadata?.invoiceRef || payload.metadata?.reference || '';\n  method = 'yoco';\n  gatewayTransactionId = payload.id || '';\n  clientId = payload.metadata?.clientId || '';\n  currency = (payload.currency || 'ZAR').toUpperCase();\n  gateway = 'yoco';\n}\n// ── Manual portal entry ─────────────────────────────────\nelse {\n  amount = Math.round(parseFloat(body.amount || '0') * 100);\n  referenceText = body.reference || body.reference_text || '';\n  method = body.method || 'manual';\n  gatewayTransactionId = body.transaction_id || '';\n  clientId = body.client_id || '';\n  currency = (body.currency || 'ZAR').toUpperCase();\n  gateway = 'manual';\n}\n\nreturn [{\n  json: {\n    amount,\n    amount_display: (amount / 100).toFixed(2),\n    reference_text: referenceText,\n    method,\n    gateway_transaction_id: gatewayTransactionId,\n    client_id: clientId,\n    currency,\n    gateway,\n    received_at: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "cd0d2d36-76e4-4e54-a829-8dc1ee3aa8f7",
+      "name": "Normalize Payment",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        480,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Validate normalized payment data.\nconst p = $input.first().json;\nconst errors = [];\n\nif (!p.amount || p.amount <= 0) {\n  errors.push('Amount must be greater than 0');\n}\nif (!p.reference_text && !p.gateway_transaction_id) {\n  errors.push('Payment must have a reference or gateway transaction ID');\n}\n\nconst isValid = errors.length === 0;\n\nreturn [{\n  json: {\n    ...p,\n    is_valid: isValid,\n    validation_errors: errors,\n  }\n}];\n"
+      },
+      "id": "c79e8578-1393-4ec7-bb3e-68f78a8c2854",
+      "name": "Validate Payment",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "8b8c70ce-0352-46f6-a223-6070d9ae9ca0",
+              "leftValue": "={{ $json.is_valid }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "a20a9873-8d49-4523-b373-33c76794c2f7",
+      "name": "Payment Valid?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        880,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build Supabase insert payload for acct_payments.\nconst p = $input.first().json;\n\nreturn [{\n  json: {\n    client_id: p.client_id || null,\n    amount: p.amount,\n    currency: p.currency,\n    reference_text: p.reference_text,\n    method: p.method,\n    gateway: p.gateway,\n    gateway_transaction_id: p.gateway_transaction_id,\n    reconciliation_status: 'received',\n    received_at: p.received_at,\n    metadata: {\n      amount_display: p.amount_display,\n    },\n  }\n}];\n"
+      },
+      "id": "e3dbe71e-2bf1-4337-95a7-cf4a302ae610",
+      "name": "Prepare Payment Insert",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1080,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_payments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "bd86de72-1c69-4518-a984-4fda7ee74417",
+      "name": "Insert Payment Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1280,
+        300
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Portal status: payment_received\nconst p = $('Validate Payment').first().json;\nconst insertResult = $('Insert Payment Record').first().json;\nconst paymentId = Array.isArray(insertResult) ? insertResult[0]?.id : insertResult.id;\n\nreturn [{\n  json: {\n    payment_id: paymentId,\n    client_id: p.client_id,\n    amount: p.amount,\n    gateway: p.gateway,\n    reference: p.reference_text,\n    status: 'received',\n  }\n}];\n"
+      },
+      "id": "44dd6dd4-51b2-48db-b409-4cafceadf799",
+      "name": "Prep Status Received",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1480,
+        160
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"payment_received\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "997e1caa-dcf8-4a86-a16e-b20b6bf626e6",
+      "name": "Status Payment Received",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1680,
+        160
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Audit log: PAYMENT_RECEIVED\nconst p = $('Validate Payment').first().json;\nconst insertResult = $('Insert Payment Record').first().json;\nconst paymentId = Array.isArray(insertResult) ? insertResult[0]?.id : insertResult.id;\n\nreturn [{\n  json: {\n    client_id: p.client_id,\n    event_type: 'PAYMENT_RECEIVED',\n    entity_type: 'payment',\n    entity_id: paymentId,\n    action: 'payment_received',\n    actor: 'system',\n    result: 'success',\n    metadata: {\n      source: 'n8n',\n      amount: p.amount,\n      gateway: p.gateway,\n      reference: p.reference_text,\n    },\n  }\n}];\n"
+      },
+      "id": "00aeb1b9-c796-4526-a3db-28349425d0fb",
+      "name": "Audit Received Prep",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1480,
+        20
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "9bf88b7d-1374-44de-9f1b-4e5444c28131",
+      "name": "Audit Log Received",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1680,
+        20
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_invoices?select=id,invoice_number,client_id,client_name,client_email,total_amount,amount_paid,balance_due,due_date,description,accounting_software,currency&status=in.(sent,partially_paid,overdue)",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "c7c762a4-2cab-4c6f-8b89-04b537e78b22",
+      "name": "Fetch Open Invoices",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1480,
+        400
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Search for invoice matching the payment reference or exact amount.\nconst payment = $('Validate Payment').first().json;\nconst insertedPayment = $input.first().json;\nconst paymentId = Array.isArray(insertedPayment)\n  ? insertedPayment[0]?.id\n  : insertedPayment.id;\n\n// Fetch open invoices via expression (passed as items from prior select)\nconst invoices = $('Fetch Open Invoices').first().json;\nconst invoiceList = Array.isArray(invoices) ? invoices : [invoices];\n\nlet matchedInvoice = null;\nlet matchMethod = '';\n\n// 1) Exact reference match: invoice_number contains payment reference\nif (payment.reference_text) {\n  const ref = payment.reference_text.toUpperCase().trim();\n  matchedInvoice = invoiceList.find(inv => {\n    const invNum = (inv.invoice_number || '').toUpperCase().trim();\n    return invNum && (invNum === ref || ref.includes(invNum) || invNum.includes(ref));\n  });\n  if (matchedInvoice) matchMethod = 'exact_reference';\n}\n\n// 2) Exact amount match (only if single open invoice with that amount)\nif (!matchedInvoice && payment.amount > 0) {\n  const amountMatches = invoiceList.filter(inv => {\n    const balanceDue = (inv.total_amount || 0) - (inv.amount_paid || 0);\n    return balanceDue === payment.amount;\n  });\n  if (amountMatches.length === 1) {\n    matchedInvoice = amountMatches[0];\n    matchMethod = 'exact_amount';\n  }\n}\n\nreturn [{\n  json: {\n    payment_id: paymentId,\n    payment_amount: payment.amount,\n    payment_reference: payment.reference_text,\n    payment_client_id: payment.client_id,\n    payment_gateway: payment.gateway,\n    payment_method: payment.method,\n    payment_received_at: payment.received_at,\n    amount_display: payment.amount_display,\n    has_exact_match: !!matchedInvoice,\n    match_method: matchMethod,\n    match_confidence: matchedInvoice ? 100 : 0,\n    matched_invoice: matchedInvoice || null,\n    matched_invoice_id: matchedInvoice?.id || null,\n    matched_invoice_number: matchedInvoice?.invoice_number || null,\n    open_invoices_for_ai: matchedInvoice\n      ? []\n      : invoiceList.slice(0, 20).map(inv => ({\n          id: inv.id,\n          invoice_number: inv.invoice_number,\n          client_id: inv.client_id,\n          client_name: inv.client_name || '',\n          total_amount: inv.total_amount,\n          amount_paid: inv.amount_paid || 0,\n          balance_due: (inv.total_amount || 0) - (inv.amount_paid || 0),\n          due_date: inv.due_date,\n          description: inv.description || '',\n        })),\n  }\n}];\n"
+      },
+      "id": "7b08051a-bc4f-46f4-b295-b487d3483c66",
+      "name": "Exact Match",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1720,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "93d25c82-dc49-4c97-80d4-5cc84249a1d0",
+              "leftValue": "={{ $json.has_exact_match }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "bfbc7283-a83d-4600-a455-89e8abb29e59",
+      "name": "Found Exact Match?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1960,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build AI prompt for fuzzy invoice matching.\nconst data = $input.first().json;\n\nconst invoiceTable = data.open_invoices_for_ai\n  .map(inv => `- ${inv.invoice_number}: ${inv.client_name}, R${(inv.balance_due / 100).toFixed(2)} due, \"${inv.description || 'N/A'}\"`)\n  .join('\\n');\n\nconst prompt = `Match this payment to the most likely invoice.\n\nPAYMENT:\n- Amount: R${data.amount_display}\n- Reference: \"${data.payment_reference}\"\n- Client ID: \"${data.payment_client_id}\"\n- Method: ${data.payment_method}\n\nOPEN INVOICES:\n${invoiceTable}\n\nRespond ONLY with valid JSON (no markdown):\n{\n  \"matched_invoice_id\": \"<id or null>\",\n  \"matched_invoice_number\": \"<number or null>\",\n  \"confidence\": <0-100>,\n  \"reasoning\": \"<brief explanation>\"\n}`;\n\nreturn [{\n  json: {\n    ...data,\n    aiPrompt: prompt,\n  }\n}];\n"
+      },
+      "id": "78a2dbb4-9c74-479d-9e53-c69975c37c86",
+      "name": "Prepare AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2200,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\": \"anthropic/claude-sonnet-4-20250514\", \"messages\": [{\"role\": \"system\", \"content\": \"You are a payment reconciliation assistant for AnyVision Media. Match incoming payments to open invoices based on reference text, amounts, and client information. Respond ONLY with valid JSON.\"}, {\"role\": \"user\", \"content\": \"{{ $json.aiPrompt || 'Match this payment' }}\"}], \"max_tokens\": 500}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "7227a35d-cc64-4eb2-ad5d-55dc2cc1ad94",
+      "name": "AI Fuzzy Match",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2440,
+        600
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Parse AI fuzzy match response.\nconst data = $('Prepare AI Prompt').first().json;\nconst aiRaw = $input.first().json;\n\nlet aiContent = '';\ntry {\n  aiContent = aiRaw.choices?.[0]?.message?.content || '';\n} catch (e) {\n  aiContent = '';\n}\n\nlet parsed = { matched_invoice_id: null, matched_invoice_number: null, confidence: 0, reasoning: 'AI parse failed' };\ntry {\n  // Strip markdown code fences if present\n  const cleaned = aiContent.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  // Attempt regex extraction\n  const idMatch = aiContent.match(/\"matched_invoice_id\"\\s*:\\s*\"([^\"]+)\"/);\n  const confMatch = aiContent.match(/\"confidence\"\\s*:\\s*(\\d+)/);\n  if (idMatch) parsed.matched_invoice_id = idMatch[1];\n  if (confMatch) parsed.confidence = parseInt(confMatch[1], 10);\n}\n\n// Look up matched invoice details from the open invoices list\nlet matchedInvoice = null;\nif (parsed.matched_invoice_id) {\n  matchedInvoice = data.open_invoices_for_ai.find(\n    inv => inv.id === parsed.matched_invoice_id\n  ) || null;\n}\n\nreturn [{\n  json: {\n    ...data,\n    has_exact_match: false,\n    match_method: 'ai_fuzzy',\n    match_confidence: parsed.confidence || 0,\n    matched_invoice_id: parsed.matched_invoice_id,\n    matched_invoice_number: parsed.matched_invoice_number || matchedInvoice?.invoice_number || null,\n    matched_invoice: matchedInvoice,\n    ai_reasoning: parsed.reasoning || '',\n  }\n}];\n"
+      },
+      "id": "399547cc-1884-4263-b0df-8a3718b528aa",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2680,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "04825fb9-b110-4569-ac62-55f1373ad170",
+              "leftValue": "={{ $json.match_confidence }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "rightValue": "70"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "25a7c6f1-58a6-401d-990a-62987f414ed6",
+      "name": "Match Confidence >= 70%?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2920,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Calculate new payment status and amounts.\nconst data = $input.first().json;\nconst invoice = data.matched_invoice;\n\nif (!invoice) {\n  return [{ json: { ...data, apply_error: 'No matched invoice' } }];\n}\n\nconst totalAmount = invoice.total_amount || 0;\nconst previouslyPaid = invoice.amount_paid || 0;\nconst paymentAmount = data.payment_amount;\nconst newAmountPaid = previouslyPaid + paymentAmount;\nconst newBalanceDue = totalAmount - newAmountPaid;\n\nlet invoiceStatus = 'partially_paid';\nlet reconciliationStatus = 'matched';\n\nif (newBalanceDue <= 0) {\n  invoiceStatus = 'paid';\n}\nif (newBalanceDue < 0) {\n  reconciliationStatus = 'overpayment';\n}\n\nreturn [{\n  json: {\n    ...data,\n    new_amount_paid: newAmountPaid,\n    new_balance_due: Math.max(newBalanceDue, 0),\n    overpayment_amount: newBalanceDue < 0 ? Math.abs(newBalanceDue) : 0,\n    invoice_status: invoiceStatus,\n    reconciliation_status: reconciliationStatus,\n  }\n}];\n"
+      },
+      "id": "de8977fc-a3ba-4158-b437-4482bc809cc5",
+      "name": "Apply Payment",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2200,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build Supabase PATCH payload for the invoice.\nconst data = $input.first().json;\n\nreturn [{\n  json: {\n    id: data.matched_invoice_id,\n    updatePayload: {\n      amount_paid: data.new_amount_paid,\n      status: data.invoice_status,\n      last_payment_at: data.payment_received_at,\n      updated_at: new Date().toISOString(),\n    },\n  }\n}];\n"
+      },
+      "id": "da99ab8d-adda-4588-967e-343af3e997cf",
+      "name": "Prepare Invoice Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2440,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_invoices?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "5be523b3-24fe-4fa5-a227-84366f8fccd7",
+      "name": "Update Invoice",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2640,
+        200
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build Supabase PATCH payload for the payment record.\nconst data = $('Apply Payment').first().json;\n\nreturn [{\n  json: {\n    id: data.payment_id,\n    updatePayload: {\n      reconciliation_status: data.reconciliation_status,\n      invoice_id: data.matched_invoice_id,\n      match_confidence: data.match_confidence,\n      matched_by: data.match_method,\n      matched_at: new Date().toISOString(),\n      updated_at: new Date().toISOString(),\n    },\n  }\n}];\n"
+      },
+      "id": "c42269a2-5978-4f99-bae5-c4812dbde4f9",
+      "name": "Prepare Payment Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2440,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_payments?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "eff1b816-5607-4dc3-acb4-83f15bd7d37c",
+      "name": "Update Payment Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2640,
+        400
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build payment receipt email HTML.\nconst data = $('Apply Payment').first().json;\n\nconst amountRands = (data.payment_amount / 100).toFixed(2);\nconst balanceRands = (data.new_balance_due / 100).toFixed(2);\nconst invoiceNum = data.matched_invoice_number || 'N/A';\nconst clientName = data.matched_invoice?.client_name || 'Valued Client';\nconst paidDate = new Date(data.payment_received_at).toLocaleDateString('en-ZA', {\n  year: 'numeric', month: 'long', day: 'numeric'\n});\n\nconst html = `\n<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;\">\n  <div style=\"background: #FF6D5A; padding: 20px; border-radius: 8px 8px 0 0;\">\n    <h1 style=\"color: white; margin: 0; font-size: 24px;\">Payment Receipt</h1>\n  </div>\n  <div style=\"padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;\">\n    <p>Dear ${clientName},</p>\n    <p>Thank you for your payment. Here are the details:</p>\n    <table style=\"width: 100%; border-collapse: collapse; margin: 16px 0;\">\n      <tr style=\"border-bottom: 1px solid #e5e7eb;\">\n        <td style=\"padding: 8px 0; font-weight: bold;\">Invoice</td>\n        <td style=\"padding: 8px 0; text-align: right;\">${invoiceNum}</td>\n      </tr>\n      <tr style=\"border-bottom: 1px solid #e5e7eb;\">\n        <td style=\"padding: 8px 0; font-weight: bold;\">Amount Received</td>\n        <td style=\"padding: 8px 0; text-align: right;\">R ${amountRands}</td>\n      </tr>\n      <tr style=\"border-bottom: 1px solid #e5e7eb;\">\n        <td style=\"padding: 8px 0; font-weight: bold;\">Payment Method</td>\n        <td style=\"padding: 8px 0; text-align: right;\">${data.payment_method}</td>\n      </tr>\n      <tr style=\"border-bottom: 1px solid #e5e7eb;\">\n        <td style=\"padding: 8px 0; font-weight: bold;\">Date</td>\n        <td style=\"padding: 8px 0; text-align: right;\">${paidDate}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 8px 0; font-weight: bold;\">Balance Due</td>\n        <td style=\"padding: 8px 0; text-align: right; font-weight: bold; color: ${data.new_balance_due > 0 ? '#dc2626' : '#16a34a'};\">R ${balanceRands}</td>\n      </tr>\n    </table>\n    ${data.new_balance_due <= 0\n      ? '<p style=\"color: #16a34a; font-weight: bold;\">This invoice is now fully paid. Thank you!</p>'\n      : '<p>Please note a balance remains on this invoice.</p>'}\n    <hr style=\"border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;\" />\n    <p style=\"color: #6b7280; font-size: 12px;\">AnyVision Media (Pty) Ltd<br/>This is an automated receipt.</p>\n  </div>\n</div>\n`;\n\n// Look up client email from the invoice\nconst recipientEmail = data.matched_invoice?.client_email || '';\n\nreturn [{\n  json: {\n    ...data,\n    receipt_html: html,\n    recipient_email: recipientEmail,\n    receipt_subject: 'Payment Receipt - ' + invoiceNum,\n  }\n}];\n"
+      },
+      "id": "ea5695ba-1344-44a2-82d1-3bbfbf178e65",
+      "name": "Build Receipt HTML",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2880,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.recipient_email }}",
+        "subject": "={{ $json.receipt_subject }}",
+        "emailType": "html",
+        "message": "={{ $json.receipt_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c5c873ca-cd6f-4ef4-bf3b-87a3e79caffe",
+      "name": "Send Receipt Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        3120,
+        200
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Prepare accounting software sync payload.\n// Switch output determines which adapter runs.\nconst data = $('Apply Payment').first().json;\n\n// Default to 'none' if no accounting software configured\nconst acctSoftware = data.matched_invoice?.accounting_software || 'none';\n\nreturn [{\n  json: {\n    accounting_software: acctSoftware,\n    payment_id: data.payment_id,\n    invoice_id: data.matched_invoice_id,\n    amount: data.payment_amount,\n    currency: data.matched_invoice?.currency || 'ZAR',\n    reference: data.payment_reference,\n    method: data.payment_method,\n    date: data.payment_received_at,\n  }\n}];\n"
+      },
+      "id": "106775cc-5b0b-4c85-abbe-d74ea3bb0f30",
+      "name": "Prep Acct Sync",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2880,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accounting_software }}",
+                    "rightValue": "quickbooks",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "quickbooks"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accounting_software }}",
+                    "rightValue": "xero",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "xero"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "a61e3e15-8e4c-4add-b97d-b616b993ec2e",
+      "name": "Acct Software Switch",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        3120,
+        400
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {},
+      "id": "3bb9b46a-553c-4400-86d1-6f86f626905d",
+      "name": "QBO Sync Placeholder",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        3360,
+        320
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "e0313f6e-9059-4a14-baa3-97381d691e7f",
+      "name": "Xero Sync Placeholder",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        3360,
+        440
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "396fce1e-a27e-4579-9c8e-4f3789c5e100",
+      "name": "No Acct Software",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        3360,
+        560
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build a review task for overpayment.\nconst data = $('Apply Payment').first().json;\n\nif (data.overpayment_amount <= 0) {\n  return [{ json: { skip_task: true } }];\n}\n\nconst overRands = (data.overpayment_amount / 100).toFixed(2);\n\nreturn [{\n  json: {\n    client_id: data.payment_client_id,\n    task_type: 'overpayment_review',\n    title: 'Overpayment detected - review required',\n    description: `Invoice ${data.matched_invoice_number} overpaid by R${overRands}. Original balance: R${((data.matched_invoice?.total_amount || 0) / 100).toFixed(2)}. Payment: R${data.amount_display}.`,\n    priority: 'medium',\n    status: 'open',\n    entity_type: 'payment',\n    entity_id: data.payment_id,\n    metadata: {\n      overpayment_amount: data.overpayment_amount,\n      invoice_id: data.matched_invoice_id,\n      invoice_number: data.matched_invoice_number,\n    },\n  }\n}];\n"
+      },
+      "id": "0e3b136c-926a-4582-95fd-f782447d6cae",
+      "name": "Prep Overpayment Task",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3360,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "0f61b2e0-c4bd-4bda-8112-d5a2ca4def70",
+              "leftValue": "={{ $json.skip_task }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "notTrue"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "e2b44e85-830b-4de5-93a2-a7f4fc75ac21",
+      "name": "Has Overpayment?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        3560,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_tasks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "0847c5dd-d86f-4844-98b6-470cffff0785",
+      "name": "Insert Overpayment Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3760,
+        60
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build a manual reconciliation task for unmatched payments.\nconst data = $input.first().json;\n\nreturn [{\n  json: {\n    client_id: data.payment_client_id,\n    task_type: 'manual_reconciliation',\n    title: 'Unmatched payment requires manual reconciliation',\n    description: `Payment of R${data.amount_display} received via ${data.payment_gateway} with reference \"${data.payment_reference}\". AI match confidence: ${data.match_confidence}%. Please match manually.`,\n    priority: 'high',\n    status: 'open',\n    entity_type: 'payment',\n    entity_id: data.payment_id,\n    metadata: {\n      payment_amount: data.payment_amount,\n      payment_reference: data.payment_reference,\n      payment_method: data.payment_method,\n      gateway: data.payment_gateway,\n      ai_reasoning: data.ai_reasoning || '',\n    },\n  }\n}];\n"
+      },
+      "id": "ec64a2fc-c86e-4898-a3a1-5cb3c3de53e6",
+      "name": "Prep Unmatched Task",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3160,
+        800
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_tasks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "e336c176-ebd4-429e-b29e-86d3579dabe8",
+      "name": "Insert Unmatched Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3400,
+        800
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Update payment record to 'unmatched'.\nconst data = $('Prep Unmatched Task').first().json;\n\nreturn [{\n  json: {\n    id: data.entity_id,\n    updatePayload: {\n      reconciliation_status: 'unmatched',\n      match_confidence: data.metadata?.ai_confidence || 0,\n      matched_by: 'none',\n      updated_at: new Date().toISOString(),\n    },\n  }\n}];\n"
+      },
+      "id": "6efa5875-c0cf-40c3-8ca6-5bd52c789fc5",
+      "name": "Prep Payment Unmatched Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3400,
+        940
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_payments?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "27dd4bbd-ef8d-4f50-9986-e1253573c1a9",
+      "name": "Update Payment Unmatched",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3640,
+        940
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Audit log: PAYMENT_MATCHED\nconst data = $('Apply Payment').first().json;\n\nreturn [{\n  json: {\n    client_id: data.payment_client_id,\n    event_type: 'PAYMENT_MATCHED',\n    entity_type: 'payment',\n    entity_id: data.payment_id,\n    action: 'payment_matched',\n    actor: 'system',\n    result: 'success',\n    metadata: {\n      source: 'n8n',\n      invoice_id: data.matched_invoice_id,\n      invoice_number: data.matched_invoice_number,\n      match_method: data.match_method,\n      confidence: data.match_confidence,\n      new_status: data.invoice_status,\n    },\n  }\n}];\n"
+      },
+      "id": "44fd586e-33a0-475e-91c7-21c7fddb6af9",
+      "name": "Audit Matched Prep",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3360,
+        -60
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "1ca1ed7a-cfcf-492b-9274-b44520cd33da",
+      "name": "Audit Log Matched",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3560,
+        -60
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Portal status: payment_matched\nconst data = $('Apply Payment').first().json;\n\nreturn [{\n  json: {\n    payment_id: data.payment_id,\n    client_id: data.payment_client_id,\n    invoice_id: data.matched_invoice_id,\n    invoice_number: data.matched_invoice_number,\n    amount: data.payment_amount,\n    invoice_status: data.invoice_status,\n    match_method: data.match_method,\n    confidence: data.match_confidence,\n    status: 'matched',\n  }\n}];\n"
+      },
+      "id": "d9af74a4-9c50-40b6-910c-b7a69b97a005",
+      "name": "Prep Status Matched",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3560,
+        -180
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"payment_matched\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "29ad4496-8bde-4dcf-bf49-9996cc4d4d09",
+      "name": "Status Payment Matched",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3760,
+        -180
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Audit log: PAYMENT_UNMATCHED\nconst data = $input.first().json;\n\nreturn [{\n  json: {\n    client_id: data.payment_client_id,\n    event_type: 'PAYMENT_UNMATCHED',\n    entity_type: 'payment',\n    entity_id: data.payment_id,\n    action: 'payment_unmatched',\n    actor: 'system',\n    result: 'warning',\n    metadata: {\n      source: 'n8n',\n      reference: data.payment_reference,\n      amount: data.payment_amount,\n      ai_confidence: data.match_confidence,\n    },\n  }\n}];\n"
+      },
+      "id": "d2506974-9962-4e9e-80a8-dfefb27541fd",
+      "name": "Audit Unmatched Prep",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3640,
+        1080
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "755962e5-c155-439a-a545-6df9ed581104",
+      "name": "Audit Log Unmatched",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3880,
+        1080
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Build webhook response payload.\nconst data = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    payment_id: data.payment_id || data.entity_id || null,\n    status: data.reconciliation_status || data.event_type || 'processed',\n    message: 'Payment processed successfully',\n    timestamp: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "ac7ad3d1-86c7-405b-8cc5-89719ed4ba63",
+      "name": "Prep Webhook Response Matched",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3760,
+        -300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "376a3bab-61a4-4608-b8d9-54555ff2348a",
+      "name": "Respond Webhook Matched",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        3960,
+        -300
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Webhook response for unmatched payment.\nconst data = $input.first().json;\nreturn [{\n  json: {\n    success: true,\n    payment_id: data.entity_id || null,\n    status: 'unmatched',\n    message: 'Payment received but could not be matched. Manual reconciliation task created.',\n    timestamp: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "d4c55748-ce7c-4449-98d8-dcad2d02fc8c",
+      "name": "Prep Webhook Response Unmatched",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3880,
+        1220
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "82186562-e05f-4203-ac01-c64175c26043",
+      "name": "Respond Webhook Unmatched",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        4100,
+        1220
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Webhook response for validation failure.\nconst data = $input.first().json;\nreturn [{\n  json: {\n    success: false,\n    errors: data.validation_errors || ['Payment validation failed'],\n    message: 'Payment rejected due to validation errors',\n    timestamp: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "8a8f04b8-82de-498e-b7c3-f8f52c646e98",
+      "name": "Prep Validation Error Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1080,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "b3bd86e8-0e4c-467b-89ff-62f7510917fc",
+      "name": "Respond Webhook Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1280,
+        600
+      ],
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Webhook Payment Received": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Manual Payment": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Bank Recon": {
+      "main": [
+        [
+          {
+            "node": "Bank Recon Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bank Recon Prep": {
+      "main": [
+        [
+          {
+            "node": "Fetch Unmatched Payments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Unmatched Payments": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payment": {
+      "main": [
+        [
+          {
+            "node": "Validate Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payment": {
+      "main": [
+        [
+          {
+            "node": "Payment Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Payment Insert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prep Validation Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Validation Error Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Payment Insert": {
+      "main": [
+        [
+          {
+            "node": "Insert Payment Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Payment Record": {
+      "main": [
+        [
+          {
+            "node": "Prep Status Received",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Audit Received Prep",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Open Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Status Received": {
+      "main": [
+        [
+          {
+            "node": "Status Payment Received",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Received Prep": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Received",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Open Invoices": {
+      "main": [
+        [
+          {
+            "node": "Exact Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exact Match": {
+      "main": [
+        [
+          {
+            "node": "Found Exact Match?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Found Exact Match?": {
+      "main": [
+        [
+          {
+            "node": "Apply Payment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Fuzzy Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Fuzzy Match": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Match Confidence >= 70%?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Confidence >= 70%?": {
+      "main": [
+        [
+          {
+            "node": "Apply Payment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prep Unmatched Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Payment": {
+      "main": [
+        [
+          {
+            "node": "Prepare Invoice Update",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Payment Update",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Receipt HTML",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prep Acct Sync",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prep Overpayment Task",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Audit Matched Prep",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prep Status Matched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Invoice Update": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Payment Update": {
+      "main": [
+        [
+          {
+            "node": "Update Payment Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Receipt HTML": {
+      "main": [
+        [
+          {
+            "node": "Send Receipt Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Receipt Email": {
+      "main": [
+        [
+          {
+            "node": "Prep Webhook Response Matched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Acct Sync": {
+      "main": [
+        [
+          {
+            "node": "Acct Software Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acct Software Switch": {
+      "main": [
+        [
+          {
+            "node": "QBO Sync Placeholder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Xero Sync Placeholder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Acct Software",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Overpayment Task": {
+      "main": [
+        [
+          {
+            "node": "Has Overpayment?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Overpayment?": {
+      "main": [
+        [
+          {
+            "node": "Insert Overpayment Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Audit Matched Prep": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Matched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Status Matched": {
+      "main": [
+        [
+          {
+            "node": "Status Payment Matched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Webhook Response Matched": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook Matched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Unmatched Task": {
+      "main": [
+        [
+          {
+            "node": "Insert Unmatched Task",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prep Payment Unmatched Update",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Audit Unmatched Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Payment Unmatched Update": {
+      "main": [
+        [
+          {
+            "node": "Update Payment Unmatched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Unmatched Prep": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Unmatched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Unmatched Task": {
+      "main": [
+        [
+          {
+            "node": "Prep Webhook Response Unmatched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Webhook Response Unmatched": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook Unmatched",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

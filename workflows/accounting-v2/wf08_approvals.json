@@ -1,0 +1,987 @@
+{
+  "name": "ACCT-08 Approval Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "accounting/approve",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "06c6b5ed-e8ab-446c-bc49-0a90a33cf26c",
+      "name": "Approve Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        300
+      ],
+      "typeVersion": 2,
+      "webhookId": "e13ea639-a567-4060-8493-f07e9f80d991"
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "accounting/reject",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "f6712072-e793-4a27-9522-56866ea5b4fa",
+      "name": "Reject Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 2,
+      "webhookId": "ef70157f-8288-4753-9626-175dc039b7d4"
+    },
+    {
+      "parameters": {},
+      "id": "75037b79-b965-42ad-a5ef-baed573b3232",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        900
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const qs = $input.first().json.query || $input.first().json;\nif (!qs.token) {\n  throw new Error('Missing approval token');\n}\nreturn [{\n  json: {\n    token: qs.token,\n    action: 'approve',\n  }\n}];\n"
+      },
+      "id": "e3335d4d-d8f2-4e0d-bca5-93cdc96d386f",
+      "name": "Extract Approve Params",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const qs = $input.first().json.query || $input.first().json;\nif (!qs.token) {\n  throw new Error('Missing approval token');\n}\nreturn [{\n  json: {\n    token: qs.token,\n    action: 'reject',\n  }\n}];\n"
+      },
+      "id": "b80f83e0-2005-4a46-964a-e2fd2042b341",
+      "name": "Extract Reject Params",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_tasks?select=*&={{ 'approval_token=eq.' + $json.token }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.pgrst.object+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "fba767c1-aac5-45a5-a57a-5038331209e4",
+      "name": "Lookup Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        450
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "fa1a832b-a0b3-4db5-8797-002cabc69764",
+              "leftValue": "={{ $json.id }}",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "3fa4a587-c68a-4024-b3a5-590f4eea3869",
+      "name": "Task Found?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        960,
+        450
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    success: false,\n    html: '<html><body style=\"font-family:sans-serif;text-align:center;padding:60px\">'\n      + '<h1 style=\"color:#e53e3e\">Task Not Found</h1>'\n      + '<p>The approval link is invalid or has expired.</p>'\n      + '</body></html>',\n  }\n}];\n"
+      },
+      "id": "d766fe5e-578d-4894-8265-eeea56d906f9",
+      "name": "Not Found Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        650
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "fcc3dccc-a0bd-4088-89f9-c24754249aae",
+              "leftValue": "={{ $json.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              },
+              "rightValue": "open"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "4396d639-1104-406b-b34c-ca9dd72d0f6c",
+      "name": "Already Resolved?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1200,
+        350
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const task = $input.first().json;\nreturn [{\n  json: {\n    success: false,\n    html: '<html><body style=\"font-family:sans-serif;text-align:center;padding:60px\">'\n      + '<h1 style=\"color:#dd6b20\">Already Processed</h1>'\n      + '<p>This task was already ' + (task.status || 'resolved')\n      + ' on ' + (task.resolved_at || 'unknown date') + '.</p>'\n      + '</body></html>',\n  }\n}];\n"
+      },
+      "id": "87bab90c-2c32-45f4-be19-2b7cc65c1682",
+      "name": "Already Resolved Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1460,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "invoice_approval",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "invoice"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "bill_approval",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "bill"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.task_type }}",
+                    "rightValue": "payment_reconciliation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "reconciliation"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "a7891770-d4ea-4fd5-972f-afa83a20fe92",
+      "name": "Task Type Switch",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1460,
+        450
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const task = $input.first().json;\nconst action = $('Extract Approve Params').first()?.json?.action\n  || $('Extract Reject Params').first()?.json?.action\n  || 'approve';\nconst newStatus = action === 'approve' ? 'approved' : 'rejected';\n\nreturn [{\n  json: {\n    id: task.entity_id,\n    updatePayload: { status: newStatus, updated_at: new Date().toISOString() },\n    task_id: task.id,\n    task_type: task.task_type,\n    approval_action: action,\n    new_status: newStatus,\n    client_id: task.client_id,\n    owner_email: task.owner || task.assigned_to,\n    entity_type: 'invoice',\n  }\n}];\n"
+      },
+      "id": "66b35d08-bf9b-42bd-bbfe-133666548ee6",
+      "name": "Prepare Invoice Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1720,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_invoices?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "c3a18562-d96f-4641-bead-525dcb7956eb",
+      "name": "Update Invoice",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1980,
+        300
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const task = $input.first().json;\nconst action = $('Extract Approve Params').first()?.json?.action\n  || $('Extract Reject Params').first()?.json?.action\n  || 'approve';\nconst newStatus = action === 'approve' ? 'approved' : 'rejected';\n\nreturn [{\n  json: {\n    id: task.entity_id,\n    updatePayload: { status: newStatus, updated_at: new Date().toISOString() },\n    task_id: task.id,\n    task_type: task.task_type,\n    approval_action: action,\n    new_status: newStatus,\n    client_id: task.client_id,\n    owner_email: task.owner || task.assigned_to,\n    entity_type: 'bill',\n  }\n}];\n"
+      },
+      "id": "8883bcb0-7bce-4831-bc6d-0053248ed0e0",
+      "name": "Prepare Bill Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1720,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_supplier_bills?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "83559235-53f5-4aee-9133-7fde1ddcb7ca",
+      "name": "Update Bill",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1980,
+        500
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const task = $input.first().json;\nconst action = $('Extract Approve Params').first()?.json?.action\n  || $('Extract Reject Params').first()?.json?.action\n  || 'approve';\nconst newStatus = action === 'approve' ? 'reconciled' : 'disputed';\n\nreturn [{\n  json: {\n    id: task.entity_id,\n    updatePayload: { reconciliation_status: newStatus, updated_at: new Date().toISOString() },\n    task_id: task.id,\n    task_type: task.task_type,\n    approval_action: action,\n    new_status: newStatus,\n    client_id: task.client_id,\n    owner_email: task.owner || task.assigned_to,\n    entity_type: 'payment',\n  }\n}];\n"
+      },
+      "id": "4f2002cb-e488-4678-9e48-8173ed7ac8b2",
+      "name": "Prepare Reconciliation Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1720,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_payments?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "c8bab1a4-a959-4b0b-b440-3e6a5e9531b1",
+      "name": "Update Payment",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1980,
+        700
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{\n  json: {\n    id: item.task_id,\n    updatePayload: {\n      status: 'completed',\n      approval_action: item.approval_action,\n      resolved_by: 'email_link',\n      resolved_at: new Date().toISOString(),\n      updated_at: new Date().toISOString(),\n    },\n    client_id: item.client_id,\n    owner_email: item.owner_email,\n    task_type: item.task_type,\n    approval_action: item.approval_action,\n    new_status: item.new_status,\n    entity_type: item.entity_type,\n  }\n}];\n"
+      },
+      "id": "19a9ad41-3646-48ae-a5a4-82816b8230ee",
+      "name": "Mark Task Completed",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2240,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_tasks?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "158bc763-0797-471e-8c53-74179bdb9371",
+      "name": "Update Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2500,
+        500
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.owner_email }}",
+        "subject": "=Approval {{ $json.approval_action }}: {{ $json.task_type }} ({{ $json.entity_type }})",
+        "emailType": "html",
+        "message": "=<p>The {{ $json.task_type }} task has been <strong>{{ $json.approval_action }}d</strong>.</p><p>Entity: {{ $json.entity_type }} | New status: {{ $json.new_status }}</p><p>Resolved at: {{ $json.resolved_at || new Date().toISOString() }}</p><p style=\"color:#888\">This is an automated notification from AnyVision Media Accounting.</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "12825167-3565-4ef1-980b-e99ab0ab9ec2",
+      "name": "Send Confirmation Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2760,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{\n  json: {\n    client_id: item.client_id,\n    event_type: 'TASK_COMPLETED',\n    entity_type: item.entity_type,\n    entity_id: item.id,\n    action: 'task_completed',\n    actor: 'email_link',\n    result: 'success',\n    metadata: {\n      source: 'n8n',\n      task_type: item.task_type,\n      approval_action: item.approval_action,\n    }\n  }\n}];\n"
+      },
+      "id": "85679d6b-ee6a-405f-ab41-9a7b56c90d0b",
+      "name": "Audit + Status Prep",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3020,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "b4d4bfca-25e9-4642-b7cd-5b074d695fb9",
+      "name": "Audit Log Insert",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3280,
+        400
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"task_completed\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "53f04f14-0157-4f78-864a-a7bb235ed4b0",
+      "name": "Status: task_completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3280,
+        600
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $('Mark Task Completed').first().json;\nconst action = item.approval_action || 'processed';\nconst color = action === 'approve' ? '#38a169' : '#e53e3e';\nconst label = action === 'approve' ? 'Approved' : 'Rejected';\n\nreturn [{\n  json: {\n    success: true,\n    html: '<html><body style=\"font-family:sans-serif;text-align:center;padding:60px\">'\n      + '<h1 style=\"color:' + color + '\">' + label + '</h1>'\n      + '<p>The ' + (item.task_type || 'task') + ' has been <strong>' + action + 'd</strong>.</p>'\n      + '<p style=\"color:#888\">You can close this window.</p>'\n      + '</body></html>',\n  }\n}];\n"
+      },
+      "id": "90ef6802-b952-4e17-8e03-448733737caf",
+      "name": "Build HTML Confirmation",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3540,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "dc9da275-7e21-4abf-91d1-0f9450706fee",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        3800,
+        500
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "cb5a8060-c0f2-4920-843c-2234a8f6f899",
+      "name": "Respond Not Found",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1460,
+        650
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "fee6680e-68e1-4d79-a5f7-63c8147b6ffb",
+      "name": "Respond Already Resolved",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1720,
+        200
+      ],
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Approve Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Approve Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reject Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Reject Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract Approve Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Approve Params": {
+      "main": [
+        [
+          {
+            "node": "Lookup Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Reject Params": {
+      "main": [
+        [
+          {
+            "node": "Lookup Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Task": {
+      "main": [
+        [
+          {
+            "node": "Task Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Task Found?": {
+      "main": [
+        [
+          {
+            "node": "Already Resolved?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Found Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Found Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Resolved?": {
+      "main": [
+        [
+          {
+            "node": "Already Resolved Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Task Type Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Already Resolved Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Already Resolved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Task Type Switch": {
+      "main": [
+        [
+          {
+            "node": "Prepare Invoice Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Bill Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Reconciliation Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Task Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Invoice Update": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice": {
+      "main": [
+        [
+          {
+            "node": "Mark Task Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Bill Update": {
+      "main": [
+        [
+          {
+            "node": "Update Bill",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Bill": {
+      "main": [
+        [
+          {
+            "node": "Mark Task Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Reconciliation Update": {
+      "main": [
+        [
+          {
+            "node": "Update Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Payment": {
+      "main": [
+        [
+          {
+            "node": "Mark Task Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Task Completed": {
+      "main": [
+        [
+          {
+            "node": "Update Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Task": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "Audit + Status Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit + Status Prep": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Insert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Status: task_completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log Insert": {
+      "main": [
+        [
+          {
+            "node": "Build HTML Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

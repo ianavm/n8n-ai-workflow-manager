@@ -16,10 +16,12 @@ import {
   Bot,
   HeadphonesIcon,
   HeartPulse,
+  Calculator,
 } from "lucide-react";
 
 const navItems = [
   { label: "Overview", href: "/admin", icon: LayoutDashboard },
+  { label: "Accounting", href: "/admin/accounting", icon: Calculator },
   { label: "AI Agents", href: "/admin/agents", icon: Bot },
   { label: "Client Health", href: "/admin/health", icon: HeartPulse },
   { label: "Clients", href: "/admin/clients", icon: Users },

@@ -1,0 +1,887 @@
+{
+  "name": "ACCT-10 Exception Management",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/15 8-17 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "b2ee7415-0560-4728-9e60-5db670453ffc",
+      "name": "Exception Monitor",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        0
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/exception",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "98006ced-ef35-440d-b440-7cf3900bd09a",
+      "name": "Exception Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        300
+      ],
+      "typeVersion": 2,
+      "webhookId": "0a8c32dc-471c-4332-9796-8094232dba61"
+    },
+    {
+      "parameters": {},
+      "id": "906a4f43-69a3-443b-8d6b-ee15cc737e85",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    client_id: body.client_id || $env.ACCT_DEFAULT_CLIENT_ID || null,\n    admin_email: body.admin_email || $env.ACCT_ADMIN_EMAIL || 'ian@anyvisionmedia.com',\n    owner_email: body.owner_email || $env.ACCT_OWNER_EMAIL || 'ian@anyvisionmedia.com',\n    escalation_after_days: body.escalation_after_days || 3,\n    run_time: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "615fafbd-ebfb-46be-a7e7-b5166bf42bab",
+      "name": "Load Config",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_tasks?select=*&={{ 'status=eq.open&due_at=lt.' + new Date().toISOString() + '&client_id=eq.' + $json.client_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "42ca15a2-abbf-4923-b1ce-f6bd1be3d3d9",
+      "name": "Find Overdue Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        200
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "e6607d66-9f96-410f-9eb8-37c0c5794f74",
+              "leftValue": "={{ $json.length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": "0"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "67b088d8-9360-46a7-9afe-5e1391e8846b",
+      "name": "Has Overdue?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        960,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {},
+      "id": "6037e1c8-4935-45ce-a033-be4ede4e1be8",
+      "name": "No Overdue Tasks",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        1200,
+        350
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const tasks = $input.all().map(i => i.json);\nconst config = $('Load Config').first().json;\nconst now = new Date();\nconst threshold = config.escalation_after_days * 24 * 60 * 60 * 1000;\n\nconst toEscalate = [];\nfor (const task of tasks) {\n  if (task.status === 'escalated') continue;\n  const created = new Date(task.created_at);\n  const age = now.getTime() - created.getTime();\n  if (age > threshold) {\n    toEscalate.push({\n      ...task,\n      age_days: Math.round(age / (24 * 60 * 60 * 1000)),\n      admin_email: config.admin_email,\n      owner_email: config.owner_email,\n      client_id: config.client_id,\n    });\n  }\n}\n\nif (toEscalate.length === 0) {\n  return [{ json: { _skip: true, client_id: config.client_id } }];\n}\n\nreturn toEscalate.map(t => ({ json: t }));\n"
+      },
+      "id": "e9f61757-ed9c-40e6-b4c2-b7291593f998",
+      "name": "Check Escalation",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "f70c728b-fdb6-4b57-a5ed-295c5dafbd7d",
+              "leftValue": "={{ $json._skip }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "notTrue"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "cfc2c03a-426c-4f27-8966-ade0b86657ec",
+      "name": "Should Escalate?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1460,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const task = $input.first().json;\nreturn [{\n  json: {\n    id: task.id,\n    updatePayload: {\n      status: 'escalated',\n      escalated_at: new Date().toISOString(),\n      updated_at: new Date().toISOString(),\n    },\n    task_id: task.id,\n    task_type: task.task_type,\n    title: task.title || task.task_type,\n    age_days: task.age_days,\n    owner_email: task.owner || task.assigned_to || task.owner_email,\n    admin_email: task.admin_email,\n    client_id: task.client_id,\n  }\n}];\n"
+      },
+      "id": "d170eaa6-5dc9-41aa-ab1a-a70314749eb7",
+      "name": "Prep Escalation Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1720,
+        0
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_tasks?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "444ce53e-078d-4b82-87c8-c23e7be8f55f",
+      "name": "Update Task Escalated",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1980,
+        0
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.owner_email }},{{ $json.admin_email }}",
+        "subject": "=ESCALATION: {{ $json.title }} ({{ $json.age_days }} days overdue)",
+        "emailType": "html",
+        "message": "=<h2 style=\"color:#e53e3e\">Task Escalated</h2><p><strong>Task:</strong> {{ $json.title }}</p><p><strong>Type:</strong> {{ $json.task_type }}</p><p><strong>Age:</strong> {{ $json.age_days }} days overdue</p><p><strong>Task ID:</strong> {{ $json.task_id }}</p><p>This task has been automatically escalated. Please take immediate action.</p><p style=\"color:#888\">AnyVision Media Accounting -- Exception Management</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ba6b9352-c734-42a0-82d8-874a27072536",
+      "name": "Send Escalation Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2240,
+        0
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{\n  json: {\n    client_id: item.client_id,\n    event_type: 'TASK_ESCALATED',\n    entity_type: 'task',\n    entity_id: item.task_id || item.id,\n    action: 'task_escalated',\n    actor: 'n8n-wf10',\n    result: 'success',\n    metadata: { source: 'n8n', age_days: item.age_days, task_type: item.task_type }\n  }\n}];\n"
+      },
+      "id": "2683195d-d638-4dcf-b15e-87f4546e594f",
+      "name": "Audit Escalation",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2500,
+        0
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "612de29c-36fa-47a4-9f43-4f25c1f5d47b",
+      "name": "Audit Log Escalation",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2760,
+        0
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"task_escalated\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "afd5b909-acd7-4673-8c73-b1ea3ba5aeb7",
+      "name": "Status: task_escalated",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3020,
+        0
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_workflow_status?select=*&={{ 'status=eq.failed&started_at=gt.' + new Date(Date.now() - 86400000).toISOString() + '&client_id=eq.' + $json.client_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "203c5a51-9125-478e-a46b-0425fe6efc42",
+      "name": "Find Failed Workflows",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        500
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1f974496-ad92-4b4a-9537-30e0609ecb0b",
+              "leftValue": "={{ $json.length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": "0"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "0f389fb8-94ba-44cb-b5d2-a2e579ed4f08",
+      "name": "Has Failures?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        960,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {},
+      "id": "a9da4a2b-93a1-4b58-b46e-534cc794ab06",
+      "name": "No Failed Workflows",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        1200,
+        650
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const failures = $input.all().map(i => i.json);\nconst config = $('Load Config').first().json;\n\nreturn failures.map(f => ({\n  json: {\n    client_id: config.client_id,\n    task_type: 'workflow_retry',\n    title: 'Retry: ' + (f.workflow_name || f.workflow_id),\n    status: 'open',\n    entity_id: f.workflow_id || f.id,\n    owner: config.admin_email,\n    metadata: {\n      original_error: f.error_message || 'Unknown',\n      workflow_id: f.workflow_id,\n      failed_at: f.started_at,\n    },\n    created_at: new Date().toISOString(),\n    due_at: new Date(Date.now() + 3600000).toISOString(),\n  }\n}));\n"
+      },
+      "id": "c03b50f0-ebca-4886-96b8-f77a855bd6d1",
+      "name": "Build Retry Tasks",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_tasks",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "47edd9a3-4ea8-4768-8fc4-923a4a785ed4",
+      "name": "Insert Retry Tasks",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1460,
+        500
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{\n  json: {\n    client_id: item.client_id,\n    event_type: 'WORKFLOW_FAILED',\n    entity_type: 'workflow',\n    entity_id: item.entity_id || item.id,\n    action: 'retry_logged',\n    actor: 'n8n-wf10',\n    result: 'success',\n    metadata: { source: 'n8n', title: item.title }\n  }\n}];\n"
+      },
+      "id": "d3a703b6-489c-4462-8006-be9ed6f351af",
+      "name": "Audit Failure",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1720,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "72aebaa0-0dec-45f7-9fd4-35f27726d4d0",
+      "name": "Audit Log Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1980,
+        500
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Load Config').first().json;\n\n// Count results from each branch safely\nlet escalated = 0;\nlet retries = 0;\ntry { escalated = $('Check Escalation').all().filter(i => !i.json._skip).length; } catch(e) {}\ntry { retries = $('Build Retry Tasks').all().length; } catch(e) {}\n\nreturn [{\n  json: {\n    success: true,\n    message: 'Exception management run complete',\n    run_time: config.run_time,\n    tasks_escalated: escalated,\n    retry_tasks_created: retries,\n  }\n}];\n"
+      },
+      "id": "b8314217-6111-4e57-825c-ec0908867597",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3020,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "cf5c37f1-90d0-44fe-bbb8-614c8adc6c24",
+      "name": "Respond Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        3280,
+        400
+      ],
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Exception Monitor": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exception Webhook": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config": {
+      "main": [
+        [
+          {
+            "node": "Find Overdue Tasks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Find Failed Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Overdue Tasks": {
+      "main": [
+        [
+          {
+            "node": "Has Overdue?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Overdue?": {
+      "main": [
+        [
+          {
+            "node": "Check Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Overdue Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Overdue Tasks": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Escalation": {
+      "main": [
+        [
+          {
+            "node": "Should Escalate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Escalate?": {
+      "main": [
+        [
+          {
+            "node": "Prep Escalation Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Escalation Update": {
+      "main": [
+        [
+          {
+            "node": "Update Task Escalated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Task Escalated": {
+      "main": [
+        [
+          {
+            "node": "Send Escalation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Escalation Email": {
+      "main": [
+        [
+          {
+            "node": "Audit Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Escalation": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log Escalation": {
+      "main": [
+        [
+          {
+            "node": "Status: task_escalated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: task_escalated": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Failed Workflows": {
+      "main": [
+        [
+          {
+            "node": "Has Failures?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Failures?": {
+      "main": [
+        [
+          {
+            "node": "Build Retry Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Failed Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Failed Workflows": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Retry Tasks": {
+      "main": [
+        [
+          {
+            "node": "Insert Retry Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Retry Tasks": {
+      "main": [
+        [
+          {
+            "node": "Audit Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Failure": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log Failure": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

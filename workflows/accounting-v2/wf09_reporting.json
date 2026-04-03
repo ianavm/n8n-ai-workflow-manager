@@ -1,0 +1,832 @@
+{
+  "name": "ACCT-09 Reporting & Month-End",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 28-31 * *"
+            }
+          ]
+        }
+      },
+      "id": "2973b0ff-e334-4b5f-bbe6-49ab01837078",
+      "name": "Month-End Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        0
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/generate-report",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "f1a74aa3-a1ea-4e6e-843a-f85fabdcd39f",
+      "name": "Report Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        300
+      ],
+      "typeVersion": 2,
+      "webhookId": "c1cfdcb0-47bd-426a-a92c-ecca8d75a51f"
+    },
+    {
+      "parameters": {},
+      "id": "3fe90630-d5e8-4020-b605-b7782508f1e9",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    client_id: body.client_id || $env.ACCT_DEFAULT_CLIENT_ID || null,\n    owner_email: body.owner_email || $env.ACCT_OWNER_EMAIL || 'ian@anyvisionmedia.com',\n    finance_team: body.finance_team || $env.ACCT_FINANCE_TEAM || '',\n    months: body.months || 6,\n    report_date: new Date().toISOString().slice(0, 10),\n  }\n}];\n"
+      },
+      "id": "4526ec7c-c861-4f9b-91d7-ea4a1e4aeefd",
+      "name": "Load Config",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { p_client_id: $json.client_id } }];\n"
+      },
+      "id": "4303e3a9-c8a0-424e-b9ce-ffd91c141c2b",
+      "name": "Prep AR RPC",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        720,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/rpc/acct_get_aged_receivables",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "58d0cdb1-25af-45d7-8d7e-5c48c1eb3ad6",
+      "name": "RPC Aged Receivables",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        980,
+        100
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Load Config').first().json;\nreturn [{ json: { p_client_id: config.client_id } }];\n"
+      },
+      "id": "a63f6919-d9dd-4f00-ad78-e96b48c4ec67",
+      "name": "Prep AP RPC",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        720,
+        250
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/rpc/acct_get_aged_payables",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "d25863bb-153d-47f7-975d-9c825e123c50",
+      "name": "RPC Aged Payables",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        980,
+        250
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Load Config').first().json;\nreturn [{ json: { p_client_id: config.client_id, p_months: config.months } }];\n"
+      },
+      "id": "be81dc4c-db6b-4eb7-80dc-24f7c6be4e70",
+      "name": "Prep Cashflow RPC",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        720,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/rpc/acct_get_cashflow_summary",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "6a22f6d5-41bf-4b0f-90f6-eb27d6f1fe39",
+      "name": "RPC Cashflow Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        980,
+        400
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Load Config').first().json;\nreturn [{ json: { p_client_id: config.client_id } }];\n"
+      },
+      "id": "68bb139c-bdd9-4207-b201-28a80451a086",
+      "name": "Prep Recon RPC",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        720,
+        550
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/rpc/acct_get_reconciliation_stats",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "749a140d-fc62-440b-9854-00f425de7ece",
+      "name": "RPC Reconciliation Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        980,
+        550
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Load Config').first().json;\nreturn [{ json: { p_client_id: config.client_id } }];\n"
+      },
+      "id": "2cad8b1e-a9d1-4df2-a9d7-00a49ea2a243",
+      "name": "Prep KPI RPC",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        720,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/rpc/acct_get_dashboard_kpis",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "c27ed9f1-6803-4261-b9a4-3fda60cffd8f",
+      "name": "RPC Dashboard KPIs",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        980,
+        700
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Load Config').first().json;\nconst ar = $('RPC Aged Receivables').first().json;\nconst ap = $('RPC Aged Payables').first().json;\nconst cashflow = $('RPC Cashflow Summary').first().json;\nconst recon = $('RPC Reconciliation Stats').first().json;\nconst kpis = $('RPC Dashboard KPIs').first().json;\n\n// Build a text summary for AI\nconst prompt = [\n  'Generate a concise management summary for month-end report.',\n  'Date: ' + config.report_date,\n  '',\n  'AGED RECEIVABLES:', JSON.stringify(ar, null, 2),\n  '',\n  'AGED PAYABLES:', JSON.stringify(ap, null, 2),\n  '',\n  'CASHFLOW (last ' + config.months + ' months):', JSON.stringify(cashflow, null, 2),\n  '',\n  'RECONCILIATION:', JSON.stringify(recon, null, 2),\n  '',\n  'KPIs:', JSON.stringify(kpis, null, 2),\n  '',\n  'Provide: executive summary (3-4 sentences), key highlights, concerns, recommendations.',\n  'Use ZAR currency. Be specific with numbers.',\n].join('\\n');\n\nreturn [{\n  json: {\n    ...config,\n    ar, ap, cashflow, recon, kpis,\n    aiPrompt: prompt,\n  }\n}];\n"
+      },
+      "id": "57a79283-3dc7-4f0c-a41d-5045b0d78250",
+      "name": "Aggregate Report Data",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1240,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "HTTP-Referer",
+              "value": "https://anyvisionmedia.com"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\": \"anthropic/claude-sonnet-4-20250514\", \"messages\": [{\"role\": \"system\", \"content\": \"You are a South African chartered accountant preparing a month-end management pack. Write in professional business English. Use ZAR currency. Be concise and data-driven.\"}, {\"role\": \"user\", \"content\": \"{{ $json.aiPrompt || 'Generate management summary from the financial data provided.' }}\"}], \"max_tokens\": 2000}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "69ff6f15-bbfe-4e2e-9dc1-8c68fd00f618",
+      "name": "AI Management Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1500,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Aggregate Report Data').first().json;\nconst aiRaw = $input.first().json;\nconst aiSummary = aiRaw.choices?.[0]?.message?.content || 'AI summary unavailable.';\n\nconst fmt = (v) => {\n  const n = Number(v) || 0;\n  return 'R ' + n.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2});\n};\n\nconst kpis = data.kpis || {};\nconst recon = data.recon || {};\n\nconst html = `\n<div style=\"font-family:sans-serif;max-width:700px;margin:0 auto\">\n  <h1 style=\"color:#FF6D5A\">Management Pack — ${data.report_date}</h1>\n  <hr/>\n\n  <h2>Executive Summary</h2>\n  <div style=\"background:#f9f9f9;padding:16px;border-radius:8px;white-space:pre-wrap\">${aiSummary}</div>\n\n  <h2>Key Performance Indicators</h2>\n  <table border=\"1\" cellpadding=\"8\" cellspacing=\"0\" style=\"border-collapse:collapse;width:100%\">\n    <tr style=\"background:#f0f0f0\"><th>Metric</th><th>Value</th></tr>\n    <tr><td>Total Receivables</td><td>${fmt(kpis.total_receivables)}</td></tr>\n    <tr><td>Total Payables</td><td>${fmt(kpis.total_payables)}</td></tr>\n    <tr><td>Net Position</td><td>${fmt((kpis.total_receivables || 0) - (kpis.total_payables || 0))}</td></tr>\n    <tr><td>Overdue Invoices</td><td>${kpis.overdue_invoices || 0}</td></tr>\n    <tr><td>Overdue Bills</td><td>${kpis.overdue_bills || 0}</td></tr>\n    <tr><td>Reconciliation Rate</td><td>${recon.reconciliation_rate || 'N/A'}%</td></tr>\n  </table>\n\n  <h2>Aged Receivables</h2>\n  <pre style=\"background:#f9f9f9;padding:12px;border-radius:4px\">${JSON.stringify(data.ar, null, 2)}</pre>\n\n  <h2>Aged Payables</h2>\n  <pre style=\"background:#f9f9f9;padding:12px;border-radius:4px\">${JSON.stringify(data.ap, null, 2)}</pre>\n\n  <h2>Cashflow Summary (${data.months} months)</h2>\n  <pre style=\"background:#f9f9f9;padding:12px;border-radius:4px\">${JSON.stringify(data.cashflow, null, 2)}</pre>\n\n  <p style=\"color:#888;font-size:12px\">Generated by AnyVision Media Accounting on ${new Date().toISOString()}</p>\n</div>\n`;\n\nconst recipients = [data.owner_email, data.finance_team].filter(Boolean).join(', ');\n\nreturn [{\n  json: {\n    to: recipients,\n    subject: 'Management Pack — ' + data.report_date,\n    html: html,\n    client_id: data.client_id,\n    report_date: data.report_date,\n  }\n}];\n"
+      },
+      "id": "e8c8ec35-ac2e-449a-b67e-85821d674894",
+      "name": "Build Management Pack",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1760,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "39c009b1-85fd-4bd1-b943-0bf655dd7ef7",
+      "name": "Send Management Pack",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2020,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{\n  json: {\n    client_id: item.client_id || $('Load Config').first().json.client_id,\n    event_type: 'REPORT_GENERATED',\n    entity_type: 'report',\n    entity_id: 'mgmt_pack_' + (item.report_date || new Date().toISOString().slice(0, 10)),\n    action: 'report_generated',\n    actor: 'n8n-wf09',\n    result: 'success',\n    metadata: { source: 'n8n', report_date: item.report_date }\n  }\n}];\n"
+      },
+      "id": "9a7ba7d5-e77f-490c-92f8-e85fd332e45f",
+      "name": "Audit Log Prep",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2280,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "94554bf1-13a0-4c50-a8b2-ef6b7eed3c7b",
+      "name": "Audit Log Insert",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2540,
+        400
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"report_generated\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "c6d5d746-1fca-4c9f-a88a-cd2f274cdf22",
+      "name": "Status: report_generated",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2800,
+        400
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $('Load Config').first().json;\nreturn [{\n  json: {\n    success: true,\n    message: 'Management pack generated and sent',\n    report_date: config.report_date,\n    sent_to: config.owner_email,\n  }\n}];\n"
+      },
+      "id": "d1879642-702b-4922-880c-ad5e74275585",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3060,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "55261d20-c16b-4ae0-a68e-7c96192132a4",
+      "name": "Respond Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        3320,
+        400
+      ],
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Month-End Schedule": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report Webhook": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config": {
+      "main": [
+        [
+          {
+            "node": "Prep AR RPC",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prep AP RPC",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prep Cashflow RPC",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prep Recon RPC",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prep KPI RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep AR RPC": {
+      "main": [
+        [
+          {
+            "node": "RPC Aged Receivables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep AP RPC": {
+      "main": [
+        [
+          {
+            "node": "RPC Aged Payables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Cashflow RPC": {
+      "main": [
+        [
+          {
+            "node": "RPC Cashflow Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Recon RPC": {
+      "main": [
+        [
+          {
+            "node": "RPC Reconciliation Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep KPI RPC": {
+      "main": [
+        [
+          {
+            "node": "RPC Dashboard KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Aged Receivables": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Aged Payables": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Cashflow Summary": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Reconciliation Stats": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC Dashboard KPIs": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Report Data": {
+      "main": [
+        [
+          {
+            "node": "AI Management Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Management Summary": {
+      "main": [
+        [
+          {
+            "node": "Build Management Pack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Management Pack": {
+      "main": [
+        [
+          {
+            "node": "Send Management Pack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Management Pack": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log Prep": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log Insert": {
+      "main": [
+        [
+          {
+            "node": "Status: report_generated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: report_generated": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

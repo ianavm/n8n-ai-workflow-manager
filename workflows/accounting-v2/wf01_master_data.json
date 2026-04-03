@@ -1,0 +1,1030 @@
+{
+  "name": "ACCT-01 Customer & Supplier Master Data",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "6c484311-e0ff-47a7-ad87-da528399f9ee",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/customer",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "7b318aa5-ac76-4a0b-94ab-2792c0905dfe",
+      "name": "Customer Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        300
+      ],
+      "typeVersion": 2,
+      "webhookId": "f5c583e2-3488-41a4-9385-13690ba262b9"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/supplier",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "85812408-2db4-4acd-a2da-ae982215c0d8",
+      "name": "Supplier Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        900
+      ],
+      "typeVersion": 2,
+      "webhookId": "a6e8f850-3f09-4e80-8ba8-a10a8264ec63"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst errors = [];\n\nif (!body.legal_name || !body.legal_name.trim()) {\n  errors.push('legal_name is required');\n}\nif (!body.client_id) {\n  errors.push('client_id is required');\n}\n\nif (errors.length > 0) {\n  throw new Error('Validation failed: ' + errors.join(', '));\n}\n\nreturn [{\n  json: {\n    legal_name: body.legal_name.trim(),\n    email: (body.email || '').trim().toLowerCase(),\n    phone: body.phone || null,\n    billing_address: body.billing_address || null,\n    vat_number: body.vat_number || null,\n    payment_terms: body.payment_terms || 'net_30',\n    credit_limit: body.credit_limit || 0,\n    client_id: body.client_id,\n    entity_type: 'customer',\n  }\n}];\n"
+      },
+      "id": "f70dc0cc-31e2-4c84-bd76-59c20fceff9d",
+      "name": "Validate Customer Fields",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_customers?select=*&={{  'email=eq.' + $json.email + '&client_id=eq.' + $json.client_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "879a0be0-43c3-4f9b-b5ba-d76cba76e4f6",
+      "name": "Check Customer Exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        300
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "83b03271-112e-4c56-b4af-5eeca1d73340",
+              "leftValue": "={{ $json.length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": "0"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "0db9c835-ff7d-4d57-89af-854081147a86",
+      "name": "Customer Exists?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        960,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const existing = $input.first().json[0] || $input.first().json;\nconst upstream = $('Validate Customer Fields').first().json;\n\nreturn [{\n  json: {\n    id: existing.id,\n    updatePayload: {\n      legal_name: upstream.legal_name,\n      phone: upstream.phone,\n      billing_address: upstream.billing_address,\n      vat_number: upstream.vat_number,\n      payment_terms: upstream.payment_terms,\n      credit_limit: upstream.credit_limit,\n      updated_at: new Date().toISOString(),\n    },\n    client_id: upstream.client_id,\n    event_type: 'CUSTOMER_UPDATED',\n    entity_type: 'customer',\n  }\n}];\n"
+      },
+      "id": "d4037aaa-0f06-44f4-b3cc-dfbd65a44ed0",
+      "name": "Prepare Customer Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_customers?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "2150dafa-2376-45a3-a047-04eac9ea13ab",
+      "name": "Update Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1440,
+        200
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_customers",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "a0eed3c0-0305-42df-af5b-21feea9dd3c7",
+      "name": "Insert Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1200,
+        400
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accounting_software || 'none' }}",
+                    "rightValue": "quickbooks",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "quickbooks"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accounting_software || 'none' }}",
+                    "rightValue": "xero",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "xero"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accounting_software || 'none' }}",
+                    "rightValue": "sage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "sage"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "1e9cb3e4-5e81-48e6-a508-9654f8a12717",
+      "name": "Acct Software Switch (Customer)",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1680,
+        300
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Placeholder: POST customer to QuickBooks / Xero / Sage\n// Replace with HTTP Request to accounting software API\nconst record = $input.first().json;\nreturn [{\n  json: {\n    ...record,\n    external_id: 'placeholder_' + Date.now(),\n    sync_status: 'pending_implementation',\n  }\n}];\n"
+      },
+      "id": "70434d08-16b3-42c9-9e87-be084384d22d",
+      "name": "Sync Customer to QB",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1940,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {},
+      "id": "99440837-d03b-49b3-a54d-bb05eaa2cd76",
+      "name": "Skip Sync (Customer)",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        1940,
+        500
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"audit_log\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "11779ed7-bf24-4847-a747-8089c70d7a8b",
+      "name": "Audit Log Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2200,
+        300
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "1da82739-0d02-42e5-96dd-1a35ab84745e",
+      "name": "Respond Customer Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        2440,
+        300
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst errors = [];\n\nif (!body.legal_name || !body.legal_name.trim()) {\n  errors.push('legal_name is required');\n}\nif (!body.client_id) {\n  errors.push('client_id is required');\n}\n\nif (errors.length > 0) {\n  throw new Error('Validation failed: ' + errors.join(', '));\n}\n\n// Hash bank details if provided — never store raw\nlet bankDetailsHash = null;\nif (body.bank_details) {\n  const raw = JSON.stringify(body.bank_details);\n  let hash = 0;\n  for (let i = 0; i < raw.length; i++) {\n    const chr = raw.charCodeAt(i);\n    hash = ((hash << 5) - hash) + chr;\n    hash |= 0;\n  }\n  bankDetailsHash = 'hash_' + Math.abs(hash).toString(16);\n}\n\nreturn [{\n  json: {\n    legal_name: body.legal_name.trim(),\n    email: (body.email || '').trim().toLowerCase(),\n    phone: body.phone || null,\n    billing_address: body.billing_address || null,\n    vat_number: body.vat_number || null,\n    payment_terms: body.payment_terms || 'net_30',\n    bank_details_hash: bankDetailsHash,\n    client_id: body.client_id,\n    entity_type: 'supplier',\n  }\n}];\n"
+      },
+      "id": "782bdac8-2785-43d9-af83-fe08c2089b09",
+      "name": "Validate Supplier Fields",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        900
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_suppliers?select=*&={{ 'email=eq.' + $json.email + '&client_id=eq.' + $json.client_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "19b54105-bd0d-4b25-9900-3d7ef5f75489",
+      "name": "Check Supplier Exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        900
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "6b015fe7-e9b4-43aa-8be8-695db20ef1fb",
+              "leftValue": "={{ $json.length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": "0"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "0bfdbd8d-58db-4408-9aca-e748a6c28920",
+      "name": "Supplier Exists?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        960,
+        900
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const existing = $input.first().json[0] || $input.first().json;\nconst upstream = $('Validate Supplier Fields').first().json;\n\nreturn [{\n  json: {\n    id: existing.id,\n    updatePayload: {\n      legal_name: upstream.legal_name,\n      phone: upstream.phone,\n      billing_address: upstream.billing_address,\n      vat_number: upstream.vat_number,\n      payment_terms: upstream.payment_terms,\n      bank_details_hash: upstream.bank_details_hash,\n      updated_at: new Date().toISOString(),\n    },\n    client_id: upstream.client_id,\n    event_type: 'SUPPLIER_UPDATED',\n    entity_type: 'supplier',\n  }\n}];\n"
+      },
+      "id": "4ebcfb97-cd6d-429a-912b-eba354cd689d",
+      "name": "Prepare Supplier Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        800
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_suppliers?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "f3faade8-7286-48e5-8466-6e07ca300f14",
+      "name": "Update Supplier",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1440,
+        800
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_suppliers",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "0ad3cc68-bc2d-4224-9cd0-e1b1357df7f4",
+      "name": "Insert Supplier",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1200,
+        1000
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accounting_software || 'none' }}",
+                    "rightValue": "quickbooks",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "quickbooks"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accounting_software || 'none' }}",
+                    "rightValue": "xero",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "xero"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accounting_software || 'none' }}",
+                    "rightValue": "sage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "sage"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "a2c943f4-b8d0-47ce-a52e-f5b9445352c4",
+      "name": "Acct Software Switch (Supplier)",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1680,
+        900
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Placeholder: POST supplier to QuickBooks / Xero / Sage\n// Replace with HTTP Request to accounting software API\nconst record = $input.first().json;\nreturn [{\n  json: {\n    ...record,\n    external_id: 'placeholder_' + Date.now(),\n    sync_status: 'pending_implementation',\n  }\n}];\n"
+      },
+      "id": "802e8161-1dfe-4bc6-ac11-4e5c8f306b96",
+      "name": "Sync Supplier to QB",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1940,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {},
+      "id": "1b69cf7f-1543-4ed8-b790-4aca427ee9a5",
+      "name": "Skip Sync (Supplier)",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        1940,
+        1100
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"audit_log\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "4b1f5972-d2de-491d-920f-c732bf185c5b",
+      "name": "Audit Log Supplier",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2200,
+        900
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "a843ba3a-4b5b-46b5-aa06-d0d99975af86",
+      "name": "Respond Supplier Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        2440,
+        900
+      ],
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Customer Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Customer Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Customer Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Customer Fields": {
+      "main": [
+        [
+          {
+            "node": "Check Customer Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Customer Exists": {
+      "main": [
+        [
+          {
+            "node": "Customer Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Customer Exists?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Customer Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Customer Update": {
+      "main": [
+        [
+          {
+            "node": "Update Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Customer": {
+      "main": [
+        [
+          {
+            "node": "Acct Software Switch (Customer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Customer": {
+      "main": [
+        [
+          {
+            "node": "Acct Software Switch (Customer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acct Software Switch (Customer)": {
+      "main": [
+        [
+          {
+            "node": "Sync Customer to QB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync Customer to QB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync Customer to QB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Sync (Customer)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Customer to QB": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Sync (Customer)": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log Customer": {
+      "main": [
+        [
+          {
+            "node": "Respond Customer Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supplier Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Supplier Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Supplier Fields": {
+      "main": [
+        [
+          {
+            "node": "Check Supplier Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Supplier Exists": {
+      "main": [
+        [
+          {
+            "node": "Supplier Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supplier Exists?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Supplier Update",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Supplier Update": {
+      "main": [
+        [
+          {
+            "node": "Update Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Supplier": {
+      "main": [
+        [
+          {
+            "node": "Acct Software Switch (Supplier)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Supplier": {
+      "main": [
+        [
+          {
+            "node": "Acct Software Switch (Supplier)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acct Software Switch (Supplier)": {
+      "main": [
+        [
+          {
+            "node": "Sync Supplier to QB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync Supplier to QB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync Supplier to QB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Sync (Supplier)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Supplier to QB": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Sync (Supplier)": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log Supplier": {
+      "main": [
+        [
+          {
+            "node": "Respond Supplier Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

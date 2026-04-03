@@ -74,6 +74,15 @@ CREDENTIALS = {
     "stripe": _cred(
         "ACCOUNTING_STRIPE_CRED_ID", "REPLACE", "Stripe API AVM"
     ),
+    "xero": _cred(
+        "ACCOUNTING_XERO_CRED_ID", "REPLACE", "Xero OAuth2"
+    ),
+    "payfast": _cred(
+        "ACCOUNTING_PAYFAST_CRED_ID", "REPLACE", "PayFast API"
+    ),
+    "yoco": _cred(
+        "ACCOUNTING_YOCO_CRED_ID", "REPLACE", "Yoco API"
+    ),
 
     # ── WhatsApp Business ───────────────────────────────────
     "whatsapp_send": _cred(
@@ -137,6 +146,9 @@ CRED_AIRTABLE_WHATSAPP = CREDENTIALS["airtable_whatsapp"]
 # Accounting
 CRED_QUICKBOOKS = CREDENTIALS["quickbooks"]
 CRED_STRIPE = CREDENTIALS["stripe"]
+CRED_XERO = CREDENTIALS["xero"]
+CRED_PAYFAST = CREDENTIALS["payfast"]
+CRED_YOCO = CREDENTIALS["yoco"]
 
 # WhatsApp
 CRED_WHATSAPP_SEND = CREDENTIALS["whatsapp_send"]

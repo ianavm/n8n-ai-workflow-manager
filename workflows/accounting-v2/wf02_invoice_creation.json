@@ -1,0 +1,1339 @@
+{
+  "name": "ACCT-02 Invoice Creation Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8-17 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "b1ce1410-e7cc-4401-943c-df35347363ac",
+      "name": "Hourly Draft Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "091ddf5d-ff88-47c9-9524-43857e4c7715",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/create-invoice",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "0158bc18-6062-4976-8266-5897651bad90",
+      "name": "Invoice Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        800
+      ],
+      "typeVersion": 2,
+      "webhookId": "a91e56ae-f52f-4e49-b573-56caf1933e68"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_config?select=*&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.pgrst.object+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "42d15bbc-fd2e-489c-80aa-922be8e51f46",
+      "name": "Load Client Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        460,
+        400
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_invoices?select=*&status=eq.draft&order=created_at.asc",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "bd003924-2c97-4419-b00b-024d78966d82",
+      "name": "Read Draft Invoices",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        700,
+        400
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine scheduled draft invoices with any webhook payload\nconst config = $('Load Client Config').first().json;\nconst draftItems = $input.all().filter(i => i.json && i.json.id);\n\nlet webhookData = null;\ntry { webhookData = $('Invoice Webhook').first(); } catch(e) { /* not triggered */ }\n\nconst items = [];\n\n// Add draft invoices from Supabase\nfor (const item of draftItems) {\n  items.push({ ...item.json, _config: config });\n}\n\n// Add webhook invoice request if present\nif (webhookData && webhookData.json && webhookData.json.body) {\n  const body = webhookData.json.body;\n  items.push({\n    id: body.id || `wh-${Date.now()}`,\n    client_id: body.client_id || config.client_id,\n    customer_id: body.customer_id,\n    line_items: body.line_items || [],\n    notes: body.notes || '',\n    due_date: body.due_date || null,\n    status: 'draft',\n    source: 'webhook',\n    _config: config,\n  });\n}\n\nif (items.length === 0) {\n  return [{ json: { _empty: true, _config: config, totalItems: 0 } }];\n}\nreturn items.map(item => ({ json: item }));\n"
+      },
+      "id": "aa106c33-a969-475e-aaa8-b4a0715ed072",
+      "name": "Merge Sources",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        940,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "074df18f-3710-410c-9b58-8288a7b0a0ca",
+              "leftValue": "{{ $json._empty }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "notTrue"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "53066286-57f5-4990-8cc5-df2ab378ecc4",
+      "name": "Has Items?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1160,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "5ec761a1-e05c-4998-b31e-136e23d25307",
+      "name": "Loop Over Invoices",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1400,
+        500
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Supabase query for the customer\nconst invoice = $input.first().json;\nconst customerId = invoice.customer_id;\n\nif (!customerId) {\n  return [{ json: { ...invoice, _customer: null, _customerFound: false } }];\n}\n\n// Pass through — the next HTTP node does the actual lookup\nreturn [{ json: { ...invoice, _lookupCustomerId: customerId } }];\n"
+      },
+      "id": "f9ed1272-358f-4fb9-9e12-a6808120fcde",
+      "name": "Lookup Customer",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1600,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_customers?select=*&id=eq.{{ $json._lookupCustomerId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.pgrst.object+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "da30097f-f935-4d5b-b6fc-cf792e7674e8",
+      "name": "Fetch Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1820,
+        500
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const customer = $input.first().json;\nconst invoice = $('Lookup Customer').first().json;\n\nreturn [{\n  json: {\n    ...invoice,\n    _customer: customer || {},\n    _customerFound: !!(customer && customer.id),\n    customer_name: customer.name || customer.company_name || '',\n    customer_email: customer.email || '',\n  }\n}];\n"
+      },
+      "id": "953108ac-428a-4fa0-a671-9ade193c371f",
+      "name": "Merge Customer Into Invoice",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2060,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute line_items totals, subtotal, VAT, total — all in cents\nconst invoice = $input.first().json;\nconst config = invoice._config || {};\nconst vatRate = parseFloat(config.vat_rate) || 0.15;\n\nlet lineItemsRaw = invoice.line_items || '[]';\nlet lineItems;\ntry {\n  lineItems = typeof lineItemsRaw === 'string' ? JSON.parse(lineItemsRaw) : lineItemsRaw;\n} catch(e) {\n  lineItems = [];\n}\n\nlet subtotal_cents = 0;\nlet vat_cents = 0;\nconst processed = [];\n\nfor (const item of lineItems) {\n  const qty = parseInt(item.quantity) || 1;\n  // unit_price_cents: price in cents (integer)\n  const unitPriceCents = parseInt(item.unit_price_cents) || 0;\n  const isVatable = item.vat_exempt !== true;\n  \n  const lineSubtotal = unitPriceCents * qty;\n  const lineVat = isVatable ? Math.round(lineSubtotal * vatRate) : 0;\n  const lineTotal = lineSubtotal + lineVat;\n  \n  subtotal_cents += lineSubtotal;\n  vat_cents += lineVat;\n  \n  processed.push({\n    description: item.description || '',\n    item_code: item.item_code || '',\n    quantity: qty,\n    unit_price_cents: unitPriceCents,\n    vat_exempt: !isVatable,\n    line_subtotal_cents: lineSubtotal,\n    line_vat_cents: lineVat,\n    line_total_cents: lineTotal,\n  });\n}\n\nconst total_cents = subtotal_cents + vat_cents;\n\nreturn [{\n  json: {\n    ...invoice,\n    processed_line_items: processed,\n    subtotal_cents,\n    vat_cents,\n    total_cents,\n    vat_rate: vatRate,\n    currency: 'ZAR',\n  }\n}];\n"
+      },
+      "id": "99f46242-6340-44b0-b8ed-19d3dbbfd52d",
+      "name": "Calculate Tax",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2300,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoice = $input.first().json;\nconst clientId = invoice.client_id || invoice._config?.client_id || '';\nreturn [{ json: { p_client_id: clientId, _invoice: invoice } }];\n"
+      },
+      "id": "89adae9f-7379-46a3-bf85-bad4606fe477",
+      "name": "Prepare RPC Params",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2520,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/rpc/acct_generate_invoice_number",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "dced0ca3-b57d-4bef-9d03-d2bab2a6047c",
+      "name": "Generate Invoice Number",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2740,
+        500
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const rpcResult = $input.first().json;\nconst invoice = $('Prepare RPC Params').first().json._invoice;\nconst invoiceNumber = rpcResult.invoice_number || rpcResult || `INV-${Date.now()}`;\n\nreturn [{\n  json: {\n    ...invoice,\n    invoice_number: typeof invoiceNumber === 'string' ? invoiceNumber : String(invoiceNumber),\n  }\n}];\n"
+      },
+      "id": "8adab2be-3ce1-410d-800b-96d1ddfa1a8f",
+      "name": "Attach Invoice Number",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2960,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const invoice = $input.first().json;\nconst config = invoice._config || {};\n// Default threshold: R50,000 = 5000000 cents\nconst threshold = parseInt(config.high_value_threshold) || 5000000;\nconst isHighValue = invoice.total_cents > threshold;\n\nreturn [{ json: { ...invoice, _isHighValue: isHighValue, _threshold: threshold } }];\n"
+      },
+      "id": "7f31db76-3ce2-469e-ac69-b5274f262584",
+      "name": "Check High Value",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3180,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cdfe7248-d024-44f9-a776-7a2dae0968f5",
+              "leftValue": "{{ $json._isHighValue }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "8de33d90-2d7e-4bc5-972d-e3e7acf45ba7",
+      "name": "Is High Value?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        3400,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\nconst totalRands = (inv.total_cents / 100).toFixed(2);\nreturn [{\n  json: {\n    action: 'task_created',\n    data: {\n      client_id: inv.client_id,\n      invoice_id: inv.id,\n      invoice_number: inv.invoice_number,\n      customer_name: inv.customer_name,\n      total_cents: inv.total_cents,\n      total_display: `R ${totalRands}`,\n      task_type: 'high_value_approval',\n      priority: 'high',\n      description: `High-value invoice ${inv.invoice_number} for ${inv.customer_name} - R ${totalRands} requires approval`,\n    }\n  }\n}];\n"
+      },
+      "id": "e1e0ac88-5529-46e8-9615-a8d9f4d31c83",
+      "name": "Prepare Approval Task",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3640,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"task_created\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "65a28a0b-1e52-4b99-995a-4c6ac34ed6a8",
+      "name": "Portal: Task Created",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3880,
+        300
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $('Prepare Approval Task').first().json.data;\nreturn [{\n  json: {\n    id: inv.invoice_id,\n    updatePayload: {\n      status: 'pending_approval',\n      invoice_number: inv.invoice_number,\n      subtotal_cents: $('Check High Value').first().json.subtotal_cents,\n      vat_cents: $('Check High Value').first().json.vat_cents,\n      total_cents: inv.total_cents,\n      updated_at: new Date().toISOString(),\n    }\n  }\n}];\n"
+      },
+      "id": "74553080-c405-4ed0-97c2-fc405d52069f",
+      "name": "Set Pending Approval",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4120,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_invoices?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "f4cd5590-f119-419f-b8b0-5adb0b10ddd4",
+      "name": "Update Invoice Pending",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4360,
+        300
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\nconst config = inv._config || {};\nconst software = (config.accounting_software || 'none').toLowerCase();\nreturn [{ json: { ...inv, _accounting_software: software } }];\n"
+      },
+      "id": "16a89944-663a-46b0-8e25-b5367cd59e54",
+      "name": "Prepare Adapter",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3640,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._accounting_software }}",
+                    "rightValue": "quickbooks",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "quickbooks"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._accounting_software }}",
+                    "rightValue": "xero",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "xero"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._accounting_software }}",
+                    "rightValue": "sage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "sage"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "bbdbea2f-f3b0-455a-b838-0ebe1acc842d",
+      "name": "Accounting Software",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        3880,
+        700
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._config.quickbooks_api_url || 'https://quickbooks.api.intuit.com/v3/company/' + ($json._config.qbo_company_id || '') + '/invoice' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({  Line: $json.processed_line_items.map(li => ({    Amount: li.line_subtotal_cents / 100,    Description: li.description,    DetailType: 'SalesItemLineDetail',    SalesItemLineDetail: { Qty: li.quantity, UnitPrice: li.unit_price_cents / 100 }  })),  CustomerRef: { value: $json._customer?.external_id || '' },  DocNumber: $json.invoice_number,  CurrencyRef: { value: 'ZAR' }}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "cb41316f-4c20-4c7e-ae99-99cd044c3509",
+      "name": "Sync QuickBooks",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4140,
+        500
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._config.xero_api_url || 'https://api.xero.com/api.xro/2.0/Invoices' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({  Type: 'ACCREC',  Contact: { ContactID: $json._customer?.external_id || '' },  InvoiceNumber: $json.invoice_number,  CurrencyCode: 'ZAR',  LineItems: $json.processed_line_items.map(li => ({    Description: li.description,    Quantity: li.quantity,    UnitAmount: li.unit_price_cents / 100,    TaxType: li.vat_exempt ? 'EXEMPTOUTPUT' : 'OUTPUT2'  }))}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "4d6db23c-4d13-444a-a9a8-0798d38cdcdf",
+      "name": "Sync Xero",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4140,
+        700
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._config.sage_api_url || 'https://api.accounting.sage.com/v3.1/sales_invoices' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({  contact_id: $json._customer?.external_id || '',  reference: $json.invoice_number,  currency: 'ZAR',  invoice_lines: $json.processed_line_items.map(li => ({    description: li.description,    quantity: li.quantity,    unit_price: li.unit_price_cents / 100  }))}) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "60583bac-8e95-48a0-9317-d542acaf08f3",
+      "name": "Sync Sage",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4140,
+        900
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "53ee3fa3-e783-43b0-a2f8-b0954e3e39d8",
+      "name": "Skip Sync",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        4140,
+        1100
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n// Extract external ID from whichever adapter responded\nconst externalId = item.Id || item.InvoiceID || item.id || null;\nconst prevInvoice = (() => {\n  try { return $('Prepare Adapter').first().json; } catch(e) { return {}; }\n})();\n\nreturn [{\n  json: {\n    ...prevInvoice,\n    external_id: externalId,\n    sync_status: externalId ? 'synced' : 'local_only',\n  }\n}];\n"
+      },
+      "id": "a0c93cbf-6bc9-43f0-a3a8-33838e03ec6d",
+      "name": "Merge After Adapter",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4400,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $input.first().json;\nreturn [{\n  json: {\n    id: inv.id,\n    updatePayload: {\n      status: 'approved',\n      invoice_number: inv.invoice_number,\n      subtotal_cents: inv.subtotal_cents,\n      vat_cents: inv.vat_cents,\n      total_cents: inv.total_cents,\n      external_id: inv.external_id,\n      sync_status: inv.sync_status,\n      processed_line_items: inv.processed_line_items,\n      updated_at: new Date().toISOString(),\n    }\n  }\n}];\n"
+      },
+      "id": "351f1afb-559f-4396-a1a7-2f5a526670cb",
+      "name": "Prepare Invoice Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4640,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_invoices?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "00eda2ea-0875-486a-9b7c-6ef8a9dc6328",
+      "name": "Update Invoice Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4880,
+        700
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $('Prepare Invoice Update').first().json;\nconst totalRands = ((inv.updatePayload.total_cents || 0) / 100).toFixed(2);\nreturn [{\n  json: {\n    client_id: $('Merge After Adapter').first().json.client_id,\n    invoice_id: inv.id,\n    invoice_number: inv.updatePayload.invoice_number,\n    total_display: `R ${totalRands}`,\n    status: inv.updatePayload.status,\n  }\n}];\n"
+      },
+      "id": "7c2b38e8-8736-4f8c-82ac-b7cffe011257",
+      "name": "Prepare Status Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5120,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"invoice_created\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "510046a5-2966-42af-b180-aa68dc991555",
+      "name": "Portal: Invoice Created",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        5360,
+        600
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inv = $('Prepare Invoice Update').first().json;\nconst source = $('Merge After Adapter').first().json;\nreturn [{\n  json: {\n    client_id: source.client_id,\n    entity_type: 'invoice',\n    entity_id: inv.id,\n    event_type: 'INVOICE_CREATED',\n    action: 'invoice_created',\n    actor: 'system',\n    result: 'success',\n    metadata: {\n      invoice_number: inv.updatePayload.invoice_number,\n      total_cents: inv.updatePayload.total_cents,\n      sync_status: inv.updatePayload.sync_status,\n      source: 'n8n',\n    }\n  }\n}];\n"
+      },
+      "id": "d5522d27-2698-423b-9658-41fef3a83e54",
+      "name": "Prepare Audit Log",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        5600,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"audit_log\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "bdf9fe69-54eb-458f-ac4f-31a9ca2dd1c1",
+      "name": "Portal: Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        5840,
+        600
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "ee1f9dbe-8d4d-4644-b8ef-bb2dc65ca8d3",
+      "name": "Back to Loop",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        6060,
+        500
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "e20937f0-9f82-4589-8679-7d1567ab3ac9",
+      "name": "Respond Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        6300,
+        800
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nlet totalProcessed = 0;\nlet totalCents = 0;\nlet approvedCount = 0;\nlet pendingApprovalCount = 0;\nconst summaryLines = [];\n\nfor (const item of items) {\n  const inv = item.json;\n  if (inv && inv.invoice_number) {\n    totalProcessed++;\n    totalCents += inv.total_cents || 0;\n    if (inv._isHighValue) {\n      pendingApprovalCount++;\n    } else {\n      approvedCount++;\n    }\n    const rands = ((inv.total_cents || 0) / 100).toFixed(2);\n    summaryLines.push(`${inv.invoice_number} - ${inv.customer_name || 'Unknown'} - R ${rands}`);\n  }\n}\n\nreturn [{\n  json: {\n    success: true,\n    total_processed: totalProcessed,\n    total_invoiced_cents: totalCents,\n    total_invoiced_display: `R ${(totalCents / 100).toFixed(2)}`,\n    approved: approvedCount,\n    pending_approval: pendingApprovalCount,\n    invoices: summaryLines,\n    completed_at: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "15a87bdd-c605-4517-b155-fe41e42544b0",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        6540,
+        600
+      ],
+      "typeVersion": 2
+    }
+  ],
+  "connections": {
+    "Hourly Draft Check": {
+      "main": [
+        [
+          {
+            "node": "Load Client Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Client Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoice Webhook": {
+      "main": [
+        [
+          {
+            "node": "Load Client Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Client Config": {
+      "main": [
+        [
+          {
+            "node": "Read Draft Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Draft Invoices": {
+      "main": [
+        [
+          {
+            "node": "Merge Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Sources": {
+      "main": [
+        [
+          {
+            "node": "Has Items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Items?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Invoices": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lookup Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Customer": {
+      "main": [
+        [
+          {
+            "node": "Fetch Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Customer": {
+      "main": [
+        [
+          {
+            "node": "Merge Customer Into Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Customer Into Invoice": {
+      "main": [
+        [
+          {
+            "node": "Calculate Tax",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Tax": {
+      "main": [
+        [
+          {
+            "node": "Prepare RPC Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare RPC Params": {
+      "main": [
+        [
+          {
+            "node": "Generate Invoice Number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Invoice Number": {
+      "main": [
+        [
+          {
+            "node": "Attach Invoice Number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Invoice Number": {
+      "main": [
+        [
+          {
+            "node": "Check High Value",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check High Value": {
+      "main": [
+        [
+          {
+            "node": "Is High Value?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is High Value?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Approval Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Adapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Approval Task": {
+      "main": [
+        [
+          {
+            "node": "Portal: Task Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portal: Task Created": {
+      "main": [
+        [
+          {
+            "node": "Set Pending Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Pending Approval": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice Pending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice Pending": {
+      "main": [
+        [
+          {
+            "node": "Back to Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Adapter": {
+      "main": [
+        [
+          {
+            "node": "Accounting Software",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accounting Software": {
+      "main": [
+        [
+          {
+            "node": "Sync QuickBooks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync Xero",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync Sage",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync QuickBooks": {
+      "main": [
+        [
+          {
+            "node": "Merge After Adapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Xero": {
+      "main": [
+        [
+          {
+            "node": "Merge After Adapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Sage": {
+      "main": [
+        [
+          {
+            "node": "Merge After Adapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Sync": {
+      "main": [
+        [
+          {
+            "node": "Merge After Adapter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge After Adapter": {
+      "main": [
+        [
+          {
+            "node": "Prepare Invoice Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Invoice Update": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice Record": {
+      "main": [
+        [
+          {
+            "node": "Prepare Status Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Status Update": {
+      "main": [
+        [
+          {
+            "node": "Portal: Invoice Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portal: Invoice Created": {
+      "main": [
+        [
+          {
+            "node": "Prepare Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Portal: Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Portal: Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Back to Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Back to Loop": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,1289 @@
+{
+  "name": "ACCT-04 Collections & Follow-ups",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ACCT-04 Collections & Follow-ups\nDaily 07:00 SAST: overdue invoice scan, tiered reminders,\nescalation tasks.  Webhook: POP-received from portal.",
+        "width": 460,
+        "height": 100,
+        "color": 5
+      },
+      "id": "e1f660c8-924b-4c91-890c-18696c4f2773",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        180,
+        60
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * *"
+            }
+          ]
+        }
+      },
+      "id": "36485bee-ee5b-476b-a5ff-9abc77554c05",
+      "name": "Daily 07:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        220,
+        300
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "ced188e1-11a1-49d4-af7d-843cd17266bf",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        220,
+        500
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/collection-action",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "155d0d2d-3b5e-41f9-a4a2-dc50cbacb747",
+      "name": "Webhook - Collection Action",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        220,
+        720
+      ],
+      "typeVersion": 2,
+      "webhookId": "d9cd8f23-6d5c-4e29-a9a7-a406609fef4d"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_config?select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.pgrst.object+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "55fd119e-b11d-4b79-b112-225be7078ab0",
+      "name": "Load Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        480,
+        400
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fetch overdue invoices from Supabase\nconst config = $input.first().json;\n\nconst today = new Date().toISOString().split('T')[0];\n\n// Query: status IN (sent, payment_pending, overdue) AND due_date <= today AND balance_due > 0\nconst url = 'REPLACE/rest/v1/acct_invoices'\n  + '?select=*'\n  + '&status=in.(sent,payment_pending,overdue)'\n  + '&due_date=lte.' + today\n  + '&balance_due=gt.0'\n  + '&order=due_date.asc';\n\nconst resp = await fetch(url, {\n  method: 'GET',\n  headers: {\n    'apikey': 'REPLACE',\n    'Authorization': 'Bearer REPLACE',\n    'Accept': 'application/json',\n  },\n});\n\nif (!resp.ok) {\n  throw new Error('Supabase query failed: ' + resp.status + ' ' + (await resp.text()));\n}\n\nconst invoices = await resp.json();\n\nif (invoices.length === 0) {\n  return [{ json: { overdueCount: 0, invoices: [], config } }];\n}\n\n// Pass config along for later use\nreturn [{ json: {\n  overdueCount: invoices.length,\n  invoices,\n  config,\n  reminderCadenceDays: config.reminder_cadence_days || [-3, 0, 3, 7, 14],\n  escalationAfterDays: config.escalation_after_days || 30,\n} }];\n"
+      },
+      "id": "4e619688-dc32-4036-b9b9-1b8eb5f2423a",
+      "name": "Find Overdue Invoices",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        720,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ad79c7a8-af60-4b31-82eb-a67cee444829",
+              "leftValue": "{{ $json.overdueCount }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": "0"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "cf3148fc-3657-414b-967f-04e9b8e57fd9",
+      "name": "Has Overdue?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        960,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "236fbb6d-e146-47f5-97f8-28cd7d06a079",
+      "name": "Loop Over Invoices",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        1200,
+        400
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fetch the customer record for the current invoice\nconst invoice = $input.first().json;\nconst customerId = invoice.customer_id;\n\nif (!customerId) {\n  return [{ json: { ...invoice, customer: null, customerEmail: null, customerName: 'Unknown' } }];\n}\n\nconst url = 'REPLACE/rest/v1/acct_customers'\n  + '?select=*'\n  + '&id=eq.' + customerId;\n\nconst resp = await fetch(url, {\n  method: 'GET',\n  headers: {\n    'apikey': 'REPLACE',\n    'Authorization': 'Bearer REPLACE',\n    'Accept': 'application/vnd.pgrst.object+json',\n  },\n});\n\nlet customer = null;\nlet customerEmail = null;\nlet customerName = 'Valued Customer';\n\nif (resp.ok) {\n  customer = await resp.json();\n  customerEmail = customer.email || customer.billing_email || null;\n  customerName = customer.name || customer.company_name || 'Valued Customer';\n}\n\nreturn [{ json: {\n  ...invoice,\n  customer,\n  customerEmail,\n  customerName,\n} }];\n"
+      },
+      "id": "c4d0d4d9-0508-4623-b5d7-0381f11f3c60",
+      "name": "Fetch Customer",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1440,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Determine reminder tier based on days overdue vs cadence\nconst item = $input.first().json;\nconst now = new Date();\nconst dueDate = new Date(item.due_date);\nconst daysOverdue = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));\n\n// Default cadence: [-3, 0, 3, 7, 14]\nconst cadence = item.reminderCadenceDays\n  || $('Find Overdue Invoices').first().json.reminderCadenceDays\n  || [-3, 0, 3, 7, 14];\n\nconst escalationAfterDays = item.escalationAfterDays\n  || $('Find Overdue Invoices').first().json.escalationAfterDays\n  || 30;\n\n// Determine tier:\n//   tier 1 = friendly  (0-3 days overdue)\n//   tier 2 = firm      (4-14 days overdue)\n//   tier 3 = escalation (14+ days overdue)\nlet tier = 1;\nif (daysOverdue >= 14) {\n  tier = 3;\n} else if (daysOverdue >= 4) {\n  tier = 2;\n}\n\nconst currentReminderCount = parseInt(item.reminder_count || '0', 10);\n\n// Only send if this tier hasn't been sent yet\nconst shouldSend = tier > currentReminderCount;\n\nreturn [{\n  json: {\n    ...item,\n    daysOverdue,\n    tier,\n    tierLabel: tier === 1 ? 'friendly' : tier === 2 ? 'firm' : 'escalation',\n    shouldSend,\n    currentReminderCount,\n    escalationAfterDays,\n  }\n}];\n"
+      },
+      "id": "8acd4eef-0ab8-4e86-9ba8-c1a045c95ef5",
+      "name": "Determine Reminder Tier",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1680,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ec34f379-fc23-4c61-a29d-06bce2e859f5",
+              "leftValue": "{{ $json.shouldSend }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "e7dc3073-8dc6-48d3-a2e0-20779291ca8b",
+      "name": "Should Send Reminder?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1920,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "friendly"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "firm"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "3",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "escalation"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "3bbaf07e-9535-4385-87ab-cbf72384bf9e",
+      "name": "Select Template",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        2160,
+        500
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst item = $input.first().json;\nconst balanceFmt = parseFloat(item.balance_due || 0).toLocaleString('en-ZA', {minimumFractionDigits: 2});\n\nconst html = `<div style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;\">\n  <div style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">\n    <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">AnyVision Media</h1>\n  </div>\n  <div style=\"padding:30px 40px;\">\n    <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Hi ${item.customerName},</p>\n    <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">\n      Just a friendly heads up that invoice <strong>${item.invoice_number || item.id}</strong> for\n      <strong>R ${balanceFmt}</strong> is due on <strong>${item.due_date}</strong>.\n    </p>\n    <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">\n      If you've already arranged payment, please disregard this message.\n    </p>\n    <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">\n      Need to discuss payment options? Just reply to this email and we'll be happy to help.\n    </p>\n    <p style=\"margin:24px 0 0;font-size:15px;color:#333;\">\n      Best regards,<br><strong>AnyVision Media</strong><br>\n      <span style=\"color:#666;\">Accounts Department</span>\n    </p>\n  </div>\n  <div style=\"padding:20px 40px;background:#f8f8f8;border-top:1px solid #eee;\">\n    <p style=\"margin:0;font-size:11px;color:#999;line-height:1.5;\">\n      AnyVision Media | Johannesburg, South Africa | accounts@anyvisionmedia.com\n    </p>\n  </div>\n</div>`;\n\nreturn [{\n  json: {\n    ...item,\n    emailSubject: `Friendly Reminder: Invoice ${item.invoice_number || item.id} Due`,\n    emailHtml: html,\n  }\n}];\n"
+      },
+      "id": "774c6e03-ef4d-4ef5-acf0-f601d90d2e6d",
+      "name": "Build Friendly Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst item = $input.first().json;\nconst balanceFmt = parseFloat(item.balance_due || 0).toLocaleString('en-ZA', {minimumFractionDigits: 2});\n\nconst html = `<div style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;\">\n  <div style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">\n    <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">AnyVision Media</h1>\n  </div>\n  <div style=\"padding:30px 40px;\">\n    <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Dear ${item.customerName},</p>\n    <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">\n      This is a reminder that payment of <strong>R ${balanceFmt}</strong> for invoice\n      <strong>${item.invoice_number || item.id}</strong> is now <strong>${item.daysOverdue} days overdue</strong>.\n    </p>\n    <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">\n      We understand that payments can sometimes be delayed. Please arrange payment as soon as possible,\n      or contact us if you are experiencing any difficulties.\n    </p>\n    <div style=\"margin:16px 0;padding:16px;background:#FFF3CD;border-left:3px solid #FF6D5A;\">\n      <p style=\"margin:0;font-size:14px;color:#856404;\">\n        <strong>Invoice:</strong> ${item.invoice_number || item.id}<br>\n        <strong>Amount Due:</strong> R ${balanceFmt}<br>\n        <strong>Original Due Date:</strong> ${item.due_date}<br>\n        <strong>Days Overdue:</strong> ${item.daysOverdue}\n      </p>\n    </div>\n    <p style=\"margin:16px 0 0;font-size:15px;color:#333;\">\n      Please send proof of payment to\n      <a href=\"mailto:accounts@anyvisionmedia.com\" style=\"color:#FF6D5A;\">accounts@anyvisionmedia.com</a>.\n    </p>\n    <p style=\"margin:24px 0 0;font-size:15px;color:#333;\">\n      Regards,<br><strong>AnyVision Media</strong><br>\n      <span style=\"color:#666;\">Accounts Department</span>\n    </p>\n  </div>\n  <div style=\"padding:20px 40px;background:#f8f8f8;border-top:1px solid #eee;\">\n    <p style=\"margin:0;font-size:11px;color:#999;line-height:1.5;\">\n      AnyVision Media | Johannesburg, South Africa | accounts@anyvisionmedia.com\n    </p>\n  </div>\n</div>`;\n\nreturn [{\n  json: {\n    ...item,\n    emailSubject: `Payment Reminder: Invoice ${item.invoice_number || item.id} \u2014 ${item.daysOverdue} Days Overdue`,\n    emailHtml: html,\n  }\n}];\n"
+      },
+      "id": "700a5dea-e5fd-4716-8e37-97ed14a7dd76",
+      "name": "Build Firm Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        540
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst item = $input.first().json;\nconst balanceFmt = parseFloat(item.balance_due || 0).toLocaleString('en-ZA', {minimumFractionDigits: 2});\n\nconst html = `<div style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;\">\n  <div style=\"padding:30px 40px 20px;border-bottom:3px solid #dc2626;\">\n    <h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">AnyVision Media</h1>\n    <p style=\"margin:5px 0 0;font-size:12px;color:#dc2626;text-transform:uppercase;letter-spacing:1px;\">Overdue Account Notice</p>\n  </div>\n  <div style=\"padding:30px 40px;\">\n    <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">Dear ${item.customerName},</p>\n    <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">\n      Despite previous reminders, your account remains <strong>${item.daysOverdue} days overdue</strong>.\n      The outstanding amount of <strong>R ${balanceFmt}</strong> for invoice\n      <strong>${item.invoice_number || item.id}</strong> requires your immediate attention.\n    </p>\n    <div style=\"margin:16px 0;padding:16px;background:#FEE2E2;border-left:3px solid #dc2626;\">\n      <p style=\"margin:0;font-size:14px;color:#991B1B;\">\n        <strong>OVERDUE SUMMARY</strong><br><br>\n        <strong>Invoice:</strong> ${item.invoice_number || item.id}<br>\n        <strong>Amount Due:</strong> R ${balanceFmt}<br>\n        <strong>Original Due Date:</strong> ${item.due_date}<br>\n        <strong>Days Overdue:</strong> ${item.daysOverdue}<br>\n        <strong>Previous Reminders Sent:</strong> ${item.currentReminderCount}\n      </p>\n    </div>\n    <p style=\"margin:16px 0;font-size:15px;color:#333;\">\n      Please arrange immediate payment to avoid further action. If there are any issues preventing\n      payment, please contact us urgently so we can discuss a resolution.\n    </p>\n    <p style=\"margin:0 0 16px;font-size:15px;color:#333;\">\n      Payment can be made via EFT using reference <strong>${item.invoice_number || item.id}</strong>, or by\n      contacting us at <a href=\"mailto:accounts@anyvisionmedia.com\" style=\"color:#FF6D5A;\">accounts@anyvisionmedia.com</a>.\n    </p>\n    <p style=\"margin:24px 0 0;font-size:15px;color:#333;\">\n      Regards,<br><strong>AnyVision Media</strong><br>\n      <span style=\"color:#666;\">Accounts Department</span>\n    </p>\n  </div>\n  <div style=\"padding:20px 40px;background:#f8f8f8;border-top:1px solid #eee;\">\n    <p style=\"margin:0;font-size:11px;color:#999;line-height:1.5;\">\n      AnyVision Media | Johannesburg, South Africa | accounts@anyvisionmedia.com<br>\n      This is an automated reminder. If payment has already been made, please disregard.\n    </p>\n  </div>\n</div>`;\n\nreturn [{\n  json: {\n    ...item,\n    emailSubject: `URGENT: Invoice ${item.invoice_number || item.id} \u2014 ${item.daysOverdue} Days Overdue`,\n    emailHtml: html,\n  }\n}];\n"
+      },
+      "id": "6a5dd0a4-0a09-4b77-971c-bb8e37858ede",
+      "name": "Build Escalation Email",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2400,
+        780
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all();"
+      },
+      "id": "028e5aa0-b7f1-4a50-b4f4-c48d48cc166f",
+      "name": "Merge Email Output",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2640,
+        540
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "{{ $json.customerEmail }}",
+        "subject": "{{ $json.emailSubject }}",
+        "emailType": "html",
+        "message": "{{ $json.emailHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "52a75e8c-458e-458e-bdaf-b7b42ffcd35a",
+      "name": "Send Reminder Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2880,
+        540
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare the Supabase PATCH payload for the invoice\nconst item = $input.first().json;\nconst now = new Date().toISOString();\n\n// Calculate next reminder date based on cadence\nconst cadence = item.reminderCadenceDays\n  || $('Find Overdue Invoices').first().json.reminderCadenceDays\n  || [-3, 0, 3, 7, 14];\nconst newCount = item.tier;  // tier IS the new reminder_count\nconst nextCadenceIdx = cadence.findIndex(d => d > item.daysOverdue);\nlet nextReminderAt = null;\nif (nextCadenceIdx !== -1) {\n  const nextDays = cadence[nextCadenceIdx];\n  const due = new Date(item.due_date);\n  due.setDate(due.getDate() + nextDays);\n  nextReminderAt = due.toISOString().split('T')[0];\n}\n\nconst newStatus = item.daysOverdue > 0 ? 'overdue' : item.status;\n\nreturn [{\n  json: {\n    id: item.id,\n    updatePayload: {\n      reminder_count: newCount,\n      last_reminder_at: now,\n      next_reminder_at: nextReminderAt,\n      status: newStatus,\n      updated_at: now,\n    },\n    // Pass through for downstream nodes\n    invoiceId: item.id,\n    invoiceNumber: item.invoice_number || item.id,\n    customerId: item.customer_id,\n    customerName: item.customerName,\n    customerEmail: item.customerEmail,\n    balanceDue: item.balance_due,\n    daysOverdue: item.daysOverdue,\n    tier: item.tier,\n    tierLabel: item.tierLabel,\n    escalationAfterDays: item.escalationAfterDays,\n    newStatus,\n  }\n}];\n"
+      },
+      "id": "814187d1-a017-4d56-8da4-74fd9a31388b",
+      "name": "Prep Invoice Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3120,
+        540
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_invoices?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "e1be5447-69d6-4f7c-8bc2-4334fb68befb",
+      "name": "Update Invoice",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3360,
+        540
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare portal webhook payload for collection log\nconst item = $input.first().json;\nreturn [{\n  json: {\n    invoice_id: item.invoiceId || item.id,\n    invoice_number: item.invoiceNumber || item.invoice_number,\n    customer_id: item.customerId || item.customer_id,\n    customer_name: item.customerName,\n    tier: item.tier,\n    tier_label: item.tierLabel,\n    channel: 'email',\n    status: 'reminder_sent',\n    days_overdue: item.daysOverdue || item.daysOverdue,\n    amount_due: item.balanceDue || item.balance_due,\n    timestamp: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "aaf37bb1-b0e2-414f-936d-12e8b8758da2",
+      "name": "Prep Collection Log",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3600,
+        440
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"collection_logged\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "04274161-b6e8-40c8-bdc8-484257c26e0d",
+      "name": "Log Collection",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3840,
+        440
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "0eb0073d-f7b1-4a4b-aef1-0b9afefe11ff",
+              "leftValue": "{{ $json.daysOverdue }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "rightValue": "{{ $json.escalationAfterDays }}"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "639e89e6-0fad-48fa-9922-a2ea956e6185",
+      "name": "Check Escalation",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        3600,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare escalation task for portal\nconst item = $input.first().json;\nreturn [{\n  json: {\n    type: 'dispute_resolution',\n    priority: 'high',\n    title: `Escalation: Invoice ${item.invoiceNumber || item.invoice_number} \u2014 ${item.daysOverdue} days overdue`,\n    description: `Customer ${item.customerName} owes R ${item.balanceDue || item.balance_due} (${item.daysOverdue} days overdue). All reminder tiers exhausted.`,\n    invoice_id: item.invoiceId || item.id,\n    customer_id: item.customerId || item.customer_id,\n    assigned_to: 'accounts_manager',\n    due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],\n    timestamp: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "5f99ff34-4214-4162-a23f-026946413d6d",
+      "name": "Prep Escalation Task",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3840,
+        660
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"task_created\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "30db04b7-efdb-4cda-8172-7133577a2df7",
+      "name": "Create Escalation Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4080,
+        660
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare audit log entry\nconst item = $input.first().json;\nreturn [{\n  json: {\n    client_id: item.customerId || item.customer_id,\n    event_type: 'INVOICE_OVERDUE',\n    entity_type: 'invoice',\n    entity_id: item.invoiceId || item.id,\n    action: 'collection_reminder_sent',\n    actor: 'n8n_wf04_collections',\n    result: 'success',\n    metadata: {\n      tier: item.tier,\n      tier_label: item.tierLabel,\n      days_overdue: item.daysOverdue,\n      balance_due: item.balanceDue || item.balance_due,\n      source: 'n8n',\n    },\n  }\n}];\n"
+      },
+      "id": "325af97b-4901-4d5c-8b81-53c2719a01dd",
+      "name": "Prep Audit Log",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3840,
+        880
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"audit_log\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "27661c93-f6a4-43b6-b671-83e461af9e14",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4080,
+        880
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"invoice_updated\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "eb31c5e7-8678-4080-b7f7-83c9e1a7238e",
+      "name": "Status Update",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        4320,
+        540
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "6c8e1892-7e3e-4327-97e2-dfaada5b5e75",
+      "name": "Next Invoice",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        4560,
+        540
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "3903f696-2bc3-44f2-8ab5-6a8008623353",
+      "name": "No Overdue Invoices",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        1200,
+        660
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "c90f9dca-8ebd-40a3-896c-0902335e62b9",
+      "name": "Skip Reminder",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        2160,
+        740
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate incoming webhook payload\nconst body = $input.first().json;\n\nconst invoiceId = body.invoice_id || body.invoiceId;\nconst popUrl = body.pop_url || body.popUrl;\nconst clientId = body.client_id || body.clientId;\n\nif (!invoiceId) {\n  throw new Error('Missing required field: invoice_id');\n}\n\nreturn [{\n  json: {\n    invoice_id: invoiceId,\n    pop_url: popUrl || null,\n    client_id: clientId || null,\n    action: body.action || 'pop_received',\n    timestamp: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "456aad79-f7bb-4358-8709-3275e377e1ff",
+      "name": "Validate Webhook",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        480,
+        720
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Supabase PATCH for POP received\nconst item = $input.first().json;\nconst now = new Date().toISOString();\n\nreturn [{\n  json: {\n    id: item.invoice_id,\n    updatePayload: {\n      pop_received: true,\n      pop_url: item.pop_url,\n      pop_received_at: now,\n      status: 'pop_received',\n      updated_at: now,\n    },\n    invoice_id: item.invoice_id,\n    client_id: item.client_id,\n    pop_url: item.pop_url,\n  }\n}];\n"
+      },
+      "id": "a276b667-52c6-4cfb-8520-0b5697849cbb",
+      "name": "Prep POP Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        720,
+        720
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_invoices?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "938425ea-00ed-4d2f-8745-f403553f0669",
+      "name": "Update Invoice POP",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        960,
+        720
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare collection log for POP received\nconst item = $input.first().json;\nreturn [{\n  json: {\n    invoice_id: item.invoice_id,\n    client_id: item.client_id,\n    status: 'pop_received',\n    channel: 'portal',\n    pop_url: item.pop_url,\n    timestamp: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "202faa53-5a54-4db4-a549-cda377cb75ee",
+      "name": "Prep POP Log",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        720
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"collection_logged\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "45f8b1ab-7d7b-4c32-833c-9043ade80f24",
+      "name": "Log POP Received",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1440,
+        720
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create a review task for the received POP\nconst item = $input.first().json;\nreturn [{\n  json: {\n    type: 'pop_review',\n    priority: 'medium',\n    title: `Review POP: Invoice ${item.invoice_id}`,\n    description: `Proof of payment received for invoice ${item.invoice_id}. Please verify and allocate.`,\n    invoice_id: item.invoice_id,\n    client_id: item.client_id,\n    pop_url: item.pop_url,\n    assigned_to: 'accounts',\n    due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],\n    status: 'ok',\n    message: 'POP received and logged successfully',\n    timestamp: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "f36d04d9-f984-4d3d-872b-7488dedaa6b9",
+      "name": "Prep POP Review Task",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1680,
+        720
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"task_created\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "14feb943-b8e8-488e-843c-e89309a7797c",
+      "name": "Create POP Review Task",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1920,
+        720
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "6b4461f5-b8d0-4983-9766-6a9ccfe89451",
+      "name": "Respond Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        2160,
+        720
+      ],
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Daily 07:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config": {
+      "main": [
+        [
+          {
+            "node": "Find Overdue Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Overdue Invoices": {
+      "main": [
+        [
+          {
+            "node": "Has Overdue?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Overdue?": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Overdue Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Invoices": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Fetch Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Customer": {
+      "main": [
+        [
+          {
+            "node": "Determine Reminder Tier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Reminder Tier": {
+      "main": [
+        [
+          {
+            "node": "Should Send Reminder?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Send Reminder?": {
+      "main": [
+        [
+          {
+            "node": "Select Template",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Reminder": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Template": {
+      "main": [
+        [
+          {
+            "node": "Build Friendly Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Firm Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Escalation Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Build Friendly Email": {
+      "main": [
+        [
+          {
+            "node": "Merge Email Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Firm Email": {
+      "main": [
+        [
+          {
+            "node": "Merge Email Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Escalation Email": {
+      "main": [
+        [
+          {
+            "node": "Merge Email Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Email Output": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reminder Email": {
+      "main": [
+        [
+          {
+            "node": "Prep Invoice Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Invoice Update": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice": {
+      "main": [
+        [
+          {
+            "node": "Prep Collection Log",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Escalation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prep Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Collection Log": {
+      "main": [
+        [
+          {
+            "node": "Log Collection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Collection": {
+      "main": [
+        [
+          {
+            "node": "Status Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status Update": {
+      "main": [
+        [
+          {
+            "node": "Next Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Escalation": {
+      "main": [
+        [
+          {
+            "node": "Prep Escalation Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Prep Escalation Task": {
+      "main": [
+        [
+          {
+            "node": "Create Escalation Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next Invoice": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Collection Action": {
+      "main": [
+        [
+          {
+            "node": "Validate Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prep POP Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep POP Update": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice POP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice POP": {
+      "main": [
+        [
+          {
+            "node": "Prep POP Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep POP Log": {
+      "main": [
+        [
+          {
+            "node": "Log POP Received",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log POP Received": {
+      "main": [
+        [
+          {
+            "node": "Prep POP Review Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep POP Review Task": {
+      "main": [
+        [
+          {
+            "node": "Create POP Review Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create POP Review Task": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

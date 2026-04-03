@@ -19,10 +19,12 @@ import {
   MessageCircle,
   HeadphonesIcon,
   Briefcase,
+  Receipt,
 } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", href: "/portal", icon: LayoutDashboard },
+  { label: "Finance", href: "/portal/accounting", icon: Receipt },
   { label: "Advisory", href: "/portal/advisory", icon: Briefcase },
   { label: "Automations", href: "/portal/workflows", icon: Zap },
   { label: "AI Agents", href: "/portal/ai-agents", icon: Bot },

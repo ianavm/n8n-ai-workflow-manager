@@ -1,0 +1,912 @@
+{
+  "name": "ACCT-03 Invoice Sending & Notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ACCT-03: Invoice Sending & Notifications\nSends approved invoices via email/WhatsApp.\nSchedules first payment reminder, logs to portal.",
+        "width": 500,
+        "height": 100,
+        "color": 4
+      },
+      "id": "a43bb434-0456-4a6f-b48d-01a2b255115d",
+      "name": "Note - Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        140,
+        60
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "### WhatsApp Branch\nOnly fires when customer.preferred_channel\nis 'whatsapp' or 'both'.",
+        "width": 300,
+        "height": 80,
+        "color": 3
+      },
+      "id": "75753680-53ea-4cdf-b79a-127c05e8d8df",
+      "name": "Note - WhatsApp",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1360,
+        700
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/send-invoice",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "54aef4f3-ffb2-4e92-9cc0-88424fe7d80b",
+      "name": "Webhook - Send Invoice",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        300
+      ],
+      "typeVersion": 2,
+      "webhookId": "0d14a13d-6c80-4b73-a3af-6112bfd1118d"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9-17 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "c5f37f6c-bad8-4ca9-bb5f-fcc4f5b3eb35",
+      "name": "Schedule - Hourly Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        500
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "e81eb94c-1f88-413d-a22e-f3101b09c66d",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        700
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Webhook path provides invoice_id + client_id directly.\n// Schedule path needs to query for unsent invoices (handled downstream).\nconst input = $input.first().json;\nconst fromWebhook = !!(input.invoice_id);\n\nreturn [{\n  json: {\n    invoice_id: input.invoice_id || null,\n    client_id: input.client_id || null,\n    fromWebhook,\n  }\n}];\n"
+      },
+      "id": "c4bac791-9a73-41db-9b58-84873352ce99",
+      "name": "Merge Trigger Context",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_config?select=*&={{  $json.client_id ? 'client_id=eq.' + $json.client_id : 'limit=1' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.pgrst.object+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "3d2f0f70-190f-4df5-931b-817a6c31d947",
+      "name": "Load Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        700,
+        300
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst ctx = $('Merge Trigger Context').first().json;\nconst config = $input.first().json;\n\n// Build Supabase REST filter\nlet filters;\nif (ctx.fromWebhook && ctx.invoice_id) {\n  filters = `id=eq.${ctx.invoice_id}&status=eq.approved`;\n} else {\n  filters = 'status=eq.approved&sent_at=is.null&order=created_at.asc&limit=10';\n}\n\nconst SUPABASE_URL = 'REPLACE';\nconst SUPABASE_KEY = 'REPLACE';\n\nconst url = `${SUPABASE_URL}/rest/v1/acct_invoices?select=*&${filters}`;\n\nconst resp = await this.helpers.httpRequest({\n  method: 'GET',\n  url,\n  headers: {\n    apikey: SUPABASE_KEY,\n    Authorization: `Bearer ${SUPABASE_KEY}`,\n  },\n  returnFullResponse: false,\n  json: true,\n});\n\nconst invoices = Array.isArray(resp) ? resp : [resp];\n\nif (invoices.length === 0) {\n  return [{ json: { _noInvoices: true, count: 0 } }];\n}\n\nreturn invoices.map(inv => ({\n  json: {\n    ...inv,\n    _config: config,\n    _fromWebhook: ctx.fromWebhook,\n  }\n}));\n"
+      },
+      "id": "ffbd4f7b-5393-41d6-a7ec-11f8f49f2d47",
+      "name": "Fetch Invoice(s)",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        940,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "2677e4d7-c6bd-4c97-95df-3a80285518d3",
+              "leftValue": "={{ $json._noInvoices }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              },
+              "rightValue": "true"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "97b26973-469f-4468-89f1-ea3c0f21bbec",
+      "name": "Has Invoice?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1160,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst invoice = $input.first().json;\nconst customerId = invoice.customer_id;\n\nconst SUPABASE_URL = 'REPLACE';\nconst SUPABASE_KEY = 'REPLACE';\n\nconst url = `${SUPABASE_URL}/rest/v1/acct_customers?select=*&id=eq.${customerId}`;\n\nconst resp = await this.helpers.httpRequest({\n  method: 'GET',\n  url,\n  headers: {\n    apikey: SUPABASE_KEY,\n    Authorization: `Bearer ${SUPABASE_KEY}`,\n    Accept: 'application/vnd.pgrst.object+json',\n  },\n  returnFullResponse: false,\n  json: true,\n});\n\nreturn [{\n  json: {\n    invoice,\n    customer: resp,\n  }\n}];\n"
+      },
+      "id": "5f0d6b6c-709c-4ec6-b8f6-6d7448904a52",
+      "name": "Fetch Customer",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1400,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.customer.preferred_channel }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "email"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.customer.preferred_channel }}",
+                    "rightValue": "whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "whatsapp"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.customer.preferred_channel }}",
+                    "rightValue": "both",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "both"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "817b39cc-a52f-4eba-8fd0-3b1ee985eede",
+      "name": "Check Channel",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1640,
+        200
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst data = $input.first().json;\nconst inv = data.invoice;\nconst cust = data.customer;\n\n// Format amount from cents to Rands\nfunction formatZAR(cents) {\n  const rands = (cents || 0) / 100;\n  return rands.toLocaleString('en-ZA', {\n    minimumFractionDigits: 2,\n    maximumFractionDigits: 2,\n  });\n}\n\n// Build line items HTML\nconst lineItems = (inv.line_items || []);\nlet lineItemsHtml = '';\nfor (const item of lineItems) {\n  const qty = item.quantity || 1;\n  const unitPrice = (item.unit_price_cents || 0);\n  const vatAmt = (item.vat_cents || 0);\n  const lineTotal = (item.total_cents || (unitPrice * qty + vatAmt));\n  lineItemsHtml += `\n    <tr>\n      <td style=\"padding:8px;border-bottom:1px solid #eee;font-size:13px;\">${item.code || ''}</td>\n      <td style=\"padding:8px;border-bottom:1px solid #eee;font-size:13px;\">${item.description || ''}</td>\n      <td style=\"padding:8px;border-bottom:1px solid #eee;font-size:13px;text-align:center;\">${qty}</td>\n      <td style=\"padding:8px;border-bottom:1px solid #eee;font-size:13px;text-align:right;\">R ${formatZAR(unitPrice)}</td>\n      <td style=\"padding:8px;border-bottom:1px solid #eee;font-size:13px;text-align:right;\">R ${formatZAR(vatAmt)}</td>\n      <td style=\"padding:8px;border-bottom:1px solid #eee;font-size:13px;text-align:right;\">R ${formatZAR(lineTotal)}</td>\n    </tr>`;\n}\n\nconst subtotal = formatZAR(inv.subtotal_cents || 0);\nconst vatAmount = formatZAR(inv.vat_cents || 0);\nconst total = formatZAR(inv.total_cents || 0);\n\nconst issueDate = inv.issue_date\n  ? new Date(inv.issue_date).toLocaleDateString('en-ZA')\n  : new Date().toLocaleDateString('en-ZA');\nconst dueDate = inv.due_date\n  ? new Date(inv.due_date).toLocaleDateString('en-ZA')\n  : 'On receipt';\n\n// Build full email HTML (inline template matching templates/accounting_invoice.html)\nconst html = `<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head>\n<body style=\"margin:0;padding:0;font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;background-color:#f4f4f4;\">\n  <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:600px;margin:0 auto;background-color:#ffffff;\">\n    <tr>\n      <td style=\"padding:30px 40px 20px;border-bottom:3px solid #FF6D5A;\">\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n          <tr>\n            <td><h1 style=\"margin:0;font-size:22px;color:#1A1A2E;\">TAX INVOICE</h1></td>\n            <td style=\"text-align:right;\"><span style=\"font-size:14px;color:#666;\">AnyVision Media</span></td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:20px 40px;\">\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n          <tr>\n            <td width=\"50%\" style=\"vertical-align:top;\">\n              <p style=\"margin:0;font-size:12px;color:#999;text-transform:uppercase;\">Bill To</p>\n              <p style=\"margin:4px 0;font-size:15px;\"><strong>${cust.name || cust.company_name || ''}</strong></p>\n              <p style=\"margin:0;font-size:13px;color:#666;\">${cust.email || ''}</p>\n              <p style=\"margin:0;font-size:13px;color:#666;\">${cust.address || ''}</p>\n              <p style=\"margin:0;font-size:13px;color:#666;\">VAT: ${cust.vat_number || 'N/A'}</p>\n            </td>\n            <td width=\"50%\" style=\"vertical-align:top;text-align:right;\">\n              <p style=\"margin:0;font-size:13px;color:#666;\">Invoice #: <strong>${inv.invoice_number || inv.id}</strong></p>\n              <p style=\"margin:4px 0;font-size:13px;color:#666;\">Date: ${issueDate}</p>\n              <p style=\"margin:4px 0;font-size:13px;color:#666;\">Due: <strong>${dueDate}</strong></p>\n              <p style=\"margin:4px 0;font-size:13px;color:#666;\">Terms: ${inv.payment_terms || 'Net 30'}</p>\n            </td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:0 40px 20px;\">\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-collapse:collapse;\">\n          <tr style=\"background-color:#f8f8f8;\">\n            <th style=\"padding:10px 8px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">Code</th>\n            <th style=\"padding:10px 8px;text-align:left;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">Description</th>\n            <th style=\"padding:10px 8px;text-align:center;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">Qty</th>\n            <th style=\"padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">Unit Price</th>\n            <th style=\"padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">VAT</th>\n            <th style=\"padding:10px 8px;text-align:right;font-size:12px;color:#666;border-bottom:2px solid #FF6D5A;\">Total</th>\n          </tr>\n          ${lineItemsHtml}\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:0 40px 20px;\">\n        <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">\n          <tr>\n            <td style=\"text-align:right;padding:4px 8px;color:#666;\">Subtotal:</td>\n            <td style=\"text-align:right;padding:4px 8px;width:120px;\"><strong>R ${subtotal}</strong></td>\n          </tr>\n          <tr>\n            <td style=\"text-align:right;padding:4px 8px;color:#666;\">VAT (15%):</td>\n            <td style=\"text-align:right;padding:4px 8px;\"><strong>R ${vatAmount}</strong></td>\n          </tr>\n          <tr style=\"border-top:2px solid #FF6D5A;\">\n            <td style=\"text-align:right;padding:8px;font-size:18px;\">Total Due:</td>\n            <td style=\"text-align:right;padding:8px;font-size:18px;color:#FF6D5A;\"><strong>R ${total}</strong></td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:20px 40px;background-color:#f8f8f8;border-top:1px solid #eee;\">\n        <p style=\"margin:0 0 8px;font-size:14px;\"><strong>Payment Options:</strong></p>\n        <p style=\"margin:0;font-size:13px;color:#666;line-height:1.6;\">\n          <strong>EFT:</strong><br>\n          Bank: ${inv.bank_name || 'FNB'}<br>\n          Account: ${inv.bank_account || 'See invoice'}<br>\n          Branch Code: ${inv.bank_branch || '250655'}<br>\n          Reference: ${inv.invoice_number || inv.id}\n        </p>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"padding:20px 40px;background-color:#f8f8f8;\">\n        <p style=\"margin:0;font-size:11px;color:#999;line-height:1.5;\">\n          AnyVision Media | Johannesburg, South Africa<br>\n          accounts@anyvisionmedia.com<br>\n          Please use the invoice number as your payment reference.\n        </p>\n      </td>\n    </tr>\n  </table>\n</body>\n</html>`;\n\nreturn [{\n  json: {\n    ...data,\n    emailHtml: html,\n    emailSubject: `Invoice ${inv.invoice_number || inv.id} from AnyVision Media — R ${total} due ${dueDate}`,\n    emailTo: cust.email,\n  }\n}];\n"
+      },
+      "id": "f87897b6-8f1b-4572-ac7d-23fc2e9014eb",
+      "name": "Build Email HTML",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1900,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.emailTo }}",
+        "subject": "={{ $json.emailSubject }}",
+        "emailType": "html",
+        "message": "={{ $json.emailHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "9b03f164-1c48-41d2-b728-f5232268e08d",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2140,
+        100
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst data = $input.first().json;\nconst inv = data.invoice;\nconst cust = data.customer;\n\nfunction formatZAR(cents) {\n  const rands = (cents || 0) / 100;\n  return rands.toLocaleString('en-ZA', {\n    minimumFractionDigits: 2,\n    maximumFractionDigits: 2,\n  });\n}\n\nconst total = formatZAR(inv.total_cents || 0);\nconst dueDate = inv.due_date\n  ? new Date(inv.due_date).toLocaleDateString('en-ZA')\n  : 'On receipt';\n\nconst message = [\n  `*Invoice ${inv.invoice_number || inv.id}*`,\n  `From: AnyVision Media`,\n  ``,\n  `Hi ${cust.name || cust.company_name || 'there'},`,\n  ``,\n  `Your invoice for *R ${total}* is due on *${dueDate}*.`,\n  ``,\n  `Please use reference: ${inv.invoice_number || inv.id}`,\n  ``,\n  `Questions? Reply to this message or email accounts@anyvisionmedia.com`,\n].join('\\n');\n\nreturn [{\n  json: {\n    ...data,\n    waMessage: message,\n    waPhone: cust.phone || cust.whatsapp_number || null,\n  }\n}];\n"
+      },
+      "id": "6367347d-68dd-4d04-85af-8045af31dabe",
+      "name": "Build WhatsApp Message",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1900,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.waPhone ? 'https://graph.facebook.com/v19.0/PHONE_NUMBER_ID/messages' : '' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer WHATSAPP_TOKEN_PLACEHOLDER"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: \"whatsapp\", to: $json.waPhone, type: \"text\", text: { body: $json.waMessage } }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "132cfda8-8579-41ff-a16d-4f5ecd9c8c3d",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2140,
+        400
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Grab the full context from Build Email HTML or Build WhatsApp Message\n// whichever path(s) executed. Use the richest upstream reference.\nconst emailData = $('Build Email HTML').first()?.json;\nconst waData = $('Build WhatsApp Message').first()?.json;\nconst data = emailData || waData;\n\nif (!data) {\n  return [{ json: { error: 'No send data available' } }];\n}\n\nreturn [{\n  json: {\n    invoice_id: data.invoice.id,\n    customer_id: data.invoice.customer_id,\n    client_id: data.invoice._config?.client_id || data.invoice.client_id,\n    invoice_number: data.invoice.invoice_number || data.invoice.id,\n    total_cents: data.invoice.total_cents,\n    due_date: data.invoice.due_date,\n    customer_email: data.customer.email,\n    customer_name: data.customer.name || data.customer.company_name,\n    preferred_channel: data.customer.preferred_channel || 'email',\n    reminder_cadence_days: data.invoice._config?.reminder_cadence_days || [-3, 0, 3, 7, 14],\n  }\n}];\n"
+      },
+      "id": "a1e3cf92-4cb4-4dc8-b205-d956b90f0b4a",
+      "name": "Merge Send Results",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2380,
+        250
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst data = $input.first().json;\n\nreturn [{\n  json: {\n    id: data.invoice_id,\n    updatePayload: {\n      status: 'sent',\n      sent_at: new Date().toISOString(),\n    }\n  }\n}];\n"
+      },
+      "id": "842fdb0a-b3a2-400e-b660-5cf031bd2bde",
+      "name": "Prepare Status Update",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2600,
+        250
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_invoices?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "b3dda6c3-106e-4b52-a79d-676722e36b06",
+      "name": "Update Invoice Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2820,
+        250
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst data = $('Merge Send Results').first().json;\nconst cadence = data.reminder_cadence_days || [-3, 0, 3, 7, 14];\nconst dueDate = data.due_date ? new Date(data.due_date) : null;\n\nif (!dueDate) {\n  return [{\n    json: {\n      id: data.invoice_id,\n      updatePayload: { next_reminder_at: null }\n    }\n  }];\n}\n\n// First cadence entry = days offset from due_date (negative = before)\nconst firstOffset = cadence[0] || 0;\nconst reminderDate = new Date(dueDate);\nreminderDate.setDate(reminderDate.getDate() + firstOffset);\n\n// Don't schedule in the past\nconst now = new Date();\nconst nextReminder = reminderDate > now ? reminderDate : now;\n\nreturn [{\n  json: {\n    id: data.invoice_id,\n    updatePayload: {\n      next_reminder_at: nextReminder.toISOString(),\n      reminder_cadence_index: 0,\n    }\n  }\n}];\n"
+      },
+      "id": "9cc55e97-621b-406f-a549-ea0906429423",
+      "name": "Schedule First Reminder",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3040,
+        250
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_invoices?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "49fbf9b1-715a-44a8-be3c-15499abe360b",
+      "name": "Update Reminder Schedule",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3260,
+        250
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"collection_logged\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "11696117-6843-4fb7-bc2a-9f7c05077837",
+      "name": "Log Collection Entry",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3480,
+        150
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"invoice_sent\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "deab0f30-e2d0-4906-b2f4-89925ace8130",
+      "name": "Status - Invoice Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3480,
+        350
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst data = $('Merge Send Results').first().json;\n\nreturn [{\n  json: {\n    action: 'audit_log',\n    data: {\n      client_id: data.client_id,\n      event_type: 'INVOICE_SENT',\n      entity_type: 'invoice',\n      entity_id: data.invoice_id,\n      actor: 'n8n-acct-03',\n      result: 'success',\n      metadata: {\n        invoice_number: data.invoice_number,\n        customer_email: data.customer_email,\n        channel: data.preferred_channel,\n        total_cents: data.total_cents,\n        source: 'n8n',\n      }\n    }\n  }\n}];\n"
+      },
+      "id": "bc6e39b9-6a4d-4d51-b874-a5d18a382ffe",
+      "name": "Prepare Audit Log",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3700,
+        250
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"audit_log\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "8df15cc8-1622-4cc6-910a-ffe959b27720",
+      "name": "Audit Log - Invoice Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3920,
+        250
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst data = $('Merge Send Results').first().json;\n\nreturn [{\n  json: {\n    success: true,\n    message: `Invoice ${data.invoice_number} sent successfully`,\n    invoice_id: data.invoice_id,\n    channel: data.preferred_channel,\n    sent_at: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "4d8c5388-b74a-45a5-a48f-a88badb3da6d",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        4140,
+        250
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "840dcf33-0497-4ee1-9ffa-5c1f38b61238",
+      "name": "Respond Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        4360,
+        250
+      ],
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Webhook - Send Invoice": {
+      "main": [
+        [
+          {
+            "node": "Merge Trigger Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule - Hourly Check": {
+      "main": [
+        [
+          {
+            "node": "Merge Trigger Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Merge Trigger Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Trigger Context": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Invoice(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Invoice(s)": {
+      "main": [
+        [
+          {
+            "node": "Has Invoice?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Invoice?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Fetch Customer": {
+      "main": [
+        [
+          {
+            "node": "Check Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Channel": {
+      "main": [
+        [
+          {
+            "node": "Build Email HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build WhatsApp Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Email HTML",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build WhatsApp Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Email HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Email HTML": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Merge Send Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build WhatsApp Message": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Merge Send Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Send Results": {
+      "main": [
+        [
+          {
+            "node": "Prepare Status Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Status Update": {
+      "main": [
+        [
+          {
+            "node": "Update Invoice Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Invoice Status": {
+      "main": [
+        [
+          {
+            "node": "Schedule First Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule First Reminder": {
+      "main": [
+        [
+          {
+            "node": "Update Reminder Schedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Reminder Schedule": {
+      "main": [
+        [
+          {
+            "node": "Log Collection Entry",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Status - Invoice Sent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Audit Log",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Audit Log - Invoice Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

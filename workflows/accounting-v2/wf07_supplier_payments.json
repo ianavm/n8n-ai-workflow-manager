@@ -1,0 +1,713 @@
+{
+  "name": "ACCT-07 Supplier Payments",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "accounting/pay-supplier",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "536dceca-2316-4b73-a83b-53fac8735b5b",
+      "name": "Pay Supplier Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        300
+      ],
+      "typeVersion": 2,
+      "webhookId": "211badd9-f06f-4595-99f7-55b1efd010d7"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "fe1a3307-9110-4959-926a-b088da08538d",
+      "name": "Daily Payment Run",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        0
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "f798da76-f001-4330-a4de-ef18278396f8",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nreturn [{\n  json: {\n    client_id: body.client_id || $env.ACCT_DEFAULT_CLIENT_ID || null,\n    accounting_software: body.accounting_software || 'none',\n    payment_method: body.payment_method || 'eft',\n    owner_email: body.owner_email || $env.ACCT_OWNER_EMAIL || 'ian@anyvisionmedia.com',\n    run_date: new Date().toISOString().slice(0, 10),\n  }\n}];\n"
+      },
+      "id": "44956466-30f6-40ea-aea4-0e11b06aa708",
+      "name": "Load Config",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        460,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "REPLACE/rest/v1/acct_supplier_bills?select=*,acct_suppliers(legal_name,email)&={{ 'status=eq.approved&payment_status=eq.unpaid&client_id=eq.' + $json.client_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "eecf8deb-d6d4-403a-bc95-3a0f1f64dbf1",
+      "name": "Fetch Approved Bills",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        300
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "fc44e797-1ef6-4ab0-9f87-ed7f08e24e30",
+              "leftValue": "={{ $json.length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": "0"
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "cf90dc34-805a-4a7b-bdeb-9a207dbca5a8",
+      "name": "Has Bills?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        960,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    success: true,\n    message: 'No approved unpaid bills found',\n    bills_processed: 0,\n  }\n}];\n"
+      },
+      "id": "fa81bb77-4aef-4eb1-b809-cba42fe66978",
+      "name": "No Bills Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const bills = $input.all().map(i => i.json);\nconst config = $('Load Config').first().json;\nconst groups = {};\n\nfor (const bill of bills) {\n  const sid = bill.supplier_id;\n  if (!groups[sid]) {\n    groups[sid] = {\n      supplier_id: sid,\n      supplier_name: bill.acct_suppliers?.legal_name || 'Unknown',\n      supplier_email: bill.acct_suppliers?.email || null,\n      bills: [],\n      total: 0,\n      client_id: config.client_id,\n      accounting_software: config.accounting_software,\n      payment_method: config.payment_method,\n      owner_email: config.owner_email,\n      run_date: config.run_date,\n    };\n  }\n  groups[sid].bills.push({\n    id: bill.id,\n    bill_number: bill.bill_number,\n    amount: Number(bill.amount_due || bill.total_amount || 0),\n    due_date: bill.due_date,\n    description: bill.description || bill.bill_number,\n  });\n  groups[sid].total += Number(bill.amount_due || bill.total_amount || 0);\n}\n\nreturn Object.values(groups).map(g => ({\n  json: { ...g, total: Math.round(g.total * 100) / 100 }\n}));\n"
+      },
+      "id": "71421219-cfbf-4ad4-b206-f414f82620f0",
+      "name": "Group by Supplier",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const g = $input.first().json;\nconst rows = g.bills.map(b =>\n  `<tr><td>${b.bill_number}</td><td>${b.description}</td>`\n  + `<td>${b.due_date || '-'}</td><td style=\"text-align:right\">R ${b.amount.toFixed(2)}</td></tr>`\n).join('\\n');\n\nconst html = `\n<h2>Remittance Advice</h2>\n<p>Dear ${g.supplier_name},</p>\n<p>Please find below the details of payment processed on ${g.run_date}:</p>\n<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\" style=\"border-collapse:collapse\">\n<tr style=\"background:#f0f0f0\">\n  <th>Bill #</th><th>Description</th><th>Due Date</th><th>Amount</th>\n</tr>\n${rows}\n<tr style=\"font-weight:bold\">\n  <td colspan=\"3\">Total</td><td style=\"text-align:right\">R ${g.total.toFixed(2)}</td>\n</tr>\n</table>\n<p>Payment method: ${g.payment_method.toUpperCase()}</p>\n<p>Kind regards,<br/>AnyVision Media Accounting</p>\n`;\n\nreturn [{ json: { ...g, remittance_html: html } }];\n"
+      },
+      "id": "022d6054-1d37-49df-95b1-fa36b3693d28",
+      "name": "Generate Remittance",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1460,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accounting_software || 'none' }}",
+                    "rightValue": "quickbooks",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "quickbooks"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.accounting_software || 'none' }}",
+                    "rightValue": "xero",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "xero"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "2273333f-5f59-4b55-a57f-a79520456894",
+      "name": "Acct Software Switch",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1720,
+        200
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Placeholder: POST bill-payment to QuickBooks/Xero\nconst g = $input.first().json;\nreturn [{\n  json: {\n    ...g,\n    external_payment_id: 'placeholder_' + Date.now(),\n    sync_status: 'pending_implementation',\n  }\n}];\n"
+      },
+      "id": "5081b6fa-03ab-4722-a74b-38da54f3e6d7",
+      "name": "Record Payment QB",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1980,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {},
+      "id": "180aeb89-fd9d-4f49-bc3f-e7bd33194ab1",
+      "name": "Skip Sync",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        1980,
+        400
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "const g = $input.first().json;\nconst today = new Date().toISOString();\n\n// Emit one item per bill so downstream Supabase update processes each\nreturn g.bills.map(b => ({\n  json: {\n    id: b.id,\n    updatePayload: {\n      payment_status: 'paid',\n      payment_date: today,\n      updated_at: today,\n    },\n    client_id: g.client_id,\n    supplier_id: g.supplier_id,\n    supplier_name: g.supplier_name,\n    supplier_email: g.supplier_email,\n    remittance_html: g.remittance_html,\n    total: g.total,\n    owner_email: g.owner_email,\n    bill_count: g.bills.length,\n  }\n}));\n"
+      },
+      "id": "a53b1d48-1344-4cb0-a154-73fd706db92f",
+      "name": "Update Bills Paid",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2240,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=REPLACE/rest/v1/acct_supplier_bills?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updatePayload || $json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "b7756b8b-10b4-44a2-bf05-45989c95adb8",
+      "name": "Patch Bill Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2500,
+        200
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.supplier_email }}",
+        "subject": "=Remittance Advice — {{ $json.supplier_name }} — {{ $json.total }}",
+        "emailType": "html",
+        "message": "={{ $json.remittance_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "4d6357f7-ca1f-4c82-9c9d-fd1acf071903",
+      "name": "Send Remittance Email",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2760,
+        200
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nreturn [{\n  json: {\n    client_id: item.client_id,\n    event_type: 'BILL_PAID',\n    entity_type: 'supplier_bill',\n    entity_id: item.supplier_id,\n    action: 'bill_paid',\n    actor: 'n8n-wf07',\n    result: 'success',\n    metadata: {\n      source: 'n8n',\n      supplier_name: item.supplier_name,\n      bill_count: item.bill_count,\n      total: item.total,\n    }\n  }\n}];\n"
+      },
+      "id": "00cb8227-5804-40d8-bd36-64e1df7296be",
+      "name": "Audit Log Prep",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3020,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/acct_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "5f37433e-e78a-4c7f-99a7-2d391b7c0cd1",
+      "name": "Audit Log Insert",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3280,
+        200
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://portal.anyvisionmedia.com/api/webhooks/n8n-accounting",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-webhook-secret",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({action: \"bill_updated\", data: $json}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "c3a6d67e-d55b-46ce-8a11-fb75568d5ee2",
+      "name": "Status Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3540,
+        200
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $('Group by Supplier').all();\nconst totalPaid = items.reduce((s, i) => s + (i.json.total || 0), 0);\nreturn [{\n  json: {\n    success: true,\n    message: 'Supplier payments processed',\n    suppliers_paid: items.length,\n    total_paid: Math.round(totalPaid * 100) / 100,\n  }\n}];\n"
+      },
+      "id": "d0e13b16-e418-4724-9e60-750c72b7cefe",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        3800,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "79312230-e376-4817-9185-c6d6b0829fbc",
+      "name": "Respond Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        4060,
+        300
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "4aa3672c-dbe2-4fc5-a731-0cec2380bbe0",
+      "name": "Respond No Bills",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1460,
+        500
+      ],
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Pay Supplier Webhook": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Payment Run": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Approved Bills",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Approved Bills": {
+      "main": [
+        [
+          {
+            "node": "Has Bills?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Bills?": {
+      "main": [
+        [
+          {
+            "node": "Group by Supplier",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Bills Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Bills Response": {
+      "main": [
+        [
+          {
+            "node": "Respond No Bills",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group by Supplier": {
+      "main": [
+        [
+          {
+            "node": "Generate Remittance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Remittance": {
+      "main": [
+        [
+          {
+            "node": "Acct Software Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acct Software Switch": {
+      "main": [
+        [
+          {
+            "node": "Record Payment QB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record Payment QB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Payment QB": {
+      "main": [
+        [
+          {
+            "node": "Update Bills Paid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Sync": {
+      "main": [
+        [
+          {
+            "node": "Update Bills Paid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Bills Paid": {
+      "main": [
+        [
+          {
+            "node": "Patch Bill Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patch Bill Status": {
+      "main": [
+        [
+          {
+            "node": "Send Remittance Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Remittance Email": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Prep",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log Prep": {
+      "main": [
+        [
+          {
+            "node": "Audit Log Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log Insert": {
+      "main": [
+        [
+          {
+            "node": "Status Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
