@@ -113,6 +113,20 @@ CREDENTIALS = {
         "N8N_CRED_TELEGRAM", "37DtsPS5RQYxY2i1", "Telegram RE Operations Bot"
     ),
 
+    # ── Ad Platforms ────────────────────────────────────────
+    "google_ads": _cred(
+        "N8N_CRED_GOOGLE_ADS", "REPLACE_AFTER_SETUP", "Google Ads OAuth2"
+    ),
+    "meta_ads": _cred(
+        "N8N_CRED_META_ADS", "REPLACE_AFTER_SETUP", "Meta Ads Graph API"
+    ),
+    "tiktok_ads": _cred(
+        "N8N_CRED_TIKTOK_ADS", "REPLACE_AFTER_SETUP", "TikTok Ads HTTP Auth"
+    ),
+    "linkedin_ads": _cred(
+        "N8N_CRED_LINKEDIN_ADS", "REPLACE_AFTER_SETUP", "LinkedIn Ads OAuth2"
+    ),
+
     # ── Infrastructure ──────────────────────────────────────
     "http_header_auth": _cred(
         "N8N_CRED_HTTP_HEADER_AUTH", "xymp9Nho08mRW2Wz", "Header Auth account 2"
@@ -168,6 +182,65 @@ CRED_TELEGRAM = CREDENTIALS["telegram"]
 # Infrastructure
 CRED_HTTP_HEADER_AUTH = CREDENTIALS["http_header_auth"]
 CRED_N8N_API = CREDENTIALS["n8n_api"]
+
+
+# Ad Platforms
+CRED_GOOGLE_ADS = CREDENTIALS["google_ads"]
+CRED_META_ADS = CREDENTIALS["meta_ads"]
+CRED_TIKTOK_ADS = CREDENTIALS["tiktok_ads"]
+CRED_LINKEDIN_ADS = CREDENTIALS["linkedin_ads"]
+
+
+def get_client_credentials(
+    client_id: str,
+    platform: str,
+    supabase_url: str | None = None,
+    supabase_key: str | None = None,
+) -> dict:
+    """Fetch per-client credential ID from Supabase mkt_config.
+
+    Falls back to default AVM credentials if client-specific not found.
+
+    Args:
+        client_id: UUID of the client.
+        platform: Ad platform key (google_ads, meta_ads, tiktok_ads, linkedin_ads, blotato).
+        supabase_url: Supabase project URL (reads from env if not provided).
+        supabase_key: Supabase service role key (reads from env if not provided).
+
+    Returns:
+        dict with 'id' and 'name' keys for n8n credential reference.
+    """
+    import httpx
+
+    url = supabase_url or os.getenv("SUPABASE_URL", "")
+    key = supabase_key or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+
+    if not url or not key:
+        # Fall back to defaults
+        return CREDENTIALS.get(platform, {"id": "MISSING", "name": platform})
+
+    try:
+        resp = httpx.get(
+            f"{url}/rest/v1/mkt_config",
+            params={"client_id": f"eq.{client_id}", "select": "n8n_credentials"},
+            headers={
+                "apikey": key,
+                "Authorization": f"Bearer {key}",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        rows = resp.json()
+        if rows and len(rows) > 0:
+            creds = rows[0].get("n8n_credentials", {})
+            cred_id = creds.get(f"{platform}_cred_id")
+            if cred_id:
+                return {"id": cred_id, "name": f"{platform} (client {client_id[:8]})"}
+    except Exception:
+        pass
+
+    # Fall back to default
+    return CREDENTIALS.get(platform, {"id": "MISSING", "name": platform})
 
 
 def validate_credentials():

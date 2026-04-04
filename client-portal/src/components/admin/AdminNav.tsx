@@ -17,11 +17,13 @@ import {
   HeadphonesIcon,
   HeartPulse,
   Calculator,
+  Megaphone,
 } from "lucide-react";
 
 const navItems = [
   { label: "Overview", href: "/admin", icon: LayoutDashboard },
   { label: "Accounting", href: "/admin/accounting", icon: Calculator },
+  { label: "Marketing", href: "/admin/marketing", icon: Megaphone },
   { label: "AI Agents", href: "/admin/agents", icon: Bot },
   { label: "Client Health", href: "/admin/health", icon: HeartPulse },
   { label: "Clients", href: "/admin/clients", icon: Users },

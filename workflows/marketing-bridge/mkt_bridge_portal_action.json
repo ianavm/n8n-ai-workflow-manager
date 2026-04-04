@@ -1,0 +1,592 @@
+{
+  "name": "MKT-BRIDGE Portal Action Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mkt/portal-action",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "4996f2ae-c5a8-4fdc-8c9a-2e4e5d0724f1",
+      "name": "Portal Action Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 2,
+      "webhookId": "cd8f41f0-c5de-4bed-bc8b-d96e33613541"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst { client_id, action, entity_type, entity_id } = body;\n\nif (!client_id || !action || !entity_type || !entity_id) {\n  return [{\n    json: {\n      valid: false,\n      error: 'Missing required fields: client_id, action, entity_type, entity_id',\n    }\n  }];\n}\n\nconst validActions = ['pause_campaign', 'resume_campaign'];\nif (!validActions.includes(action)) {\n  return [{\n    json: {\n      valid: false,\n      error: `Unsupported action: ${action}. Valid: ${validActions.join(', ')}`,\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    valid: true,\n    client_id,\n    action,\n    entity_type,\n    entity_id,\n    received_at: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "2681732c-4312-4856-870d-894adc6cdc74",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "30493f1a-2e22-48df-a8ca-557fd7de1709",
+              "leftValue": "={{ $json.valid }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "9254e99f-e159-4954-a2eb-e51924a81013",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{\n  json: {\n    success: false,\n    error: input.error || 'Validation failed',\n  }\n}];\n"
+      },
+      "id": "fdb5673c-e79e-44a8-93eb-c98c877cfc0c",
+      "name": "Prepare Error Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        920,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "8ef15fd5-aeff-4b87-956b-d34999063a90",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1160,
+        600
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=REPLACE/rest/v1/mkt_campaigns?select=id,name,platform,platform_campaign_id,status,client_id&id=eq.{{ $json.entity_id }}&client_id=eq.{{ $json.client_id }}&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.pgrst.object+json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "129a331e-1725-4921-bc0a-194a819b8af6",
+      "name": "Fetch Campaign",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        920,
+        300
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const campaign = $input.first().json;\nconst actionCtx = $('Validate Payload').first().json;\n\nif (!campaign || !campaign.id) {\n  return [{\n    json: {\n      platform: 'none',\n      error: 'Campaign not found',\n      ...actionCtx,\n    }\n  }];\n}\n\n// Map portal action to platform-specific operation\nconst platformAction = actionCtx.action === 'pause_campaign'\n  ? 'PAUSED'\n  : 'ENABLED';\n\nreturn [{\n  json: {\n    ...actionCtx,\n    platform: campaign.platform || 'none',\n    platform_campaign_id: campaign.platform_campaign_id,\n    campaign_name: campaign.name,\n    campaign_status: campaign.status,\n    platform_action: platformAction,\n  }\n}];\n"
+      },
+      "id": "3eee5743-79fa-42d1-93b1-41f9e7c9ac10",
+      "name": "Prepare Platform Action",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1160,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "google_ads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "google"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "meta_ads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "meta"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "tiktok_ads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "tiktok"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "linkedin_ads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "linkedin"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "c3ac0e1a-a3e8-4bb4-8c01-c2e44ed941ed",
+      "name": "Platform Switch",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1400,
+        300
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// TODO: Replace with real Google Ads API call once OAuth is configured\n// POST https://googleads.googleapis.com/v17/customers/{customer_id}/campaigns:mutate\nconst input = $input.first().json;\nreturn [{\n  json: {\n    ...input,\n    platform_result: 'pending',\n    platform_message: `Google Ads: ${input.platform_action} for campaign ${input.platform_campaign_id} (manual action required until OAuth configured)`,\n  }\n}];\n"
+      },
+      "id": "fc38f54a-12f3-4e77-b312-727abd35571d",
+      "name": "Google Ads Action",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1700,
+        100
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// TODO: Replace with real Meta Marketing API call\n// POST https://graph.facebook.com/v21.0/{campaign_id}\nconst input = $input.first().json;\nconst metaStatus = input.platform_action === 'PAUSED' ? 'PAUSED' : 'ACTIVE';\nreturn [{\n  json: {\n    ...input,\n    platform_result: 'pending',\n    platform_message: `Meta Ads: set status=${metaStatus} for campaign ${input.platform_campaign_id} (manual action required until API tier approved)`,\n  }\n}];\n"
+      },
+      "id": "184d4b10-d279-44d8-a1dd-df9573dc1a07",
+      "name": "Meta Ads Action",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1700,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// TODO: Replace with real TikTok Ads API call\n// POST https://business-api.tiktok.com/open_api/v1.3/campaign/status/update/\nconst input = $input.first().json;\nreturn [{\n  json: {\n    ...input,\n    platform_result: 'pending',\n    platform_message: `TikTok Ads: ${input.platform_action} for campaign ${input.platform_campaign_id}`,\n  }\n}];\n"
+      },
+      "id": "e9197e7f-db0b-4336-aaaa-4b7e447a2d96",
+      "name": "TikTok Ads Action",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1700,
+        500
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// TODO: Replace with real LinkedIn Marketing API call\n// POST https://api.linkedin.com/rest/adCampaigns/{id}\nconst input = $input.first().json;\nreturn [{\n  json: {\n    ...input,\n    platform_result: 'pending',\n    platform_message: `LinkedIn Ads: ${input.platform_action} for campaign ${input.platform_campaign_id}`,\n  }\n}];\n"
+      },
+      "id": "6d60a092-6106-4f22-9d61-5a16ae0ed7d2",
+      "name": "LinkedIn Ads Action",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1700,
+        700
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{\n  json: {\n    ...input,\n    platform_result: 'skipped',\n    platform_message: `No platform-specific action for platform: ${input.platform}`,\n  }\n}];\n"
+      },
+      "id": "981d7e2b-050a-482a-b27f-588e3fdbe552",
+      "name": "No Platform Action",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1700,
+        900
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nreturn [{\n  json: {\n    client_id: input.client_id,\n    entity_type: input.entity_type || 'campaign',\n    entity_id: input.entity_id,\n    action: input.action,\n    result: input.platform_result || 'unknown',\n    metadata: {\n      platform: input.platform,\n      platform_campaign_id: input.platform_campaign_id,\n      platform_message: input.platform_message,\n      received_at: input.received_at,\n    },\n    created_at: new Date().toISOString(),\n  }\n}];\n"
+      },
+      "id": "0323797e-0f4a-4207-963a-403f56222672",
+      "name": "Prepare Audit Entry",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2000,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE/rest/v1/mkt_audit_log",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REPLACE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REPLACE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "c950f21c-ccae-414d-a18c-8d6ac5c66f32",
+      "name": "Write Audit Log",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2240,
+        400
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Prepare Audit Entry').first().json;\nreturn [{\n  json: {\n    success: true,\n    action: ctx.action,\n    entity_id: ctx.entity_id,\n    result: ctx.result,\n    message: ctx.metadata.platform_message || 'Action processed',\n  }\n}];\n"
+      },
+      "id": "062bb1c7-a49c-49a8-961b-01b04a037639",
+      "name": "Prepare Success Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2480,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "options": {}
+      },
+      "id": "38b4a628-1dfa-40c6-a2e4-5b74b23f6297",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        2720,
+        400
+      ],
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "Portal Action Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payload": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Error Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Campaign": {
+      "main": [
+        [
+          {
+            "node": "Prepare Platform Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Platform Action": {
+      "main": [
+        [
+          {
+            "node": "Platform Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Platform Switch": {
+      "main": [
+        [
+          {
+            "node": "Google Ads Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta Ads Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Ads Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LinkedIn Ads Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Platform Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Ads Action": {
+      "main": [
+        [
+          {
+            "node": "Prepare Audit Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Ads Action": {
+      "main": [
+        [
+          {
+            "node": "Prepare Audit Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok Ads Action": {
+      "main": [
+        [
+          {
+            "node": "Prepare Audit Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Ads Action": {
+      "main": [
+        [
+          {
+            "node": "Prepare Audit Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Platform Action": {
+      "main": [
+        [
+          {
+            "node": "Prepare Audit Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Audit Entry": {
+      "main": [
+        [
+          {
+            "node": "Write Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Prepare Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Success Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -20,12 +20,14 @@ import {
   HeadphonesIcon,
   Briefcase,
   Receipt,
+  Megaphone,
 } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", href: "/portal", icon: LayoutDashboard },
   { label: "Finance", href: "/portal/accounting", icon: Receipt },
   { label: "Advisory", href: "/portal/advisory", icon: Briefcase },
+  { label: "Marketing", href: "/portal/marketing", icon: Megaphone },
   { label: "Automations", href: "/portal/workflows", icon: Zap },
   { label: "AI Agents", href: "/portal/ai-agents", icon: Bot },
   { label: "Documents", href: "/portal/documents", icon: FileText },
