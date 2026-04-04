@@ -1,4 +1,5 @@
 import { PortalNav } from "@/components/portal/PortalNav";
+import { ThemeProvider } from "@/lib/theme-provider";
 
 export default function PortalLayout({
   children,
@@ -6,7 +7,7 @@ export default function PortalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    <ThemeProvider>
       <PortalNav />
       {/* Main content area with dot matrix background (V1 preview) */}
       <main
@@ -23,6 +24,6 @@ export default function PortalLayout({
           {children}
         </div>
       </main>
-    </>
+    </ThemeProvider>
   );
 }

@@ -1,20 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { formatDistanceToNow } from "date-fns";
-import { toast } from "sonner";
+import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   HeartPulse,
-  TrendingDown,
-  TrendingUp,
-  AlertTriangle,
-  Calendar,
   Users,
+  ShieldCheck,
+  AlertTriangle,
+  AlertOctagon,
+  Filter,
+  Clock,
+  Mail,
+  Phone,
+  ClipboardList,
 } from "lucide-react";
+import { StatCard } from "@/components/charts/StatCard";
+import { ClientHealthCard } from "@/components/dashboard/ClientHealthCard";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { RiskBadge } from "@/components/ui/RiskBadge";
+import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 
-interface ClientHealth {
+interface ClientHealthRow {
   id: string;
   client_id: string;
   score_date: string;
@@ -24,67 +31,70 @@ interface ClientHealth {
   support_score: number;
   composite_score: number;
   risk_level: string;
-}
-
-interface RenewalEntry {
-  id: string;
-  client_id: string;
-  current_plan: string;
-  monthly_value: number;
-  renewal_date: string;
-  days_until_renewal: number;
-  health_score: number;
-  risk_level: string;
-  status: string;
-  last_contact_date: string;
-  next_action: string;
+  trend: string;
+  days_at_risk: number;
 }
 
 interface ClientInfo {
   id: string;
-  company_name: string;
-  email: string;
+  full_name: string;
+  company_name: string | null;
 }
 
-const riskColors: Record<string, string> = {
-  low: "text-emerald-400",
-  medium: "text-yellow-400",
-  high: "text-orange-400",
-  critical: "text-red-400",
+interface Intervention {
+  id: string;
+  client_id: string;
+  intervention_type: string;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  health_alert_id: string | null;
+}
+
+type RiskFilter = "all" | "critical" | "high" | "medium" | "low";
+
+const INTERVENTION_ICONS: Record<string, React.ReactNode> = {
+  email: <Mail size={14} />,
+  call: <Phone size={14} />,
+  task: <ClipboardList size={14} />,
+  offer: <ShieldCheck size={14} />,
+  meeting: <Users size={14} />,
 };
 
-const riskBadgeVariant = (risk: string) => {
-  if (risk === "low") return "success" as const;
-  if (risk === "medium") return "warning" as const;
-  return "danger" as const;
-};
-
-const statusColors: Record<string, string> = {
-  upcoming: "text-blue-400 bg-blue-500/10",
-  in_progress: "text-yellow-400 bg-yellow-500/10",
-  renewed: "text-emerald-400 bg-emerald-500/10",
-  churned: "text-red-400 bg-red-500/10",
-  downgraded: "text-orange-400 bg-orange-500/10",
-};
-
-export default function HealthDashboard() {
-  const [healthScores, setHealthScores] = useState<ClientHealth[]>([]);
-  const [renewals, setRenewals] = useState<RenewalEntry[]>([]);
+export default function AdminHealthDashboard() {
+  const router = useRouter();
+  const [healthScores, setHealthScores] = useState<ClientHealthRow[]>([]);
   const [clients, setClients] = useState<ClientInfo[]>([]);
+  const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<RiskFilter>("all");
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch("/api/admin/health");
-        if (res.ok) {
-          const data = await res.json();
-          setHealthScores(data.healthScores || []);
-          setRenewals(data.renewals || []);
-          setClients(data.clients || []);
-        }
+        const supabase = createClient();
+
+        const [scoresRes, clientsRes, interventionsRes] = await Promise.all([
+          supabase
+            .from("client_health_scores")
+            .select("*")
+            .order("composite_score", { ascending: true }),
+          supabase
+            .from("clients")
+            .select("id, full_name, company_name"),
+          supabase
+            .from("health_interventions")
+            .select("*")
+            .eq("status", "pending")
+            .order("created_at", { ascending: false })
+            .limit(20),
+        ]);
+
+        setHealthScores(scoresRes.data ?? []);
+        setClients(clientsRes.data ?? []);
+        setInterventions(interventionsRes.data ?? []);
       } catch {
-        toast.error("Failed to load health data");
+        toast.error("Failed to load health dashboard");
       } finally {
         setLoading(false);
       }
@@ -92,22 +102,99 @@ export default function HealthDashboard() {
     fetchData();
   }, []);
 
-  const getClientName = (clientId: string) => {
-    const client = clients.find((c) => c.id === clientId);
-    return client?.company_name || client?.email || clientId.slice(0, 8);
-  };
+  const clientMap = useMemo(() => {
+    const map = new Map<string, ClientInfo>();
+    for (const c of clients) {
+      map.set(c.id, c);
+    }
+    return map;
+  }, [clients]);
 
-  const atRiskCount = healthScores.filter((h) => h.composite_score < 40).length;
-  const healthyCount = healthScores.filter((h) => h.composite_score >= 70).length;
-  const avgScore = healthScores.length > 0
-    ? Math.round(healthScores.reduce((sum, h) => sum + h.composite_score, 0) / healthScores.length)
-    : 0;
-  const upcomingRenewals = renewals.filter((r) => r.status === "upcoming" && r.days_until_renewal <= 30).length;
+  const latestPerClient = useMemo(() => {
+    const byClient = new Map<string, ClientHealthRow>();
+    for (const score of healthScores) {
+      const existing = byClient.get(score.client_id);
+      if (!existing || new Date(score.score_date) > new Date(existing.score_date)) {
+        byClient.set(score.client_id, score);
+      }
+    }
+    return Array.from(byClient.values());
+  }, [healthScores]);
+
+  const stats = useMemo(() => {
+    const total = latestPerClient.length;
+    const healthy = latestPerClient.filter((h) => h.composite_score > 70).length;
+    const atRisk = latestPerClient.filter(
+      (h) => h.composite_score >= 30 && h.composite_score <= 70
+    ).length;
+    const critical = latestPerClient.filter((h) => h.composite_score < 30).length;
+    return { total, healthy, atRisk, critical };
+  }, [latestPerClient]);
+
+  const filteredClients = useMemo(() => {
+    const sorted = [...latestPerClient].sort(
+      (a, b) => a.composite_score - b.composite_score
+    );
+    if (filter === "all") return sorted;
+    if (filter === "critical") return sorted.filter((h) => h.composite_score < 30);
+    if (filter === "high")
+      return sorted.filter((h) => h.composite_score >= 30 && h.composite_score < 50);
+    if (filter === "medium")
+      return sorted.filter((h) => h.composite_score >= 50 && h.composite_score <= 70);
+    return sorted.filter((h) => h.composite_score > 70);
+  }, [latestPerClient, filter]);
+
+  const clientCards = useMemo(() => {
+    return filteredClients.map((h) => {
+      const info = clientMap.get(h.client_id);
+      return {
+        id: h.client_id,
+        full_name: info?.full_name ?? h.client_id.slice(0, 8),
+        company_name: info?.company_name ?? null,
+        composite_score: h.composite_score,
+        usage_score: h.usage_score,
+        payment_score: h.payment_score,
+        engagement_score: h.engagement_score,
+        support_score: h.support_score,
+        risk_level: h.risk_level,
+        trend: h.trend,
+        days_at_risk: h.days_at_risk,
+      };
+    });
+  }, [filteredClients, clientMap]);
+
+  function handleAction(clientId: string, action: string) {
+    if (action === "view") {
+      router.push(`/admin/health/${clientId}`);
+    } else if (action === "checkin") {
+      toast.info("Check-in scheduled (coming soon)");
+    } else if (action === "task") {
+      toast.info("Task created (coming soon)");
+    }
+  }
+
+  const filters: { label: string; value: RiskFilter }[] = [
+    { label: "All", value: "all" },
+    { label: "Critical", value: "critical" },
+    { label: "High Risk", value: "high" },
+    { label: "Medium", value: "medium" },
+    { label: "Healthy", value: "low" },
+  ];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#6C63FF]" />
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-64" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -118,125 +205,129 @@ export default function HealthDashboard() {
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-3">
           <HeartPulse className="text-[#FF6D5A]" size={28} />
-          Client Health & Renewals
+          Client Health Dashboard
         </h1>
         <p className="text-[#6B7280] mt-1">
-          Monitor client health scores, churn risk, and upcoming renewals
+          Monitor client health, identify churn risk, and manage interventions
         </p>
       </div>
 
-      {/* Summary Cards */}
+      {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4 text-center">
-          <div className="text-2xl font-bold text-white">{healthScores.length}</div>
-          <div className="text-xs text-[#6B7280] mt-1">Tracked Clients</div>
-        </Card>
-        <Card className="p-4 text-center">
-          <div className="text-2xl font-bold text-emerald-400">{healthyCount}</div>
-          <div className="text-xs text-[#6B7280] mt-1">Healthy (70+)</div>
-        </Card>
-        <Card className="p-4 text-center">
-          <div className={`text-2xl font-bold ${atRiskCount > 0 ? "text-red-400 animate-pulse" : "text-[#6B7280]"}`}>{atRiskCount}</div>
-          <div className="text-xs text-[#6B7280] mt-1">At Risk (&lt;40)</div>
-        </Card>
-        <Card className="p-4 text-center">
-          <div className={`text-2xl font-bold ${upcomingRenewals > 0 ? "text-[#FF6D5A]" : "text-[#6B7280]"}`}>{upcomingRenewals}</div>
-          <div className="text-xs text-[#6B7280] mt-1">Renewals (30d)</div>
-        </Card>
+        <StatCard
+          title="Total Tracked"
+          value={stats.total}
+          icon={<Users size={22} />}
+          color="purple"
+        />
+        <StatCard
+          title="Healthy (70+)"
+          value={stats.healthy}
+          icon={<ShieldCheck size={22} />}
+          color="teal"
+        />
+        <StatCard
+          title="At Risk (30-70)"
+          value={stats.atRisk}
+          icon={<AlertTriangle size={22} />}
+          color="amber"
+        />
+        <StatCard
+          title="Critical (<30)"
+          value={stats.critical}
+          icon={<AlertOctagon size={22} />}
+          color="red"
+        />
       </div>
 
-      {/* Health Scores Table */}
-      <div>
-        <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-          <Users size={20} className="text-[#6C63FF]" />
-          Client Health Scores
-        </h2>
-        {healthScores.length > 0 ? (
-          <Card className="overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[rgba(255,255,255,0.06)]">
-                  <th className="text-left p-3 text-[#6B7280] font-medium">Client</th>
-                  <th className="text-center p-3 text-[#6B7280] font-medium">Usage</th>
-                  <th className="text-center p-3 text-[#6B7280] font-medium">Payment</th>
-                  <th className="text-center p-3 text-[#6B7280] font-medium">Engagement</th>
-                  <th className="text-center p-3 text-[#6B7280] font-medium">Support</th>
-                  <th className="text-center p-3 text-[#6B7280] font-medium">Overall</th>
-                  <th className="text-center p-3 text-[#6B7280] font-medium">Risk</th>
-                </tr>
-              </thead>
-              <tbody>
-                {healthScores.sort((a, b) => a.composite_score - b.composite_score).map((h) => (
-                  <tr key={h.id} className="border-b border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.02)]">
-                    <td className="p-3 text-white font-medium">{getClientName(h.client_id)}</td>
-                    <td className="p-3 text-center text-white">{h.usage_score}</td>
-                    <td className="p-3 text-center text-white">{h.payment_score}</td>
-                    <td className="p-3 text-center text-white">{h.engagement_score}</td>
-                    <td className="p-3 text-center text-white">{h.support_score}</td>
-                    <td className="p-3 text-center">
-                      <span className={`font-bold ${h.composite_score >= 70 ? "text-emerald-400" : h.composite_score >= 40 ? "text-yellow-400" : "text-red-400"}`}>
-                        {h.composite_score}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center">
-                      <Badge variant={riskBadgeVariant(h.risk_level)}>
-                        {h.risk_level}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        ) : (
-          <Card className="p-8 text-center">
-            <HeartPulse size={48} className="mx-auto text-[#6B7280] mb-3" />
-            <p className="text-white font-medium">No health data yet</p>
-            <p className="text-sm text-[#6B7280]">Client health scores will populate once the Client Relations agent starts running.</p>
-          </Card>
-        )}
+      {/* Filter Pills */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Filter size={14} className="text-[#6B7280]" />
+        {filters.map((f) => (
+          <button
+            key={f.value}
+            onClick={() => setFilter(f.value)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+              filter === f.value
+                ? "bg-[rgba(108,99,255,0.15)] text-[#6C63FF]"
+                : "bg-[rgba(255,255,255,0.04)] text-[#6B7280] hover:text-white hover:bg-[rgba(255,255,255,0.08)]"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
-      {/* Renewal Pipeline */}
-      <div>
-        <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-          <Calendar size={20} className="text-[#FF6D5A]" />
-          Renewal Pipeline
-        </h2>
-        {renewals.length > 0 ? (
-          <Card className="divide-y divide-[rgba(255,255,255,0.06)]">
-            {renewals.sort((a, b) => a.days_until_renewal - b.days_until_renewal).map((r) => (
-              <div key={r.id} className="p-4 flex items-center gap-4">
-                <div className="flex-1">
-                  <p className="text-sm text-white font-medium">{getClientName(r.client_id)}</p>
-                  <p className="text-xs text-[#6B7280]">{r.current_plan} - R{r.monthly_value?.toLocaleString()}/mo</p>
-                </div>
-                <div className="text-center">
-                  <p className={`text-lg font-bold ${r.days_until_renewal <= 14 ? "text-red-400" : r.days_until_renewal <= 30 ? "text-yellow-400" : "text-white"}`}>
-                    {r.days_until_renewal}d
-                  </p>
-                  <p className="text-[10px] text-[#6B7280]">until renewal</p>
-                </div>
-                <div className="text-center min-w-[60px]">
-                  <span className={`text-xs font-medium ${riskColors[r.risk_level] || "text-[#6B7280]"}`}>
-                    {r.health_score}
+      {/* Client Health Grid */}
+      {clientCards.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {clientCards.map((client) => (
+            <ClientHealthCard
+              key={client.id}
+              client={client}
+              onAction={handleAction}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="glass-card p-12 text-center space-y-3">
+          <HeartPulse size={48} className="mx-auto text-[#6B7280]" />
+          <p className="text-white font-medium">
+            {filter === "all"
+              ? "No health data yet"
+              : `No clients matching "${filter}" filter`}
+          </p>
+          <p className="text-sm text-[#6B7280]">
+            {filter === "all"
+              ? "Client health scores will populate once the health scorer runs."
+              : "Try a different filter to see other clients."}
+          </p>
+        </div>
+      )}
+
+      {/* Intervention Queue */}
+      {interventions.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Clock size={18} className="text-[#F97316]" />
+            Pending Interventions
+          </h2>
+          <div className="glass-card divide-y divide-[rgba(255,255,255,0.06)]">
+            {interventions.map((iv) => {
+              const info = clientMap.get(iv.client_id);
+              return (
+                <div
+                  key={iv.id}
+                  className="p-4 flex items-center gap-4 hover:bg-[rgba(255,255,255,0.02)] transition-colors cursor-pointer"
+                  onClick={() => router.push(`/admin/health/${iv.client_id}`)}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-[rgba(249,115,22,0.1)] text-[#F97316] flex items-center justify-center shrink-0">
+                    {INTERVENTION_ICONS[iv.intervention_type] ?? (
+                      <ClipboardList size={14} />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white font-medium truncate">
+                      {info?.full_name ?? iv.client_id.slice(0, 8)}
+                    </p>
+                    <p className="text-xs text-[#6B7280] truncate">
+                      {iv.intervention_type} &middot;{" "}
+                      {iv.notes ?? "No notes"}
+                    </p>
+                  </div>
+                  <RiskBadge level="high" size="sm" pulse={false} />
+                  <span className="text-[11px] text-[#6B7280] shrink-0">
+                    {new Date(iv.created_at).toLocaleDateString("en-ZA", {
+                      day: "2-digit",
+                      month: "short",
+                    })}
                   </span>
-                  <p className="text-[10px] text-[#6B7280]">health</p>
                 </div>
-                <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[r.status] || "text-[#6B7280] bg-[rgba(255,255,255,0.06)]"}`}>
-                  {r.status}
-                </span>
-              </div>
-            ))}
-          </Card>
-        ) : (
-          <Card className="p-8 text-center">
-            <Calendar size={48} className="mx-auto text-[#6B7280] mb-3" />
-            <p className="text-white font-medium">No renewals tracked yet</p>
-            <p className="text-sm text-[#6B7280]">Renewal data will appear once clients are onboarded with subscription plans.</p>
-          </Card>
-        )}
-      </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

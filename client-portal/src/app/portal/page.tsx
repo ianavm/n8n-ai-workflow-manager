@@ -1,469 +1,357 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { StatCard } from "@/components/charts/StatCard";
-import dynamic from "next/dynamic";
-import { UptimeGauge } from "@/components/charts/UptimeGauge";
-import { DateRangePicker, type DateRange } from "@/components/ui/DateRangePicker";
-import { Badge } from "@/components/ui/Badge";
-import { subDays, format } from "date-fns";
-import { MessageSquare, Send, UserPlus, AlertTriangle, Search, FileBarChart, Settings } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { AnimatedNumber } from "@/components/dashboard/AnimatedNumber";
+import { SparkLine } from "@/components/dashboard/SparkLine";
+import { MiniGauge } from "@/components/dashboard/MiniGauge";
+import { ComparisonArrow } from "@/components/dashboard/ComparisonArrow";
+import { ActivityFeedItem } from "@/components/dashboard/ActivityFeedItem";
+import { ModuleQuickCard } from "@/components/dashboard/ModuleQuickCard";
+import { RiskBadge } from "@/components/ui/RiskBadge";
+import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  DollarSign,
+  UserPlus,
+  Target,
+  BarChart3,
+  Send,
+  CheckCircle,
+  AlertTriangle,
+  AlertCircle,
+  Info,
+} from "lucide-react";
 import Link from "next/link";
 
-const TrendChart = dynamic(() => import("@/components/charts/TrendChart").then(mod => ({ default: mod.TrendChart })), { ssr: false });
-
-interface ClientProfile {
-  id: string;
-  full_name: string;
-  company_name: string;
-}
-
-interface StatSummary {
-  message_received: number;
-  message_sent: number;
-  lead_created: number;
-  workflow_crash: number;
-}
-
-interface TrendData {
-  date: string;
+interface KPI {
   value: number;
+  change_pct: number;
+  sparkline: number[];
 }
 
-interface Workflow {
-  id: string;
-  name: string;
-  status: string;
-  platform: string;
-  updated_at: string;
+interface DashboardData {
+  profile: { full_name: string; company_name: string | null };
+  kpis: {
+    total_revenue: KPI;
+    new_leads: KPI;
+    ad_spend: KPI;
+    active_campaigns: KPI;
+    messages_sent: KPI;
+    success_rate: KPI;
+  };
+  health: { composite_score: number; usage_score: number; payment_score: number; engagement_score: number; support_score: number; risk_level: string; trend: string } | null;
+  modules: { marketing: boolean; accounting: boolean };
+  module_summaries: {
+    marketing?: { active_campaigns: number; spend_today: number; leads_today: number };
+    accounting?: { receivables: number; payables: number; overdue_count: number };
+  };
+  activity_feed: Array<{ id: string; type: string; message: string; created_at: string }>;
+  top_campaigns: Array<{ id: string; name: string; platform: string; budget_spent: number; status: string }>;
+  hot_leads: Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null; source: string; score: number; created_at: string }>;
+  alerts: Array<{ id: string; alert_type: string; severity: string; message: string; created_at: string }>;
+  subscription: { plan_name: string; status: string } | null;
 }
 
-interface CrashEvent {
-  id: number;
-  created_at: string;
-  metadata: Record<string, unknown>;
-  workflow_id: string;
+function formatZAR(cents: number): string {
+  return `R${(cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 0 })}`;
 }
 
-interface UptimeData {
-  total_executions: number;
-  successful: number;
-  failed: number;
-  success_rate: number;
-}
-
-function getDateRange(range: DateRange, customStart?: string, customEnd?: string) {
-  const end = new Date();
-  let start: Date;
-  if (range === "7d") start = subDays(end, 7);
-  else if (range === "30d") start = subDays(end, 30);
-  else if (range === "90d") start = subDays(end, 90);
-  else {
-    start = customStart ? new Date(customStart) : subDays(end, 30);
-    if (customEnd) end.setTime(new Date(customEnd).getTime());
-  }
-  return { start: start.toISOString(), end: end.toISOString() };
-}
-
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
   return "Good evening";
 }
 
+const KPI_CONFIG = [
+  { key: "total_revenue" as const, label: "TOTAL REVENUE", icon: DollarSign, color: "#00D4AA", prefix: "R", decimals: 0, href: "/portal/accounting", isCents: true },
+  { key: "new_leads" as const, label: "NEW LEADS", icon: UserPlus, color: "#10B981", href: "/portal/marketing/leads" },
+  { key: "ad_spend" as const, label: "AD SPEND", icon: Target, color: "#FF6D5A", prefix: "R", href: "/portal/marketing", isCents: true },
+  { key: "active_campaigns" as const, label: "CAMPAIGNS", icon: BarChart3, color: "#F59E0B", href: "/portal/marketing/campaigns" },
+  { key: "messages_sent" as const, label: "MESSAGES SENT", icon: Send, color: "#6C63FF", href: "/portal/whatsapp" },
+  { key: "success_rate" as const, label: "SUCCESS RATE", icon: CheckCircle, color: "#00D4AA", suffix: "%", decimals: 1, href: "/portal/workflows" },
+];
+
+const PERFORMER_TABS = ["Campaigns", "Leads"] as const;
+
 export default function PortalDashboard() {
-  const supabase = createClient();
-  const [profile, setProfile] = useState<ClientProfile | null>(null);
-  const [stats, setStats] = useState<StatSummary>({
-    message_received: 0,
-    message_sent: 0,
-    lead_created: 0,
-    workflow_crash: 0,
-  });
-  const [trendData, setTrendData] = useState<Record<string, TrendData[]>>({});
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [crashes, setCrashes] = useState<CrashEvent[]>([]);
-  const [uptime, setUptime] = useState<UptimeData>({
-    total_executions: 0,
-    successful: 0,
-    failed: 0,
-    success_rate: 100,
-  });
-  const [dateRange, setDateRange] = useState<DateRange>("30d");
-  const [customStart, setCustomStart] = useState<string>();
-  const [customEnd, setCustomEnd] = useState<string>();
+  const router = useRouter();
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState("30d");
+  const [performerTab, setPerformerTab] = useState<(typeof PERFORMER_TABS)[number]>("Campaigns");
 
-  const fetchData = useCallback(async () => {
+  const loadData = useCallback(async (p: string) => {
     setLoading(true);
-    const { start, end } = getDateRange(dateRange, customStart, customEnd);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: clientProfile } = await supabase
-      .from("clients")
-      .select("id, full_name, company_name")
-      .eq("auth_user_id", user.id)
-      .single();
-
-    if (!clientProfile) return;
-    setProfile(clientProfile);
-
-    const clientId = clientProfile.id;
-
-    const { data: events } = await supabase
-      .from("stat_events")
-      .select("event_type")
-      .eq("client_id", clientId)
-      .gte("created_at", start)
-      .lte("created_at", end);
-
-    const counts: StatSummary = {
-      message_received: 0,
-      message_sent: 0,
-      lead_created: 0,
-      workflow_crash: 0,
-    };
-    (events || []).forEach((e) => {
-      if (e.event_type in counts) {
-        counts[e.event_type as keyof StatSummary]++;
-      }
-    });
-    setStats(counts);
-
-    const eventTypes = [
-      "message_received",
-      "message_sent",
-      "lead_created",
-      "workflow_crash",
-    ] as const;
-
-    const trendResults = await Promise.all(
-      eventTypes.map((eventType) =>
-        supabase.rpc("get_daily_stats", {
-          p_client_id: clientId,
-          p_event_type: eventType,
-          p_start_date: start,
-          p_end_date: end,
-        })
-      )
-    );
-
-    const trends: Record<string, TrendData[]> = {};
-    eventTypes.forEach((eventType, index) => {
-      const { data: dailyData } = trendResults[index];
-      trends[eventType] = (dailyData || []).map(
-        (d: { day: string; count: number }) => ({
-          date: format(new Date(d.day), "MMM d"),
-          value: d.count,
-        })
-      );
-    });
-    setTrendData(trends);
-
-    const { data: wfs } = await supabase
-      .from("workflows")
-      .select("*")
-      .eq("client_id", clientId)
-      .order("updated_at", { ascending: false });
-    setWorkflows(wfs || []);
-
-    const { data: crashEvents } = await supabase
-      .from("stat_events")
-      .select("id, created_at, metadata, workflow_id")
-      .eq("client_id", clientId)
-      .eq("event_type", "workflow_crash")
-      .order("created_at", { ascending: false })
-      .limit(10);
-    setCrashes(crashEvents || []);
-
-    const { data: uptimeData } = await supabase.rpc("get_uptime_stats", {
-      p_client_id: clientId,
-      p_start_date: start,
-      p_end_date: end,
-    });
-    if (uptimeData?.[0]) {
-      setUptime(uptimeData[0]);
-    }
-
+    try {
+      const res = await fetch(`/api/portal/dashboard/unified?period=${p}`);
+      if (res.ok) setData(await res.json());
+    } catch { /* silent */ }
     setLoading(false);
-  }, [supabase, dateRange, customStart, customEnd]);
+  }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { loadData(period); }, [period, loadData]);
 
-  if (loading && !profile) {
+  if (loading && !data) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "2px solid #6C63FF",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }}
-        />
+      <div className="space-y-8">
+        <Skeleton className="h-24 w-full" />
+        <div className="kpi-comparison-grid">
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-40" />)}
+        </div>
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-80 w-full" />
       </div>
     );
   }
 
-  const statusVariant = (s: string) =>
-    s === "active" ? "success" : s === "paused" ? "warning" : "danger";
+  if (!data) return null;
 
-  const firstName = profile?.full_name?.split(" ")[0] || "there";
-  const now = new Date();
-
-  const statusDotColor = (s: string) =>
-    s === "active" ? "#10B981" : s === "paused" ? "#F59E0B" : "#EF4444";
-
-  const statusLabel = (s: string) =>
-    s === "active" ? "Running" : s === "paused" ? "Paused" : "Error";
-
-  const statusLabelColor = (s: string) =>
-    s === "active" ? "#10B981" : s === "paused" ? "#F59E0B" : "#EF4444";
+  const today = new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <div>
-      {/* ── Top Bar (V1 preview) ── */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "32px",
-          animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both",
-        }}
-      >
-        <div>
-          <div style={{ fontSize: "24px", fontWeight: 600, color: "#fff" }}>
-            {getGreeting()}, {firstName}
+    <div className="space-y-8">
+      {/* Section 1: Hero Welcome */}
+      <div className="dashboard-section">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-white">
+              {getGreeting()}, {data.profile.full_name?.split(" ")[0] ?? "there"}
+            </h1>
+            <p className="text-sm text-[#6B7280] mt-1">{today}</p>
+            <div className="flex items-center gap-3 mt-3 text-sm text-[#B0B8C8] flex-wrap">
+              <span className="flex items-center gap-1.5">
+                <AnimatedNumber value={data.kpis.total_revenue.value / 100} prefix="R" decimals={0} />
+                <span className="text-[#6B7280]">revenue</span>
+              </span>
+              <span className="text-[#6B7280]">&middot;</span>
+              <span className="flex items-center gap-1.5">
+                <AnimatedNumber value={data.kpis.new_leads.value} />
+                <span className="text-[#6B7280]">new leads</span>
+              </span>
+              <span className="text-[#6B7280]">&middot;</span>
+              <span className="flex items-center gap-1.5">
+                <AnimatedNumber value={data.kpis.success_rate.value} suffix="%" decimals={1} />
+                <span className="text-[#6B7280]">uptime</span>
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>
-            Here&apos;s what&apos;s happening with your AI workforce today.
+          <div className="flex items-center gap-2">
+            {["7d", "30d", "90d"].map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  period === p
+                    ? "bg-[var(--brand-primary-bg,rgba(108,99,255,0.15))] text-[var(--brand-primary,#6C63FF)] border border-[var(--brand-primary-glow,rgba(108,99,255,0.3))]"
+                    : "text-[#6B7280] hover:text-[#B0B8C8] hover:bg-[rgba(255,255,255,0.05)]"
+                }`}
+              >
+                {p.toUpperCase()}
+              </button>
+            ))}
           </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div style={{ fontSize: "13px", color: "#6B7280", textAlign: "right" }}>
-            {format(now, "EEEE, d MMMM yyyy")}
-            <br />
-            <span style={{ color: "#6B7280", fontSize: "12px" }}>
-              {format(now, "HH:mm")} SAST
-            </span>
-          </div>
-          <DateRangePicker
-            value={dateRange}
-            onChange={(range, start, end) => {
-              setDateRange(range);
-              setCustomStart(start);
-              setCustomEnd(end);
-            }}
-            customStart={customStart}
-            customEnd={customEnd}
-          />
         </div>
       </div>
 
-      {/* ── Stat Cards Grid (4 columns, 24px gap) ── */}
-      <div
-        className="stat-grid-portal"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "28px",
-          marginBottom: "32px",
-        }}
-      >
-        <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both" }}>
-          <StatCard title="Messages Sent" value={stats.message_sent} icon={<Send size={22} />} color="purple" loading={loading} />
-        </div>
-        <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both" }}>
-          <StatCard title="Leads Generated" value={stats.lead_created} icon={<UserPlus size={22} />} color="teal" loading={loading} />
-        </div>
-        <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both" }}>
-          <StatCard title="Active Workflows" value={workflows.length} icon={<MessageSquare size={22} />} color="purple" loading={loading} />
-        </div>
-        <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both" }}>
-          <StatCard title="Success Rate" value={`${uptime.success_rate}%`} icon={<AlertTriangle size={22} />} color="teal" loading={loading} />
-        </div>
+      {/* Section 2: KPI Comparison Row */}
+      <div className="dashboard-section kpi-comparison-grid">
+        {KPI_CONFIG.map(({ key, label, icon: Icon, color, prefix, suffix, decimals, href, isCents }) => {
+          const kpi = data.kpis[key];
+          const displayValue = isCents ? kpi.value / 100 : kpi.value;
+          return (
+            <div
+              key={key}
+              onClick={() => router.push(href)}
+              className="floating-card p-5 cursor-pointer group"
+            >
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+                style={{ background: `${color}15`, color }}
+              >
+                <Icon size={20} />
+              </div>
+              <p className="text-[10px] text-[#6B7280] uppercase tracking-wider font-semibold mb-1">{label}</p>
+              <div className="stat-number-shimmer text-2xl mb-1">
+                <AnimatedNumber value={displayValue} prefix={prefix} suffix={suffix} decimals={decimals ?? 0} />
+              </div>
+              <ComparisonArrow value={kpi.change_pct} size="sm" />
+              <div className="mt-3 opacity-60 group-hover:opacity-100 transition-opacity">
+                <SparkLine data={kpi.sparkline} color={color} height={28} />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* ── Gradient Divider ── */}
-      <div className="gradient-divider" style={{ marginBottom: "32px" }} />
-
-      {/* ── Welcome Banner (V1 preview gradient border technique) ── */}
-      <div
-        className="welcome-banner"
-        style={{
-          marginBottom: "32px",
-          animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.5s both",
-        }}
-      >
-        <div className="welcome-blob b1" />
-        <div className="welcome-blob b2" />
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <h2 style={{ fontSize: "24px", fontWeight: 600, color: "#fff", marginBottom: "6px" }}>
-            Your AI workforce is running smoothly
-          </h2>
-          <p style={{ fontSize: "14px", color: "#B0B8C8", marginBottom: "24px" }}>
-            {workflows.length} workflows processed {stats.message_sent.toLocaleString()} messages today with a {uptime.success_rate}% success rate.{" "}
-            {stats.lead_created > 0
-              ? `${stats.lead_created} new leads are awaiting review.`
-              : "No new leads today."}
-          </p>
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-            <Link href="/portal/workflows" className="btn-gradient">
-              <Search size={16} />
-              Review Leads
-            </Link>
-            <Link href="/portal/reports" className="btn-outline">
-              <FileBarChart size={16} />
-              View Reports
-            </Link>
-            <Link href="/portal/settings" className="btn-outline">
-              <Settings size={16} />
-              Settings
+      {/* Section 3: Business Health Meter */}
+      {data.health ? (
+        <div className="dashboard-section glass-card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <div className="text-3xl font-bold text-white">
+                <AnimatedNumber value={data.health.composite_score} />
+              </div>
+              <RiskBadge level={data.health.risk_level as "low" | "medium" | "high" | "critical"} />
+            </div>
+            <Link href="/portal/health" className="text-sm text-[var(--brand-primary,#6C63FF)] hover:underline">
+              View Details &rarr;
             </Link>
           </div>
+          <div className="h-3 rounded-full bg-[rgba(255,255,255,0.06)] overflow-hidden mb-5">
+            <div
+              className="h-full rounded-full health-bar-gradient transition-all duration-1000 ease-out"
+              style={{ width: `${data.health.composite_score}%` }}
+            />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MiniGauge score={data.health.usage_score} label="Usage" />
+            <MiniGauge score={data.health.payment_score} label="Payment" />
+            <MiniGauge score={data.health.engagement_score} label="Engagement" />
+            <MiniGauge score={data.health.support_score} label="Support" />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="dashboard-section glass-card p-6 text-center">
+          <p className="text-sm text-[#6B7280]">Health scoring will be available once you have 7 days of activity data.</p>
+        </div>
+      )}
 
-      {/* ── Chart Grid (2x2, 24px gap) ── */}
-      <div
-        className="chart-grid-portal"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "28px",
-          marginBottom: "32px",
-        }}
-      >
-        <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both" }}>
-          <TrendChart
-            data={trendData.message_received || []}
-            title="Messages Over Time"
-            subtitle="Last 7 days"
-            color="purple"
-          />
+      {/* Section 4: Performance + Activity Feed */}
+      <div className="dashboard-section revenue-activity-grid">
+        <div className="floating-card p-6">
+          <h2 className="text-base font-semibold text-white mb-4">Performance Overview</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Revenue", value: formatZAR(data.kpis.total_revenue.value), color: "#00D4AA" },
+              { label: "Ad Spend", value: formatZAR(data.kpis.ad_spend.value), color: "#FF6D5A" },
+              { label: "Leads", value: String(data.kpis.new_leads.value), color: "#10B981" },
+              { label: "Messages", value: String(data.kpis.messages_sent.value), color: "#6C63FF" },
+            ].map((m) => (
+              <div key={m.label} className="p-3 rounded-lg bg-[rgba(255,255,255,0.03)]">
+                <p className="text-[10px] text-[#6B7280] uppercase tracking-wider">{m.label}</p>
+                <p className="text-lg font-semibold text-white mt-1">{m.value}</p>
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.7s both" }}>
-          <TrendChart
-            data={trendData.lead_created || []}
-            title="Lead Conversion"
-            subtitle="Conversion funnel"
-            color="teal"
-          />
-        </div>
-        <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.8s both" }}>
-          <TrendChart
-            data={trendData.message_sent || []}
-            title="Workflow Runs"
-            subtitle="Executions per day"
-            color="purple"
-          />
-        </div>
-        <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.9s both" }}>
-          <TrendChart
-            data={trendData.workflow_crash || []}
-            title="Error Rate"
-            subtitle="Failures per 1,000 runs"
-            color="teal"
-          />
-        </div>
-      </div>
-
-      {/* ── Bottom Row (3 columns: Uptime, Active Workflows, Recent Errors) ── */}
-      <div
-        className="bottom-grid-portal"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: "28px",
-        }}
-      >
-        {/* Uptime Gauge */}
-        <div style={{ animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 1.0s both" }}>
-          <UptimeGauge
-            successRate={uptime.success_rate}
-            totalExecutions={uptime.total_executions}
-            successful={uptime.successful}
-            failed={uptime.failed}
-          />
-        </div>
-
-        {/* Active Workflows */}
-        <div
-          className="glass-card"
-          style={{
-            padding: "28px",
-            animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 1.1s both",
-          }}
-        >
-          <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "20px" }}>
-            Active Workflows
-          </h3>
-          <div className="wf-list">
-            {workflows.length === 0 ? (
-              <p style={{ fontSize: "13px", color: "#6B7280" }}>No workflows configured yet.</p>
+        <div className="floating-card p-6">
+          <h2 className="text-base font-semibold text-white mb-4">Recent Activity</h2>
+          <div className="space-y-1 max-h-[300px] overflow-y-auto">
+            {data.activity_feed.length === 0 ? (
+              <p className="text-sm text-[#6B7280]">No recent activity</p>
             ) : (
-              workflows.slice(0, 5).map((wf) => (
-                <div key={wf.id} className="wf-item">
-                  <span
-                    className="wf-dot"
-                    style={{ background: statusDotColor(wf.status) }}
-                  />
-                  <span className="wf-name">{wf.name}</span>
-                  <span
-                    className="wf-status"
-                    style={{ color: statusLabelColor(wf.status) }}
-                  >
-                    {statusLabel(wf.status)}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Recent Errors */}
-        <div
-          className="glass-card"
-          style={{
-            padding: "28px",
-            animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 1.2s both",
-          }}
-        >
-          <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "20px" }}>
-            Recent Errors
-          </h3>
-          <div className="err-list">
-            {crashes.length === 0 ? (
-              <p style={{ fontSize: "13px", color: "#6B7280" }}>No recent errors.</p>
-            ) : (
-              crashes.slice(0, 3).map((crash) => (
-                <div key={crash.id} className="err-item">
-                  <span className="err-badge">
-                    {(crash.metadata as Record<string, string>)?.code || "ERR"}
-                  </span>
-                  <span className="err-text">
-                    {(crash.metadata as Record<string, string>)?.error || "Unknown error"}
-                  </span>
-                  <span className="err-time">
-                    {format(new Date(crash.created_at), "h'h' ago")}
-                  </span>
-                </div>
+              data.activity_feed.slice(0, 10).map((e, i) => (
+                <ActivityFeedItem key={e.id} type={e.type} message={e.message} timestamp={e.created_at} index={i} />
               ))
             )}
           </div>
         </div>
       </div>
+
+      {/* Section 5: Module Quick Cards */}
+      {(data.modules.marketing || data.modules.accounting) && (
+        <div className="dashboard-section">
+          <h2 className="text-base font-semibold text-white mb-4">Active Modules</h2>
+          <div className="module-scroll-row">
+            {data.modules.marketing && data.module_summaries.marketing && (
+              <ModuleQuickCard
+                module="marketing"
+                metrics={{
+                  "Campaigns": data.module_summaries.marketing.active_campaigns,
+                  "Leads Today": data.module_summaries.marketing.leads_today,
+                  "Spend": formatZAR(data.module_summaries.marketing.spend_today),
+                }}
+                href="/portal/marketing"
+              />
+            )}
+            {data.modules.accounting && data.module_summaries.accounting && (
+              <ModuleQuickCard
+                module="accounting"
+                metrics={{
+                  "Receivables": formatZAR(data.module_summaries.accounting.receivables),
+                  "Payables": formatZAR(data.module_summaries.accounting.payables),
+                  "Overdue": data.module_summaries.accounting.overdue_count,
+                }}
+                href="/portal/accounting"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Section 6: Top Performers */}
+      {(data.top_campaigns.length > 0 || data.hot_leads.length > 0) && (
+        <div className="dashboard-section floating-card p-6">
+          <div className="flex items-center gap-2 mb-4">
+            {PERFORMER_TABS.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setPerformerTab(tab)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  performerTab === tab
+                    ? "bg-[var(--brand-primary-bg,rgba(108,99,255,0.15))] text-[var(--brand-primary,#6C63FF)]"
+                    : "text-[#6B7280] hover:text-[#B0B8C8]"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          {performerTab === "Campaigns" ? (
+            <div className="space-y-2">
+              {data.top_campaigns.length === 0 ? (
+                <p className="text-sm text-[#6B7280]">No campaigns yet</p>
+              ) : (
+                data.top_campaigns.map((c) => (
+                  <Link key={c.id} href={`/portal/marketing/campaigns/${c.id}`} className="flex items-center justify-between p-3 rounded-lg hover:bg-[rgba(255,255,255,0.03)] transition-colors">
+                    <span className="text-sm text-white">{c.name}</span>
+                    <span className="text-xs text-[#B0B8C8]">{formatZAR(c.budget_spent)} spent</span>
+                  </Link>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {data.hot_leads.length === 0 ? (
+                <p className="text-sm text-[#6B7280]">No hot leads yet</p>
+              ) : (
+                data.hot_leads.map((l) => (
+                  <Link key={l.id} href={`/portal/marketing/leads/${l.id}`} className="flex items-center justify-between p-3 rounded-lg hover:bg-[rgba(255,255,255,0.03)] transition-colors">
+                    <span className="text-sm text-white">{[l.first_name, l.last_name].filter(Boolean).join(" ") || l.email || "Unknown"}</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: l.score >= 70 ? "rgba(16,185,129,0.12)" : "rgba(234,179,8,0.12)", color: l.score >= 70 ? "#10B981" : "#EAB308" }}>{l.score}</span>
+                  </Link>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Section 7: Alerts */}
+      {data.alerts.length > 0 && (
+        <div className="dashboard-section floating-card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-white">Active Alerts</h2>
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[rgba(239,68,68,0.12)] text-[#EF4444]">{data.alerts.length}</span>
+          </div>
+          <div className="space-y-2">
+            {data.alerts.map((a) => {
+              const SevIcon = a.severity === "critical" || a.severity === "high" ? AlertTriangle : a.severity === "medium" ? AlertCircle : Info;
+              const sevColor = a.severity === "critical" ? "#EF4444" : a.severity === "high" ? "#F97316" : a.severity === "medium" ? "#EAB308" : "#6B7280";
+              return (
+                <div key={a.id} className="flex items-start gap-3 p-3 rounded-lg" style={{ background: `${sevColor}08` }}>
+                  <SevIcon size={16} style={{ color: sevColor, marginTop: 2, flexShrink: 0 }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[#B0B8C8]">{a.message}</p>
+                    <p className="text-[10px] text-[#6B7280] mt-1">{new Date(a.created_at).toLocaleDateString("en-ZA")}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

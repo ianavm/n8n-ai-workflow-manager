@@ -21,10 +21,13 @@ import {
   Briefcase,
   Receipt,
   Megaphone,
+  HeartPulse,
 } from "lucide-react";
+import { useTheme } from "@/lib/theme-provider";
 
 const navItems = [
   { label: "Dashboard", href: "/portal", icon: LayoutDashboard },
+  { label: "Health", href: "/portal/health", icon: HeartPulse },
   { label: "Finance", href: "/portal/accounting", icon: Receipt },
   { label: "Advisory", href: "/portal/advisory", icon: Briefcase },
   { label: "Marketing", href: "/portal/marketing", icon: Megaphone },
@@ -43,6 +46,7 @@ export function PortalNav() {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const theme = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -101,7 +105,7 @@ export function PortalNav() {
           }}
         />
 
-        {/* Logo area */}
+        {/* Logo area — white-label aware */}
         <div
           style={{
             padding: "28px 24px 24px 24px",
@@ -110,34 +114,43 @@ export function PortalNav() {
             gap: "12px",
           }}
         >
-          {/* Orbital SVG icon from V1 preview */}
-          <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
-            <defs>
-              <linearGradient id="lgSide" x1="0" y1="0" x2="48" y2="48">
-                <stop stopColor="#6C63FF" />
-                <stop offset="1" stopColor="#00D4AA" />
-              </linearGradient>
-            </defs>
-            <circle cx="24" cy="24" r="22" stroke="url(#lgSide)" strokeWidth="2" fill="none" />
-            <circle cx="24" cy="24" r="14" stroke="url(#lgSide)" strokeWidth="1.5" fill="none" opacity="0.5" />
-            <circle cx="24" cy="24" r="5" fill="url(#lgSide)" />
-            <circle cx="24" cy="6" r="3" fill="#6C63FF" />
-            <circle cx="42" cy="24" r="3" fill="#00D4AA" />
-            <circle cx="24" cy="42" r="3" fill="#FF6D5A" />
-          </svg>
-          <span
-            style={{
-              fontSize: "15px",
-              fontWeight: 700,
-              letterSpacing: "2px",
-              background: "linear-gradient(135deg, #6C63FF, #00D4AA)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            ANYVISION
-          </span>
+          {theme.logoUrl ? (
+            <img
+              src={theme.logoUrl}
+              alt={theme.companyName}
+              style={{ maxHeight: "36px", maxWidth: "160px", objectFit: "contain" }}
+            />
+          ) : (
+            <>
+              <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
+                <defs>
+                  <linearGradient id="lgSide" x1="0" y1="0" x2="48" y2="48">
+                    <stop stopColor="var(--brand-primary, #6C63FF)" />
+                    <stop offset="1" stopColor="#00D4AA" />
+                  </linearGradient>
+                </defs>
+                <circle cx="24" cy="24" r="22" stroke="url(#lgSide)" strokeWidth="2" fill="none" />
+                <circle cx="24" cy="24" r="14" stroke="url(#lgSide)" strokeWidth="1.5" fill="none" opacity="0.5" />
+                <circle cx="24" cy="24" r="5" fill="url(#lgSide)" />
+                <circle cx="24" cy="6" r="3" fill="var(--brand-primary, #6C63FF)" />
+                <circle cx="42" cy="24" r="3" fill="#00D4AA" />
+                <circle cx="24" cy="42" r="3" fill="#FF6D5A" />
+              </svg>
+              <span
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  letterSpacing: "2px",
+                  background: `linear-gradient(135deg, var(--brand-primary, #6C63FF), #00D4AA)`,
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                {theme.isCustomBranded ? theme.companyName.toUpperCase() : "ANYVISION"}
+              </span>
+            </>
+          )}
         </div>
 
         {/* Nav items */}
