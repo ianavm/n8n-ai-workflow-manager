@@ -2,7 +2,7 @@
   "name": "AVM Ads: Reporting Dashboard",
   "nodes": [
     {
-      "id": "249f4945-7898-4249-a0cb-ea5b81e4c78d",
+      "id": "e0d51b9b-120f-4ecd-8b2c-1971692ccacb",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "36df454d-8ffe-4dad-a5ef-395153aa147e",
+      "id": "dc7e8eec-0a75-4001-a0ae-ec143811f5e5",
       "name": "Read Campaign Summary",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "82271992-80ad-4285-b66b-eab9ff17cb31",
+      "id": "11470212-a604-48bc-948f-dd9f4a89d9a0",
       "name": "Read Performance Data",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -84,7 +84,7 @@
       }
     },
     {
-      "id": "b2539d7f-6a66-4d39-bc2a-1b19298d1744",
+      "id": "f62470af-da2c-4b86-9ea5-4f3ea60bb0d9",
       "name": "Read Budget Allocations",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "c07653e7-20d9-4c58-b0f4-22b56bd43c01",
+      "id": "9dd9a877-94f0-4468-b4f7-d49573b24f7c",
       "name": "Merge Report Data",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -128,7 +128,7 @@
       }
     },
     {
-      "id": "eb082d31-64d5-427c-a6bf-c93f1fe0a637",
+      "id": "2ebf4af4-19d9-4eac-87ce-19edf4df7239",
       "name": "AI Report Generator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -158,14 +158,14 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Paid Advertising Report Analyst for AnyVision Media, a South African SaaS/AI automation company.\\n\\nAnalyze the following paid advertising performance data and generate a concise executive summary.\\n\\nPERFORMANCE DATA:\\n{{JSON.stringify($json)}}\\n\\nGenerate a summary that includes:\\n1. HIGHLIGHTS: Top 2-3 wins this week (best ROAS, lowest CPA, highest CTR)\\n2. CONCERNS: Any campaigns underperforming or burning budget\\n3. RECOMMENDATIONS: 2-3 specific actions to take next week\\n4. BUDGET: Whether current allocation is optimal or needs adjustment\\n\\nKeep it concise (under 300 words). Use ZAR currency. Focus on actionable insights.\\nOutput plain text, no JSON.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 1500, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Paid Advertising Report Analyst for AnyVision Media, a South African SaaS/AI automation company.\\n\\nAnalyze the following paid advertising performance data and generate a concise executive summary.\\n\\nPERFORMANCE DATA:\\n{{JSON.stringify($json)}}\\n\\nGenerate a summary that includes:\\n1. HIGHLIGHTS: Top 2-3 wins this week (best ROAS, lowest CPA, highest CTR)\\n2. CONCERNS: Any campaigns underperforming or burning budget\\n3. RECOMMENDATIONS: 2-3 specific actions to take next week\\n4. BUDGET: Whether current allocation is optimal or needs adjustment\\n\\nKeep it concise (under 300 words). Use ZAR currency. Focus on actionable insights.\\nOutput plain text, no JSON.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
         "options": {
           "timeout": 60000
         }
       }
     },
     {
-      "id": "b1a51df0-4b6c-401e-b99e-0f371bd6d057",
+      "id": "c7a379d6-b308-46df-be83-c09a488f012b",
       "name": "Build HTML Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -178,7 +178,7 @@
       }
     },
     {
-      "id": "79340490-985b-48fc-9589-0bcfa17dec15",
+      "id": "7ff001b7-f3f7-4413-b123-2864f5a1fac7",
       "name": "Send Weekly Report",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -193,6 +193,7 @@
         }
       },
       "parameters": {
+        "operation": "send",
         "sendTo": "ian@anyvisionmedia.com",
         "subject": "={{$json.subject}}",
         "emailType": "html",
@@ -201,7 +202,20 @@
       }
     },
     {
-      "id": "fa9232df-ede6-47cb-aee1-9c12148ec92a",
+      "id": "d99d0006-3b67-4f4a-bfc6-88263f50b658",
+      "name": "Format Report Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1625,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Transform Gmail send response into Orchestrator Events fields\nconst gmailResp = $input.first().json;\n\nreturn [{json: {\n  'Event Type': 'weekly_ads_report',\n  'Source Agent': 'ADS-08',\n  'Priority': 'P4',\n  'Status': 'Completed',\n  'Payload': JSON.stringify({\n    messageId: gmailResp.id || '',\n    threadId: gmailResp.threadId || '',\n    sentAt: new Date().toISOString(),\n  }),\n  'Created At': new Date().toISOString(),\n}}];\n"
+      }
+    },
+    {
+      "id": "c3fa5200-a568-401b-8480-fe2d5b8ab9ac",
       "name": "Log Report Event",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -324,6 +338,17 @@
       ]
     },
     "Send Weekly Report": {
+      "main": [
+        [
+          {
+            "node": "Format Report Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Report Log": {
       "main": [
         [
           {

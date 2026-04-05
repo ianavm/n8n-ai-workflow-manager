@@ -73,7 +73,7 @@ TABLE_ORCH_EVENTS = os.getenv("ORCH_TABLE_EVENTS", "REPLACE_AFTER_SETUP")
 
 # ── Config ──────────────────────────────────────────────────
 ALERT_EMAIL = os.getenv("SELFHEALING_ALERT_EMAIL", "ian@anyvisionmedia.com")
-OPENROUTER_MODEL = "anthropic/claude-sonnet-4-20250514"
+OPENROUTER_MODEL = "anthropic/claude-sonnet-4"
 
 # Google Ads
 GOOGLE_ADS_CUSTOMER_ID = os.getenv("GOOGLE_ADS_CUSTOMER_ID", "REPLACE")
@@ -103,6 +103,12 @@ def uid():
 ADS04_TRANSFORM_GOOGLE_CODE = r"""
 // Transform Google Ads API response to common schema
 const items = $input.all();
+
+// Handle upstream error / empty data (continueOnFail produces error item)
+if (!items.length || items[0].json?.error || items[0].json?.message?.includes?.('403')) {
+  return [{json: {skip: true, reason: 'Google Ads API unavailable'}}];
+}
+
 const results = [];
 const now = new Date().toISOString().split('T')[0];
 const hour = new Date().toISOString().split('T')[1].substring(0, 5);
@@ -153,12 +159,22 @@ return results.length > 0 ? results : [{json: {skip: true, reason: 'No Google Ad
 ADS04_TRANSFORM_META_CODE = r"""
 // Transform Meta Ads insights to common schema
 const items = $input.all();
+
+// Meta Graph API wraps insights in a data[] array
+// Response: { data: [ {campaign_id, impressions, ...}, ... ], paging: {...} }
+const firstItem = items[0]?.json;
+if (!firstItem || firstItem.error || (!firstItem.data && !firstItem.impressions)) {
+  return [{json: {skip: true, reason: 'Meta Ads API unavailable'}}];
+}
+
+// Unwrap: if data[] array exists, iterate campaigns inside it; otherwise treat items as flat
+const campaigns = firstItem.data || [firstItem];
+
 const results = [];
 const now = new Date().toISOString().split('T')[0];
 const hour = new Date().toISOString().split('T')[1].substring(0, 5);
 
-for (const item of items) {
-  const d = item.json;
+for (const d of campaigns) {
   const impressions = parseInt(d.impressions || 0);
   const clicks = parseInt(d.clicks || 0);
   const spend = parseFloat(d.spend || 0);
@@ -210,7 +226,7 @@ ADS04_ANOMALY_DETECTION_CODE = r"""
 // Detect anomalies: spend > 2x daily budget, CTR drop > 50% vs 7-day avg
 const items = $input.all();
 const anomalies = [];
-const DAILY_CAP = parseInt($env.ADS_DAILY_HARD_CAP_ZAR || '2000');
+const DAILY_CAP = 2000;
 
 for (const item of items) {
   const d = item.json;
@@ -649,17 +665,22 @@ def build_airtable_create(name, base_id, table_id, position):
     }
 
 
-def build_code_node(name, js_code, position):
-    """Build a Code node with JavaScript."""
+def build_code_node(name, js_code, position, num_outputs=1):
+    """Build a Code node with JavaScript.
+
+    Args:
+        num_outputs: Number of output branches (>1 enables multi-output mode).
+    """
+    params = {"jsCode": js_code}
+    if num_outputs > 1:
+        params["numberOfOutputs"] = num_outputs
     return {
         "id": uid(),
         "name": name,
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": position,
-        "parameters": {
-            "jsCode": js_code,
-        },
+        "parameters": params,
     }
 
 
@@ -851,7 +872,7 @@ def build_facebook_graph_api(name, method, endpoint, position, fields=None):
     """Build Facebook Graph API node for Meta Ads."""
     params = {
         "httpRequestMethod": method,
-        "graphApiVersion": "v21.0",
+        "graphApiVersion": "v25.0",
         "node": endpoint,
         "options": {},
     }
@@ -926,25 +947,29 @@ def build_ads04_nodes():
         [500, 300],
     ))
 
-    # 3. Google Ads - Get Campaign Metrics
-    nodes.append(build_google_ads_node(
-        "Google Ads Get Campaigns", [750, 100]
-    ))
+    # 3. Google Ads - Get Campaign Metrics (continueOnFail: account may not be enabled yet)
+    google_node = build_google_ads_node("Google Ads Get Campaigns", [750, 100])
+    google_node["continueOnFail"] = True
+    google_node["alwaysOutputData"] = True
+    nodes.append(google_node)
 
-    # 4. Transform Google Ads data
+    # 4. Transform Google Ads data (handle empty/error input gracefully)
     nodes.append(build_code_node(
         "Transform Google Data", ADS04_TRANSFORM_GOOGLE_CODE, [1000, 100]
     ))
 
-    # 5. Meta Ads - Get Insights
-    nodes.append(build_facebook_graph_api(
+    # 5. Meta Ads - Get Insights (continueOnFail: credentials may not be ready)
+    meta_node = build_facebook_graph_api(
         "Meta Ads Get Insights", "GET",
         f"={META_ADS_ACCOUNT_ID}/insights",
         [750, 300],
-        fields="campaign_id,campaign_name,impressions,clicks,spend,actions,cpc,cpm,ctr,reach,video_views&date_preset=today&level=campaign",
-    ))
+        fields="campaign_id,campaign_name,impressions,clicks,spend,actions,cpc,cpm,ctr,reach&date_preset=today&level=campaign",
+    )
+    meta_node["continueOnFail"] = True
+    meta_node["alwaysOutputData"] = True
+    nodes.append(meta_node)
 
-    # 6. Transform Meta Ads data
+    # 6. Transform Meta Ads data (handle empty/error input gracefully)
     nodes.append(build_code_node(
         "Transform Meta Data", ADS04_TRANSFORM_META_CODE, [1000, 300]
     ))
@@ -1484,7 +1509,7 @@ def build_ads02_nodes():
     ))
 
     # 3. Route by platform (Code node with 3 outputs)
-    nodes.append(build_code_node("Route by Platform", ADS02_ROUTE_BY_PLATFORM_CODE, [750, 300]))
+    nodes.append(build_code_node("Route by Platform", ADS02_ROUTE_BY_PLATFORM_CODE, [750, 300], num_outputs=3))
 
     # 4. Google Copy Agent
     google_prompt = ADS02_GOOGLE_COPY_PROMPT.replace(
@@ -1623,9 +1648,9 @@ def build_ads02_connections(nodes):
 ADS03_BUDGET_SAFETY_CODE = r"""
 // Budget safety check - enforce all caps before campaign creation
 const items = $input.all();
-const DAILY_CAP = parseInt($env.ADS_DAILY_HARD_CAP_ZAR || '2000');
-const WEEKLY_CAP = parseInt($env.ADS_WEEKLY_HARD_CAP_ZAR || '10000');
-const MONTHLY_CAP = parseInt($env.ADS_MONTHLY_HARD_CAP_ZAR || '35000');
+const DAILY_CAP = 2000;
+const WEEKLY_CAP = 10000;
+const MONTHLY_CAP = 35000;
 
 const results = [];
 
@@ -2060,7 +2085,7 @@ return [{json: {
     ))
 
     # 7. Parse recommendations (2 outputs: auto-apply, needs-approval)
-    nodes.append(build_code_node("Parse Optimizations", ADS05_PARSE_OPTIMIZATIONS_CODE, [1500, 300]))
+    nodes.append(build_code_node("Parse Optimizations", ADS05_PARSE_OPTIMIZATIONS_CODE, [1500, 300], num_outputs=2))
 
     # 8. Log auto-applied changes
     nodes.append(build_airtable_create(
@@ -2414,44 +2439,72 @@ def build_ads07_nodes():
     org_perf_node["alwaysOutputData"] = True
     nodes.append(org_perf_node)
 
-    # 4. Compute Attribution
-    nodes.append(build_code_node("Compute Attribution", ADS07_COMPUTE_ATTRIBUTION_CODE, [750, 300]))
+    # 4. Merge paid + organic data before attribution computation
+    nodes.append(build_merge_node("Merge Paid Organic", [750, 300]))
 
-    # 5. AI Attribution Analyst
+    # 5. Compute Attribution
+    nodes.append(build_code_node("Compute Attribution", ADS07_COMPUTE_ATTRIBUTION_CODE, [1000, 300]))
+
+    # 6. AI Attribution Analyst
     prompt = ADS07_ATTRIBUTION_PROMPT.replace(
         "{attribution_data}", "{{JSON.stringify($json)}}"
     )
     nodes.append(build_openrouter_request(
-        "AI Attribution Analyst", prompt, "JSON.stringify($json)", [1000, 300], max_tokens=1500,
+        "AI Attribution Analyst", prompt, "JSON.stringify($json)", [1250, 300], max_tokens=1500,
     ))
 
     # 6a. Format AI response into Orchestrator Events fields
+    # Event Type options: health_check, alert, escalation, cross_dept, kpi_update, decision, lead_qualified, invoice_created, content_published, support_ticket
+    # Priority options: Critical, High, Medium, Low
+    # Status options: Pending, In Progress, Resolved, Escalated
     nodes.append(build_code_node("Format Attribution Data", r"""
 // Transform AI Attribution Analyst response into Orchestrator Events fields
 const aiResp = $input.first().json;
 const content = aiResp.choices?.[0]?.message?.content || JSON.stringify(aiResp);
 
 return [{json: {
-  'Event Type': 'attribution_report',
+  'Event Type': 'kpi_update',
   'Source Agent': 'ADS-07',
-  'Priority': 'P3',
-  'Status': 'Completed',
+  'Priority': 'Low',
+  'Status': 'Resolved',
   'Payload': typeof content === 'string' ? content : JSON.stringify(content),
   'Created At': new Date().toISOString(),
 }}];
-""", [1125, 300]))
+""", [1500, 300]))
 
-    # 6b. Write attribution data to Operations Events table
-    nodes.append(build_airtable_create(
-        "Write Attribution", ORCH_BASE_ID, TABLE_ORCH_EVENTS, [1250, 300],
-    ))
+    # 7b. Write attribution data to Operations Events table (defineBelow to avoid leaking unwanted fields)
+    nodes.append({
+        "id": uid(),
+        "name": "Write Attribution",
+        "type": "n8n-nodes-base.airtable",
+        "typeVersion": 2.1,
+        "position": [1750, 300],
+        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "parameters": {
+            "operation": "create",
+            "base": {"__rl": True, "mode": "id", "value": ORCH_BASE_ID},
+            "table": {"__rl": True, "mode": "id", "value": TABLE_ORCH_EVENTS},
+            "columns": {
+                "mappingMode": "defineBelow",
+                "value": {
+                    "Event Type": "={{ $json['Event Type'] }}",
+                    "Source Agent": "={{ $json['Source Agent'] }}",
+                    "Priority": "={{ $json['Priority'] }}",
+                    "Status": "={{ $json['Status'] }}",
+                    "Payload": "={{ $json['Payload'] }}",
+                    "Created At": "={{ $json['Created At'] }}",
+                },
+            },
+            "options": {},
+        },
+    })
 
-    # 7. Email attribution report
+    # 8. Email attribution report
     nodes.append(build_gmail_send(
         "Email Attribution Report", ALERT_EMAIL,
         "AVM Ads - Daily Attribution Report",
         "={{\"<h2>Cross-Channel Attribution</h2><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
-        [1500, 300],
+        [2000, 300],
     ))
 
     return nodes
@@ -2465,9 +2518,12 @@ def build_ads07_connections(nodes):
             {"node": "Read Organic Performance", "type": "main", "index": 0},
         ]]},
         "Read Ad Performance": {"main": [[
-            {"node": "Compute Attribution", "type": "main", "index": 0},
+            {"node": "Merge Paid Organic", "type": "main", "index": 0},
         ]]},
         "Read Organic Performance": {"main": [[
+            {"node": "Merge Paid Organic", "type": "main", "index": 1},
+        ]]},
+        "Merge Paid Organic": {"main": [[
             {"node": "Compute Attribution", "type": "main", "index": 0},
         ]]},
         "Compute Attribution": {"main": [[

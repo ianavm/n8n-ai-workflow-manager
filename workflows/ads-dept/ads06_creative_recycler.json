@@ -2,7 +2,7 @@
   "name": "AVM Ads: Creative Recycler",
   "nodes": [
     {
-      "id": "f8f7a938-bc4d-4947-877b-905f8ec43e02",
+      "id": "9da71392-1b1f-4c1f-8f6c-971ad561cdd4",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "24169e9f-0049-4a13-a854-2764f749809f",
+      "id": "fa02dffc-e7ff-4e1f-9fb5-ef99c864dfc5",
       "name": "Read Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "3572db72-1f8d-4e32-b127-164147ece369",
+      "id": "0f87563d-3f2d-4488-96b8-8da34b943169",
       "name": "Find Top Performers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -66,7 +66,7 @@
       }
     },
     {
-      "id": "7ee70f93-f23c-423e-abe5-584a177ae806",
+      "id": "8db2cd18-08a6-448b-8cd7-d55dcb77d531",
       "name": "Filter Valid",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -79,7 +79,7 @@
       }
     },
     {
-      "id": "64f9d6e3-863c-47f4-b6b8-f2199cf34bf7",
+      "id": "5b5a66a6-cd91-46b1-b0e9-6bc09ec90b73",
       "name": "Read Original Creatives",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -110,7 +110,7 @@
       }
     },
     {
-      "id": "5d258ced-3886-4d78-88dd-f9e89d2c1338",
+      "id": "32167273-33f4-471c-b6bb-63de3a469106",
       "name": "AI Variant Generator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -140,14 +140,14 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Creative Recycler for AnyVision Media.\\n\\nTOP PERFORMING CAMPAIGNS:\\n{{JSON.stringify($json)}}\\n\\nORIGINAL CREATIVES:\\n{{JSON.stringify($json)}}\\n\\nGenerate 2-3 new ad creative variants based on the winning patterns. For each variant:\\n- Keep the winning messaging angle but change the specific wording\\n- Try different hooks, CTAs, or emotional triggers\\n- Maintain platform-specific format requirements\\n- Reference the original creative it's based on\\n\\nOutput as JSON array with fields: campaign_name, platform, ad_format, headlines[], descriptions[], primary_text, cta\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Creative Recycler for AnyVision Media.\\n\\nTOP PERFORMING CAMPAIGNS:\\n{{JSON.stringify($json)}}\\n\\nORIGINAL CREATIVES:\\n{{JSON.stringify($json)}}\\n\\nGenerate 2-3 new ad creative variants based on the winning patterns. For each variant:\\n- Keep the winning messaging angle but change the specific wording\\n- Try different hooks, CTAs, or emotional triggers\\n- Maintain platform-specific format requirements\\n- Reference the original creative it's based on\\n\\nOutput as JSON array with fields: campaign_name, platform, ad_format, headlines[], descriptions[], primary_text, cta\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
         "options": {
           "timeout": 60000
         }
       }
     },
     {
-      "id": "ce0ba524-73d9-438e-b738-fdaa27b50571",
+      "id": "059d4939-dcb6-49ce-b995-4d4f2cb49891",
       "name": "Parse Variants",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -156,11 +156,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Parse AI variant suggestions and create new creative records\nconst aiResp = $('AI Variant Generator').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\nconst originals = $('Read Original Creatives').all();\n\nlet variants;\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  variants = JSON.parse(cleaned);\n} catch (e) {\n  return [{json: {error: 'Failed to parse variants', raw: content}}];\n}\n\nif (!Array.isArray(variants)) variants = [variants];\n\nconst now = new Date().toISOString().split('T')[0];\nconst results = [];\n\nfor (let i = 0; i < variants.length; i++) {\n  const v = variants[i];\n  const orig = originals[0]?.json || {};\n\n  results.push({json: {\n    'Creative Name': `${orig['Creative Name'] || 'Recycled'} - Variant ${now} #${i + 1}`,\n    'Campaign Name': v.campaign_name || orig['Campaign Name'] || '',\n    'Platform': v.platform || orig.Platform || 'google_ads',\n    'Ad Format': v.ad_format || orig['Ad Format'] || 'RSA',\n    'Status': 'Draft',\n    'Headlines': JSON.stringify(v.headlines || []),\n    'Descriptions': JSON.stringify(v.descriptions || []),\n    'Primary Text': v.primary_text || '',\n    'CTA': v.cta || 'Learn_More',\n    'Parent Creative ID': orig['Creative Name'] || '',\n    'Created At': now,\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
+        "jsCode": "\n// Parse AI variant suggestions and create new creative records\nconst aiResp = $('AI Variant Generator').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\nconst originals = $('Read Original Creatives').all();\n\nlet variants;\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  variants = JSON.parse(cleaned);\n} catch (e) {\n  return [{json: {skip: true}}];\n}\n\nif (!Array.isArray(variants)) variants = [variants];\n\nconst now = new Date().toISOString().split('T')[0];\nconst results = [];\n\nfor (let i = 0; i < variants.length; i++) {\n  const v = variants[i];\n  const orig = originals[0]?.json || {};\n\n  results.push({json: {\n    'Creative Name': `${orig['Creative Name'] || 'Recycled'} - Variant ${now} #${i + 1}`,\n    'Campaign Name': v.campaign_name || orig['Campaign Name'] || '',\n    'Platform': v.platform || orig.Platform || 'google_ads',\n    'Ad Format': v.ad_format || orig['Ad Format'] || 'RSA',\n    'Status': 'Draft',\n    'Headlines': JSON.stringify(v.headlines || []),\n    'Descriptions': JSON.stringify(v.descriptions || []),\n    'Primary Text': v.primary_text || '',\n    'CTA': v.cta || 'Learn_More',\n    'Parent Creative ID': orig['Creative Name'] || '',\n    'Created At': now,\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
       }
     },
     {
-      "id": "d3bd87d0-88af-4cc7-b144-d3ce10206ef6",
+      "id": "3d0cb02a-0e8d-4f4d-8414-be900c4207bd",
       "name": "Write New Creatives",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -194,7 +194,7 @@
       }
     },
     {
-      "id": "3ecd494c-6a24-4517-a8a5-5d430871d798",
+      "id": "2341f8a7-2d49-4767-8d57-eb9920263c3d",
       "name": "Email Recycler Summary",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -209,6 +209,7 @@
         }
       },
       "parameters": {
+        "operation": "send",
         "sendTo": "ian@anyvisionmedia.com",
         "subject": "AVM Ads - Creative Recycler: New Variants Created",
         "emailType": "html",

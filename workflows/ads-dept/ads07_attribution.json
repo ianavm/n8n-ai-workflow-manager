@@ -2,7 +2,7 @@
   "name": "AVM Ads: Attribution Engine",
   "nodes": [
     {
-      "id": "e7483fb1-d76a-4b51-9ecf-1d66f8b15815",
+      "id": "7d08efa0-bcee-48fe-8a32-44d65163c9a2",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "7cb11e6d-f747-4d21-96f1-008d494f04b2",
+      "id": "480b271d-d1d3-4212-a7a6-f83ead2dc3bd",
       "name": "Read Ad Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -54,7 +54,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "2fe2b945-f133-4342-9161-98999976da71",
+      "id": "4c4b4548-78ed-4812-b950-5b92b52c09e2",
       "name": "Read Organic Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -86,25 +86,38 @@
       "alwaysOutputData": true
     },
     {
-      "id": "a15c147a-f6b0-46ad-aba9-e7c29269b787",
-      "name": "Compute Attribution",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "id": "a57a9273-927b-41d3-87d4-2b5c3edaf4e5",
+      "name": "Merge Paid Organic",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
       "position": [
         750,
         300
       ],
       "parameters": {
-        "jsCode": "\n// Compute cross-channel attribution: paid + organic data\nconst adPerf = $('Read Ad Performance').all();\n\nlet orgPerf = [];\ntry {\n  orgPerf = $('Read Organic Performance').all();\n} catch (e) {\n  // Node may not have executed yet or returned no data\n  orgPerf = [];\n}\n\nconst channels = {};\n\n// Aggregate paid performance\nfor (const item of adPerf) {\n  const d = item.json;\n  if (d.skip) continue;\n  const key = d.Platform || 'unknown';\n  if (!channels[key]) {\n    channels[key] = {channel: key, type: 'paid', spend: 0, conversions: 0, clicks: 0, impressions: 0};\n  }\n  channels[key].spend += d['Spend ZAR'] || 0;\n  channels[key].conversions += d.Conversions || 0;\n  channels[key].clicks += d.Clicks || 0;\n  channels[key].impressions += d.Impressions || 0;\n}\n\n// Aggregate organic performance\nfor (const item of orgPerf) {\n  const d = item.json;\n  const key = 'organic_' + (d.Platform || d.platform || 'content');\n  if (!channels[key]) {\n    channels[key] = {channel: key, type: 'organic', spend: 0, conversions: 0, clicks: 0, impressions: 0};\n  }\n  channels[key].clicks += d.Clicks || d.clicks || d.Engagement || 0;\n  channels[key].impressions += d.Impressions || d.impressions || d.Reach || 0;\n}\n\n// Compute metrics\nconst totalSpend = Object.values(channels).reduce((sum, c) => sum + c.spend, 0);\nconst totalConversions = Object.values(channels).reduce((sum, c) => sum + c.conversions, 0);\nconst blendedCAC = totalConversions > 0 ? totalSpend / totalConversions : 0;\n\nconst results = Object.values(channels).map(c => ({\n  channel: c.channel,\n  type: c.type,\n  spend: parseFloat(c.spend.toFixed(2)),\n  conversions: c.conversions,\n  clicks: c.clicks,\n  impressions: c.impressions,\n  cpa: c.conversions > 0 ? parseFloat((c.spend / c.conversions).toFixed(2)) : 0,\n  roas: c.spend > 0 ? parseFloat(((c.conversions * 100) / c.spend).toFixed(2)) : 0,\n  spendShare: totalSpend > 0 ? parseFloat((c.spend / totalSpend * 100).toFixed(1)) : 0,\n}));\n\nreturn [{json: {\n  channels: results,\n  totalSpend: parseFloat(totalSpend.toFixed(2)),\n  totalConversions: totalConversions,\n  blendedCAC: parseFloat(blendedCAC.toFixed(2)),\n  reportDate: new Date().toISOString().split('T')[0],\n}}];\n"
+        "mode": "append"
       }
     },
     {
-      "id": "445d8fb8-7675-4917-aeac-d26f546f6c5d",
+      "id": "0757bfe8-8137-4b1c-ac24-89e17a2cb18c",
+      "name": "Compute Attribution",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Compute cross-channel attribution: paid + organic data\nconst adPerf = $('Read Ad Performance').all();\nconst orgPerf = $('Read Organic Performance').all();\n\nconst channels = {};\n\n// Aggregate paid performance\nfor (const item of adPerf) {\n  const d = item.json;\n  if (d.skip) continue;\n  const key = d.Platform || 'unknown';\n  if (!channels[key]) {\n    channels[key] = {channel: key, type: 'paid', spend: 0, conversions: 0, clicks: 0, impressions: 0};\n  }\n  channels[key].spend += d['Spend ZAR'] || 0;\n  channels[key].conversions += d.Conversions || 0;\n  channels[key].clicks += d.Clicks || 0;\n  channels[key].impressions += d.Impressions || 0;\n}\n\n// Aggregate organic performance\nfor (const item of orgPerf) {\n  const d = item.json;\n  const key = 'organic_' + (d.Platform || d.platform || 'content');\n  if (!channels[key]) {\n    channels[key] = {channel: key, type: 'organic', spend: 0, conversions: 0, clicks: 0, impressions: 0};\n  }\n  channels[key].clicks += d.Clicks || d.clicks || d.Engagement || 0;\n  channels[key].impressions += d.Impressions || d.impressions || d.Reach || 0;\n}\n\n// Compute metrics\nconst totalSpend = Object.values(channels).reduce((sum, c) => sum + c.spend, 0);\nconst totalConversions = Object.values(channels).reduce((sum, c) => sum + c.conversions, 0);\nconst blendedCAC = totalConversions > 0 ? totalSpend / totalConversions : 0;\n\nconst results = Object.values(channels).map(c => ({\n  channel: c.channel,\n  type: c.type,\n  spend: parseFloat(c.spend.toFixed(2)),\n  conversions: c.conversions,\n  clicks: c.clicks,\n  impressions: c.impressions,\n  cpa: c.conversions > 0 ? parseFloat((c.spend / c.conversions).toFixed(2)) : 0,\n  roas: c.spend > 0 ? parseFloat(((c.conversions * 100) / c.spend).toFixed(2)) : 0,\n  spendShare: totalSpend > 0 ? parseFloat((c.spend / totalSpend * 100).toFixed(1)) : 0,\n}));\n\nreturn [{json: {\n  channels: results,\n  totalSpend: parseFloat(totalSpend.toFixed(2)),\n  totalConversions: totalConversions,\n  blendedCAC: parseFloat(blendedCAC.toFixed(2)),\n  reportDate: new Date().toISOString().split('T')[0],\n}}];\n"
+      }
+    },
+    {
+      "id": "10cd3565-a055-411c-8c0b-a63a6794cbee",
       "name": "AI Attribution Analyst",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1000,
+        1250,
         300
       ],
       "credentials": {
@@ -129,19 +142,32 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 1500, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Attribution Analyst for AnyVision Media.\\n\\nCROSS-CHANNEL DATA (last 7 days):\\n{{JSON.stringify($json)}}\\n\\nAnalyze the data and provide:\\n1. CHANNEL EFFICIENCY: Rank channels by ROI (both paid and organic)\\n2. BUDGET REALLOCATION: Should budget shift between channels? Be specific.\\n3. ORGANIC-PAID SYNERGY: Are organic and paid reinforcing each other?\\n4. CAC ANALYSIS: Is the blended customer acquisition cost sustainable?\\n5. RECOMMENDED ACTIONS: 2-3 specific budget or strategy changes\\n\\nOutput as JSON:\\n{\\n  \\\"channel_rankings\\\": [{\\\"channel\\\": \\\"\\\", \\\"efficiency_score\\\": 0, \\\"recommendation\\\": \\\"\\\"}],\\n  \\\"budget_reallocation\\\": {\\\"from\\\": \\\"\\\", \\\"to\\\": \\\"\\\", \\\"amount_zar\\\": 0, \\\"reasoning\\\": \\\"\\\"},\\n  \\\"synergy_insights\\\": \\\"\\\",\\n  \\\"cac_assessment\\\": \\\"\\\",\\n  \\\"actions\\\": [\\\"\\\"]\\n}\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 1500, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Attribution Analyst for AnyVision Media.\\n\\nCROSS-CHANNEL DATA (last 7 days):\\n{{JSON.stringify($json)}}\\n\\nAnalyze the data and provide:\\n1. CHANNEL EFFICIENCY: Rank channels by ROI (both paid and organic)\\n2. BUDGET REALLOCATION: Should budget shift between channels? Be specific.\\n3. ORGANIC-PAID SYNERGY: Are organic and paid reinforcing each other?\\n4. CAC ANALYSIS: Is the blended customer acquisition cost sustainable?\\n5. RECOMMENDED ACTIONS: 2-3 specific budget or strategy changes\\n\\nOutput as JSON:\\n{\\n  \\\"channel_rankings\\\": [{\\\"channel\\\": \\\"\\\", \\\"efficiency_score\\\": 0, \\\"recommendation\\\": \\\"\\\"}],\\n  \\\"budget_reallocation\\\": {\\\"from\\\": \\\"\\\", \\\"to\\\": \\\"\\\", \\\"amount_zar\\\": 0, \\\"reasoning\\\": \\\"\\\"},\\n  \\\"synergy_insights\\\": \\\"\\\",\\n  \\\"cac_assessment\\\": \\\"\\\",\\n  \\\"actions\\\": [\\\"\\\"]\\n}\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
         "options": {
           "timeout": 60000
         }
       }
     },
     {
-      "id": "54f89d8f-e865-4b4b-a359-61b9547741da",
+      "id": "0d8db398-cd5b-42b7-ac31-56eb9730f0d2",
+      "name": "Format Attribution Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Transform AI Attribution Analyst response into Orchestrator Events fields\nconst aiResp = $input.first().json;\nconst content = aiResp.choices?.[0]?.message?.content || JSON.stringify(aiResp);\n\nreturn [{json: {\n  'Event Type': 'kpi_update',\n  'Source Agent': 'ADS-07',\n  'Priority': 'Low',\n  'Status': 'Resolved',\n  'Payload': typeof content === 'string' ? content : JSON.stringify(content),\n  'Created At': new Date().toISOString(),\n}}];\n"
+      }
+    },
+    {
+      "id": "6ed626f0-f05e-4974-8196-0c97fa17bf6e",
       "name": "Write Attribution",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
       "position": [
-        1250,
+        1750,
         300
       ],
       "credentials": {
@@ -163,19 +189,26 @@
           "value": "tbl6PqkxZy0Md2Ocf"
         },
         "columns": {
-          "mappingMode": "autoMapInputData",
-          "value": null
+          "mappingMode": "defineBelow",
+          "value": {
+            "Event Type": "={{ $json['Event Type'] }}",
+            "Source Agent": "={{ $json['Source Agent'] }}",
+            "Priority": "={{ $json['Priority'] }}",
+            "Status": "={{ $json['Status'] }}",
+            "Payload": "={{ $json['Payload'] }}",
+            "Created At": "={{ $json['Created At'] }}"
+          }
         },
         "options": {}
       }
     },
     {
-      "id": "f047c451-45f4-4141-9fcd-39f636c94cda",
+      "id": "3a7c980b-a945-46a6-939f-508211f7c722",
       "name": "Email Attribution Report",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        1500,
+        2000,
         300
       ],
       "credentials": {
@@ -185,6 +218,7 @@
         }
       },
       "parameters": {
+        "operation": "send",
         "sendTo": "ian@anyvisionmedia.com",
         "subject": "AVM Ads - Daily Attribution Report",
         "emailType": "html",
@@ -214,7 +248,7 @@
       "main": [
         [
           {
-            "node": "Compute Attribution",
+            "node": "Merge Paid Organic",
             "type": "main",
             "index": 0
           }
@@ -222,6 +256,17 @@
       ]
     },
     "Read Organic Performance": {
+      "main": [
+        [
+          {
+            "node": "Merge Paid Organic",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Paid Organic": {
       "main": [
         [
           {
@@ -244,6 +289,17 @@
       ]
     },
     "AI Attribution Analyst": {
+      "main": [
+        [
+          {
+            "node": "Format Attribution Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Attribution Data": {
       "main": [
         [
           {

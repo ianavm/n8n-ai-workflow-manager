@@ -144,3 +144,5 @@ GitHub, Supabase, Airtable, Playwright, Context7 (live API docs), n8n (workflow 
 6. **Cloud-first deliverables** — final outputs go to Google Slides, email, etc.
 7. **`.tmp/` is disposable** — everything there can be regenerated
 8. **Read the full WAT framework** in `CLAUDE.md file.md` for detailed philosophy
+9. **Deploy script is source of truth** — ANY fix to a live n8n workflow MUST be simultaneously applied to `tools/deploy_*.py` and `.env`. Fixes applied only to live workflows are wiped on redeployment. After every deploy, run at least one live execution to validate.
+10. **No `$env` in Code nodes** — n8n Cloud blocks environment variable access in JavaScript Code nodes. Hardcode values or pass via upstream node parameters.

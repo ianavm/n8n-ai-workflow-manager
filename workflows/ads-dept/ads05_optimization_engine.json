@@ -2,7 +2,7 @@
   "name": "AVM Ads: Optimization Engine",
   "nodes": [
     {
-      "id": "9ccf5532-c5bb-4bf2-a452-f2d4d341be99",
+      "id": "6c7ad334-fec4-4f97-a9f0-1136124de42e",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "90722178-b2fb-4ca6-a5c3-ddc700052709",
+      "id": "26373212-74d6-4814-9cc6-815ad3525904",
       "name": "Read 7-Day Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "ad6ee86a-4d8b-4d17-b80a-bd28ab246a53",
+      "id": "9f9949b7-1e37-43fd-b71f-0ab59bbce160",
       "name": "Read Budgets",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -84,7 +84,7 @@
       }
     },
     {
-      "id": "f40e3cb3-551e-4a2b-a91c-003b7346d194",
+      "id": "b2c3c432-f288-4a56-a2e5-b74faae03093",
       "name": "Compute Signals",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -97,7 +97,7 @@
       }
     },
     {
-      "id": "03a74853-dda8-4aaa-8d76-31566f0265fb",
+      "id": "b61ea0f5-f31b-492f-9aeb-2c7fc2c1852d",
       "name": "Merge Data",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -110,7 +110,7 @@
       }
     },
     {
-      "id": "e0054a8d-13bc-44a7-8ef5-be3cc1f559d8",
+      "id": "02430750-0724-4abc-8b0f-d5a95ea03aba",
       "name": "Aggregate Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -123,7 +123,7 @@
       }
     },
     {
-      "id": "1d202757-244d-427d-bc2d-c1c1ae84298e",
+      "id": "68edb602-477b-4101-a7a2-427953f01b48",
       "name": "AI Optimizer",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -153,14 +153,14 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4-20250514\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Ads Optimization Agent for AnyVision Media.\\n\\n7-DAY PERFORMANCE DATA:\\n{{JSON.stringify($json)}}\\n\\nCURRENT BUDGET ALLOCATION:\\n{{JSON.stringify($json)}}\\n\\nSAFETY CONSTRAINTS:\\n- Max single bid change: 30%\\n- Max auto-approve budget increase: R200/day\\n- Daily hard cap: R2000\\n- Weekly hard cap: R10000\\n\\nAnalyze trends and recommend specific optimizations:\\n\\nFor each recommendation, output JSON:\\n{{\\n  \\\"campaign_name\\\": \\\"...\\\",\\n  \\\"platform\\\": \\\"...\\\",\\n  \\\"action\\\": \\\"bid_adjust|budget_change|pause|reactivate|targeting_change\\\",\\n  \\\"current_value\\\": N,\\n  \\\"proposed_value\\\": N,\\n  \\\"change_percent\\\": N,\\n  \\\"reasoning\\\": \\\"...\\\",\\n  \\\"confidence\\\": \\\"high|medium|low\\\",\\n  \\\"auto_approvable\\\": true/false\\n}}\\n\\nRules:\\n- Be conservative. Only recommend changes backed by data.\\n- Flag auto_approvable=true ONLY if bid change < 20% AND budget increase < R200/day\\n- Recommend pausing campaigns with CPA > R500 and < 5 conversions\\n- Recommend increasing budget for campaigns with ROAS > 3.0\\n- Never recommend exceeding safety caps\\n\\nOutput as JSON array.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Ads Optimization Agent for AnyVision Media.\\n\\n7-DAY PERFORMANCE DATA:\\n{{JSON.stringify($json)}}\\n\\nCURRENT BUDGET ALLOCATION:\\n{{JSON.stringify($json)}}\\n\\nSAFETY CONSTRAINTS:\\n- Max single bid change: 30%\\n- Max auto-approve budget increase: R200/day\\n- Daily hard cap: R2000\\n- Weekly hard cap: R10000\\n\\nAnalyze trends and recommend specific optimizations:\\n\\nFor each recommendation, output JSON:\\n{{\\n  \\\"campaign_name\\\": \\\"...\\\",\\n  \\\"platform\\\": \\\"...\\\",\\n  \\\"action\\\": \\\"bid_adjust|budget_change|pause|reactivate|targeting_change\\\",\\n  \\\"current_value\\\": N,\\n  \\\"proposed_value\\\": N,\\n  \\\"change_percent\\\": N,\\n  \\\"reasoning\\\": \\\"...\\\",\\n  \\\"confidence\\\": \\\"high|medium|low\\\",\\n  \\\"auto_approvable\\\": true/false\\n}}\\n\\nRules:\\n- Be conservative. Only recommend changes backed by data.\\n- Flag auto_approvable=true ONLY if bid change < 20% AND budget increase < R200/day\\n- Recommend pausing campaigns with CPA > R500 and < 5 conversions\\n- Recommend increasing budget for campaigns with ROAS > 3.0\\n- Never recommend exceeding safety caps\\n\\nOutput as JSON array.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
         "options": {
           "timeout": 60000
         }
       }
     },
     {
-      "id": "decdf2c2-eb76-4244-a51e-42352e284953",
+      "id": "07a6ec90-f363-49b6-a291-dfa7879756b2",
       "name": "Parse Optimizations",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -169,11 +169,12 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Parse AI optimization recommendations\nconst aiResp = $('AI Optimizer').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\n\nlet recommendations;\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  recommendations = JSON.parse(cleaned);\n} catch (e) {\n  return [{json: {error: 'Failed to parse optimization response', raw: content}}];\n}\n\nif (!Array.isArray(recommendations)) recommendations = [recommendations];\n\nconst autoApply = [];\nconst needsApproval = [];\n\nfor (const rec of recommendations) {\n  if (rec.auto_approvable) {\n    autoApply.push({json: {...rec, _action: 'auto_apply'}});\n  } else {\n    needsApproval.push({json: {...rec, _action: 'needs_approval'}});\n  }\n}\n\n// Output 0 = auto-apply, Output 1 = needs approval\nreturn [\n  autoApply.length > 0 ? autoApply : [{json: {skip: true}}],\n  needsApproval.length > 0 ? needsApproval : [{json: {skip: true}}],\n];\n"
+        "jsCode": "\n// Parse AI optimization recommendations\nconst aiResp = $('AI Optimizer').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\n\nlet recommendations;\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  recommendations = JSON.parse(cleaned);\n} catch (e) {\n  // Return skip items for both outputs — do NOT output error/raw fields\n  return [\n    [{json: {skip: true, _noData: true}}],\n    [{json: {skip: true, _noData: true}}],\n  ];\n}\n\nif (!Array.isArray(recommendations)) recommendations = [recommendations];\nif (recommendations.length === 0) {\n  return [\n    [{json: {skip: true, _noData: true}}],\n    [{json: {skip: true, _noData: true}}],\n  ];\n}\n\nconst autoApply = [];\nconst needsApproval = [];\nconst now = new Date().toISOString().split('T')[0];\n\nfor (const rec of recommendations) {\n  const record = {\n    'Campaign Name': rec.campaign_name || rec.campaign || 'Unknown',\n    'Request Type': 'Optimization',\n    'Requested By': 'ADS-05',\n    'Details': JSON.stringify(rec),\n    'Created At': now,\n  };\n\n  if (rec.auto_approvable) {\n    autoApply.push({json: {...record, 'Status': 'Approved'}});\n  } else {\n    needsApproval.push({json: {...record, 'Status': 'Pending'}});\n  }\n}\n\n// Output 0 = auto-apply, Output 1 = needs approval\nreturn [\n  autoApply.length > 0 ? autoApply : [{json: {skip: true}}],\n  needsApproval.length > 0 ? needsApproval : [{json: {skip: true}}],\n];\n",
+        "numberOfOutputs": 2
       }
     },
     {
-      "id": "59d4ef88-88ea-419a-aee1-884c049f0be5",
+      "id": "f61e21ef-b968-46d4-a91a-1008e52b7770",
       "name": "Log Auto Changes",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -207,7 +208,7 @@
       }
     },
     {
-      "id": "1cfd8fa3-6b31-40e6-bb53-c7b2ca3b0846",
+      "id": "cebedc70-1537-40a6-a66d-77df596fbf9b",
       "name": "Create Approval Requests",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -241,7 +242,7 @@
       }
     },
     {
-      "id": "f39395f4-4878-4e73-adfe-f0062c90f7a3",
+      "id": "27b8e391-9541-4514-b01e-36c983070d8b",
       "name": "Email Optimization Summary",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -256,6 +257,7 @@
         }
       },
       "parameters": {
+        "operation": "send",
         "sendTo": "ian@anyvisionmedia.com",
         "subject": "AVM Ads - Daily Optimization Report",
         "emailType": "html",
