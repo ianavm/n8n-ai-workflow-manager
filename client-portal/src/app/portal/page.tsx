@@ -22,6 +22,7 @@ import {
   Info,
 } from "lucide-react";
 import Link from "next/link";
+import { TrialProgress } from "@/components/dashboard/TrialProgress";
 
 interface KPI {
   value: number;
@@ -49,7 +50,7 @@ interface DashboardData {
   top_campaigns: Array<{ id: string; name: string; platform: string; budget_spent: number; status: string }>;
   hot_leads: Array<{ id: string; first_name: string | null; last_name: string | null; email: string | null; source: string; score: number; created_at: string }>;
   alerts: Array<{ id: string; alert_type: string; severity: string; message: string; created_at: string }>;
-  subscription: { plan_name: string; status: string } | null;
+  subscription: { plan_name: string; status: string; trial_end: string | null } | null;
 }
 
 function formatZAR(cents: number): string {
@@ -153,6 +154,12 @@ export default function PortalDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Trial Progress + Achievement Checklist */}
+      <TrialProgress
+        trialEnd={data.subscription?.trial_end ?? null}
+        subscriptionStatus={data.subscription?.status ?? null}
+      />
 
       {/* Section 2: KPI Comparison Row */}
       <div className="dashboard-section kpi-comparison-grid">

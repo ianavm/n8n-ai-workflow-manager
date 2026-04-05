@@ -23,7 +23,8 @@ export function TrialBanner({ trialEnd, planName, amount }: TrialBannerProps) {
   if (dismissed) return null;
 
   const trialDate = new Date(trialEnd);
-  const daysLeft = differenceInDays(trialDate, new Date());
+  const daysLeft = Math.max(0, differenceInDays(trialDate, new Date()));
+  const isExpired = daysLeft === 0;
   const isUrgent = daysLeft <= 3;
 
   const bgColor = isUrgent
@@ -58,16 +59,26 @@ export function TrialBanner({ trialEnd, planName, amount }: TrialBannerProps) {
 
       {/* Text */}
       <p style={{ margin: 0, fontSize: "14px", color: "#B0B8C8", lineHeight: 1.5 }}>
-        Your 14-day free trial ends on{" "}
-        <span style={{ color: "#fff", fontWeight: 600 }}>
-          {format(trialDate, "MMMM d, yyyy")}
-        </span>
-        . Your card will be charged{" "}
-        <span style={{ color: "#fff", fontWeight: 600 }}>
-          {formatZAR(amount)}
-        </span>{" "}
-        for the{" "}
-        <span style={{ color: "#fff", fontWeight: 600 }}>{planName}</span> plan.
+        {isExpired ? (
+          <>
+            Your free trial has ended. Upgrade to the{" "}
+            <span style={{ color: "#fff", fontWeight: 600 }}>{planName}</span> plan for{" "}
+            <span style={{ color: "#fff", fontWeight: 600 }}>{formatZAR(amount)}</span> to keep your automations running.
+          </>
+        ) : (
+          <>
+            Your free trial ends on{" "}
+            <span style={{ color: "#fff", fontWeight: 600 }}>
+              {format(trialDate, "MMMM d, yyyy")}
+            </span>
+            {" "}({daysLeft} day{daysLeft !== 1 ? "s" : ""} left). Your card will be charged{" "}
+            <span style={{ color: "#fff", fontWeight: 600 }}>
+              {formatZAR(amount)}
+            </span>{" "}
+            for the{" "}
+            <span style={{ color: "#fff", fontWeight: 600 }}>{planName}</span> plan.
+          </>
+        )}
       </p>
 
       {/* Dismiss button */}

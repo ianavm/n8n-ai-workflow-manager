@@ -274,6 +274,6 @@ export async function GET(req: NextRequest) {
     top_campaigns: topCampaigns,
     hot_leads: hotLeads,
     alerts,
-    subscription: subscription ? { plan_name: (subscription as Record<string, unknown>).plan_name ?? "Free", status: (subscription as Record<string, unknown>).status ?? "active" } : null,
+    subscription: subscription ? { plan_name: (subscription as Record<string, unknown>).plan_name ?? "Free", status: (subscription as Record<string, unknown>).status ?? "active", trial_end: (subscription as Record<string, unknown>).trial_end ?? null } : null,
   });
 }
