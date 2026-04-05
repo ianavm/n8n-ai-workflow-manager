@@ -72,8 +72,10 @@ export function ConnectionCard({ provider, status, accountName, lastError }: Con
         <div className="flex-shrink-0">
           {status === "not_connected" && (
             <button
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all hover:brightness-110"
-              style={{ background: `linear-gradient(135deg, ${provider.color}, ${provider.color}CC)` }}
+              disabled
+              title="Contact support@anyvisionmedia.com to connect this tool"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#B0B8C8] transition-all cursor-help opacity-70"
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}
             >
               Connect
             </button>
@@ -91,7 +93,9 @@ export function ConnectionCard({ provider, status, accountName, lastError }: Con
           )}
           {(status === "error" || status === "expired") && (
             <button
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 hover:bg-[#F59E0B]/20 transition-all"
+              disabled
+              title="Contact support@anyvisionmedia.com to reconnect"
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#F59E0B] bg-[#F59E0B]/10 border border-[#F59E0B]/20 cursor-help opacity-70 transition-all"
             >
               Reconnect
             </button>

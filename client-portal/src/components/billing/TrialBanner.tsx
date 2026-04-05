@@ -71,12 +71,11 @@ export function TrialBanner({ trialEnd, planName, amount }: TrialBannerProps) {
             <span style={{ color: "#fff", fontWeight: 600 }}>
               {format(trialDate, "MMMM d, yyyy")}
             </span>
-            {" "}({daysLeft} day{daysLeft !== 1 ? "s" : ""} left). Your card will be charged{" "}
+            {" "}({daysLeft} day{daysLeft !== 1 ? "s" : ""} left). To keep your automations running, upgrade to the{" "}
+            <span style={{ color: "#fff", fontWeight: 600 }}>{planName}</span> plan for{" "}
             <span style={{ color: "#fff", fontWeight: 600 }}>
               {formatZAR(amount)}
-            </span>{" "}
-            for the{" "}
-            <span style={{ color: "#fff", fontWeight: 600 }}>{planName}</span> plan.
+            </span>/month.
           </>
         )}
       </p>

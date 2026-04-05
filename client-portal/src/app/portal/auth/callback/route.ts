@@ -6,7 +6,6 @@ const TRIAL_DAYS = 30;
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const isOnboarding = searchParams.get("onboarding") === "true";
 
   if (!code) {
     return NextResponse.redirect(new URL("/portal/login", request.url));

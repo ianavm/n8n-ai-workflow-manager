@@ -131,13 +131,20 @@ export default function OnboardingPage() {
     if (currentStep === TOTAL_STEPS) {
       // Skip final step = complete
       try {
-        await fetch("/api/portal/onboarding/complete", {
+        const res = await fetch("/api/portal/onboarding/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ step_data: stepData }),
         });
+        if (!res.ok) {
+          setError("Something went wrong. Please try again.");
+          setLoading(false);
+          return;
+        }
       } catch {
-        // Continue anyway
+        setError("Network error. Please try again.");
+        setLoading(false);
+        return;
       }
       setLoading(false);
       router.push("/portal");

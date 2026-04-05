@@ -388,6 +388,27 @@ export default function SignupPage() {
                   />
                 </div>
 
+                {/* POPIA consent */}
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={consentGiven}
+                    onChange={(e) => setConsentGiven(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded accent-[#6C63FF] flex-shrink-0"
+                  />
+                  <span className="text-[11px] text-[#4B5563] leading-relaxed">
+                    I agree to the{" "}
+                    <a href="https://www.anyvisionmedia.com/terms" className="text-[#6B7280] hover:text-[#B0B8C8] underline underline-offset-2 transition-colors">
+                      Terms of Service
+                    </a>{" "}
+                    and{" "}
+                    <a href="https://www.anyvisionmedia.com/refund-policy" className="text-[#6B7280] hover:text-[#B0B8C8] underline underline-offset-2 transition-colors">
+                      Privacy Policy
+                    </a>
+                    , and consent to the processing of my personal data in accordance with POPIA.
+                  </span>
+                </label>
+
                 {/* Error */}
                 {error && (
                   <div className="flex items-start gap-2 text-sm text-red-400 bg-red-500/5 border border-red-500/15 rounded-xl px-4 py-3">

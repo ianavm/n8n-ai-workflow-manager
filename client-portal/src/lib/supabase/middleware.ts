@@ -50,9 +50,11 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
+    // Single service client for all RLS-bypassing queries in this block
+    const svc = getServiceClient();
+
     // Check if user is a financial adviser or FA client accessing advisory pages
     if (pathname.startsWith("/portal/advisory")) {
-      const svc = getServiceClient();
       const { data: faAdviser } = await svc
         .from("fa_advisers")
         .select("id")
@@ -83,8 +85,7 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Verify user is actually a client (use service client to bypass RLS)
-    const svcClient = getServiceClient();
-    const { data: clientUser } = await svcClient
+    const { data: clientUser } = await svc
       .from("clients")
       .select("id, onboarding_completed_at")
       .eq("auth_user_id", user.id)
@@ -112,7 +113,7 @@ export async function updateSession(request: NextRequest) {
     const isBillingExempt = billingExemptPaths.some(p => pathname.startsWith(p));
 
     if (!isBillingExempt) {
-      const { data: sub } = await svcClient
+      const { data: sub } = await svc
         .from("subscriptions")
         .select("status")
         .eq("client_id", clientUser.id)
