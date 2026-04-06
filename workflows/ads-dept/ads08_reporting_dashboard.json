@@ -2,7 +2,7 @@
   "name": "AVM Ads: Reporting Dashboard",
   "nodes": [
     {
-      "id": "e0d51b9b-120f-4ecd-8b2c-1971692ccacb",
+      "id": "3698d722-f4dd-44c0-b0f9-6b22e8b9d6c3",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "dc7e8eec-0a75-4001-a0ae-ec143811f5e5",
+      "id": "719b03d9-b667-486f-bcec-6db816fa4955",
       "name": "Read Campaign Summary",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "11470212-a604-48bc-948f-dd9f4a89d9a0",
+      "id": "deede6dc-3f00-45a2-b6ee-4abeda814b10",
       "name": "Read Performance Data",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -84,7 +84,7 @@
       }
     },
     {
-      "id": "f62470af-da2c-4b86-9ea5-4f3ea60bb0d9",
+      "id": "e6af8e5b-cc8a-410f-ae3c-d97c65591820",
       "name": "Read Budget Allocations",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "9dd9a877-94f0-4468-b4f7-d49573b24f7c",
+      "id": "f17ba3e3-6ea9-4d72-8ea9-b06e049a104b",
       "name": "Merge Report Data",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -128,7 +128,7 @@
       }
     },
     {
-      "id": "2ebf4af4-19d9-4eac-87ce-19edf4df7239",
+      "id": "2bed6223-69d1-47c4-9ad1-8d3aa8fb727b",
       "name": "AI Report Generator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -158,14 +158,14 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 1500, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Paid Advertising Report Analyst for AnyVision Media, a South African SaaS/AI automation company.\\n\\nAnalyze the following paid advertising performance data and generate a concise executive summary.\\n\\nPERFORMANCE DATA:\\n{{JSON.stringify($json)}}\\n\\nGenerate a summary that includes:\\n1. HIGHLIGHTS: Top 2-3 wins this week (best ROAS, lowest CPA, highest CTR)\\n2. CONCERNS: Any campaigns underperforming or burning budget\\n3. RECOMMENDATIONS: 2-3 specific actions to take next week\\n4. BUDGET: Whether current allocation is optimal or needs adjustment\\n\\nKeep it concise (under 300 words). Use ZAR currency. Focus on actionable insights.\\nOutput plain text, no JSON.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 1500, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Paid Advertising Report Analyst for AnyVision Media, a South African SaaS/AI automation company.\\n\\nCRITICAL RULES:\\n- AVM ONLY runs Google Ads and Meta Ads (Facebook/Instagram). Do NOT reference YouTube, LinkedIn, TikTok, or any other platform.\\n- ONLY report metrics that are actually present in the data below. If a metric is 0 or missing, say so honestly \\u2014 NEVER invent or estimate numbers.\\n- If all metrics are zero or the data is empty, state clearly: \\\"No performance data was collected this period.\\\"\\n- Do NOT fabricate campaign names, ROAS figures, CPA values, or any other metrics not in the data.\\n- Google Ads Performance Max campaigns may show video views (from Display/YouTube placements within PMax) \\u2014 this does NOT mean AVM runs YouTube ads.\\n\\nAnalyze the following paid advertising performance data and generate a concise executive summary.\\n\\nPERFORMANCE DATA:\\n{{JSON.stringify($json)}}\\n\\nGenerate a summary that includes:\\n1. HIGHLIGHTS: Top 2-3 wins this week (best ROAS, lowest CPA, highest CTR) \\u2014 only if real non-zero data exists\\n2. CONCERNS: Any campaigns underperforming or burning budget \\u2014 based on actual numbers only\\n3. RECOMMENDATIONS: 2-3 specific actions to take next week\\n4. BUDGET: Whether current allocation is optimal or needs adjustment\\n\\nKeep it concise (under 300 words). Use ZAR currency. Focus on actionable insights.\\nOutput plain text, no JSON.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
         "options": {
           "timeout": 60000
         }
       }
     },
     {
-      "id": "c7a379d6-b308-46df-be83-c09a488f012b",
+      "id": "cee31658-f263-4dcf-b0e1-8d01a72ef50f",
       "name": "Build HTML Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -174,11 +174,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Build email-friendly HTML report from performance data + AI summary\nconst perfItems = $('Read Campaign Summary').all();\nconst aiSummary = $('AI Report Generator').first().json;\n\nconst now = new Date();\nconst weekNum = Math.ceil((now.getDate()) / 7);\nconst monthName = now.toLocaleString('en-ZA', {month: 'long', year: 'numeric'});\n\nlet totalSpend = 0;\nlet totalClicks = 0;\nlet totalImpressions = 0;\nlet totalConversions = 0;\nconst platformSummary = {};\n\nfor (const item of perfItems) {\n  const d = item.json;\n  if (d.skip) continue;\n  totalSpend += d['Spend ZAR'] || d['Total Spend ZAR'] || 0;\n  totalClicks += d.Clicks || 0;\n  totalImpressions += d.Impressions || 0;\n  totalConversions += d.Conversions || d['Total Conversions'] || 0;\n\n  const platform = d.Platform || 'Unknown';\n  if (!platformSummary[platform]) {\n    platformSummary[platform] = {spend: 0, clicks: 0, impressions: 0, conversions: 0};\n  }\n  platformSummary[platform].spend += d['Spend ZAR'] || d['Total Spend ZAR'] || 0;\n  platformSummary[platform].clicks += d.Clicks || 0;\n  platformSummary[platform].impressions += d.Impressions || 0;\n  platformSummary[platform].conversions += d.Conversions || d['Total Conversions'] || 0;\n}\n\nconst blendedCTR = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : '0.00';\nconst blendedCPA = totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : 'N/A';\nconst blendedROAS = totalSpend > 0 ? ((totalConversions * 100) / totalSpend).toFixed(2) : 'N/A';\n\n// Build platform rows\nlet platformRows = '';\nfor (const [platform, stats] of Object.entries(platformSummary)) {\n  const pCTR = stats.impressions > 0 ? ((stats.clicks / stats.impressions) * 100).toFixed(2) : '0.00';\n  const pCPA = stats.conversions > 0 ? (stats.spend / stats.conversions).toFixed(2) : 'N/A';\n  platformRows += `<tr>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${platform}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">R${stats.spend.toFixed(2)}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${stats.impressions.toLocaleString()}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${stats.clicks.toLocaleString()}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${pCTR}%</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${stats.conversions}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">R${pCPA}</td>\n  </tr>`;\n}\n\nconst summaryText = aiSummary.choices?.[0]?.message?.content || aiSummary.summary || 'No AI summary available.';\n\nconst html = `\n<div style=\"font-family:Arial,sans-serif;max-width:700px;margin:0 auto;\">\n  <div style=\"background:#FF6D5A;color:white;padding:20px;border-radius:8px 8px 0 0;\">\n    <h1 style=\"margin:0;font-size:22px;\">AVM Paid Ads - Weekly Report</h1>\n    <p style=\"margin:5px 0 0;opacity:0.9;\">${monthName} - Week ${weekNum}</p>\n  </div>\n\n  <div style=\"padding:20px;background:#f9f9f9;\">\n    <h2 style=\"color:#333;font-size:16px;\">Overview</h2>\n    <table style=\"width:100%;border-collapse:collapse;background:white;border-radius:4px;\">\n      <tr>\n        <td style=\"padding:12px;text-align:center;\"><strong>R${totalSpend.toFixed(2)}</strong><br><small>Total Spend</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${totalImpressions.toLocaleString()}</strong><br><small>Impressions</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${totalClicks.toLocaleString()}</strong><br><small>Clicks</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${blendedCTR}%</strong><br><small>CTR</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${totalConversions}</strong><br><small>Conversions</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>R${blendedCPA}</strong><br><small>CPA</small></td>\n      </tr>\n    </table>\n\n    <h2 style=\"color:#333;font-size:16px;margin-top:20px;\">By Platform</h2>\n    <table style=\"width:100%;border-collapse:collapse;background:white;border-radius:4px;\">\n      <thead>\n        <tr style=\"background:#f0f0f0;\">\n          <th style=\"padding:8px;text-align:left;\">Platform</th>\n          <th style=\"padding:8px;\">Spend</th>\n          <th style=\"padding:8px;\">Impressions</th>\n          <th style=\"padding:8px;\">Clicks</th>\n          <th style=\"padding:8px;\">CTR</th>\n          <th style=\"padding:8px;\">Conversions</th>\n          <th style=\"padding:8px;\">CPA</th>\n        </tr>\n      </thead>\n      <tbody>${platformRows}</tbody>\n    </table>\n\n    <h2 style=\"color:#333;font-size:16px;margin-top:20px;\">AI Analysis</h2>\n    <div style=\"background:white;padding:15px;border-radius:4px;border-left:4px solid #FF6D5A;\">\n      ${summaryText.replace(/\\n/g, '<br>')}\n    </div>\n  </div>\n\n  <div style=\"padding:15px;text-align:center;color:#999;font-size:12px;\">\n    Generated by AVM Ads Agent (ADS-08) | ${now.toISOString()}\n  </div>\n</div>`;\n\nreturn [{json: {\n  html: html,\n  subject: 'AVM Ads Report - ' + monthName + ' Week ' + weekNum,\n  totalSpend: totalSpend,\n  totalConversions: totalConversions,\n  blendedCPA: blendedCPA,\n  blendedROAS: blendedROAS,\n}}];\n"
+        "jsCode": "\n// Build email-friendly HTML report from performance data + AI summary\nconst perfItems = $('Merge Report Data').all();\nconst aiSummary = $('AI Report Generator').first().json;\n\nconst now = new Date();\nconst weekNum = Math.ceil((now.getDate()) / 7);\nconst monthName = now.toLocaleString('en-ZA', {month: 'long', year: 'numeric'});\n\nlet totalSpend = 0;\nlet totalClicks = 0;\nlet totalImpressions = 0;\nlet totalConversions = 0;\nconst platformSummary = {};\n\nfor (const item of perfItems) {\n  const d = item.json;\n  if (d.skip) continue;\n  totalSpend += d['Spend ZAR'] || d['Total Spend ZAR'] || 0;\n  totalClicks += d.Clicks || 0;\n  totalImpressions += d.Impressions || 0;\n  totalConversions += d.Conversions || d['Total Conversions'] || 0;\n\n  const platform = d.Platform || 'Unknown';\n  if (!platformSummary[platform]) {\n    platformSummary[platform] = {spend: 0, clicks: 0, impressions: 0, conversions: 0};\n  }\n  platformSummary[platform].spend += d['Spend ZAR'] || d['Total Spend ZAR'] || 0;\n  platformSummary[platform].clicks += d.Clicks || 0;\n  platformSummary[platform].impressions += d.Impressions || 0;\n  platformSummary[platform].conversions += d.Conversions || d['Total Conversions'] || 0;\n}\n\nconst blendedCTR = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : '0.00';\nconst blendedCPA = totalConversions > 0 ? (totalSpend / totalConversions).toFixed(2) : 'N/A';\nconst blendedROAS = totalSpend > 0 ? ((totalConversions * 100) / totalSpend).toFixed(2) : 'N/A';\n\n// Build platform rows\nlet platformRows = '';\nfor (const [platform, stats] of Object.entries(platformSummary)) {\n  const pCTR = stats.impressions > 0 ? ((stats.clicks / stats.impressions) * 100).toFixed(2) : '0.00';\n  const pCPA = stats.conversions > 0 ? (stats.spend / stats.conversions).toFixed(2) : 'N/A';\n  platformRows += `<tr>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${platform}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">R${stats.spend.toFixed(2)}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${stats.impressions.toLocaleString()}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${stats.clicks.toLocaleString()}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${pCTR}%</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">${stats.conversions}</td>\n    <td style=\"padding:8px;border-bottom:1px solid #eee;\">R${pCPA}</td>\n  </tr>`;\n}\n\nconst summaryText = aiSummary.choices?.[0]?.message?.content || aiSummary.summary || 'No AI summary available.';\n\nconst html = `\n<div style=\"font-family:Arial,sans-serif;max-width:700px;margin:0 auto;\">\n  <div style=\"background:#FF6D5A;color:white;padding:20px;border-radius:8px 8px 0 0;\">\n    <h1 style=\"margin:0;font-size:22px;\">AVM Paid Ads - Weekly Report</h1>\n    <p style=\"margin:5px 0 0;opacity:0.9;\">${monthName} - Week ${weekNum}</p>\n  </div>\n\n  <div style=\"padding:20px;background:#f9f9f9;\">\n    <h2 style=\"color:#333;font-size:16px;\">Overview</h2>\n    <table style=\"width:100%;border-collapse:collapse;background:white;border-radius:4px;\">\n      <tr>\n        <td style=\"padding:12px;text-align:center;\"><strong>R${totalSpend.toFixed(2)}</strong><br><small>Total Spend</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${totalImpressions.toLocaleString()}</strong><br><small>Impressions</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${totalClicks.toLocaleString()}</strong><br><small>Clicks</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${blendedCTR}%</strong><br><small>CTR</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>${totalConversions}</strong><br><small>Conversions</small></td>\n        <td style=\"padding:12px;text-align:center;\"><strong>R${blendedCPA}</strong><br><small>CPA</small></td>\n      </tr>\n    </table>\n\n    <h2 style=\"color:#333;font-size:16px;margin-top:20px;\">By Platform</h2>\n    <table style=\"width:100%;border-collapse:collapse;background:white;border-radius:4px;\">\n      <thead>\n        <tr style=\"background:#f0f0f0;\">\n          <th style=\"padding:8px;text-align:left;\">Platform</th>\n          <th style=\"padding:8px;\">Spend</th>\n          <th style=\"padding:8px;\">Impressions</th>\n          <th style=\"padding:8px;\">Clicks</th>\n          <th style=\"padding:8px;\">CTR</th>\n          <th style=\"padding:8px;\">Conversions</th>\n          <th style=\"padding:8px;\">CPA</th>\n        </tr>\n      </thead>\n      <tbody>${platformRows}</tbody>\n    </table>\n\n    <h2 style=\"color:#333;font-size:16px;margin-top:20px;\">AI Analysis</h2>\n    <div style=\"background:white;padding:15px;border-radius:4px;border-left:4px solid #FF6D5A;\">\n      ${summaryText.replace(/\\n/g, '<br>')}\n    </div>\n  </div>\n\n  <div style=\"padding:15px;text-align:center;color:#999;font-size:12px;\">\n    Generated by AVM Ads Agent (ADS-08) | ${now.toISOString()}\n  </div>\n</div>`;\n\nreturn [{json: {\n  html: html,\n  subject: 'AVM Ads Report - ' + monthName + ' Week ' + weekNum,\n  totalSpend: totalSpend,\n  totalConversions: totalConversions,\n  blendedCPA: blendedCPA,\n  blendedROAS: blendedROAS,\n}}];\n"
       }
     },
     {
-      "id": "7ff001b7-f3f7-4413-b123-2864f5a1fac7",
+      "id": "a53e2435-4ecd-43ac-94f0-92b46e98d7b3",
       "name": "Send Weekly Report",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -202,7 +202,7 @@
       }
     },
     {
-      "id": "d99d0006-3b67-4f4a-bfc6-88263f50b658",
+      "id": "d1a92f8d-839e-4da2-b013-3a206d6d4ae6",
       "name": "Format Report Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -215,7 +215,7 @@
       }
     },
     {
-      "id": "c3fa5200-a568-401b-8480-fe2d5b8ab9ac",
+      "id": "4d18f7c9-4535-4a83-8ae5-fdfde03cbde2",
       "name": "Log Report Event",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -239,14 +239,15 @@
         "table": {
           "__rl": true,
           "mode": "id",
-          "value": "tbl6PqkxZy0Md2Ocf"
+          "value": "tblgHAw52EyUcIkWR"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
           "value": null
         },
         "options": {}
-      }
+      },
+      "continueOnFail": true
     }
   ],
   "connections": {

@@ -2,7 +2,7 @@
   "name": "AVM Ads: Strategy Generator",
   "nodes": [
     {
-      "id": "89151849-e0c1-484f-9eb9-e168d81f000b",
+      "id": "70dc5f3a-ef94-4904-97b6-ffc2c1ee2f7d",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "3a9fff29-f952-4a75-8528-629fbd7ffe38",
+      "id": "79367cea-ea16-49a4-a321-adf58a89388b",
       "name": "Read Research Insights",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "58c6c3c0-a3e5-43d0-9b4b-61cd6df1a9d7",
+      "id": "863e7893-806c-40ad-8c80-4c98ba2ba967",
       "name": "Read Current Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -84,7 +84,7 @@
       }
     },
     {
-      "id": "a6c3b062-08ec-4a78-85e3-164a6f331525",
+      "id": "a196f448-1291-4494-bbd1-17ee8f569c89",
       "name": "Read Budget Data",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "9361de17-2a28-4155-a946-5bf8a217bf63",
+      "id": "bd4fd6b9-5f6f-4955-8415-29d9d0de76d2",
       "name": "Merge Context",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -128,7 +128,7 @@
       }
     },
     {
-      "id": "17fe06ca-d4dc-4304-8202-5147629ed5cb",
+      "id": "3f7a4154-eb92-428b-b43b-d20da2512307",
       "name": "Aggregate Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -141,7 +141,7 @@
       }
     },
     {
-      "id": "9204a24b-a60a-4c9d-84cd-3fe043ebe0f6",
+      "id": "45312aac-73ea-43d1-abf3-6b019c3473dd",
       "name": "AI Strategy Generator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -178,7 +178,7 @@
       }
     },
     {
-      "id": "17da8135-fb80-41ab-b1b2-9ee85be51374",
+      "id": "2cf4fd6f-a915-4088-84d7-b67bb5b85e2b",
       "name": "Parse Strategy",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -191,7 +191,7 @@
       }
     },
     {
-      "id": "35b64c88-5978-499e-8278-5980da364f37",
+      "id": "a71f74be-797d-4c48-9e11-1b69ca8f6c01",
       "name": "Filter Valid",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -204,7 +204,7 @@
       }
     },
     {
-      "id": "506b2ec2-4c3c-411d-ab53-3829da1f4286",
+      "id": "3ad706f9-ecdc-451c-bc57-3d80d0eb446e",
       "name": "Write Planned Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -238,13 +238,13 @@
       }
     },
     {
-      "id": "4495c860-14f8-4d9e-b6c3-771aa9d20535",
+      "id": "be34b304-7f78-4f6a-b7cc-dd3e58576ebe",
       "name": "Email Strategy Summary",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
         2000,
-        300
+        200
       ],
       "credentials": {
         "gmailOAuth2": {
@@ -260,6 +260,27 @@
         "message": "={{\"<h2>New Campaign Strategies</h2><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
         "options": {}
       }
+    },
+    {
+      "id": "e0a7b036-88f0-44f8-85bd-addc4abcbf6e",
+      "name": "Trigger Creative Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        450
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://ianimmelman89.app.n8n.cloud/webhook/ads-generate-creatives",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"triggered_by\": \"ADS-01\", \"timestamp\": \"\" + $now.toISO() + \"\"}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "continueOnFail": true
     }
   ],
   "connections": {
@@ -377,6 +398,11 @@
         [
           {
             "node": "Email Strategy Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Trigger Creative Generation",
             "type": "main",
             "index": 0
           }

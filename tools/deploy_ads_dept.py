@@ -86,9 +86,9 @@ META_ADS_ACCOUNT_ID = os.getenv("META_ADS_ACCOUNT_ID", "REPLACE")
 TIKTOK_ADS_ADVERTISER_ID = os.getenv("TIKTOK_ADS_ADVERTISER_ID", "REPLACE")
 
 # Budget safety caps
-DAILY_CAP = int(os.getenv("ADS_DAILY_HARD_CAP_ZAR", "2000"))
-WEEKLY_CAP = int(os.getenv("ADS_WEEKLY_HARD_CAP_ZAR", "10000"))
-MONTHLY_CAP = int(os.getenv("ADS_MONTHLY_HARD_CAP_ZAR", "35000"))
+DAILY_CAP = int(os.getenv("ADS_DAILY_HARD_CAP_ZAR", "500"))
+WEEKLY_CAP = int(os.getenv("ADS_WEEKLY_HARD_CAP_ZAR", "2600"))
+MONTHLY_CAP = int(os.getenv("ADS_MONTHLY_HARD_CAP_ZAR", "11000"))
 
 
 def uid():
@@ -119,7 +119,8 @@ for (const item of items) {
   const campaign = d.campaign || {};
 
   const impressions = parseInt(metrics.impressions || 0);
-  const clicks = parseInt(metrics.clicks || 0);
+  // Google Ads API returns 'interactions' (superset of clicks); fall back to clicks if present
+  const clicks = parseInt(metrics.clicks || metrics.interactions || 0);
   const costMicros = parseInt(metrics.costMicros || metrics.cost_micros || 0);
   const conversions = parseFloat(metrics.conversions || 0);
   const videoViews = parseInt(metrics.videoViews || metrics.video_views || 0);
@@ -131,10 +132,14 @@ for (const item of items) {
   const cpa = conversions > 0 ? spendZAR / conversions : 0;
   const roas = spendZAR > 0 ? (conversions * 100) / spendZAR : 0;
 
+  // n8n Google Ads node returns flat structure: d.name, d.id (not nested under campaign)
+  const campaignName = campaign.name || d.name || d.campaignName || 'Unknown';
+  const campaignId = campaign.id || d.id || 'unknown';
+
   results.push({
     json: {
-      'Performance ID': `gads_${campaign.id || 'unknown'}_${now}_${hour}`,
-      'Campaign Name': campaign.name || d.campaignName || 'Unknown',
+      'Performance ID': `gads_${campaignId}_${now}_${hour}`,
+      'Campaign Name': campaignName,
       'Platform': 'google_ads',
       'Date': now,
       'Impressions': impressions,
@@ -226,7 +231,7 @@ ADS04_ANOMALY_DETECTION_CODE = r"""
 // Detect anomalies: spend > 2x daily budget, CTR drop > 50% vs 7-day avg
 const items = $input.all();
 const anomalies = [];
-const DAILY_CAP = 2000;
+const DAILY_CAP = 400;
 
 for (const item of items) {
   const d = item.json;
@@ -280,7 +285,7 @@ return items.filter(item => !item.json.skip);
 
 ADS08_BUILD_REPORT_CODE = r"""
 // Build email-friendly HTML report from performance data + AI summary
-const perfItems = $('Read Campaign Summary').all();
+const perfItems = $('Merge Report Data').all();
 const aiSummary = $('AI Report Generator').first().json;
 
 const now = new Date();
@@ -392,14 +397,21 @@ return [{json: {
 
 ADS08_AI_REPORT_PROMPT = """You are the AVM Paid Advertising Report Analyst for AnyVision Media, a South African SaaS/AI automation company.
 
+CRITICAL RULES:
+- AVM ONLY runs Google Ads and Meta Ads (Facebook/Instagram). Do NOT reference YouTube, LinkedIn, TikTok, or any other platform.
+- ONLY report metrics that are actually present in the data below. If a metric is 0 or missing, say so honestly — NEVER invent or estimate numbers.
+- If all metrics are zero or the data is empty, state clearly: "No performance data was collected this period."
+- Do NOT fabricate campaign names, ROAS figures, CPA values, or any other metrics not in the data.
+- Google Ads Performance Max campaigns may show video views (from Display/YouTube placements within PMax) — this does NOT mean AVM runs YouTube ads.
+
 Analyze the following paid advertising performance data and generate a concise executive summary.
 
 PERFORMANCE DATA:
 {performance_data}
 
 Generate a summary that includes:
-1. HIGHLIGHTS: Top 2-3 wins this week (best ROAS, lowest CPA, highest CTR)
-2. CONCERNS: Any campaigns underperforming or burning budget
+1. HIGHLIGHTS: Top 2-3 wins this week (best ROAS, lowest CPA, highest CTR) — only if real non-zero data exists
+2. CONCERNS: Any campaigns underperforming or burning budget — based on actual numbers only
 3. RECOMMENDATIONS: 2-3 specific actions to take next week
 4. BUDGET: Whether current allocation is optimal or needs adjustment
 
@@ -598,8 +610,12 @@ def build_schedule_trigger(name, cron_expression, position):
     }
 
 
-def build_webhook_trigger(name, path, position):
-    """Build a Webhook Trigger node."""
+def build_webhook_trigger(name, path, position, response_mode="onReceived"):
+    """Build a Webhook Trigger node.
+
+    Args:
+        response_mode: "onReceived" (respond immediately) or "lastNode" (wait for Respond node).
+    """
     return {
         "id": uid(),
         "name": name,
@@ -610,7 +626,7 @@ def build_webhook_trigger(name, path, position):
         "parameters": {
             "path": path,
             "httpMethod": "POST",
-            "responseMode": "lastNode",
+            "responseMode": response_mode,
         },
     }
 
@@ -781,8 +797,12 @@ def build_if_node(name, condition_expr, position, negate=False):
     }
 
 
-def build_switch_node(name, field_expr, rules, position):
-    """Build a Switch node for platform routing."""
+def build_switch_node(name, field_expr, rules, position, operation="equals"):
+    """Build a Switch node for routing.
+
+    Args:
+        operation: "equals" for exact match, "contains" for substring match.
+    """
     values = []
     for rule_value in rules:
         values.append({
@@ -791,7 +811,7 @@ def build_switch_node(name, field_expr, rules, position):
                     {
                         "leftValue": field_expr,
                         "rightValue": rule_value,
-                        "operator": {"type": "string", "operation": "equals"},
+                        "operator": {"type": "string", "operation": operation},
                     }
                 ],
             },
@@ -1137,10 +1157,12 @@ return [{json: {
 }}];
 """, [1625, 300]))
 
-    # 9b. Log to orchestrator
-    nodes.append(build_airtable_create(
+    # 9b. Log to orchestrator (non-critical — don't block report on log failure)
+    log_node = build_airtable_create(
         "Log Report Event", ORCH_BASE_ID, TABLE_ORCH_EVENTS, [1750, 300]
-    ))
+    )
+    log_node["continueOnFail"] = True
+    nodes.append(log_node)
 
     return nodes
 
@@ -1310,8 +1332,27 @@ return [{json: {
         "Email Strategy Summary", ALERT_EMAIL,
         "AVM Ads Strategy - New Campaigns Planned",
         "={{\"<h2>New Campaign Strategies</h2><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
-        [2000, 300],
+        [2000, 200],
     ))
+
+    # 11. Trigger ADS-02 to generate creatives for planned campaigns
+    n8n_base = os.getenv("N8N_BASE_URL", "https://ianimmelman89.app.n8n.cloud")
+    nodes.append({
+        "id": uid(),
+        "name": "Trigger Creative Generation",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [2000, 450],
+        "parameters": {
+            "method": "POST",
+            "url": f"{n8n_base}/webhook/ads-generate-creatives",
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": "={\"triggered_by\": \"ADS-01\", \"timestamp\": \"\" + $now.toISO() + \"\"}",
+            "options": {"timeout": 10000},
+        },
+        "continueOnFail": True,
+    })
 
     return nodes
 
@@ -1350,6 +1391,7 @@ def build_ads01_connections(nodes):
         ]]},
         "Write Planned Campaigns": {"main": [[
             {"node": "Email Strategy Summary", "type": "main", "index": 0},
+            {"node": "Trigger Creative Generation", "type": "main", "index": 0},
         ]]},
     }
 
@@ -1367,13 +1409,15 @@ const tiktok = [];
 
 for (const item of items) {
   const platform = (item.json.Platform || '').toLowerCase();
-  if (platform.includes('google')) google.push(item);
-  else if (platform.includes('meta')) meta.push(item);
-  else if (platform.includes('tiktok')) tiktok.push(item);
-  else google.push(item); // default to google
+  // Wrap in clean {json: ...} to avoid pairedItem validation issues
+  const clean = {json: item.json};
+  if (platform.includes('google')) google.push(clean);
+  else if (platform.includes('meta')) meta.push(clean);
+  else if (platform.includes('tiktok')) tiktok.push(clean);
+  else google.push(clean); // default to google
 }
 
-// Return items for the first output that has data, empty arrays for others
+// Return items for each output — skip placeholder for empty branches
 return [
   google.length > 0 ? google : [{json: {skip: true}}],
   meta.length > 0 ? meta : [{json: {skip: true}}],
@@ -1508,18 +1552,27 @@ def build_ads02_nodes():
         "={Status}='Planned'", [500, 300],
     ))
 
-    # 3. Route by platform (Code node with 3 outputs)
-    nodes.append(build_code_node("Route by Platform", ADS02_ROUTE_BY_PLATFORM_CODE, [750, 300], num_outputs=3))
+    # 3. Route by platform (Switch node — 3 outputs: google, meta, tiktok)
+    nodes.append(build_switch_node(
+        "Route by Platform",
+        "={{$json.Platform}}",
+        ["google_ads", "meta_ads", "tiktok_ads"],
+        [750, 300],
+        operation="contains",
+    ))
 
-    # 4. Google Copy Agent
+    # 4. Google Copy Agent (continueOnFail for skip items from Route by Platform)
     google_prompt = ADS02_GOOGLE_COPY_PROMPT.replace(
         "{campaign_name}", "{{$json['Campaign Name']}}"
     ).replace("{objective}", "{{$json.Objective}}"
     ).replace("{target_audience}", "{{$json['Target Audience']}}"
     ).replace("{key_messages}", "{{$json['Key Messages']}}")
-    nodes.append(build_openrouter_request(
+    google_node = build_openrouter_request(
         "Google Copy Agent", google_prompt, "JSON.stringify($json)", [1000, 100], max_tokens=2000,
-    ))
+    )
+    google_node["continueOnFail"] = True
+    google_node["alwaysOutputData"] = True
+    nodes.append(google_node)
 
     # 5. Meta Copy Agent
     meta_prompt = ADS02_META_COPY_PROMPT.replace(
@@ -1528,9 +1581,12 @@ def build_ads02_nodes():
     ).replace("{target_audience}", "{{$json['Target Audience']}}"
     ).replace("{key_messages}", "{{$json['Key Messages']}}"
     ).replace("{ad_format}", "Image")
-    nodes.append(build_openrouter_request(
+    meta_node = build_openrouter_request(
         "Meta Copy Agent", meta_prompt, "JSON.stringify($json)", [1000, 300], max_tokens=1500,
-    ))
+    )
+    meta_node["continueOnFail"] = True
+    meta_node["alwaysOutputData"] = True
+    nodes.append(meta_node)
 
     # 6. TikTok Script Agent
     tiktok_prompt = ADS02_TIKTOK_COPY_PROMPT.replace(
@@ -1538,9 +1594,12 @@ def build_ads02_nodes():
     ).replace("{objective}", "{{$json.Objective}}"
     ).replace("{target_audience}", "{{$json['Target Audience']}}"
     ).replace("{key_messages}", "{{$json['Key Messages']}}")
-    nodes.append(build_openrouter_request(
+    tiktok_node = build_openrouter_request(
         "TikTok Script Agent", tiktok_prompt, "JSON.stringify($json)", [1000, 500], max_tokens=1500,
-    ))
+    )
+    tiktok_node["continueOnFail"] = True
+    tiktok_node["alwaysOutputData"] = True
+    nodes.append(tiktok_node)
 
     # 7. Merge all creative outputs
     nodes.append(build_merge_node("Merge Creatives", [1250, 300]))
@@ -1591,9 +1650,6 @@ def build_ads02_nodes():
         [2500, 300],
     ))
 
-    # 13. Respond to webhook
-    nodes.append(build_respond_webhook("Respond OK", [2750, 300]))
-
     return nodes
 
 
@@ -1635,9 +1691,6 @@ def build_ads02_connections(nodes):
         "Create Approval Request": {"main": [[
             {"node": "Email Approval Link", "type": "main", "index": 0},
         ]]},
-        "Email Approval Link": {"main": [[
-            {"node": "Respond OK", "type": "main", "index": 0},
-        ]]},
     }
 
 
@@ -1648,9 +1701,9 @@ def build_ads02_connections(nodes):
 ADS03_BUDGET_SAFETY_CODE = r"""
 // Budget safety check - enforce all caps before campaign creation
 const items = $input.all();
-const DAILY_CAP = 2000;
-const WEEKLY_CAP = 10000;
-const MONTHLY_CAP = 35000;
+const DAILY_CAP = 400;
+const WEEKLY_CAP = 2000;
+const MONTHLY_CAP = 8700;
 
 const results = [];
 
@@ -1849,9 +1902,6 @@ def build_ads03_nodes():
         [1250, 500],
     ))
 
-    # 13. Respond to webhook
-    nodes.append(build_respond_webhook("Respond OK", [2250, 200]))
-
     return nodes
 
 
@@ -1893,9 +1943,6 @@ def build_ads03_connections(nodes):
         ]]},
         "Merge Results": {"main": [[
             {"node": "Update Status", "type": "main", "index": 0},
-        ]]},
-        "Update Status": {"main": [[
-            {"node": "Respond OK", "type": "main", "index": 0},
         ]]},
     }
 
@@ -1974,7 +2021,7 @@ return results.length > 0 ? results : [{json: {skip: true, reason: 'No performan
 """
 
 ADS05_PARSE_OPTIMIZATIONS_CODE = r"""
-// Parse AI optimization recommendations
+// Parse AI optimization recommendations into flat list with _autoApprove flag
 const aiResp = $('AI Optimizer').first().json;
 const content = aiResp.choices?.[0]?.message?.content || '[]';
 
@@ -1983,46 +2030,31 @@ try {
   const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
   recommendations = JSON.parse(cleaned);
 } catch (e) {
-  // Return skip items for both outputs — do NOT output error/raw fields
-  return [
-    [{json: {skip: true, _noData: true}}],
-    [{json: {skip: true, _noData: true}}],
-  ];
+  return [{json: {skip: true, _noData: true}}];
 }
 
 if (!Array.isArray(recommendations)) recommendations = [recommendations];
 if (recommendations.length === 0) {
-  return [
-    [{json: {skip: true, _noData: true}}],
-    [{json: {skip: true, _noData: true}}],
-  ];
+  return [{json: {skip: true, _noData: true}}];
 }
 
-const autoApply = [];
-const needsApproval = [];
+const results = [];
 const now = new Date().toISOString().split('T')[0];
 
 for (const rec of recommendations) {
-  const record = {
+  const isAuto = !!rec.auto_approvable;
+  results.push({json: {
     'Campaign Name': rec.campaign_name || rec.campaign || 'Unknown',
     'Request Type': 'Optimization',
     'Requested By': 'ADS-05',
     'Details': JSON.stringify(rec),
     'Created At': now,
-  };
-
-  if (rec.auto_approvable) {
-    autoApply.push({json: {...record, 'Status': 'Approved'}});
-  } else {
-    needsApproval.push({json: {...record, 'Status': 'Pending'}});
-  }
+    'Status': isAuto ? 'Approved' : 'Pending',
+    '_autoApprove': isAuto,
+  }});
 }
 
-// Output 0 = auto-apply, Output 1 = needs approval
-return [
-  autoApply.length > 0 ? autoApply : [{json: {skip: true}}],
-  needsApproval.length > 0 ? needsApproval : [{json: {skip: true}}],
-];
+return results.length > 0 ? results : [{json: {skip: true, _noData: true}}];
 """
 
 
@@ -2084,17 +2116,23 @@ return [{json: {
         "AI Optimizer", prompt, "JSON.stringify($json)", [1250, 300], max_tokens=2000,
     ))
 
-    # 7. Parse recommendations (2 outputs: auto-apply, needs-approval)
-    nodes.append(build_code_node("Parse Optimizations", ADS05_PARSE_OPTIMIZATIONS_CODE, [1500, 300], num_outputs=2))
+    # 7. Parse recommendations (single output with _autoApprove flag)
+    nodes.append(build_code_node("Parse Optimizations", ADS05_PARSE_OPTIMIZATIONS_CODE, [1500, 300]))
 
-    # 8. Log auto-applied changes
+    # 7b. Filter skip items
+    nodes.append(build_code_node("Filter Valid Opts", ADS04_FILTER_SKIP_CODE, [1625, 300]))
+
+    # 7c. Split by auto-approve flag
+    nodes.append(build_if_node("Auto Approve?", "={{$json._autoApprove}}", [1750, 300]))
+
+    # 8. Log auto-applied changes (true branch)
     nodes.append(build_airtable_create(
-        "Log Auto Changes", MARKETING_BASE_ID, TABLE_APPROVALS, [1750, 200],
+        "Log Auto Changes", MARKETING_BASE_ID, TABLE_APPROVALS, [2000, 200],
     ))
 
-    # 9. Create approval requests for manual changes
+    # 9. Create approval requests for manual changes (false branch)
     nodes.append(build_airtable_create(
-        "Create Approval Requests", MARKETING_BASE_ID, TABLE_APPROVALS, [1750, 500],
+        "Create Approval Requests", MARKETING_BASE_ID, TABLE_APPROVALS, [2000, 500],
     ))
 
     # 10. Email optimization summary
@@ -2133,7 +2171,13 @@ def build_ads05_connections(nodes):
         "AI Optimizer": {"main": [[
             {"node": "Parse Optimizations", "type": "main", "index": 0},
         ]]},
-        "Parse Optimizations": {"main": [
+        "Parse Optimizations": {"main": [[
+            {"node": "Filter Valid Opts", "type": "main", "index": 0},
+        ]]},
+        "Filter Valid Opts": {"main": [[
+            {"node": "Auto Approve?", "type": "main", "index": 0},
+        ]]},
+        "Auto Approve?": {"main": [
             [{"node": "Log Auto Changes", "type": "main", "index": 0}],
             [{"node": "Create Approval Requests", "type": "main", "index": 0}],
         ]},

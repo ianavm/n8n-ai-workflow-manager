@@ -2,7 +2,7 @@
   "name": "AVM Ads: Performance Monitor",
   "nodes": [
     {
-      "id": "e883e6f0-bdfb-4478-8be3-b6b1cd2cdad6",
+      "id": "4451b585-e561-457d-a89b-c596c543c7e1",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "3bbec2fb-ad2f-4507-a5a9-fb18ee4dd867",
+      "id": "15140d1f-ae8b-4dc0-bc75-864fd4f1f7a5",
       "name": "Read Active Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "c977a982-bbe7-4bf3-842c-0c8e26a9197f",
+      "id": "0910abed-a5b0-4dad-90bb-5c8837253184",
       "name": "Google Ads Get Campaigns",
       "type": "n8n-nodes-base.googleAds",
       "typeVersion": 1,
@@ -79,7 +79,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "0533f783-de79-4794-b333-7e4dfc29480f",
+      "id": "2aec32c7-ffd5-4a3f-8438-864a65fae1a4",
       "name": "Transform Google Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -88,11 +88,11 @@
         100
       ],
       "parameters": {
-        "jsCode": "\n// Transform Google Ads API response to common schema\nconst items = $input.all();\n\n// Handle upstream error / empty data (continueOnFail produces error item)\nif (!items.length || items[0].json?.error || items[0].json?.message?.includes?.('403')) {\n  return [{json: {skip: true, reason: 'Google Ads API unavailable'}}];\n}\n\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\nconst hour = new Date().toISOString().split('T')[1].substring(0, 5);\n\nfor (const item of items) {\n  const d = item.json;\n  const metrics = d.metrics || d;\n  const campaign = d.campaign || {};\n\n  const impressions = parseInt(metrics.impressions || 0);\n  const clicks = parseInt(metrics.clicks || 0);\n  const costMicros = parseInt(metrics.costMicros || metrics.cost_micros || 0);\n  const conversions = parseFloat(metrics.conversions || 0);\n  const videoViews = parseInt(metrics.videoViews || metrics.video_views || 0);\n\n  const spendZAR = costMicros / 1000000;\n  const ctr = impressions > 0 ? clicks / impressions : 0;\n  const cpc = clicks > 0 ? spendZAR / clicks : 0;\n  const cpm = impressions > 0 ? (spendZAR / impressions) * 1000 : 0;\n  const cpa = conversions > 0 ? spendZAR / conversions : 0;\n  const roas = spendZAR > 0 ? (conversions * 100) / spendZAR : 0;\n\n  results.push({\n    json: {\n      'Performance ID': `gads_${campaign.id || 'unknown'}_${now}_${hour}`,\n      'Campaign Name': campaign.name || d.campaignName || 'Unknown',\n      'Platform': 'google_ads',\n      'Date': now,\n      'Impressions': impressions,\n      'Clicks': clicks,\n      'CTR': parseFloat(ctr.toFixed(4)),\n      'Spend ZAR': parseFloat(spendZAR.toFixed(2)),\n      'Conversions': Math.round(conversions),\n      'CPA ZAR': parseFloat(cpa.toFixed(2)),\n      'ROAS': parseFloat(roas.toFixed(2)),\n      'CPM ZAR': parseFloat(cpm.toFixed(2)),\n      'CPC ZAR': parseFloat(cpc.toFixed(2)),\n      'Video Views': videoViews,\n      'Engagement Rate': 0,\n      'Snapshot Hour': hour,\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No Google Ads data'}}];\n"
+        "jsCode": "\n// Transform Google Ads API response to common schema\nconst items = $input.all();\n\n// Handle upstream error / empty data (continueOnFail produces error item)\nif (!items.length || items[0].json?.error || items[0].json?.message?.includes?.('403')) {\n  return [{json: {skip: true, reason: 'Google Ads API unavailable'}}];\n}\n\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\nconst hour = new Date().toISOString().split('T')[1].substring(0, 5);\n\nfor (const item of items) {\n  const d = item.json;\n  const metrics = d.metrics || d;\n  const campaign = d.campaign || {};\n\n  const impressions = parseInt(metrics.impressions || 0);\n  // Google Ads API returns 'interactions' (superset of clicks); fall back to clicks if present\n  const clicks = parseInt(metrics.clicks || metrics.interactions || 0);\n  const costMicros = parseInt(metrics.costMicros || metrics.cost_micros || 0);\n  const conversions = parseFloat(metrics.conversions || 0);\n  const videoViews = parseInt(metrics.videoViews || metrics.video_views || 0);\n\n  const spendZAR = costMicros / 1000000;\n  const ctr = impressions > 0 ? clicks / impressions : 0;\n  const cpc = clicks > 0 ? spendZAR / clicks : 0;\n  const cpm = impressions > 0 ? (spendZAR / impressions) * 1000 : 0;\n  const cpa = conversions > 0 ? spendZAR / conversions : 0;\n  const roas = spendZAR > 0 ? (conversions * 100) / spendZAR : 0;\n\n  // n8n Google Ads node returns flat structure: d.name, d.id (not nested under campaign)\n  const campaignName = campaign.name || d.name || d.campaignName || 'Unknown';\n  const campaignId = campaign.id || d.id || 'unknown';\n\n  results.push({\n    json: {\n      'Performance ID': `gads_${campaignId}_${now}_${hour}`,\n      'Campaign Name': campaignName,\n      'Platform': 'google_ads',\n      'Date': now,\n      'Impressions': impressions,\n      'Clicks': clicks,\n      'CTR': parseFloat(ctr.toFixed(4)),\n      'Spend ZAR': parseFloat(spendZAR.toFixed(2)),\n      'Conversions': Math.round(conversions),\n      'CPA ZAR': parseFloat(cpa.toFixed(2)),\n      'ROAS': parseFloat(roas.toFixed(2)),\n      'CPM ZAR': parseFloat(cpm.toFixed(2)),\n      'CPC ZAR': parseFloat(cpc.toFixed(2)),\n      'Video Views': videoViews,\n      'Engagement Rate': 0,\n      'Snapshot Hour': hour,\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No Google Ads data'}}];\n"
       }
     },
     {
-      "id": "6b0a46ad-c238-4dfc-b636-163f6812888d",
+      "id": "b3b6bc62-c7e9-482e-a6a5-63f3e2b4caeb",
       "name": "Meta Ads Get Insights",
       "type": "n8n-nodes-base.facebookGraphApi",
       "typeVersion": 1,
@@ -133,7 +133,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "5cbf309e-9953-40bd-b87d-89cc60219d35",
+      "id": "cac1eb30-c069-4720-b30f-8485972caeb6",
       "name": "Transform Meta Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -146,7 +146,7 @@
       }
     },
     {
-      "id": "68a5cb62-69f4-47d6-b002-21bff52bf596",
+      "id": "f1db5472-7b06-47ed-8dfa-b6ac722a8d3e",
       "name": "Merge All Metrics",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -159,7 +159,7 @@
       }
     },
     {
-      "id": "344775d5-4a9d-4a84-af8e-18bfee41fdfa",
+      "id": "4594fccd-7855-4856-8f6d-5b850796df53",
       "name": "Filter Valid Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -172,7 +172,7 @@
       }
     },
     {
-      "id": "f12c9bf7-8105-4181-9f11-ab9f00dc4d72",
+      "id": "1f7e4652-8f13-48bb-9829-a4553e665b46",
       "name": "Write Ad Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -206,7 +206,7 @@
       }
     },
     {
-      "id": "472b7de9-2e20-4365-8101-07072319639d",
+      "id": "e8a05de7-c16b-4b5f-a8f9-22d9c296e499",
       "name": "Anomaly Detection",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -215,11 +215,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Detect anomalies: spend > 2x daily budget, CTR drop > 50% vs 7-day avg\nconst items = $input.all();\nconst anomalies = [];\nconst DAILY_CAP = 2000;\n\nfor (const item of items) {\n  const d = item.json;\n  if (d.skip) continue;\n\n  const issues = [];\n\n  // Check spend against daily cap\n  if (d['Spend ZAR'] > DAILY_CAP) {\n    issues.push(`Spend R${d['Spend ZAR']} exceeds daily cap R${DAILY_CAP}`);\n  }\n\n  // Flag very low CTR (potential issue)\n  if (d.Impressions > 1000 && d.CTR < 0.001) {\n    issues.push(`CTR ${(d.CTR * 100).toFixed(2)}% critically low with ${d.Impressions} impressions`);\n  }\n\n  // Flag high CPA\n  if (d['CPA ZAR'] > 500 && d.Conversions > 0) {\n    issues.push(`CPA R${d['CPA ZAR']} exceeds R500 threshold`);\n  }\n\n  if (issues.length > 0) {\n    anomalies.push({\n      json: {\n        campaign: d['Campaign Name'],\n        platform: d.Platform,\n        date: d.Date,\n        issues: issues,\n        spendZAR: d['Spend ZAR'],\n        ctr: d.CTR,\n        cpa: d['CPA ZAR'],\n        severity: d['Spend ZAR'] > DAILY_CAP ? 'CRITICAL' : 'WARNING',\n      }\n    });\n  }\n}\n\nif (anomalies.length > 0) {\n  return anomalies;\n} else {\n  return [{json: {noAnomalies: true}}];\n}\n"
+        "jsCode": "\n// Detect anomalies: spend > 2x daily budget, CTR drop > 50% vs 7-day avg\nconst items = $input.all();\nconst anomalies = [];\nconst DAILY_CAP = 400;\n\nfor (const item of items) {\n  const d = item.json;\n  if (d.skip) continue;\n\n  const issues = [];\n\n  // Check spend against daily cap\n  if (d['Spend ZAR'] > DAILY_CAP) {\n    issues.push(`Spend R${d['Spend ZAR']} exceeds daily cap R${DAILY_CAP}`);\n  }\n\n  // Flag very low CTR (potential issue)\n  if (d.Impressions > 1000 && d.CTR < 0.001) {\n    issues.push(`CTR ${(d.CTR * 100).toFixed(2)}% critically low with ${d.Impressions} impressions`);\n  }\n\n  // Flag high CPA\n  if (d['CPA ZAR'] > 500 && d.Conversions > 0) {\n    issues.push(`CPA R${d['CPA ZAR']} exceeds R500 threshold`);\n  }\n\n  if (issues.length > 0) {\n    anomalies.push({\n      json: {\n        campaign: d['Campaign Name'],\n        platform: d.Platform,\n        date: d.Date,\n        issues: issues,\n        spendZAR: d['Spend ZAR'],\n        ctr: d.CTR,\n        cpa: d['CPA ZAR'],\n        severity: d['Spend ZAR'] > DAILY_CAP ? 'CRITICAL' : 'WARNING',\n      }\n    });\n  }\n}\n\nif (anomalies.length > 0) {\n  return anomalies;\n} else {\n  return [{json: {noAnomalies: true}}];\n}\n"
       }
     },
     {
-      "id": "cd3e5c7e-e594-49e7-a99a-ba626158e2db",
+      "id": "7dc07565-27ea-442e-aa49-72b4a85c7c36",
       "name": "Has Anomalies",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -250,7 +250,7 @@
       }
     },
     {
-      "id": "51b69fbd-7ad4-429a-afb1-aa020fbe7fa2",
+      "id": "1c711b16-bd70-4b28-8e12-f15778ed288e",
       "name": "Send Anomaly Alert",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -274,7 +274,7 @@
       }
     },
     {
-      "id": "091b2423-e1b2-44b9-a140-18462ad3ecbc",
+      "id": "03e38b7d-3718-43b6-9f00-dbca998dc904",
       "name": "No Anomalies",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,

@@ -2,7 +2,7 @@
   "name": "AVM Ads: Campaign Builder",
   "nodes": [
     {
-      "id": "abb2b203-2b71-4550-8408-a037251790ea",
+      "id": "a32ffd25-b405-48ac-b6ca-d0f3bb0bb90c",
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -10,15 +10,15 @@
         250,
         300
       ],
-      "webhookId": "2e64dc85-7701-4b37-b987-9236d81ff4f1",
+      "webhookId": "acbc795b-d9f3-48c0-abe5-269c296b7851",
       "parameters": {
         "path": "ads-build-campaign",
         "httpMethod": "POST",
-        "responseMode": "lastNode"
+        "responseMode": "onReceived"
       }
     },
     {
-      "id": "53699c54-55d8-440b-ad3e-1e480fe7c989",
+      "id": "d71af9bd-4cc4-48f2-b252-995f776c1b3a",
       "name": "Read Approved Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -49,7 +49,7 @@
       }
     },
     {
-      "id": "2f74dae5-a37b-4f1f-8033-750bb61e6940",
+      "id": "ccbbb56c-d40a-4feb-8dde-344bbd453954",
       "name": "Read Creatives",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -80,7 +80,7 @@
       }
     },
     {
-      "id": "4d192f0c-3d29-4113-8fbf-192925aeac31",
+      "id": "8f754e05-f767-441a-822b-77f1fcc24d23",
       "name": "Budget Safety Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -89,11 +89,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Budget safety check - enforce all caps before campaign creation\nconst items = $input.all();\nconst DAILY_CAP = 2000;\nconst WEEKLY_CAP = 10000;\nconst MONTHLY_CAP = 35000;\n\nconst results = [];\n\nfor (const item of items) {\n  const d = item.json;\n  const dailyBudget = d['Daily Budget ZAR'] || 0;\n  const errors = [];\n\n  if (dailyBudget > DAILY_CAP) {\n    errors.push(`Daily R${dailyBudget} exceeds cap R${DAILY_CAP}`);\n  }\n  if (dailyBudget * 7 > WEEKLY_CAP) {\n    errors.push(`Weekly projection R${dailyBudget * 7} exceeds cap R${WEEKLY_CAP}`);\n  }\n  if (dailyBudget * 30 > MONTHLY_CAP) {\n    errors.push(`Monthly projection R${dailyBudget * 30} exceeds cap R${MONTHLY_CAP}`);\n  }\n\n  if (errors.length > 0) {\n    results.push({json: {\n      ...d,\n      _budgetSafe: false,\n      _budgetErrors: errors,\n    }});\n  } else {\n    results.push({json: {\n      ...d,\n      _budgetSafe: true,\n      _budgetErrors: [],\n    }});\n  }\n}\n\nreturn results;\n"
+        "jsCode": "\n// Budget safety check - enforce all caps before campaign creation\nconst items = $input.all();\nconst DAILY_CAP = 400;\nconst WEEKLY_CAP = 2000;\nconst MONTHLY_CAP = 8700;\n\nconst results = [];\n\nfor (const item of items) {\n  const d = item.json;\n  const dailyBudget = d['Daily Budget ZAR'] || 0;\n  const errors = [];\n\n  if (dailyBudget > DAILY_CAP) {\n    errors.push(`Daily R${dailyBudget} exceeds cap R${DAILY_CAP}`);\n  }\n  if (dailyBudget * 7 > WEEKLY_CAP) {\n    errors.push(`Weekly projection R${dailyBudget * 7} exceeds cap R${WEEKLY_CAP}`);\n  }\n  if (dailyBudget * 30 > MONTHLY_CAP) {\n    errors.push(`Monthly projection R${dailyBudget * 30} exceeds cap R${MONTHLY_CAP}`);\n  }\n\n  if (errors.length > 0) {\n    results.push({json: {\n      ...d,\n      _budgetSafe: false,\n      _budgetErrors: errors,\n    }});\n  } else {\n    results.push({json: {\n      ...d,\n      _budgetSafe: true,\n      _budgetErrors: [],\n    }});\n  }\n}\n\nreturn results;\n"
       }
     },
     {
-      "id": "3819acc8-c012-4c39-95d0-d5307d53c3be",
+      "id": "f4272291-bd34-4121-9c03-b3de574b2ad7",
       "name": "Budget Safe?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -124,7 +124,7 @@
       }
     },
     {
-      "id": "40dfc0bf-a76e-4bc9-a3da-853e5e141f77",
+      "id": "2c910f87-5918-4877-9eaf-ab6c77060811",
       "name": "Build Google Campaign",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -137,7 +137,7 @@
       }
     },
     {
-      "id": "11dd8aa1-92c2-4cc7-bfab-779ad9f29914",
+      "id": "c7913331-3d78-426d-a3ea-ff1e49582647",
       "name": "Build Meta Campaign",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -150,7 +150,7 @@
       }
     },
     {
-      "id": "f57269ef-607f-40aa-9c37-891280ffbb3c",
+      "id": "f85415b0-e816-41a9-bc0b-9db092631c51",
       "name": "Create Google Campaign",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -160,7 +160,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://googleads.googleapis.com/v20/customers/6925797193/campaigns:mutate",
+        "url": "https://googleads.googleapis.com/v20/customers/5876156009/campaigns:mutate",
         "options": {
           "timeout": 30000
         }
@@ -173,7 +173,7 @@
       }
     },
     {
-      "id": "6330e1fa-29c0-48ff-9f86-d328db5807f1",
+      "id": "0fc6f133-0977-42a0-9cbe-da085bf30ebc",
       "name": "Create Meta Campaign",
       "type": "n8n-nodes-base.facebookGraphApi",
       "typeVersion": 1,
@@ -220,7 +220,7 @@
       }
     },
     {
-      "id": "5efa2721-32de-4586-a94d-3a4208ebd465",
+      "id": "23567e50-579e-4e74-a408-76d441bc87c2",
       "name": "Merge Results",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -233,7 +233,7 @@
       }
     },
     {
-      "id": "9f33579e-c294-4687-9b44-64da34c061b7",
+      "id": "5e8fa23b-4ffc-460e-9c90-367ed60590fa",
       "name": "Update Status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -246,7 +246,7 @@
       }
     },
     {
-      "id": "5062371a-4365-416b-b6d7-3b63d6655730",
+      "id": "d923ca26-04f7-4d0d-94a0-1d16bb6ffd28",
       "name": "Budget Rejected Alert",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -267,20 +267,6 @@
         "emailType": "html",
         "message": "={{\"<h2>BUDGET SAFETY BLOCK</h2><pre>\" + JSON.stringify($json._budgetErrors, null, 2) + \"</pre>\"}}",
         "options": {}
-      }
-    },
-    {
-      "id": "e5d97c5e-6218-4aac-b026-aaf983644d13",
-      "name": "Respond OK",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        2250,
-        200
-      ],
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{$json}}"
       }
     }
   ],
@@ -401,17 +387,6 @@
         [
           {
             "node": "Update Status",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update Status": {
-      "main": [
-        [
-          {
-            "node": "Respond OK",
             "type": "main",
             "index": 0
           }

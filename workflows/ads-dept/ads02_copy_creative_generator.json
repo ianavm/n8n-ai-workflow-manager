@@ -2,7 +2,7 @@
   "name": "AVM Ads: Copy & Creative Generator",
   "nodes": [
     {
-      "id": "1fc0acf5-e0a8-468e-b5de-434d8a86abf3",
+      "id": "5f7f0975-afa8-462c-8f65-174e1ad8e3b0",
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -10,15 +10,15 @@
         250,
         300
       ],
-      "webhookId": "cec2df1b-f183-43e8-8958-6e6425447f3f",
+      "webhookId": "92b8a928-c87c-4d92-8391-e6a550bfa9d0",
       "parameters": {
         "path": "ads-generate-creatives",
         "httpMethod": "POST",
-        "responseMode": "lastNode"
+        "responseMode": "onReceived"
       }
     },
     {
-      "id": "8af3ccd3-44ec-43c0-b5e8-c32983431d1c",
+      "id": "7afeb641-f82b-4b41-9c57-bf78c85bdf3a",
       "name": "Read Campaign Plans",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -49,21 +49,65 @@
       }
     },
     {
-      "id": "9ae2f03f-7998-4651-a977-d8377821abfe",
+      "id": "d5c2e2dc-6658-4563-941a-95e6f4a0965a",
       "name": "Route by Platform",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
       "position": [
         750,
         300
       ],
       "parameters": {
-        "jsCode": "\n// Split campaigns by platform for platform-specific copy generation\nconst items = $input.all();\nconst google = [];\nconst meta = [];\nconst tiktok = [];\n\nfor (const item of items) {\n  const platform = (item.json.Platform || '').toLowerCase();\n  if (platform.includes('google')) google.push(item);\n  else if (platform.includes('meta')) meta.push(item);\n  else if (platform.includes('tiktok')) tiktok.push(item);\n  else google.push(item); // default to google\n}\n\n// Return items for the first output that has data, empty arrays for others\nreturn [\n  google.length > 0 ? google : [{json: {skip: true}}],\n  meta.length > 0 ? meta : [{json: {skip: true}}],\n  tiktok.length > 0 ? tiktok : [{json: {skip: true}}],\n];\n",
-        "numberOfOutputs": 3
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.Platform}}",
+                    "rightValue": "google_ads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.Platform}}",
+                    "rightValue": "meta_ads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.Platform}}",
+                    "rightValue": "tiktok_ads",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
       }
     },
     {
-      "id": "272101c1-6eca-4afc-ad0c-8291b7743afc",
+      "id": "4d128519-1574-4081-95bd-1672459ef4e1",
       "name": "Google Copy Agent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -97,10 +141,12 @@
         "options": {
           "timeout": 60000
         }
-      }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
-      "id": "35c40f57-46dc-4cb1-b5d7-820d56e45546",
+      "id": "1c394d20-d1ed-439c-8f99-f81b22c94869",
       "name": "Meta Copy Agent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -134,10 +180,12 @@
         "options": {
           "timeout": 60000
         }
-      }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
-      "id": "24066350-b120-425c-aca2-302f4a28ae8e",
+      "id": "3c529950-fbe4-46d7-9ecf-3589591de5a2",
       "name": "TikTok Script Agent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -171,10 +219,12 @@
         "options": {
           "timeout": 60000
         }
-      }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
-      "id": "2c3c430e-390d-4d39-851c-e3d9cf1686cc",
+      "id": "a7f0ff1f-dbef-4c34-b3ea-8c7b2f1e892a",
       "name": "Merge Creatives",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -187,7 +237,7 @@
       }
     },
     {
-      "id": "ccab71b6-4417-4bf4-8cea-865ece2484e0",
+      "id": "462e784c-c2b7-45c4-b665-02d6b9773afd",
       "name": "Parse Creatives",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -200,7 +250,7 @@
       }
     },
     {
-      "id": "0eabb2e6-9647-4666-b33a-c1285c0235cb",
+      "id": "a5a266c2-dd67-449c-9a8d-7af4a6dd244b",
       "name": "Filter Valid Creatives",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -213,7 +263,7 @@
       }
     },
     {
-      "id": "b9cc6526-33d6-4c99-a8fc-08750985795e",
+      "id": "a00c4a9a-5e5e-4529-8200-bab4c9252900",
       "name": "Write Creatives",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -247,7 +297,7 @@
       }
     },
     {
-      "id": "a10b9aec-872f-4385-b90d-9dd543686f82",
+      "id": "138c33a9-6fbd-4196-ab89-e658c62257b6",
       "name": "Create Approval Request",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -288,7 +338,7 @@
       }
     },
     {
-      "id": "ef2650e3-a9bf-44a2-9c2d-ab486c787afa",
+      "id": "2e39a267-f5a4-44e6-b90c-8a2131b28853",
       "name": "Email Approval Link",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -309,20 +359,6 @@
         "emailType": "html",
         "message": "={{\"<h2>New Ad Creatives Ready for Review</h2><p>\" + $json['Creative Name'] + \" created for \" + $json['Campaign Name'] + \"</p><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
         "options": {}
-      }
-    },
-    {
-      "id": "836768f5-78db-4da7-b250-ace1ca862b5a",
-      "name": "Respond OK",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        2750,
-        300
-      ],
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{$json}}"
       }
     }
   ],
@@ -456,17 +492,6 @@
         [
           {
             "node": "Email Approval Link",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Email Approval Link": {
-      "main": [
-        [
-          {
-            "node": "Respond OK",
             "type": "main",
             "index": 0
           }
