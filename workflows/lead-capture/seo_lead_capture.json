@@ -1,0 +1,150 @@
+{
+  "name": "AVM: SEO Lead Capture",
+  "nodes": [
+    {
+      "id": "41cddf2b-38df-49b6-8147-46ed2c8252a5",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "660f1303-6846-4096-b6af-cc695f8fd6cd",
+      "parameters": {
+        "path": "seo-social/lead-capture",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "694f3261-28f6-4f7d-a4aa-dddce1f28d34",
+      "name": "Format SEO Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        470,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Format SEO Lead Capture submission for Airtable\nconst item = $input.first().json;\nconst now = new Date();\nconst leadId = 'SEO-' + now.getTime().toString(36).toUpperCase();\n\n// Determine source from utm_source\nconst utmSource = (item.utm_source || '').toLowerCase();\nlet source = 'Organic';\nif (utmSource.includes('google') && utmSource.includes('ad')) {\n  source = 'Google Ads';\n} else if (utmSource.includes('meta') || utmSource.includes('facebook') || utmSource.includes('instagram')) {\n  source = 'Meta Ads';\n} else if (utmSource.includes('tiktok')) {\n  source = 'TikTok Ads';\n} else if (utmSource.includes('linkedin')) {\n  source = 'LinkedIn Ads';\n} else if (utmSource.includes('google')) {\n  source = 'Google Organic';\n} else if (utmSource.includes('bing')) {\n  source = 'Bing Organic';\n} else if (utmSource.includes('twitter') || utmSource.includes('x.com')) {\n  source = 'Twitter/X';\n} else if (utmSource.includes('email') || utmSource.includes('newsletter')) {\n  source = 'Email';\n} else if (utmSource) {\n  source = item.utm_source;\n}\n\nreturn [{\n  json: {\n    'Lead ID': leadId,\n    'Email': item.email || '',\n    'Name': item.name || '',\n    'Company': item.company || '',\n    'Phone': item.phone || '',\n    'Message': item.message || '',\n    'Page URL': item.page_url || '',\n    'UTM Source': item.utm_source || '',\n    'UTM Medium': item.utm_medium || '',\n    'UTM Campaign': item.utm_campaign || '',\n    'Source': source,\n    'Status': 'New',\n    'Created At': now.toISOString(),\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "793b4f8b-ee74-438c-b761-4fda680bb753",
+      "name": "Save to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        690,
+        250
+      ],
+      "parameters": {
+        "operation": "create",
+        "application": "apptjjBx34z9340tK",
+        "table": "tblwOPTPY85Tcj7NJ",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        },
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "id": "f95b395e-577a-4e18-9f17-6b18ff137e6b",
+      "name": "Email Notification",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        690,
+        450
+      ],
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=NEW LEAD (SEO): {{ $json['Name'] }} from {{ $json['Company'] }}",
+        "message": "<div style=\"font-family: Arial, sans-serif; max-width: 600px;\">\n  <h2 style=\"color: #FF6D5A;\">New SEO Lead</h2>\n  <table style=\"width: 100%; border-collapse: collapse;\">\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Name</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Name'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Email</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Email'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Company</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Company'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Phone</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Phone'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Source</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Source'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Page URL</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Page URL'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Source</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['UTM Source'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Medium</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['UTM Medium'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Campaign</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['UTM Campaign'] }}</td></tr>\n  </table>\n  <h3 style=\"color: #333; margin-top: 16px;\">Message</h3>\n  <p style=\"background: #f5f5f5; padding: 12px; border-radius: 4px;\">{{ $('Format SEO Lead').first().json['Message'] }}</p>\n  <p style=\"color: #999; font-size: 12px; margin-top: 16px;\">Lead ID: {{ $('Format SEO Lead').first().json['Lead ID'] }} | {{ $('Format SEO Lead').first().json['Created At'] }}</p>\n</div>",
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "2cbb2796-e088-4966-8322-72e6a2c92e18",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        910,
+        250
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true}) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format SEO Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format SEO Lead": {
+      "main": [
+        [
+          {
+            "node": "Save to Airtable",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "tags": [
+    {
+      "name": "lead-capture"
+    },
+    {
+      "name": "webhook"
+    }
+  ]
+}

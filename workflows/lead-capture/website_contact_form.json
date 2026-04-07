@@ -1,0 +1,150 @@
+{
+  "name": "AVM: Website Contact Form",
+  "nodes": [
+    {
+      "id": "e2898725-4c91-4241-a12c-98b84501b5dd",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "40d1e1b9-116d-4636-b75e-2bdf1ed19955",
+      "parameters": {
+        "path": "website-contact-form",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "id": "b7466c17-1f26-4116-80e2-8e9c7141c17c",
+      "name": "Format Lead Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        470,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Format Website Contact Form submission for Airtable\nconst item = $input.first().json;\nconst now = new Date();\nconst leadId = 'WEB-' + now.getTime().toString(36).toUpperCase();\n\nreturn [{\n  json: {\n    'Lead ID': leadId,\n    'Email': item.email || '',\n    'First Name': item.firstName || '',\n    'Last Name': item.lastName || '',\n    'Name': item.name || ((item.firstName || '') + ' ' + (item.lastName || '')).trim(),\n    'Company': item.company || '',\n    'Phone': item.phone || '',\n    'Message': item.message || '',\n    'Interest': item.interest || '',\n    'Page URL': item.page_url || '',\n    'UTM Source': item.utm_source || '',\n    'UTM Medium': item.utm_medium || '',\n    'UTM Campaign': item.utm_campaign || '',\n    'UTM Term': item.utm_term || '',\n    'UTM Content': item.utm_content || '',\n    'Source': 'Website Contact Form',\n    'Status': 'New',\n    'Created At': now.toISOString(),\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "8449931f-481e-49a9-a612-8b5e29daf8bf",
+      "name": "Save to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        690,
+        250
+      ],
+      "parameters": {
+        "operation": "create",
+        "application": "apptjjBx34z9340tK",
+        "table": "tblwOPTPY85Tcj7NJ",
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null
+        },
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "id": "187a96db-37d2-42e8-b563-c1dc42ec1101",
+      "name": "Email Notification",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        690,
+        450
+      ],
+      "parameters": {
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "=NEW LEAD: {{ $json['Name'] }} from {{ $json['Company'] }}",
+        "message": "<div style=\"font-family: Arial, sans-serif; max-width: 600px;\">\n  <h2 style=\"color: #FF6D5A;\">New Website Lead</h2>\n  <table style=\"width: 100%; border-collapse: collapse;\">\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Name</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Name'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Email</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Email'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Company</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Company'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Phone</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Phone'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Interest</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Interest'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Page URL</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Page URL'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Source</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['UTM Source'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Campaign</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['UTM Campaign'] }}</td></tr>\n  </table>\n  <h3 style=\"color: #333; margin-top: 16px;\">Message</h3>\n  <p style=\"background: #f5f5f5; padding: 12px; border-radius: 4px;\">{{ $('Format Lead Data').first().json['Message'] }}</p>\n  <p style=\"color: #999; font-size: 12px; margin-top: 16px;\">Lead ID: {{ $('Format Lead Data').first().json['Lead ID'] }} | {{ $('Format Lead Data').first().json['Created At'] }}</p>\n</div>",
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "07219c5c-7a86-43d3-8aa7-28b7d851481f",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        910,
+        250
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true}) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Save to Airtable",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "tags": [
+    {
+      "name": "lead-capture"
+    },
+    {
+      "name": "webhook"
+    }
+  ]
+}
