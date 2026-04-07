@@ -2680,6 +2680,7 @@ def build_workflow(key):
             "executionOrder": "v1",
             "saveManualExecutions": True,
             "callerPolicy": "workflowsFromSameOwner",
+            "errorWorkflow": os.getenv("ADS_ERROR_WORKFLOW_ID", "L915QaaJuo6au7Oe"),
         },
     }
 
