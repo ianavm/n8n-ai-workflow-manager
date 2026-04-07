@@ -2,7 +2,7 @@
   "name": "RE-04 Email AI Comms",
   "nodes": [
     {
-      "id": "bf78be55-c746-4ae2-9b64-b92aeca85395",
+      "id": "2120286a-d8c9-449c-8b80-d6b7d2bcd009",
       "name": "Note RE-04",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "eae93de0-8346-4d2e-920c-b992aaa7bc2d",
+      "id": "a6cabb9d-1157-4908-a870-c772a13efce7",
       "name": "Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -29,7 +29,7 @@
       "parameters": {}
     },
     {
-      "id": "2ca90085-0b32-42f8-8c77-29a00c491786",
+      "id": "82ad468c-a0d1-42c4-8923-54be9ddccfdb",
       "name": "Build Email Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -42,7 +42,7 @@
       }
     },
     {
-      "id": "2adf1ab8-0618-423e-b39e-d1ce66eb6091",
+      "id": "4d625af7-7d6c-4dd6-a998-6077cc340cca",
       "name": "AI Classify Email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -77,7 +77,7 @@
       }
     },
     {
-      "id": "c85a575b-5a62-452c-b74e-ac0da0894324",
+      "id": "cf84c2d0-1c1b-4b8a-ba8a-953537e8db16",
       "name": "Parse Email AI",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -90,7 +90,7 @@
       }
     },
     {
-      "id": "88c4f142-c8ef-4cad-a81a-e93bd624c611",
+      "id": "d849c610-173f-4263-8eed-3db2b04ae275",
       "name": "Route by Confidence",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
@@ -148,7 +148,7 @@
       }
     },
     {
-      "id": "cc8787ea-e7fc-4991-82ab-20f6f78b874e",
+      "id": "533fff62-fab9-4ca4-bb8e-5ad7090c1d1e",
       "name": "Auto Send Reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -171,7 +171,7 @@
       }
     },
     {
-      "id": "a76e5ad4-da39-4421-a24c-b26709a2e6a0",
+      "id": "b140088b-566a-4dd2-af9d-bacf9de57ccd",
       "name": "Save Draft",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -195,7 +195,7 @@
       }
     },
     {
-      "id": "4ca79a33-83b1-4504-9e69-43eddf96af10",
+      "id": "32340c6c-2106-4e0a-a2ed-1c0f266b439a",
       "name": "Notify Draft Ready",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -209,7 +209,7 @@
       }
     },
     {
-      "id": "a405e4cf-4a09-40b7-8944-4eb9141279a0",
+      "id": "3a91fb5a-3cd0-4acf-9469-a0e9c85bbaae",
       "name": "Notify Admin Review",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -223,34 +223,34 @@
       }
     },
     {
-      "id": "3aabdbb1-c156-4aea-ad70-df7fb18dfe52",
+      "id": "b9d3999b-9d3e-4ca6-899a-d66ffe18a85b",
       "name": "Log Email Thread",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         1760,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblCvYpUGqXiSYVRv",
-          "mode": "id"
+          "value": "Email Threads",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "sender": "={{ $('Parse Email AI').first().json.sender }}",
             "subject": "={{ $('Parse Email AI').first().json.email_subject }}",
@@ -261,39 +261,93 @@
             "route": "={{ $('Parse Email AI').first().json.route }}",
             "timestamp": "={{ $now.toISO() }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "sender",
+              "type": "string",
+              "display": true,
+              "displayName": "sender"
+            },
+            {
+              "id": "subject",
+              "type": "string",
+              "display": true,
+              "displayName": "subject"
+            },
+            {
+              "id": "classification",
+              "type": "string",
+              "display": true,
+              "displayName": "classification"
+            },
+            {
+              "id": "urgency",
+              "type": "string",
+              "display": true,
+              "displayName": "urgency"
+            },
+            {
+              "id": "summary",
+              "type": "string",
+              "display": true,
+              "displayName": "summary"
+            },
+            {
+              "id": "confidence",
+              "type": "string",
+              "display": true,
+              "displayName": "confidence"
+            },
+            {
+              "id": "route",
+              "type": "string",
+              "display": true,
+              "displayName": "route"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "34e46014-6eb1-4cef-8842-e250c33c90fb",
+      "id": "7d1c9122-50c3-43f8-a7bb-f1ac61a2a933",
       "name": "Log Email Message",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         1980,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblgp46QN1C9JcOlt",
-          "mode": "id"
+          "value": "Messages",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "message_id": "=EMAIL-{{ $now.toFormat('yyyyMMddHHmmss') }}",
             "conversation_id": "={{ $('Parse Email AI').first().json.sender }}",
@@ -305,12 +359,72 @@
             "confidence": "={{ $('Parse Email AI').first().json.confidence }}",
             "timestamp": "={{ $now.toISO() }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "message_id",
+              "type": "string",
+              "display": true,
+              "displayName": "message_id"
+            },
+            {
+              "id": "conversation_id",
+              "type": "string",
+              "display": true,
+              "displayName": "conversation_id"
+            },
+            {
+              "id": "direction",
+              "type": "string",
+              "display": true,
+              "displayName": "direction"
+            },
+            {
+              "id": "channel",
+              "type": "string",
+              "display": true,
+              "displayName": "channel"
+            },
+            {
+              "id": "body",
+              "type": "string",
+              "display": true,
+              "displayName": "body"
+            },
+            {
+              "id": "sender",
+              "type": "string",
+              "display": true,
+              "displayName": "sender"
+            },
+            {
+              "id": "intent",
+              "type": "string",
+              "display": true,
+              "displayName": "intent"
+            },
+            {
+              "id": "confidence",
+              "type": "string",
+              "display": true,
+              "displayName": "confidence"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "aeeabd67-c6d6-4a76-92fa-399be3dcb6b1",
+      "id": "767b1b25-c62a-47a7-9589-fb37185ad84f",
       "name": "Check Proceeding",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -323,7 +437,7 @@
       }
     },
     {
-      "id": "e05e425b-bd6a-4e10-a43e-98df53eb7444",
+      "id": "fccd3751-67a2-40e5-883e-a96a1c8dff2d",
       "name": "Email Send Docs?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -353,7 +467,7 @@
       }
     },
     {
-      "id": "4d42ff48-2d40-445a-9415-2144ca074a32",
+      "id": "1a312ffe-831c-4edf-891a-1c7d354175b4",
       "name": "Call RE-19 Email Docs",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -543,6 +657,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-26T09:23:42.239931"
+    "built_at": "2026-04-07T18:38:05.552687"
   }
 }

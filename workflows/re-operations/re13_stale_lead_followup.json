@@ -2,7 +2,7 @@
   "name": "RE-13 Stale Lead Follow-up",
   "nodes": [
     {
-      "id": "f51d5f68-6e8c-4b25-8277-b89182a5a8f2",
+      "id": "648cd5a2-bb90-4645-bec1-eb55693b16e9",
       "name": "Note RE-13",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "8614812a-a3a6-4f74-ad02-25dd06d98817",
+      "id": "722b336c-5749-427a-ac20-356454d63704",
       "name": "Daily 09:00 SAST",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -38,44 +38,59 @@
       }
     },
     {
-      "id": "1da54d2f-a259-41dc-96fa-ceabab608960",
-      "name": "Find Stale Leads",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "a6f41df5-e0cf-4980-9f10-e3e288d2eb0b",
+      "name": "Read Leads Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         440,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "filterByFormula": "=AND(IS_BEFORE({last_contact}, DATEADD(NOW(), -48, 'hours')), NOT(OR({status} = 'Converted', {status} = 'Closed', {status} = 'Cold')), {follow_up_count} < 3)",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "a3c981b9-c025-4c2b-add8-d2c85fe711c8",
+      "id": "e67d5306-b24f-4f7b-8b77-42a327da001b",
+      "name": "Find Stale Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\nconst cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);\nconst excluded = ['Converted', 'Closed', 'Cold'];\nconst rows = .all().map(i => i.json).filter(r => r['Lead ID']);\nconst matches = rows.filter(r => {\n  const lastContact = new Date(r['Last Contact']);\n  return !isNaN(lastContact.getTime()) && lastContact < cutoff &&\n    !excluded.includes(r['Status']) && parseInt(r['Follow Up Count'] || 0) < 3;\n});\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "57806a95-35ca-4a30-b971-64bd0718e4cd",
       "name": "Has Stale Leads?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        660,
+        880,
         300
       ],
       "parameters": {
@@ -100,12 +115,12 @@
       }
     },
     {
-      "id": "50e7fd7d-04d6-4a1c-a029-dd7f39657c8a",
+      "id": "0b7284d4-0f4f-4417-9962-de2aa9fb2a45",
       "name": "Generate Follow-up Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        880,
+        1100,
         300
       ],
       "parameters": {
@@ -113,12 +128,12 @@
       }
     },
     {
-      "id": "23dceac6-de2c-4795-bdd2-fb4700c1e4dc",
+      "id": "2e0d83f8-282b-489e-b12a-723090ac2985",
       "name": "Not Skip?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1100,
+        1320,
         300
       ],
       "parameters": {
@@ -143,12 +158,12 @@
       }
     },
     {
-      "id": "72f7a37e-78e3-4c99-9c6d-a9e35243bea5",
+      "id": "256952ed-a976-46bf-997e-37fb850b68ab",
       "name": "AI Generate Follow-up",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1320,
+        1540,
         300
       ],
       "credentials": {
@@ -178,12 +193,12 @@
       }
     },
     {
-      "id": "72e5acdd-33d0-4477-a7cb-da7a2f8eb874",
+      "id": "d06cdd63-874d-4726-95c8-aed069e66e9e",
       "name": "Parse Follow-up",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1540,
+        1760,
         300
       ],
       "parameters": {
@@ -191,12 +206,12 @@
       }
     },
     {
-      "id": "63d235d9-1683-49a8-9556-2879e33c7865",
+      "id": "3c7eb68b-6e8e-4f94-b53b-db6113b7aff1",
       "name": "Send Follow-up WA",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
+        1980,
         300
       ],
       "parameters": {
@@ -217,52 +232,76 @@
       }
     },
     {
-      "id": "fa37d577-d8cf-48f9-b2f1-a5d661ca873c",
+      "id": "e16d3aa6-40c7-4a21-9996-be09111daf29",
       "name": "Update Lead Follow-up",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1980,
+        2200,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "update",
-        "base": {
+        "operation": "appendOrUpdate",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "matchingColumns": [
-          "lead_id"
-        ],
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
-            "lead_id": "={{ $('Parse Follow-up').first().json.lead_id }}",
-            "follow_up_count": "={{ $('Parse Follow-up').first().json.follow_up_number }}",
-            "last_contact": "={{ $now.toISO() }}"
-          }
-        }
-      }
+            "Lead ID": "={{ $('Parse Follow-up').first().json.lead_id }}",
+            "Follow Up Count": "={{ $('Parse Follow-up').first().json.follow_up_number }}",
+            "Last Contact": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "Lead ID"
+          ],
+          "schema": [
+            {
+              "id": "Lead ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Lead ID"
+            },
+            {
+              "id": "Follow Up Count",
+              "type": "string",
+              "display": true,
+              "displayName": "Follow Up Count"
+            },
+            {
+              "id": "Last Contact",
+              "type": "string",
+              "display": true,
+              "displayName": "Last Contact"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "143b4da0-f71f-4735-994f-742099d45600",
+      "id": "d65aba73-edc0-4f25-b141-3cf2885645cf",
       "name": "Is Final Follow-up?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2200,
+        2420,
         300
       ],
       "parameters": {
@@ -287,52 +326,76 @@
       }
     },
     {
-      "id": "7669c37c-35ca-456d-916c-4f8ffd3762ca",
+      "id": "d6a812fe-dc08-481a-81bc-dc1563f2c79a",
       "name": "Mark Lead Cold",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        2420,
+        2640,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "update",
-        "base": {
+        "operation": "appendOrUpdate",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "matchingColumns": [
-          "lead_id"
-        ],
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
-            "lead_id": "={{ $('Parse Follow-up').first().json.lead_id }}",
-            "status": "Cold",
-            "tier": "Cold"
-          }
-        }
-      }
+            "Lead ID": "={{ $('Parse Follow-up').first().json.lead_id }}",
+            "Status": "Cold",
+            "Tier": "Cold"
+          },
+          "matchingColumns": [
+            "Lead ID"
+          ],
+          "schema": [
+            {
+              "id": "Lead ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Lead ID"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Tier",
+              "type": "string",
+              "display": true,
+              "displayName": "Tier"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "ba18d734-991d-4726-959e-3b1c14d28dba",
+      "id": "92a311d1-3735-4248-9f03-675f8a774def",
       "name": "Notify Lead Cold",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        2640,
+        2860,
         200
       ],
       "parameters": {
@@ -341,93 +404,207 @@
       }
     },
     {
-      "id": "7df48169-7851-4c46-a416-317b2d036459",
+      "id": "6b0db79a-6d33-4280-ab02-e2a0a65938b9",
       "name": "Log Follow-up Message",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
-      "position": [
-        2420,
-        500
-      ],
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
-        }
-      },
-      "parameters": {
-        "operation": "create",
-        "base": {
-          "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
-          "mode": "id"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblgp46QN1C9JcOlt",
-          "mode": "id"
-        },
-        "options": {},
-        "columns": {
-          "value": {
-            "message_id": "=FU-{{ $now.toFormat('yyyyMMddHHmmss') }}",
-            "conversation_id": "={{ $('Parse Follow-up').first().json.phone_normalized }}",
-            "direction": "outbound",
-            "channel": "whatsapp",
-            "body": "={{ $('Parse Follow-up').first().json.follow_up_text }}",
-            "sender": "System",
-            "recipient": "={{ $('Parse Follow-up').first().json.phone_normalized }}",
-            "intent": "follow_up",
-            "timestamp": "={{ $now.toISO() }}"
-          },
-          "mappingMode": "defineBelow"
-        }
-      }
-    },
-    {
-      "id": "8f19db80-0d03-43c6-ad67-ec8e985ba50d",
-      "name": "Log Follow-up Activity",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         2640,
         500
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Messages",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
-            "activity_type": "Follow-up Sent",
-            "entity_type": "Lead",
-            "entity_id": "={{ $('Parse Follow-up').first().json.lead_id }}",
-            "description": "=Follow-up #{{ $('Parse Follow-up').first().json.follow_up_number }} sent to {{ $('Parse Follow-up').first().json.client_name }}",
-            "performed_by": "System",
-            "timestamp": "={{ $now.toISO() }}"
+            "Message ID": "=FU-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "Conversation ID": "={{ $('Parse Follow-up').first().json.phone_normalized }}",
+            "Direction": "outbound",
+            "Channel": "whatsapp",
+            "Body": "={{ $('Parse Follow-up').first().json.follow_up_text }}",
+            "Sender": "System",
+            "Recipient": "={{ $('Parse Follow-up').first().json.phone_normalized }}",
+            "Intent": "follow_up",
+            "Timestamp": "={{ $now.toISO() }}"
           },
-          "mappingMode": "defineBelow"
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Message ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Message ID"
+            },
+            {
+              "id": "Conversation ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Conversation ID"
+            },
+            {
+              "id": "Direction",
+              "type": "string",
+              "display": true,
+              "displayName": "Direction"
+            },
+            {
+              "id": "Channel",
+              "type": "string",
+              "display": true,
+              "displayName": "Channel"
+            },
+            {
+              "id": "Body",
+              "type": "string",
+              "display": true,
+              "displayName": "Body"
+            },
+            {
+              "id": "Sender",
+              "type": "string",
+              "display": true,
+              "displayName": "Sender"
+            },
+            {
+              "id": "Recipient",
+              "type": "string",
+              "display": true,
+              "displayName": "Recipient"
+            },
+            {
+              "id": "Intent",
+              "type": "string",
+              "display": true,
+              "displayName": "Intent"
+            },
+            {
+              "id": "Timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "Timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "bf4693d6-0e2b-459f-ae73-cfafb5d2fdb4",
+      "name": "Log Follow-up Activity",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        500
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
-      }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Activity Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Activity Type": "Follow-up Sent",
+            "Entity Type": "Lead",
+            "Entity ID": "={{ $('Parse Follow-up').first().json.lead_id }}",
+            "Description": "=Follow-up #{{ $('Parse Follow-up').first().json.follow_up_number }} sent to {{ $('Parse Follow-up').first().json.client_name }}",
+            "Performed By": "System",
+            "Timestamp": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Activity Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Activity Type"
+            },
+            {
+              "id": "Entity Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity Type"
+            },
+            {
+              "id": "Entity ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity ID"
+            },
+            {
+              "id": "Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Description"
+            },
+            {
+              "id": "Performed By",
+              "type": "string",
+              "display": true,
+              "displayName": "Performed By"
+            },
+            {
+              "id": "Timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "Timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
     "Daily 09:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Read Leads Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads Sheet": {
       "main": [
         [
           {
@@ -595,6 +772,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-25T15:29:17.197947"
+    "built_at": "2026-04-07T18:38:08.266326"
   }
 }

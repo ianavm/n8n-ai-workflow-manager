@@ -2,7 +2,7 @@
   "name": "RE-10 Team Notifications",
   "nodes": [
     {
-      "id": "1ae7b220-98a1-4c7a-b25d-1170c3759ad0",
+      "id": "eb40d41d-e280-4ff2-8eaf-fb42a28f26a2",
       "name": "Note RE-10",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "8deb5052-7518-4c6d-8ae0-2b35d404b97f",
+      "id": "922ca344-e50e-4e2b-bf98-53c735969c5b",
       "name": "Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -29,7 +29,7 @@
       "parameters": {}
     },
     {
-      "id": "e3515495-7a3a-45f7-bc46-9c04f71a4f22",
+      "id": "a3eab61d-7ab3-4404-825d-c057e15bc241",
       "name": "Build Notification Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -42,7 +42,7 @@
       }
     },
     {
-      "id": "7c666cea-a41b-4761-970b-f82d44d09004",
+      "id": "05295974-86cf-4194-b692-e7d77ecfa66f",
       "name": "Send Telegram",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
@@ -66,7 +66,7 @@
       }
     },
     {
-      "id": "88736b7f-6c78-44e5-b151-4df9f943e55a",
+      "id": "abf879fe-d953-43a1-afd7-bde96b250266",
       "name": "Telegram OK?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -96,7 +96,7 @@
       }
     },
     {
-      "id": "51e04307-48bd-4988-8135-f8d769a8ec75",
+      "id": "e328be36-f23f-4469-b2a3-04a7ac7c7d72",
       "name": "Prepare Log Entry",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -109,7 +109,7 @@
       }
     },
     {
-      "id": "08b436b9-9034-4b98-b8ec-0d547e9b7e97",
+      "id": "992b91ae-4d32-4b40-af2b-344bb632c4ce",
       "name": "Build Email Fallback",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -122,7 +122,7 @@
       }
     },
     {
-      "id": "ce9cc8b2-9e97-46f3-8db1-a60796455cf6",
+      "id": "b0af7be8-da66-447a-b4c5-ec0599a0a69e",
       "name": "Send Fallback Email",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -145,7 +145,7 @@
       }
     },
     {
-      "id": "85a771f2-8a55-4f6d-b481-fb47f497b1f0",
+      "id": "0284a325-cb86-4e0a-9926-f01773ec2163",
       "name": "Prepare Fallback Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -158,34 +158,34 @@
       }
     },
     {
-      "id": "fa7e0580-fce9-4d57-916d-3b7a6ca35179",
+      "id": "0a1a2701-c773-4ed4-afb5-09c8fb1903e5",
       "name": "Log Notification",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         1320,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Activity Log",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "activity_type": "={{ $json.activity_type }}",
             "entity_type": "={{ $json.entity_type }}",
@@ -194,39 +194,82 @@
             "performed_by": "={{ $json.performed_by }}",
             "timestamp": "={{ $json.timestamp }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "activity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "activity_type"
+            },
+            {
+              "id": "entity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_type"
+            },
+            {
+              "id": "entity_id",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_id"
+            },
+            {
+              "id": "description",
+              "type": "string",
+              "display": true,
+              "displayName": "description"
+            },
+            {
+              "id": "performed_by",
+              "type": "string",
+              "display": true,
+              "displayName": "performed_by"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     },
     {
-      "id": "b02f4288-82fc-4502-9787-70e0f42fb169",
+      "id": "819678c8-eb7b-48ce-b800-9f4e1485eac8",
       "name": "Log Fallback Notification",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         1760,
         500
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Activity Log",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "activity_type": "={{ $json.activity_type }}",
             "entity_type": "={{ $json.entity_type }}",
@@ -235,9 +278,52 @@
             "performed_by": "={{ $json.performed_by }}",
             "timestamp": "={{ $json.timestamp }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "activity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "activity_type"
+            },
+            {
+              "id": "entity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_type"
+            },
+            {
+              "id": "entity_id",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_id"
+            },
+            {
+              "id": "description",
+              "type": "string",
+              "display": true,
+              "displayName": "description"
+            },
+            {
+              "id": "performed_by",
+              "type": "string",
+              "display": true,
+              "displayName": "performed_by"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -352,6 +438,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-25T15:29:09.046997"
+    "built_at": "2026-04-07T18:37:59.917835"
   }
 }

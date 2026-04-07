@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RE Operations - Team Allori | Monthly Cost Breakdown</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --brand: #FF6D5A;
+    --brand-dark: #E55A48;
+    --bg: #0F1117;
+    --surface: #1A1D27;
+    --surface2: #242836;
+    --text: #E8E9ED;
+    --text-muted: #9DA3AE;
+    --green: #34D399;
+    --yellow: #FBBF24;
+    --blue: #60A5FA;
+    --purple: #A78BFA;
+    --pink: #F472B6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--brand); }
+  h2 { font-size: 1.4rem; margin: 2rem 0 1rem; color: var(--text); border-bottom: 2px solid var(--brand); padding-bottom: 0.5rem; }
+  h3 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: var(--blue); }
+  .subtitle { color: var(--text-muted); margin-bottom: 2rem; font-size: 0.95rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; margin: 1.5rem 0; }
+  .card { background: var(--surface); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--surface2); }
+  .card-header { font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem; }
+  .card-value { font-size: 2rem; font-weight: 700; }
+  .card-detail { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem; }
+  .brand { color: var(--brand); }
+  .green { color: var(--green); }
+  .blue { color: var(--blue); }
+  .yellow { color: var(--yellow); }
+  .purple { color: var(--purple); }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; background: var(--surface); border-radius: 8px; overflow: hidden; }
+  th { background: var(--surface2); text-align: left; padding: 0.75rem 1rem; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 0.75rem 1rem; border-top: 1px solid var(--surface2); font-size: 0.9rem; }
+  tr:hover td { background: rgba(255,109,90,0.05); }
+  .right { text-align: right; }
+  .bold { font-weight: 700; }
+  .total-row td { background: var(--surface2); font-weight: 700; font-size: 1rem; }
+  .chart-container { background: var(--surface); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--surface2); margin: 1.5rem 0; }
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0; }
+  @media (max-width: 768px) { .chart-grid { grid-template-columns: 1fr; } }
+  .assumptions { background: var(--surface); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--surface2); margin: 1.5rem 0; }
+  .assumptions li { margin: 0.5rem 0; font-size: 0.9rem; color: var(--text-muted); }
+  .section-note { background: rgba(255,109,90,0.1); border-left: 3px solid var(--brand); padding: 1rem 1.25rem; border-radius: 0 8px 8px 0; margin: 1rem 0; font-size: 0.9rem; }
+  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-free { background: rgba(52,211,153,0.15); color: var(--green); }
+  .badge-paid { background: rgba(255,109,90,0.15); color: var(--brand); }
+  .footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--surface2); color: var(--text-muted); font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>RE Operations - Team Allori</h1>
+<p class="subtitle">Monthly Cost Breakdown for 4 Real Estate Agents | April 2026<br>
+Exchange rate: 1 USD = R17.00 | 1 EUR = R18.50</p>
+
+<!-- ============ SUMMARY CARDS ============ -->
+<div class="grid">
+  <div class="card">
+    <div class="card-header">Total Monthly Cost</div>
+    <div class="card-value brand">R6,835</div>
+    <div class="card-detail">~$402 USD / ~&euro;364 EUR</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Cost Per Agent</div>
+    <div class="card-value blue">R1,709</div>
+    <div class="card-detail">~$101 USD per agent per month</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Total Workflows</div>
+    <div class="card-value green">19</div>
+    <div class="card-detail">8 active triggers + 11 sub-workflows</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Est. Monthly Executions</div>
+    <div class="card-value purple">~7,200</div>
+    <div class="card-detail">Within n8n Pro plan (10,000 cap)</div>
+  </div>
+</div>
+
+<!-- ============ USAGE ASSUMPTIONS ============ -->
+<h2>Usage Assumptions (4 Agents)</h2>
+<div class="assumptions">
+<h3>WhatsApp Messaging</h3>
+<ul>
+  <li><strong>Inbound enquiries:</strong> 15 per agent/day = 60/day total = ~1,800/month</li>
+  <li><strong>AI auto-replies:</strong> ~70% of inbound = ~1,260/month <span class="badge badge-free">FREE (service window)</span></li>
+  <li><strong>Follow-up templates (utility):</strong> 3 per lead = ~450/month <span class="badge badge-paid">$0.0076 each</span></li>
+  <li><strong>Appointment reminders (utility):</strong> 2 per booking = ~200/month <span class="badge badge-paid">$0.0076 each</span></li>
+  <li><strong>Marketing templates:</strong> 50/month (listing alerts, open house invites) <span class="badge badge-paid">$0.0379 each</span></li>
+  <li><strong>Stale lead re-engagement (marketing):</strong> ~100/month <span class="badge badge-paid">$0.0379 each</span></li>
+</ul>
+<h3>Email</h3>
+<ul>
+  <li><strong>Inbound emails:</strong> 20 per agent/day = 80/day total = ~2,400/month</li>
+  <li><strong>AI-generated replies:</strong> ~60% = ~1,440/month (Gmail free with OAuth)</li>
+  <li><strong>Document emails processed:</strong> ~200/month</li>
+</ul>
+<h3>AI (Claude Sonnet via OpenRouter)</h3>
+<ul>
+  <li><strong>WhatsApp AI replies:</strong> ~1,260 calls/month (avg 300 input + 500 output tokens)</li>
+  <li><strong>Email AI replies:</strong> ~1,440 calls/month (avg 500 input + 500 output tokens)</li>
+  <li><strong>Document classification:</strong> ~200 calls/month (avg 800 input + 1,000 output tokens)</li>
+  <li><strong>Daily summaries + performance:</strong> ~35 calls/month (avg 1,000 input + 2,000 output tokens)</li>
+  <li><strong>Lead scoring/qualification:</strong> ~1,800 calls/month (avg 400 input + 300 output tokens)</li>
+</ul>
+<h3>n8n Workflow Executions</h3>
+<ul>
+  <li><strong>WhatsApp intake + routing:</strong> 1,800/month (1 exec per message, triggers sub-workflows)</li>
+  <li><strong>Email intake + routing:</strong> 2,400/month</li>
+  <li><strong>Telegram commands:</strong> ~300/month (team usage)</li>
+  <li><strong>Scheduled workflows:</strong> ~2,700/month (escalation every 15min = 2,880 + daily/weekly)</li>
+  <li><strong>Total:</strong> ~7,200 executions/month</li>
+</ul>
+</div>
+
+<!-- ============ DETAILED COST TABLE ============ -->
+<h2>Detailed Monthly Cost Breakdown</h2>
+
+<table>
+<thead>
+<tr><th>Service</th><th>Item</th><th>Qty</th><th>Unit Cost</th><th class="right">Monthly (USD)</th><th class="right">Monthly (ZAR)</th></tr>
+</thead>
+<tbody>
+
+<tr><td colspan="6" style="background:var(--surface2);color:var(--blue);font-weight:600;padding:0.5rem 1rem;">360dialog WhatsApp BSP</td></tr>
+<tr><td></td><td>Regular plan (4 numbers)</td><td>4</td><td>&euro;49/number</td><td class="right">$215.56</td><td class="right">R3,663</td></tr>
+
+<tr><td colspan="6" style="background:var(--surface2);color:var(--blue);font-weight:600;padding:0.5rem 1rem;">Meta WhatsApp Message Fees</td></tr>
+<tr><td></td><td>Service replies (within 24h window)</td><td>1,260</td><td>$0.00</td><td class="right">$0.00</td><td class="right">R0</td></tr>
+<tr><td></td><td>Utility templates (follow-ups + reminders)</td><td>650</td><td>$0.0076</td><td class="right">$4.94</td><td class="right">R84</td></tr>
+<tr><td></td><td>Marketing templates (listings + re-engage)</td><td>150</td><td>$0.0379</td><td class="right">$5.69</td><td class="right">R97</td></tr>
+
+<tr><td colspan="6" style="background:var(--surface2);color:var(--blue);font-weight:600;padding:0.5rem 1rem;">n8n Cloud</td></tr>
+<tr><td></td><td>Pro plan (10,000 executions)</td><td>1</td><td>&euro;60/month</td><td class="right">$65.93</td><td class="right">R1,110</td></tr>
+
+<tr><td colspan="6" style="background:var(--surface2);color:var(--blue);font-weight:600;padding:0.5rem 1rem;">AI (OpenRouter - Claude Sonnet 4)</td></tr>
+<tr><td></td><td>Input tokens (~2.2M tokens/month)</td><td>2.2M</td><td>$3.00/1M</td><td class="right">$6.60</td><td class="right">R112</td></tr>
+<tr><td></td><td>Output tokens (~2.8M tokens/month)</td><td>2.8M</td><td>$15.00/1M</td><td class="right">$42.00</td><td class="right">R714</td></tr>
+
+<tr><td colspan="6" style="background:var(--surface2);color:var(--blue);font-weight:600;padding:0.5rem 1rem;">Google Workspace (existing)</td></tr>
+<tr><td></td><td>Business Starter (already in use)</td><td>1</td><td>$0/incremental</td><td class="right">$0.00</td><td class="right">R0</td></tr>
+
+<tr><td colspan="6" style="background:var(--surface2);color:var(--blue);font-weight:600;padding:0.5rem 1rem;">Telegram Bot</td></tr>
+<tr><td></td><td>Telegram Bot API</td><td>1</td><td>Free</td><td class="right">$0.00</td><td class="right">R0</td></tr>
+
+<tr><td colspan="6" style="background:var(--surface2);color:var(--blue);font-weight:600;padding:0.5rem 1rem;">Google Sheets CRM</td></tr>
+<tr><td></td><td>Google Sheets API (included in Workspace)</td><td>1</td><td>Free</td><td class="right">$0.00</td><td class="right">R0</td></tr>
+
+<tr class="total-row"><td colspan="4">TOTAL MONTHLY</td><td class="right brand">$340.72</td><td class="right brand">R5,780</td></tr>
+<tr class="total-row"><td colspan="4">+ 15% VAT (South Africa)</td><td class="right">$51.11</td><td class="right">R867</td></tr>
+<tr class="total-row"><td colspan="4" style="font-size:1.15rem;">GRAND TOTAL (incl. VAT)</td><td class="right brand" style="font-size:1.15rem;">$391.83</td><td class="right brand" style="font-size:1.15rem;">R6,647</td></tr>
+</tbody>
+</table>
+
+<div class="section-note">
+  <strong>Note:</strong> Service/user-initiated WhatsApp replies within the 24-hour customer service window are <strong>completely free</strong> from Meta. Since ~70% of your volume is AI auto-replies to inbound messages, the bulk of WhatsApp messaging costs nothing. The only paid messages are templates you initiate (follow-ups, reminders, marketing).
+</div>
+
+<!-- ============ CHARTS ============ -->
+<h2>Cost Distribution</h2>
+<div class="chart-grid">
+  <div class="chart-container">
+    <h3 style="margin-top:0">Monthly Cost by Service</h3>
+    <canvas id="costPieChart" height="280"></canvas>
+  </div>
+  <div class="chart-container">
+    <h3 style="margin-top:0">Cost Per Agent Breakdown</h3>
+    <canvas id="perAgentChart" height="280"></canvas>
+  </div>
+</div>
+
+<div class="chart-container">
+  <h3 style="margin-top:0">Scaling Projection: 4 to 20 Agents</h3>
+  <canvas id="scalingChart" height="300"></canvas>
+</div>
+
+<div class="chart-container">
+  <h3 style="margin-top:0">Message Volume by Type (Monthly)</h3>
+  <canvas id="messageChart" height="280"></canvas>
+</div>
+
+<div class="chart-grid">
+  <div class="chart-container">
+    <h3 style="margin-top:0">n8n Execution Budget</h3>
+    <canvas id="executionChart" height="260"></canvas>
+  </div>
+  <div class="chart-container">
+    <h3 style="margin-top:0">AI Token Consumption</h3>
+    <canvas id="tokenChart" height="260"></canvas>
+  </div>
+</div>
+
+<!-- ============ SCALING TABLE ============ -->
+<h2>Scaling Projections</h2>
+<table>
+<thead>
+<tr><th>Agents</th><th class="right">360dialog</th><th class="right">Meta Msgs</th><th class="right">n8n</th><th class="right">AI Tokens</th><th class="right">Total/mo (ZAR)</th><th class="right">Per Agent</th></tr>
+</thead>
+<tbody>
+<tr><td>4</td><td class="right">R3,663</td><td class="right">R181</td><td class="right">R1,110</td><td class="right">R826</td><td class="right bold">R5,780</td><td class="right">R1,445</td></tr>
+<tr><td>6</td><td class="right">R5,494</td><td class="right">R271</td><td class="right">R1,110</td><td class="right">R1,239</td><td class="right bold">R8,114</td><td class="right">R1,352</td></tr>
+<tr><td>8</td><td class="right">R7,326</td><td class="right">R362</td><td class="right">R1,110</td><td class="right">R1,652</td><td class="right bold">R10,450</td><td class="right">R1,306</td></tr>
+<tr><td>10</td><td class="right">R9,158</td><td class="right">R452</td><td class="right">R1,110</td><td class="right">R2,065</td><td class="right bold">R12,785</td><td class="right">R1,279</td></tr>
+<tr><td>15</td><td class="right">R13,736</td><td class="right">R678</td><td class="right">R1,110</td><td class="right">R3,098</td><td class="right bold">R18,622</td><td class="right">R1,241</td></tr>
+<tr><td>20</td><td class="right">R18,315</td><td class="right">R904</td><td class="right">R14,800*</td><td class="right">R4,130</td><td class="right bold">R38,149</td><td class="right">R1,907</td></tr>
+</tbody>
+</table>
+<p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;">* At 20 agents, n8n executions exceed 10,000/month Pro limit. Upgrade to Business plan (&euro;800/month) recommended at ~15+ agents for headroom.</p>
+
+<!-- ============ WHAT'S INCLUDED FREE ============ -->
+<h2>Included at No Extra Cost</h2>
+<div class="grid">
+  <div class="card">
+    <div class="card-header">Telegram Bot</div>
+    <div class="card-value green" style="font-size:1.3rem;">Free</div>
+    <div class="card-detail">@TeamAlloriAIBot with 15 management commands. Telegram Bot API has no monthly fees.</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Google Sheets CRM</div>
+    <div class="card-value green" style="font-size:1.3rem;">Free</div>
+    <div class="card-detail">14-tab CRM. Included in Google Workspace (already subscribed). API quota: 60 req/min.</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Gmail Integration</div>
+    <div class="card-value green" style="font-size:1.3rem;">Free</div>
+    <div class="card-detail">Email intake, AI replies, document processing. Included in existing Workspace.</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Google Drive Filing</div>
+    <div class="card-value green" style="font-size:1.3rem;">Free</div>
+    <div class="card-detail">15-folder document management system. 15GB included per Workspace user.</div>
+  </div>
+</div>
+
+<!-- ============ ROI SECTION ============ -->
+<h2>Return on Investment</h2>
+<div class="grid">
+  <div class="card">
+    <div class="card-header">Hours Saved / Agent / Month</div>
+    <div class="card-value green">~40 hrs</div>
+    <div class="card-detail">Auto-replies, lead routing, follow-ups, scheduling, document filing</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Cost of Manual Admin (4 agents)</div>
+    <div class="card-value yellow">R32,000+</div>
+    <div class="card-detail">1 full-time admin @ R15k + agent time @ R100/hr x 40hrs x 4</div>
+  </div>
+  <div class="card">
+    <div class="card-header">System Cost (4 agents)</div>
+    <div class="card-value blue">R6,647</div>
+    <div class="card-detail">All-in monthly with VAT</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Monthly Savings</div>
+    <div class="card-value green">R25,353</div>
+    <div class="card-detail">~79% reduction in admin overhead</div>
+  </div>
+</div>
+
+<!-- ============ FOOTER ============ -->
+<div class="footer">
+  <p><strong>Prepared by:</strong> AnyVision Media | <strong>Date:</strong> 7 April 2026 | <strong>System:</strong> RE Operations v2 (Google Sheets)</p>
+  <p><strong>Sources:</strong>
+    <a href="https://360dialog.com/pricing" style="color:var(--brand);">360dialog Pricing</a> |
+    <a href="https://www.flowcall.co/blog/whatsapp-business-api-pricing-2026" style="color:var(--brand);">WhatsApp API Rates 2026</a> |
+    <a href="https://openrouter.ai/anthropic/claude-sonnet-4" style="color:var(--brand);">OpenRouter Claude Sonnet 4</a> |
+    <a href="https://connectsafely.ai/articles/n8n-cloud-pricing-guide" style="color:var(--brand);">n8n Cloud Pricing</a>
+  </p>
+</div>
+
+</div>
+
+<!-- ============ CHARTS JS ============ -->
+<script>
+Chart.defaults.color = '#9DA3AE';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
+
+// 1. Cost Pie Chart
+new Chart(document.getElementById('costPieChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['360dialog (4 numbers)', 'Meta Message Fees', 'n8n Cloud Pro', 'AI (OpenRouter)'],
+    datasets: [{
+      data: [3663, 181, 1110, 826],
+      backgroundColor: ['#FF6D5A', '#60A5FA', '#A78BFA', '#34D399'],
+      borderWidth: 0,
+      hoverOffset: 8
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } },
+      tooltip: {
+        callbacks: {
+          label: ctx => `${ctx.label}: R${ctx.raw.toLocaleString()} (${(ctx.raw/5780*100).toFixed(0)}%)`
+        }
+      }
+    }
+  }
+});
+
+// 2. Per Agent Breakdown
+new Chart(document.getElementById('perAgentChart'), {
+  type: 'bar',
+  data: {
+    labels: ['360dialog\n(WhatsApp)', 'Meta\nMessages', 'n8n Cloud\n(shared)', 'AI Tokens'],
+    datasets: [{
+      label: 'ZAR per agent/month',
+      data: [916, 45, 278, 207],
+      backgroundColor: ['#FF6D5A', '#60A5FA', '#A78BFA', '#34D399'],
+      borderRadius: 6,
+      barThickness: 40
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, ticks: { callback: v => 'R' + v } }
+    }
+  }
+});
+
+// 3. Scaling Chart
+new Chart(document.getElementById('scalingChart'), {
+  type: 'line',
+  data: {
+    labels: ['4 agents', '6 agents', '8 agents', '10 agents', '15 agents', '20 agents'],
+    datasets: [
+      {
+        label: 'Total Monthly (ZAR)',
+        data: [5780, 8114, 10450, 12785, 18622, 38149],
+        borderColor: '#FF6D5A',
+        backgroundColor: 'rgba(255,109,90,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 5,
+        pointBackgroundColor: '#FF6D5A'
+      },
+      {
+        label: 'Per Agent (ZAR)',
+        data: [1445, 1352, 1306, 1279, 1241, 1907],
+        borderColor: '#60A5FA',
+        backgroundColor: 'rgba(96,165,250,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 5,
+        pointBackgroundColor: '#60A5FA'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { intersect: false, mode: 'index' },
+    plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } },
+    scales: {
+      y: { beginAtZero: true, ticks: { callback: v => 'R' + v.toLocaleString() } }
+    }
+  }
+});
+
+// 4. Message Volume
+new Chart(document.getElementById('messageChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Inbound\n(service window)', 'AI Auto-Replies\n(free)', 'Utility\nTemplates', 'Marketing\nTemplates'],
+    datasets: [{
+      label: 'Messages/month',
+      data: [1800, 1260, 650, 150],
+      backgroundColor: ['#34D399', '#34D399', '#60A5FA', '#FF6D5A'],
+      borderRadius: 6,
+      barThickness: 50
+    }]
+  },
+  options: {
+    responsive: true,
+    indexAxis: 'y',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          afterLabel: ctx => {
+            const costs = ['FREE', 'FREE', 'R84/mo', 'R97/mo'];
+            return 'Cost: ' + costs[ctx.dataIndex];
+          }
+        }
+      }
+    },
+    scales: { x: { beginAtZero: true } }
+  }
+});
+
+// 5. Execution Budget
+new Chart(document.getElementById('executionChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['WhatsApp Intake', 'Email Intake', 'Scheduled Jobs', 'Telegram Cmds', 'Remaining Budget'],
+    datasets: [{
+      data: [1800, 2400, 2700, 300, 2800],
+      backgroundColor: ['#FF6D5A', '#60A5FA', '#A78BFA', '#FBBF24', '#1A1D27'],
+      borderWidth: 0
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true } },
+      tooltip: {
+        callbacks: { label: ctx => `${ctx.label}: ${ctx.raw.toLocaleString()} executions` }
+      }
+    }
+  }
+});
+
+// 6. Token Consumption
+new Chart(document.getElementById('tokenChart'), {
+  type: 'bar',
+  data: {
+    labels: ['WhatsApp\nReplies', 'Email\nReplies', 'Document\nClassify', 'Lead\nScoring', 'Summaries'],
+    datasets: [
+      {
+        label: 'Input (M tokens)',
+        data: [0.38, 0.72, 0.16, 0.72, 0.035],
+        backgroundColor: '#60A5FA',
+        borderRadius: 4,
+        barThickness: 20
+      },
+      {
+        label: 'Output (M tokens)',
+        data: [0.63, 0.72, 0.20, 0.54, 0.07],
+        backgroundColor: '#FF6D5A',
+        borderRadius: 4,
+        barThickness: 20
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } },
+    scales: {
+      x: { stacked: true },
+      y: { stacked: true, ticks: { callback: v => v + 'M' } }
+    }
+  }
+});
+</script>
+</body>
+</html>

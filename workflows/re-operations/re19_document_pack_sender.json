@@ -2,7 +2,7 @@
   "name": "RE-19 Document Pack Sender",
   "nodes": [
     {
-      "id": "98897eb8-9682-42f2-b67e-17e6f0cdeabe",
+      "id": "ef5ff944-6540-4699-bff5-394ba650d274",
       "name": "Note RE-19",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "f53c2ac7-9a73-4863-9337-5a69dcd5c495",
+      "id": "e28ec9aa-5566-48bd-8348-40227a9e09ba",
       "name": "Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -29,7 +29,7 @@
       "parameters": {}
     },
     {
-      "id": "207d7c1c-0344-4fc6-b3f3-e74e6d0d09dd",
+      "id": "1012fdad-864a-4200-855e-1f704e998fe5",
       "name": "Validate Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -42,76 +42,106 @@
       }
     },
     {
-      "id": "777cd9b4-48f3-4a2a-965b-32fbce60ce71",
-      "name": "Fetch Lead",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "f10ea1c6-a541-4291-8155-73d441abfba4",
+      "name": "Read Leads Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         660,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "filterByFormula": "=({lead_id} = '{{ $json.lead_id }}')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "779ea86f-926c-4df7-a47f-76d0ad452dbd",
-      "name": "Fetch Deal",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "0c35b43a-1c5d-4d59-9f7e-06bebf273d5f",
+      "name": "Fetch Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         880,
         300
       ],
+      "parameters": {
+        "jsCode": "\nconst target = $('Validate Input').first().json.lead_id;\nconst rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);\nconst matches = rows.filter(r => r['Lead ID'] === target);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "2d80184e-a979-4ee7-8f0b-f715e0dba55a",
+      "name": "Read Deals Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1100,
+        300
+      ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblx5NiAfu3Py5ha8",
-          "mode": "id"
+          "value": "Deals",
+          "mode": "name"
         },
-        "filterByFormula": "=({lead_id} = '{{ $('Validate Input').first().json.lead_id }}')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "7be2129c-7e39-48f5-b94a-8f0f4870133e",
+      "id": "a51ec122-c864-46c7-a02e-97626918a9fd",
+      "name": "Fetch Deal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\nconst target = $('Validate Input').first().json.lead_id;\nconst rows = $input.all().map(i => i.json).filter(r => r['Deal ID']);\nconst matches = rows.filter(r => r['Lead ID'] === target);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "6f84aed2-75a8-4293-943d-c2cc38557e42",
       "name": "Check Already Sent",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
+        1540,
         300
       ],
       "parameters": {
@@ -119,12 +149,12 @@
       }
     },
     {
-      "id": "f86fbbea-0514-4822-b723-cfd85dcea74a",
+      "id": "6daa3336-0032-409c-bf4b-10dbfb4c1824",
       "name": "Already Sent?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1320,
+        1760,
         300
       ],
       "parameters": {
@@ -149,34 +179,34 @@
       }
     },
     {
-      "id": "82774f01-0804-492c-92e1-3cb053d95525",
+      "id": "dcbb0a90-7703-4638-9309-7fa461dea23b",
       "name": "Log Skip",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1540,
+        1980,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Activity Log",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "activity_type": "document_pack_skipped",
             "entity_type": "deal",
@@ -185,17 +215,60 @@
             "performed_by": "RE-19",
             "timestamp": "={{ $now.toISO() }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "activity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "activity_type"
+            },
+            {
+              "id": "entity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_type"
+            },
+            {
+              "id": "entity_id",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_id"
+            },
+            {
+              "id": "description",
+              "type": "string",
+              "display": true,
+              "displayName": "description"
+            },
+            {
+              "id": "performed_by",
+              "type": "string",
+              "display": true,
+              "displayName": "performed_by"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     },
     {
-      "id": "f3487f3e-f293-44eb-b774-94146ba7f345",
+      "id": "2b7b42fb-940b-4ca5-bde3-8f38b344e4a9",
       "name": "List Pack Files",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1540,
+        1980,
         500
       ],
       "parameters": {
@@ -215,12 +288,12 @@
       }
     },
     {
-      "id": "83d8dbc9-bdd6-43d1-938c-36fdac787eca",
+      "id": "e99f49f0-df32-415d-9c01-268fcdf269d7",
       "name": "Build AI Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
+        2200,
         500
       ],
       "parameters": {
@@ -228,12 +301,12 @@
       }
     },
     {
-      "id": "e1dc37e2-c326-4fa1-b6c3-3d3a3bce7ef2",
+      "id": "4fb2c71a-d3a6-49a6-9710-189ab0c66ddd",
       "name": "AI Generate Cover",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1980,
+        2420,
         500
       ],
       "credentials": {
@@ -263,12 +336,12 @@
       }
     },
     {
-      "id": "1b01f329-3e8e-4939-8c56-ee4ecc945ee7",
+      "id": "e164bf2c-5195-4592-a0b0-76a2c4c561e7",
       "name": "Parse AI Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2640,
         500
       ],
       "parameters": {
@@ -276,12 +349,12 @@
       }
     },
     {
-      "id": "065890cc-5a74-4181-b20a-035c45b107df",
+      "id": "170a9b05-171c-495b-a4e3-6e38e4a78c5c",
       "name": "Check Channels",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2420,
+        2860,
         500
       ],
       "parameters": {
@@ -289,12 +362,12 @@
       }
     },
     {
-      "id": "59d1e87e-22b1-4877-9301-7b04c3b4e843",
+      "id": "a26218ed-1857-4fce-b305-7eaa5eed5c7d",
       "name": "Has Email?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2640,
+        3080,
         500
       ],
       "parameters": {
@@ -319,12 +392,12 @@
       }
     },
     {
-      "id": "63e0e37e-d846-4536-94a4-ea633e289131",
+      "id": "10adfd14-d26d-4d36-94e2-1956acad20ba",
       "name": "Send Email Pack",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        2860,
+        3300,
         400
       ],
       "credentials": {
@@ -342,12 +415,12 @@
       }
     },
     {
-      "id": "f8849445-ddc7-4dcb-9398-1b286f037ce3",
+      "id": "66ff2eb2-7948-4cce-a04c-16269f290384",
       "name": "Has WhatsApp?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3080,
+        3520,
         500
       ],
       "parameters": {
@@ -372,12 +445,12 @@
       }
     },
     {
-      "id": "a3fe10b3-c4f9-452b-af58-18df735a6d65",
+      "id": "3f340a08-006e-42f4-a263-cd11b50ec794",
       "name": "Prepare WA Docs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3300,
+        3740,
         400
       ],
       "parameters": {
@@ -385,12 +458,12 @@
       }
     },
     {
-      "id": "2bd64f82-816c-43b0-a034-fe0f0b88b212",
+      "id": "4f6e370d-e11c-461c-9cae-9adad20b317f",
       "name": "Send WA Document",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3520,
+        3960,
         400
       ],
       "parameters": {
@@ -411,12 +484,12 @@
       }
     },
     {
-      "id": "c903e00b-5dd1-4b5f-b7e3-570edcf06093",
+      "id": "9603baf2-79e5-47d3-8cce-b61c981ab2cf",
       "name": "Prepare Notifications",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3740,
+        4180,
         500
       ],
       "parameters": {
@@ -424,73 +497,91 @@
       }
     },
     {
-      "id": "7cf6c834-2fd6-4fd9-bdcd-818925ec3ed7",
+      "id": "d44c8ad5-1937-4b37-a42f-012647247e65",
       "name": "Update Deal Docs Sent",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        3960,
+        4400,
         500
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "update",
-        "base": {
+        "operation": "appendOrUpdate",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblx5NiAfu3Py5ha8",
-          "mode": "id"
+          "value": "Deals",
+          "mode": "name"
         },
-        "matchingColumns": [
-          "lead_id"
-        ],
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "lead_id": "={{ $json.lead_id }}",
             "docs_{{ $json.docs_sent_field }}": "true"
-          }
-        }
-      }
+          },
+          "matchingColumns": [
+            "lead_id"
+          ],
+          "schema": [
+            {
+              "id": "lead_id",
+              "type": "string",
+              "display": true,
+              "displayName": "lead_id"
+            },
+            {
+              "id": "docs_{{ $json.docs_sent_field }}",
+              "type": "string",
+              "display": true,
+              "displayName": "docs_{{ $json.docs_sent_field }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "d842f963-ece4-4a8f-b26a-47ceaf164de9",
+      "id": "a36800df-d08e-4cc3-911c-7e5691a2b864",
       "name": "Log Activity",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        4180,
+        4620,
         500
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Activity Log",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "activity_type": "={{ $json.activity_type }}",
             "entity_type": "={{ $json.entity_type }}",
@@ -499,35 +590,78 @@
             "performed_by": "={{ $json.performed_by }}",
             "timestamp": "={{ $json.timestamp }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "activity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "activity_type"
+            },
+            {
+              "id": "entity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_type"
+            },
+            {
+              "id": "entity_id",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_id"
+            },
+            {
+              "id": "description",
+              "type": "string",
+              "display": true,
+              "displayName": "description"
+            },
+            {
+              "id": "performed_by",
+              "type": "string",
+              "display": true,
+              "displayName": "performed_by"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     },
     {
-      "id": "36c052a7-6607-439a-af4f-3158c51ed5b2",
+      "id": "2574af75-7d79-4b2e-af01-2a0a797d4cd5",
       "name": "Notify Team RE-10",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        4400,
+        4840,
         400
       ],
       "parameters": {
-        "workflowId": "HC1VNZrZqARCXnZJ",
+        "workflowId": "REPLACE_AFTER_DEPLOY",
         "options": {}
       }
     },
     {
-      "id": "29ba2b02-b4b9-404b-8947-5736ae01256b",
+      "id": "0ace826d-590c-4060-8243-108d97a5d910",
       "name": "Alert RE-18",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        4400,
+        4840,
         600
       ],
       "parameters": {
-        "workflowId": "MfGMU3RLTepoiQEV",
+        "workflowId": "REPLACE_AFTER_DEPLOY",
         "options": {}
       }
     }
@@ -548,6 +682,17 @@
       "main": [
         [
           {
+            "node": "Read Leads Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads Sheet": {
+      "main": [
+        [
+          {
             "node": "Fetch Lead",
             "type": "main",
             "index": 0
@@ -556,6 +701,17 @@
       ]
     },
     "Fetch Lead": {
+      "main": [
+        [
+          {
+            "node": "Read Deals Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Deals Sheet": {
       "main": [
         [
           {
@@ -785,6 +941,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-26T09:20:07.236365"
+    "built_at": "2026-04-07T18:38:09.945682"
   }
 }

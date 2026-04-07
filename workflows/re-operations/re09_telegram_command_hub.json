@@ -2,7 +2,7 @@
   "name": "RE-09 Telegram Command Hub",
   "nodes": [
     {
-      "id": "b1d13847-8112-4c25-b987-c40e0be18c6f",
+      "id": "4a2f08c5-13d8-48ad-9034-622b8363ea21",
       "name": "Note RE-09",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "e258b7b0-4b34-456a-aa9a-1bba8199db2a",
+      "id": "07348bfe-4030-4909-99a5-4909aede5a16",
       "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.2,
@@ -26,7 +26,7 @@
         220,
         400
       ],
-      "webhookId": "328cc38e-61d3-4d2b-ac17-3cfbfa7e02c0",
+      "webhookId": "72120f7a-29f0-45f6-9d1a-817a1782bd4c",
       "credentials": {
         "telegramApi": {
           "id": "37DtsPS5RQYxY2i1",
@@ -40,7 +40,7 @@
       }
     },
     {
-      "id": "7162f4de-45d7-4677-8af4-ba23345ec93f",
+      "id": "0b4171a0-bba5-4423-ab4e-453893f443e6",
       "name": "Extract Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -53,40 +53,42 @@
       }
     },
     {
-      "id": "7b4b1e9e-870c-4d96-8653-db94cbdf2d6a",
-      "name": "Check Auth",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "7b23a6a6-92d2-480f-9ee1-2adcaa1d7ece",
+      "name": "Read Admin Staff Auth",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         660,
         400
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblmktJaE9V3pFRoa",
-          "mode": "id"
+          "value": "Admin Staff",
+          "mode": "name"
         },
-        "filterByFormula": "=OR({telegram_user_id} = '{{ $json.from_id }}', {telegram_chat_id} = '{{ $json.from_id }}')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "3b0bcc5c-7c29-4fe0-85fb-45d19747cc4a",
-      "name": "Verify Auth",
+      "id": "f31489ed-ad4d-4ef1-ab7b-10fa04bf14a0",
+      "name": "Check Auth",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -94,16 +96,29 @@
         400
       ],
       "parameters": {
-        "jsCode": "\n// Verify Telegram user is authorized (check Admin Staff table results)\nconst input = $input.first().json;\nconst authResults = $('Check Auth').all();\n\nconst telegramUserId = String(input.from_id || '');\nconst isAuthorized = authResults.length > 0\n  && authResults[0].json\n  && String(authResults[0].json.telegram_user_id || authResults[0].json.telegram_chat_id || '') === telegramUserId;\n\nreturn {\n  json: {\n    is_authorized: isAuthorized,\n    telegram_user_id: telegramUserId,\n    chat_id: String(input.chat_id || ''),\n    message_text: input.message_text || '',\n    first_name: input.first_name || '',\n    admin_name: isAuthorized ? (authResults[0].json.name || authResults[0].json.Name || 'Admin') : '',\n    admin_role: isAuthorized ? (authResults[0].json.role || 'staff') : '',\n  }\n};\n"
+        "jsCode": "\nconst fromId = $('Extract Message').first().json.from_id;\nconst rows = $input.all().map(i => i.json).filter(r => r['Admin ID']);\nconst matches = rows.filter(r =>\n  String(r['Telegram User ID'] || '') === fromId ||\n  String(r['Telegram Chat ID'] || '') === fromId\n);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
       }
     },
     {
-      "id": "e25c1a10-50dd-4d26-9718-ae9ad3845b73",
+      "id": "9494e106-bc80-48c9-b8c0-42fed7016080",
+      "name": "Verify Auth",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\n// Verify Telegram user is authorized (check Admin Staff table results)\n// Pull original message data from Extract Message (not $input, which is the auth filter output)\nconst msg = $('Extract Message').first().json;\nconst authRow = $input.first().json;\n\nconst telegramUserId = String(msg.from_id || '');\nconst hasMatch = authRow && (authRow['Admin ID'] || authRow['Name']);\nconst isAuthorized = hasMatch &&\n  (String(authRow['Telegram User ID'] || '') === telegramUserId ||\n   String(authRow['Telegram Chat ID'] || '') === telegramUserId);\n\nreturn {\n  json: {\n    is_authorized: isAuthorized,\n    telegram_user_id: telegramUserId,\n    chat_id: String(msg.chat_id || ''),\n    message_text: msg.message_text || '',\n    first_name: msg.first_name || '',\n    admin_name: isAuthorized ? (authRow['Name'] || 'Admin') : '',\n    admin_role: isAuthorized ? (authRow['Role'] || 'staff') : '',\n  }\n};\n"
+      }
+    },
+    {
+      "id": "94f814f1-0564-4907-8bf2-3f5a725f92e7",
       "name": "Authorized?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1100,
+        1320,
         400
       ],
       "parameters": {
@@ -128,12 +143,12 @@
       }
     },
     {
-      "id": "40dd288c-24cf-4c04-a812-4256b9a39d6e",
+      "id": "c7b34007-b723-42e4-a2c6-4f16bbe5e1a2",
       "name": "Parse Command",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1320,
+        1540,
         400
       ],
       "parameters": {
@@ -141,12 +156,12 @@
       }
     },
     {
-      "id": "d2b29fb6-1a26-429b-8676-87737d2b794c",
+      "id": "0706fd7b-0f1d-4ab6-a815-5b5c03d84ee3",
       "name": "Route Command",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        1540,
+        1760,
         400
       ],
       "parameters": {
@@ -381,12 +396,12 @@
       }
     },
     {
-      "id": "b18f7889-7698-4637-bea9-4b37c212e45a",
+      "id": "2edbd3f5-c055-44fb-a525-97fe565f7dea",
       "name": "Handle Help",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
+        2200,
         -200
       ],
       "parameters": {
@@ -394,108 +409,153 @@
       }
     },
     {
-      "id": "f3e83c81-a08f-408d-9767-fbf7b5b5906b",
-      "name": "Today Leads",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
-      "position": [
-        1980,
-        -50
-      ],
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
-        }
-      },
-      "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
-          "mode": "id"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
-        },
-        "filterByFormula": "=IS_AFTER({created_at}, DATEADD(TODAY(), -1, 'days'))",
-        "options": {}
-      },
-      "alwaysOutputData": true
-    },
-    {
-      "id": "7fa10da3-f753-43a2-a61b-0881a27bce00",
-      "name": "Today Appointments",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "5e31a18d-9ea3-4e36-985f-74b9a74aa424",
+      "name": "Read Leads Today",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         2200,
         -50
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblQ72B5XSgRLdKIc",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "filterByFormula": "=IS_SAME({event_start}, TODAY(), 'day')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "c212c976-1c9a-469e-8099-4376e9cf27f7",
-      "name": "Open Exceptions",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "89a8c68d-b47f-4fa6-8ab3-4014a4703ce3",
+      "name": "Today Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         2420,
         -50
       ],
+      "parameters": {
+        "jsCode": "\nconst cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);\nconst rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);\nconst matches = rows.filter(r => {\n  const d = new Date(r['Created At']);\n  return !isNaN(d.getTime()) && d > cutoff;\n});\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "0cdf34e5-0fca-4e88-a355-9e6d0492e46d",
+      "name": "Read Appointments Today",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        -50
+      ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblDunXJFQr0elXon",
-          "mode": "id"
+          "value": "Appointments",
+          "mode": "name"
         },
-        "filterByFormula": "=({status} = 'Open')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "d86c71ec-67e8-4163-82cd-abf2541e02f7",
+      "id": "1815964b-be9d-470f-b1f1-1df2d7743817",
+      "name": "Today Appointments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        -50
+      ],
+      "parameters": {
+        "jsCode": "\nconst today = new Date().toDateString();\nconst rows = $input.all().map(i => i.json).filter(r => r['Appointment ID']);\nconst matches = rows.filter(r => new Date(r['Start Time']).toDateString() === today);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "7a889a4d-ad75-4039-b940-13459e96ecab",
+      "name": "Read Exceptions Today",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3080,
+        -50
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Exceptions",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "4112c98e-5dd5-4297-8773-2dfff47bce1b",
+      "name": "Open Exceptions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        -50
+      ],
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Exception ID']);\nconst matches = rows.filter(r => r['Status'] === 'Open');\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "c63316c9-93c9-4ae3-803d-d9a644fef42a",
       "name": "Handle Today",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
+        3520,
         -50
       ],
       "parameters": {
@@ -503,44 +563,59 @@
       }
     },
     {
-      "id": "0108005d-4d96-4b7f-9072-d1df28ed3e72",
-      "name": "Search Lead By ID",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "8e4629e8-3f49-45a0-9d3c-e92311828b4c",
+      "name": "Read Leads Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1980,
+        2200,
         100
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "filterByFormula": "=({lead_id} = '{{ $('Parse Command').first().json.arg1 }}')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "2b77bc48-94b8-450f-85ab-237d16cc8be6",
+      "id": "ba90fcc2-0b62-44fb-a737-a70b42735e3f",
+      "name": "Search Lead By ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        100
+      ],
+      "parameters": {
+        "jsCode": "\nconst targetId = $('Parse Command').first().json.arg1;\nconst rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);\nconst matches = rows.filter(r => r['Lead ID'] === targetId);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "954d5de3-3f18-4517-bc01-44d34e522579",
       "name": "Handle Lead",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2640,
         100
       ],
       "parameters": {
@@ -548,44 +623,59 @@
       }
     },
     {
-      "id": "8bf717fe-62d4-46c4-9b5f-2a4f347fe72d",
-      "name": "New Leads 24h",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "f7dbebd3-1b74-4d45-af9f-f7dfaa079621",
+      "name": "Read Leads Newleads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1980,
+        2200,
         250
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "filterByFormula": "=IS_AFTER({created_at}, DATEADD(NOW(), -24, 'hours'))",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "35449630-e674-4bd8-b6b9-0ff626aca6d9",
+      "id": "f93e5999-becb-4cc7-9555-b8560bd02c4b",
+      "name": "New Leads 24h",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        250
+      ],
+      "parameters": {
+        "jsCode": "\nconst cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);\nconst rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);\nconst matches = rows.filter(r => {\n  const d = new Date(r['Created At']);\n  return !isNaN(d.getTime()) && d > cutoff;\n});\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "8499d9e9-d188-430d-b4a4-858e5a00a019",
       "name": "Handle Newleads",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2640,
         250
       ],
       "parameters": {
@@ -593,44 +683,59 @@
       }
     },
     {
-      "id": "8068c008-bf1b-4b8f-a6da-85f0c303da60",
-      "name": "Hot Leads",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "fc6b3ce1-c94c-4fbd-aa3e-af43506ea31e",
+      "name": "Read Leads Hotleads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1980,
+        2200,
         400
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "filterByFormula": "=AND({tier} = 'Hot', OR({status} = 'New', {status} = 'Active', {status} = 'Contacted'))",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "994c7a8e-2c98-40be-b1fe-66f8d3d250dc",
+      "id": "97513fbc-0e19-45ef-8120-60461bcbcfbf",
+      "name": "Hot Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);\nconst active = ['New', 'Active', 'Contacted'];\nconst matches = rows.filter(r => r['Score'] >= 80 && active.includes(r['Status']));\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "1fcc333d-6dc6-441e-9b46-c40d8020139f",
       "name": "Handle Hotleads",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2640,
         400
       ],
       "parameters": {
@@ -638,44 +743,59 @@
       }
     },
     {
-      "id": "9fc3b168-f670-4ca7-b152-578f79023e8b",
-      "name": "Unassigned Leads",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "4018ce36-714b-4f48-bc29-d750c702bde7",
+      "name": "Read Leads Unassigned",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1980,
+        2200,
         550
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "filterByFormula": "=OR({assigned_agent} = '', {assigned_agent} = BLANK())",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "4e68de9b-7b4c-4541-a66d-db6919b9f9a2",
+      "id": "921b516b-3949-4e75-93cf-69ca9d73b5eb",
+      "name": "Unassigned Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        550
+      ],
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);\nconst matches = rows.filter(r => !r['Assigned Agent'] || r['Assigned Agent'] === '');\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "0e6d6f73-44eb-4bb3-b536-4db11379c3e8",
       "name": "Handle Unassigned",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2640,
         550
       ],
       "parameters": {
@@ -683,44 +803,59 @@
       }
     },
     {
-      "id": "dc392966-1e31-4c9b-b1ae-56f458f8b3fe",
-      "name": "Search Appointments",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "903ae0b3-bde4-40f5-a46f-8a63e8edcdc9",
+      "name": "Read Appointments Cmd",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1980,
+        2200,
         700
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblQ72B5XSgRLdKIc",
-          "mode": "id"
+          "value": "Appointments",
+          "mode": "name"
         },
-        "filterByFormula": "=IS_SAME({event_start}, IF('{{ $('Parse Command').first().json.arg1 }}' = '', TODAY(), DATETIME_PARSE('{{ $('Parse Command').first().json.arg1 }}')), 'day')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "a4847d95-523e-4e75-8836-5acb930f02a1",
+      "id": "f33552cd-0e5b-4713-bf80-d547f66f9798",
+      "name": "Search Appointments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        700
+      ],
+      "parameters": {
+        "jsCode": "\nconst argDate = $('Parse Command').first().json.arg1;\nconst target = argDate ? new Date(argDate).toDateString() : new Date().toDateString();\nconst rows = $input.all().map(i => i.json).filter(r => r['Appointment ID']);\nconst matches = rows.filter(r => new Date(r['Start Time']).toDateString() === target);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "a02c9b63-e513-46b1-be6a-039957d5af8a",
       "name": "Handle Appointments",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2640,
         700
       ],
       "parameters": {
@@ -728,44 +863,59 @@
       }
     },
     {
-      "id": "7c7d9c8e-92b5-4e88-a087-7cf1c8d48808",
-      "name": "Fetch All Agents",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "2fdcefc2-2b13-4790-ae1b-848a9120fe27",
+      "name": "Read Agents Agentload",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1980,
+        2200,
         850
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblOIksmbzg44M514",
-          "mode": "id"
+          "value": "Agents",
+          "mode": "name"
         },
-        "filterByFormula": "=({Is Active} = TRUE())",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "900bd3bb-d59a-4dc3-9510-d176d3ffa626",
+      "id": "bd4d8025-b4a7-4718-b525-b894d230b000",
+      "name": "Fetch All Agents",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        850
+      ],
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Agent Name']);\nconst matches = rows.filter(r => String(r['Is Active']).toUpperCase() === 'TRUE');\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "b683a3b2-4d25-4c60-80e2-1e1ba6498c1a",
       "name": "Handle Agentload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2640,
         850
       ],
       "parameters": {
@@ -773,44 +923,59 @@
       }
     },
     {
-      "id": "ab2113a3-1806-44c0-bdd2-410eca76c193",
-      "name": "Open Exceptions Data",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "55c17553-e075-452c-a495-109a898b58d4",
+      "name": "Read Exceptions Cmd",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1980,
+        2200,
         1000
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblDunXJFQr0elXon",
-          "mode": "id"
+          "value": "Exceptions",
+          "mode": "name"
         },
-        "filterByFormula": "=({status} = 'Open')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "c2825c88-1a53-42de-a552-c994683b203e",
+      "id": "29ba2d0a-0118-487a-b6d0-dc91528f9acb",
+      "name": "Open Exceptions Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        1000
+      ],
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Exception ID']);\nconst matches = rows.filter(r => r['Status'] === 'Open' || r['Status'] === 'Acknowledged');\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "0bc80a2d-35a7-4270-9cd0-8ff6b944d077",
       "name": "Handle Exceptions",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2640,
         1000
       ],
       "parameters": {
@@ -818,44 +983,59 @@
       }
     },
     {
-      "id": "d4d0bfb8-f82c-4867-a290-d9f60755720d",
-      "name": "Search Results",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "9f3b4cd1-654d-4b65-8801-8bacfd3449f0",
+      "name": "Read Leads Search",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1980,
+        2200,
         1150
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "filterByFormula": "=OR(FIND(LOWER('{{ $('Parse Command').first().json.args }}'), LOWER({client_name})), FIND(LOWER('{{ $('Parse Command').first().json.args }}'), LOWER({area})), FIND(LOWER('{{ $('Parse Command').first().json.args }}'), LOWER({email})))",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "f9b9eec0-9a64-40e8-a963-c505e9b575e9",
+      "id": "cd0848f6-23c3-4f81-ad28-a9907038a86e",
+      "name": "Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        1150
+      ],
+      "parameters": {
+        "jsCode": "\nconst query = $('Parse Command').first().json.args.toLowerCase();\nconst rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);\nconst matches = rows.filter(r => {\n  const name = (r['Client Name'] || '').toLowerCase();\n  const area = (r['Area Preference'] || '').toLowerCase();\n  const email = (r['Email'] || '').toLowerCase();\n  return name.includes(query) || area.includes(query) || email.includes(query);\n});\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "5d869998-3ef7-4c98-a6b7-4feaf1765d15",
       "name": "Handle Search",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2640,
         1150
       ],
       "parameters": {
@@ -863,12 +1043,12 @@
       }
     },
     {
-      "id": "7c1086e2-a5ce-49a9-8d4c-40189cd7e647",
+      "id": "60eba50d-6e6b-4155-8fe4-bf9a897e147f",
       "name": "Handle Status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
+        2200,
         1300
       ],
       "parameters": {
@@ -876,12 +1056,12 @@
       }
     },
     {
-      "id": "08bee02a-ec14-428b-a83c-75f273bc8169",
+      "id": "2934461a-5f5a-4278-94d2-f738ccb026d3",
       "name": "Handle Reassign",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
+        2200,
         1450
       ],
       "parameters": {
@@ -889,12 +1069,12 @@
       }
     },
     {
-      "id": "b93aebe5-99eb-4d1b-b2d5-76f7fae7aa83",
+      "id": "5a460e19-e50f-4291-b0dc-8c985d055ff4",
       "name": "Do Reassign?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2200,
+        2420,
         1450
       ],
       "parameters": {
@@ -919,51 +1099,69 @@
       }
     },
     {
-      "id": "592d5451-3b4c-4bf8-8ea0-bc4d56543b85",
+      "id": "1e6195db-d571-4d9b-9f11-091ba71586fd",
       "name": "Reassign Lead",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        2420,
+        2640,
         1450
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "update",
-        "base": {
+        "operation": "appendOrUpdate",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "matchingColumns": [
-          "lead_id"
-        ],
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
-            "lead_id": "={{ $('Handle Reassign').first().json.lead_id }}",
-            "assigned_agent": "={{ $('Handle Reassign').first().json.agent_id }}"
-          }
-        }
-      }
+            "Lead ID": "={{ $('Handle Reassign').first().json.lead_id }}",
+            "Assigned Agent": "={{ $('Handle Reassign').first().json.agent_id }}"
+          },
+          "matchingColumns": [
+            "Lead ID"
+          ],
+          "schema": [
+            {
+              "id": "Lead ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Lead ID"
+            },
+            {
+              "id": "Assigned Agent",
+              "type": "string",
+              "display": true,
+              "displayName": "Assigned Agent"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "16acd7c3-829a-4a35-973a-8634f4bec2cc",
+      "id": "85d27612-1e60-4a25-a76e-8c6be33374d2",
       "name": "Handle Approve",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
+        2200,
         1600
       ],
       "parameters": {
@@ -971,12 +1169,12 @@
       }
     },
     {
-      "id": "8d6a1b70-963c-4ec9-bc39-822978dbec43",
+      "id": "e4ae051f-5e7c-4fbe-9bef-e026200b425b",
       "name": "Handle Pause",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
+        2200,
         1750
       ],
       "parameters": {
@@ -984,12 +1182,12 @@
       }
     },
     {
-      "id": "cf8d1ee7-edc8-415b-bd1a-c5bf7631722e",
+      "id": "1f01ebc8-2946-4f21-a35b-6978bab4bc40",
       "name": "Do Pause?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2200,
+        2420,
         1750
       ],
       "parameters": {
@@ -1014,51 +1212,69 @@
       }
     },
     {
-      "id": "01d9ed19-7008-4554-b602-a7be1a1b1c54",
+      "id": "82af0244-a4eb-4ade-a5c5-e1a8de435311",
       "name": "Pause Agent",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        2420,
+        2640,
         1750
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "update",
-        "base": {
+        "operation": "appendOrUpdate",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblOIksmbzg44M514",
-          "mode": "id"
+          "value": "Agents",
+          "mode": "name"
         },
-        "matchingColumns": [
-          "agent_id"
-        ],
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
-            "agent_id": "={{ $('Handle Pause').first().json.agent_id }}",
-            "Is_Available": "=false"
-          }
-        }
-      }
+            "Agent ID": "={{ $('Handle Pause').first().json.agent_id }}",
+            "Is Active": "=false"
+          },
+          "matchingColumns": [
+            "Agent ID"
+          ],
+          "schema": [
+            {
+              "id": "Agent ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Agent ID"
+            },
+            {
+              "id": "Is Active",
+              "type": "string",
+              "display": true,
+              "displayName": "Is Active"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "ded66ffa-f46d-4e52-ac8d-2824693c703a",
+      "id": "143dd664-af7e-40ae-8bcb-7b7842f41a27",
       "name": "Handle Resume",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
+        2200,
         1900
       ],
       "parameters": {
@@ -1066,12 +1282,12 @@
       }
     },
     {
-      "id": "07914864-7363-4643-bbe3-dd215bb1d6bd",
+      "id": "2f033793-df9d-48a2-9cff-4defe938504d",
       "name": "Do Resume?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2200,
+        2420,
         1900
       ],
       "parameters": {
@@ -1096,51 +1312,69 @@
       }
     },
     {
-      "id": "4f367687-4c64-4ab7-98a8-b4fe06a0584a",
+      "id": "7dcd67a7-cf9c-4c0d-972a-1f5889f98875",
       "name": "Resume Agent",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        2420,
+        2640,
         1900
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "update",
-        "base": {
+        "operation": "appendOrUpdate",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblOIksmbzg44M514",
-          "mode": "id"
+          "value": "Agents",
+          "mode": "name"
         },
-        "matchingColumns": [
-          "agent_id"
-        ],
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
-            "agent_id": "={{ $('Handle Resume').first().json.agent_id }}",
-            "Is_Available": "=true"
-          }
-        }
-      }
+            "Agent ID": "={{ $('Handle Resume').first().json.agent_id }}",
+            "Is Active": "=true"
+          },
+          "matchingColumns": [
+            "Agent ID"
+          ],
+          "schema": [
+            {
+              "id": "Agent ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Agent ID"
+            },
+            {
+              "id": "Is Active",
+              "type": "string",
+              "display": true,
+              "displayName": "Is Active"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "950bf2c8-f6db-403c-858d-b7f69ad1c0b3",
+      "id": "63a30891-5749-4c2a-8be0-8ec832b52c89",
       "name": "Handle Unknown",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
+        2200,
         2050
       ],
       "parameters": {
@@ -1148,12 +1382,12 @@
       }
     },
     {
-      "id": "c27ad9bc-b2bd-4a2a-9925-8b5e772113ac",
+      "id": "71954588-a09b-4f01-8e18-aaf4922ca92a",
       "name": "Unauthorized Reply",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1320,
+        1540,
         600
       ],
       "parameters": {
@@ -1161,12 +1395,12 @@
       }
     },
     {
-      "id": "91451963-9d49-4482-97ca-a53bfa636db0",
+      "id": "027dd91b-6eb1-415d-a1ab-ec228715d5e6",
       "name": "Send Reply",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        2860,
+        3740,
         400
       ],
       "credentials": {
@@ -1185,12 +1419,12 @@
       }
     },
     {
-      "id": "252e2b49-858d-4645-8314-5dacd5f2fb3c",
+      "id": "bb0a1f7a-711c-45b4-b08d-828008064c7f",
       "name": "Reassign Success",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
+        2860,
         1450
       ],
       "parameters": {
@@ -1198,12 +1432,12 @@
       }
     },
     {
-      "id": "5ed7d0d2-a1c2-49f3-9582-47663f2e3135",
+      "id": "be6fe462-f81f-4921-9fcd-ba20d8ffa73a",
       "name": "Pause Success",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
+        2860,
         1750
       ],
       "parameters": {
@@ -1211,12 +1445,12 @@
       }
     },
     {
-      "id": "a4c39cb5-74e7-43db-8ae8-a250ed5397bb",
+      "id": "c1490918-bf8c-4e98-90c5-45ebeb3867a7",
       "name": "Resume Success",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
+        2860,
         1900
       ],
       "parameters": {
@@ -1224,12 +1458,12 @@
       }
     },
     {
-      "id": "763a3fc3-992a-47e9-aebb-45ff877664c6",
+      "id": "f65bd344-b83e-4bdd-aee1-f399bb222212",
       "name": "Handle Senddocs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
+        2200,
         2200
       ],
       "parameters": {
@@ -1237,7 +1471,7 @@
       }
     },
     {
-      "id": "1d62de6c-11df-457c-89c2-b5fab7c888dc",
+      "id": "b0d50b21-a8f9-4fce-9783-907e1647514b",
       "name": "Do Senddocs?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -1267,7 +1501,7 @@
       }
     },
     {
-      "id": "6b7810b9-2129-47a5-9d34-2e6d529a6f7c",
+      "id": "57201e9f-0448-4836-a7d7-313cff6a9198",
       "name": "Call RE-19 Docs",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -1281,7 +1515,7 @@
       }
     },
     {
-      "id": "44781931-298b-4516-98ae-e91dff359b2e",
+      "id": "c1968431-0b1e-4f63-a6c0-37b97dcfa2df",
       "name": "Senddocs Success",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1307,6 +1541,17 @@
       ]
     },
     "Extract Message": {
+      "main": [
+        [
+          {
+            "node": "Read Admin Staff Auth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Admin Staff Auth": {
       "main": [
         [
           {
@@ -1379,63 +1624,63 @@
         ],
         [
           {
-            "node": "Today Leads",
+            "node": "Read Leads Today",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Search Lead By ID",
+            "node": "Read Leads Lead",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "New Leads 24h",
+            "node": "Read Leads Newleads",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Hot Leads",
+            "node": "Read Leads Hotleads",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Unassigned Leads",
+            "node": "Read Leads Unassigned",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Search Appointments",
+            "node": "Read Appointments Cmd",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Fetch All Agents",
+            "node": "Read Agents Agentload",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Open Exceptions Data",
+            "node": "Read Exceptions Cmd",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Search Results",
+            "node": "Read Leads Search",
             "type": "main",
             "index": 0
           }
@@ -1502,7 +1747,29 @@
         ]
       ]
     },
+    "Read Leads Today": {
+      "main": [
+        [
+          {
+            "node": "Today Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Today Leads": {
+      "main": [
+        [
+          {
+            "node": "Read Appointments Today",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Appointments Today": {
       "main": [
         [
           {
@@ -1514,6 +1781,17 @@
       ]
     },
     "Today Appointments": {
+      "main": [
+        [
+          {
+            "node": "Read Exceptions Today",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Exceptions Today": {
       "main": [
         [
           {
@@ -1546,6 +1824,17 @@
         ]
       ]
     },
+    "Read Leads Lead": {
+      "main": [
+        [
+          {
+            "node": "Search Lead By ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Search Lead By ID": {
       "main": [
         [
@@ -1562,6 +1851,17 @@
         [
           {
             "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads Newleads": {
+      "main": [
+        [
+          {
+            "node": "New Leads 24h",
             "type": "main",
             "index": 0
           }
@@ -1590,6 +1890,17 @@
         ]
       ]
     },
+    "Read Leads Hotleads": {
+      "main": [
+        [
+          {
+            "node": "Hot Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Hot Leads": {
       "main": [
         [
@@ -1606,6 +1917,17 @@
         [
           {
             "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads Unassigned": {
+      "main": [
+        [
+          {
+            "node": "Unassigned Leads",
             "type": "main",
             "index": 0
           }
@@ -1634,6 +1956,17 @@
         ]
       ]
     },
+    "Read Appointments Cmd": {
+      "main": [
+        [
+          {
+            "node": "Search Appointments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Search Appointments": {
       "main": [
         [
@@ -1650,6 +1983,17 @@
         [
           {
             "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Agents Agentload": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Agents",
             "type": "main",
             "index": 0
           }
@@ -1678,6 +2022,17 @@
         ]
       ]
     },
+    "Read Exceptions Cmd": {
+      "main": [
+        [
+          {
+            "node": "Open Exceptions Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Open Exceptions Data": {
       "main": [
         [
@@ -1694,6 +2049,17 @@
         [
           {
             "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads Search": {
+      "main": [
+        [
+          {
+            "node": "Search Results",
             "type": "main",
             "index": 0
           }
@@ -1985,6 +2351,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-26T09:23:42.618507"
+    "built_at": "2026-04-07T18:38:06.575739"
   }
 }

@@ -2,7 +2,7 @@
   "name": "RE-08 Document Filing",
   "nodes": [
     {
-      "id": "88f36c0c-09ef-4402-b80d-c77e1a49a554",
+      "id": "17688efe-72fa-48ed-8e39-9487a7a33c5d",
       "name": "Note RE-08",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -11,14 +11,14 @@
         100
       ],
       "parameters": {
-        "content": "RE-08: Document Filing\n\nFiles classified documents to Google Drive,\ncreates Airtable record, deduplicates by hash,\nnotifies admin via RE-10.",
+        "content": "RE-08: Document Filing\n\nFiles classified documents to Google Drive,\ncreates Google Sheets record, deduplicates by hash,\nnotifies admin via RE-10.",
         "width": 300,
         "height": 160,
         "color": 3
       }
     },
     {
-      "id": "aee39daa-8524-44f1-b733-6cfcac2ce919",
+      "id": "1bf8994e-0278-4cdc-beaa-9ab42a94bbd6",
       "name": "Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -29,7 +29,7 @@
       "parameters": {}
     },
     {
-      "id": "e6a4cde5-9634-43ec-9b52-de6a5b098c07",
+      "id": "e0281526-dce0-4943-8227-ffb697cb4f99",
       "name": "Build Filename",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -42,39 +42,54 @@
       }
     },
     {
-      "id": "cd92d765-0869-42c8-b592-166104a647ec",
-      "name": "Check Duplicate",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "5769750f-d517-412b-997f-c932408737f6",
+      "name": "Read Documents Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         660,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblR4AKuK66uqPoMI",
-          "mode": "id"
+          "value": "Documents",
+          "mode": "name"
         },
-        "filterByFormula": "=({content_hash} = '{{ $json.content_hash }}')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "7ce6100c-8f08-4cdb-9254-e82d9b5650d6",
+      "id": "1ae9933e-2224-4df9-8e11-8a2fae39dee0",
+      "name": "Check Duplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\nconst target = $('Build Filename').first().json.content_hash;\nconst rows = $input.all().map(i => i.json).filter(r => r['Doc ID']);\nconst matches = rows.filter(r => r['Content Hash'] === target);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "7a6cd63d-8b22-49ed-ba70-c4051b0ae502",
       "name": "Check Duplicate Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -87,7 +102,7 @@
       }
     },
     {
-      "id": "aebc57d5-8cf7-47f0-9045-a0bfb2249fba",
+      "id": "1b2682f6-460e-4c57-83dd-400b61056861",
       "name": "Is Duplicate?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -117,7 +132,7 @@
       }
     },
     {
-      "id": "11bde22a-c0a8-4e8e-889c-ccad234890b0",
+      "id": "b8ae92db-8da0-4244-92f2-404875e65ba8",
       "name": "Prepare Skip Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -130,34 +145,34 @@
       }
     },
     {
-      "id": "2814b539-c0fa-4707-a8d8-f904bc0a58e0",
+      "id": "b5bec02d-3742-4240-871c-e2caeb9af214",
       "name": "Log Duplicate Skip",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         1540,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Activity Log",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "activity_type": "={{ $json.activity_type }}",
             "entity_type": "={{ $json.entity_type }}",
@@ -166,12 +181,55 @@
             "performed_by": "={{ $json.performed_by }}",
             "timestamp": "={{ $json.timestamp }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "activity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "activity_type"
+            },
+            {
+              "id": "entity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_type"
+            },
+            {
+              "id": "entity_id",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_id"
+            },
+            {
+              "id": "description",
+              "type": "string",
+              "display": true,
+              "displayName": "description"
+            },
+            {
+              "id": "performed_by",
+              "type": "string",
+              "display": true,
+              "displayName": "performed_by"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     },
     {
-      "id": "77c4e00e-e253-41d0-b699-52f7fd7f1d85",
+      "id": "4319dc7c-0d2d-46bc-94cd-113e14109982",
       "name": "Find Drive Folder",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -190,13 +248,13 @@
       },
       "credentials": {
         "googleOAuth2Api": {
-          "id": "PLACEHOLDER_GDRIVE",
+          "id": "h1nJlw5vhziBMlh8",
           "name": "Google Drive OAuth2"
         }
       }
     },
     {
-      "id": "a897ac5b-e171-4b5c-b2bd-bbdad7d23d9a",
+      "id": "1e55941b-88fe-4544-b508-749da1ef1f46",
       "name": "Process Folder Search",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -209,7 +267,7 @@
       }
     },
     {
-      "id": "e66b2366-def7-40e5-a74b-0b87e490b79d",
+      "id": "f1468e28-5242-4835-ab26-7b9af1e1d039",
       "name": "Folder Exists?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -239,7 +297,7 @@
       }
     },
     {
-      "id": "b6f179e8-6aec-4ac7-8783-5a73d01067b5",
+      "id": "c9d94980-32ce-48bb-b297-f1d60018a08b",
       "name": "Create Drive Folder",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -261,13 +319,13 @@
       },
       "credentials": {
         "googleOAuth2Api": {
-          "id": "PLACEHOLDER_GDRIVE",
+          "id": "h1nJlw5vhziBMlh8",
           "name": "Google Drive OAuth2"
         }
       }
     },
     {
-      "id": "40359374-78a7-47f1-9b91-b63fd221734a",
+      "id": "9700af4a-b7ec-44b8-8bc3-056749ed38d6",
       "name": "Set Folder ID",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -280,7 +338,7 @@
       }
     },
     {
-      "id": "ca5e4908-a854-4c53-a1b5-05c5cccf7c97",
+      "id": "b75fe028-f4cf-4f1e-8f88-5574653c5f1c",
       "name": "Prepare Upload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -293,7 +351,7 @@
       }
     },
     {
-      "id": "289a5bf4-57cb-47be-aec6-232829bc4f63",
+      "id": "f50c4683-ae8e-4b43-97c8-774398dc2209",
       "name": "Prepare Doc Record",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -302,38 +360,38 @@
         500
       ],
       "parameters": {
-        "jsCode": "\n// Prepare document record for Airtable\nconst data = $input.first().json;\nconst driveResult = data.drive_file_id\n  ? data\n  : $('Build Filename').first().json;\n\nreturn {\n  json: {\n    document_id: 'DOC-' + Date.now().toString(36).toUpperCase(),\n    filename: driveResult.new_filename,\n    original_filename: driveResult.original_filename,\n    doc_type: driveResult.doc_type,\n    confidence: driveResult.confidence,\n    content_hash: driveResult.content_hash,\n    drive_file_id: driveResult.drive_file_id || '',\n    drive_folder_id: driveResult.drive_folder_id || '',\n    drive_url: driveResult.drive_url || '',\n    client_id: driveResult.client_id || '',\n    client_name: driveResult.client_name || '',\n    deal_id: driveResult.deal_id || '',\n    property_ref: driveResult.property_ref || '',\n    extracted_metadata: JSON.stringify(driveResult.extracted_metadata || {}),\n    file_size: driveResult.file_size || 0,\n    filed_at: new Date().toISOString(),\n    status: 'Filed',\n  }\n};\n"
+        "jsCode": "\n// Prepare document record for Google Sheets\nconst data = $input.first().json;\nconst driveResult = data.drive_file_id\n  ? data\n  : $('Build Filename').first().json;\n\nreturn {\n  json: {\n    document_id: 'DOC-' + Date.now().toString(36).toUpperCase(),\n    filename: driveResult.new_filename,\n    original_filename: driveResult.original_filename,\n    doc_type: driveResult.doc_type,\n    confidence: driveResult.confidence,\n    content_hash: driveResult.content_hash,\n    drive_file_id: driveResult.drive_file_id || '',\n    drive_folder_id: driveResult.drive_folder_id || '',\n    drive_url: driveResult.drive_url || '',\n    client_id: driveResult.client_id || '',\n    client_name: driveResult.client_name || '',\n    deal_id: driveResult.deal_id || '',\n    property_ref: driveResult.property_ref || '',\n    extracted_metadata: JSON.stringify(driveResult.extracted_metadata || {}),\n    file_size: driveResult.file_size || 0,\n    filed_at: new Date().toISOString(),\n    status: 'Filed',\n  }\n};\n"
       }
     },
     {
-      "id": "ca5e86a3-fbe5-4ad0-85b2-e95b1a2c8207",
+      "id": "58e26acd-ce2d-49b3-a12a-c8b0107d376d",
       "name": "Create Document Record",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         2860,
         500
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblR4AKuK66uqPoMI",
-          "mode": "id"
+          "value": "Documents",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "document_id": "={{ $json.document_id }}",
             "filename": "={{ $json.filename }}",
@@ -351,12 +409,108 @@
             "filed_at": "={{ $json.filed_at }}",
             "status": "={{ $json.status }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "document_id",
+              "type": "string",
+              "display": true,
+              "displayName": "document_id"
+            },
+            {
+              "id": "filename",
+              "type": "string",
+              "display": true,
+              "displayName": "filename"
+            },
+            {
+              "id": "original_filename",
+              "type": "string",
+              "display": true,
+              "displayName": "original_filename"
+            },
+            {
+              "id": "doc_type",
+              "type": "string",
+              "display": true,
+              "displayName": "doc_type"
+            },
+            {
+              "id": "confidence",
+              "type": "string",
+              "display": true,
+              "displayName": "confidence"
+            },
+            {
+              "id": "content_hash",
+              "type": "string",
+              "display": true,
+              "displayName": "content_hash"
+            },
+            {
+              "id": "drive_file_id",
+              "type": "string",
+              "display": true,
+              "displayName": "drive_file_id"
+            },
+            {
+              "id": "drive_url",
+              "type": "string",
+              "display": true,
+              "displayName": "drive_url"
+            },
+            {
+              "id": "client_id",
+              "type": "string",
+              "display": true,
+              "displayName": "client_id"
+            },
+            {
+              "id": "client_name",
+              "type": "string",
+              "display": true,
+              "displayName": "client_name"
+            },
+            {
+              "id": "deal_id",
+              "type": "string",
+              "display": true,
+              "displayName": "deal_id"
+            },
+            {
+              "id": "property_ref",
+              "type": "string",
+              "display": true,
+              "displayName": "property_ref"
+            },
+            {
+              "id": "extracted_metadata",
+              "type": "string",
+              "display": true,
+              "displayName": "extracted_metadata"
+            },
+            {
+              "id": "filed_at",
+              "type": "string",
+              "display": true,
+              "displayName": "filed_at"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "ea2ab248-4efc-489a-b746-d83f9c8ee730",
+      "id": "3f76ab33-a806-4a62-874d-40c7bde20b42",
       "name": "Prepare Filing Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -369,34 +523,34 @@
       }
     },
     {
-      "id": "b2fec00d-361f-4cf8-911e-0fe97a973dc8",
+      "id": "8223909d-42e0-4eb1-9b42-7728e0b63ae1",
       "name": "Log Document Filing",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         3300,
         500
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Activity Log",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "activity_type": "={{ $json.activity_type }}",
             "entity_type": "={{ $json.entity_type }}",
@@ -405,12 +559,55 @@
             "performed_by": "={{ $json.performed_by }}",
             "timestamp": "={{ $json.timestamp }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "activity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "activity_type"
+            },
+            {
+              "id": "entity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_type"
+            },
+            {
+              "id": "entity_id",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_id"
+            },
+            {
+              "id": "description",
+              "type": "string",
+              "display": true,
+              "displayName": "description"
+            },
+            {
+              "id": "performed_by",
+              "type": "string",
+              "display": true,
+              "displayName": "performed_by"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     },
     {
-      "id": "dc2ad895-57cb-4e6d-bcf8-f2fcded04d2e",
+      "id": "b7f9c12a-1aa6-41cb-ac81-c78578592c1c",
       "name": "Build Filing Notification",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -436,6 +633,17 @@
       ]
     },
     "Build Filename": {
+      "main": [
+        [
+          {
+            "node": "Read Documents Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Documents Sheet": {
       "main": [
         [
           {
@@ -630,6 +838,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-25T15:29:11.829264"
+    "built_at": "2026-04-07T18:38:02.866963"
   }
 }

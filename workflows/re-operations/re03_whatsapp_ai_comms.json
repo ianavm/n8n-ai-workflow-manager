@@ -2,7 +2,7 @@
   "name": "RE-03 WhatsApp AI Comms",
   "nodes": [
     {
-      "id": "edffa303-6654-43bc-9aab-5a3cf01f50c8",
+      "id": "6f51b411-63bf-4e8e-bd18-3bce348ddd65",
       "name": "Note RE-03",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "b652e559-ff37-4318-bcb3-ffe6bedec238",
+      "id": "54f90271-ec0a-4edb-ae41-e8fd968a2bda",
       "name": "Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -29,7 +29,7 @@
       "parameters": {}
     },
     {
-      "id": "f7a97f18-9789-44d3-a206-fb5b2e19e252",
+      "id": "aa89c653-d55d-46b4-99b1-fae471b70db5",
       "name": "Build WA Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -42,7 +42,7 @@
       }
     },
     {
-      "id": "ecdeb7db-31a7-4675-8baa-f1d595c27193",
+      "id": "497df546-3a68-42e1-8ec9-1106325dd039",
       "name": "AI Generate Response",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -77,7 +77,7 @@
       }
     },
     {
-      "id": "abf58cc6-8d4e-40c9-963c-8d7e5e86b2c3",
+      "id": "0e54a619-ccc2-4d8c-be62-13559680986d",
       "name": "Parse AI Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -90,7 +90,7 @@
       }
     },
     {
-      "id": "0ceb80dc-3033-45ce-a329-3d11ab660185",
+      "id": "9595965e-9019-43f0-9120-7d420ac35aff",
       "name": "Confidence OK?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -120,7 +120,7 @@
       }
     },
     {
-      "id": "b9323540-fe31-4196-be51-2af2b0069292",
+      "id": "5ed768fb-0a9d-42e0-93ee-16e3553a18bb",
       "name": "Strip Markdown",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -133,7 +133,7 @@
       }
     },
     {
-      "id": "cbbec5db-6812-45a2-9603-04150f08b6b2",
+      "id": "5b038407-919b-44c4-917a-a92367276ddd",
       "name": "Send WhatsApp Reply",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -159,7 +159,7 @@
       }
     },
     {
-      "id": "fe3e97bc-1cab-485e-9981-5f59b72c2871",
+      "id": "3e170318-7136-432b-b9cd-5f35083ae67b",
       "name": "Prepare Outbound Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -168,38 +168,38 @@
         200
       ],
       "parameters": {
-        "jsCode": "\n// Prepare outbound message log for Airtable\nconst data = $input.first().json;\n\nreturn {\n  json: {\n    message_id: 'MSG-' + Date.now().toString(36).toUpperCase(),\n    conversation_id: data.sender_phone || '',\n    direction: 'outbound',\n    channel: 'whatsapp',\n    body: data.clean_text || data.response_text || '',\n    sender: data.agent_name || 'AI Assistant',\n    recipient: data.sender_phone || '',\n    intent: data.intent || 'general',\n    confidence: data.confidence || 0,\n    timestamp: new Date().toISOString(),\n  }\n};\n"
+        "jsCode": "\n// Prepare outbound message log for Google Sheets\nconst data = $input.first().json;\n\nreturn {\n  json: {\n    message_id: 'MSG-' + Date.now().toString(36).toUpperCase(),\n    conversation_id: data.sender_phone || '',\n    direction: 'outbound',\n    channel: 'whatsapp',\n    body: data.clean_text || data.response_text || '',\n    sender: data.agent_name || 'AI Assistant',\n    recipient: data.sender_phone || '',\n    intent: data.intent || 'general',\n    confidence: data.confidence || 0,\n    timestamp: new Date().toISOString(),\n  }\n};\n"
       }
     },
     {
-      "id": "f83b1e06-6e2a-4a81-980d-5cf1d3a463b3",
+      "id": "31a01383-c104-4fb7-b7ed-ed8fc4bd5f8e",
       "name": "Log Outbound Message",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         1980,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblgp46QN1C9JcOlt",
-          "mode": "id"
+          "value": "Messages",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "message_id": "={{ $json.message_id }}",
             "conversation_id": "={{ $json.conversation_id }}",
@@ -212,12 +212,78 @@
             "confidence": "={{ $json.confidence }}",
             "timestamp": "={{ $json.timestamp }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "message_id",
+              "type": "string",
+              "display": true,
+              "displayName": "message_id"
+            },
+            {
+              "id": "conversation_id",
+              "type": "string",
+              "display": true,
+              "displayName": "conversation_id"
+            },
+            {
+              "id": "direction",
+              "type": "string",
+              "display": true,
+              "displayName": "direction"
+            },
+            {
+              "id": "channel",
+              "type": "string",
+              "display": true,
+              "displayName": "channel"
+            },
+            {
+              "id": "body",
+              "type": "string",
+              "display": true,
+              "displayName": "body"
+            },
+            {
+              "id": "sender",
+              "type": "string",
+              "display": true,
+              "displayName": "sender"
+            },
+            {
+              "id": "recipient",
+              "type": "string",
+              "display": true,
+              "displayName": "recipient"
+            },
+            {
+              "id": "intent",
+              "type": "string",
+              "display": true,
+              "displayName": "intent"
+            },
+            {
+              "id": "confidence",
+              "type": "string",
+              "display": true,
+              "displayName": "confidence"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "d6f23ab4-084b-4ba1-b61f-67cb6040d267",
+      "id": "f4824509-337e-47cb-b38f-db853a48f16b",
       "name": "Set Handoff Flag",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -231,25 +297,25 @@
         "assignments": {
           "assignments": [
             {
-              "id": "11e35a30-82a8-40c7-87fe-3571b579dfab",
+              "id": "f165294f-4b4a-42a1-adaf-3a90053d361d",
               "name": "needs_handoff",
               "value": "true",
               "type": "string"
             },
             {
-              "id": "ae15eefb-79eb-4835-9295-6c6dfd8a213f",
+              "id": "2e9c2e85-1dde-4443-8da6-37929ff76201",
               "name": "handoff_reason",
               "value": "=Low AI confidence: {{ $('Parse AI Response').first().json.confidence }}",
               "type": "string"
             },
             {
-              "id": "e3113471-ba3a-40fc-ab51-deaed6e8cfd3",
+              "id": "a50ae473-0fed-488e-9154-9ad5311416f2",
               "name": "lead_id",
               "value": "={{ $('Parse AI Response').first().json.lead_id }}",
               "type": "string"
             },
             {
-              "id": "8f8ea486-cf0e-4e78-8039-83682416824a",
+              "id": "cdc1fd7f-b948-480a-a946-fa2c356eee14",
               "name": "agent_name",
               "value": "={{ $('Parse AI Response').first().json.agent_name }}",
               "type": "string"
@@ -261,7 +327,7 @@
       }
     },
     {
-      "id": "aa39e8d7-8b88-4c1d-ab28-09b548e4b4ff",
+      "id": "fd755c7a-58bb-45fa-8f59-f16ad60df753",
       "name": "Strip Markdown Handoff",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -274,7 +340,7 @@
       }
     },
     {
-      "id": "16806577-9687-4c20-bb28-6b1383f950ad",
+      "id": "72c785c5-a192-4212-ae25-fb8be9f4009b",
       "name": "Send WA Reply Handoff",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -300,7 +366,7 @@
       }
     },
     {
-      "id": "9f579bb4-a237-4548-9f5f-cdcb550def1d",
+      "id": "babf73f3-439f-4744-b0f2-87fe3215c19a",
       "name": "Call RE-18 Handoff Alert",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -314,7 +380,7 @@
       }
     },
     {
-      "id": "d80d4043-dd5b-42cd-865d-7d8ddec71343",
+      "id": "e38722f3-bffd-451b-965f-59965408c605",
       "name": "Check Doc Intent",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -327,7 +393,7 @@
       }
     },
     {
-      "id": "62f75534-812c-423b-8472-d88ae2a80ac0",
+      "id": "70e06c20-ab84-42ab-9d9c-bf0aab4f9f0f",
       "name": "Send Docs?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -357,7 +423,7 @@
       }
     },
     {
-      "id": "f6326c8d-57b2-4cce-bc08-03c45158b353",
+      "id": "643f9521-deae-4d49-8fe1-bc67c5cf6374",
       "name": "Call RE-19 Send Docs",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -550,6 +616,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-26T09:23:38.048867"
+    "built_at": "2026-04-07T18:38:05.006898"
   }
 }

@@ -13,7 +13,7 @@ plus the first 7 dependency-free sub-workflows:
     RE-15: Scoring Engine             (sub-workflow) - Score & tier incoming leads
     RE-06: Document Classifier        (sub-workflow) - AI-classify documents (15 types)
     RE-18: Telegram Alert Router      (sub-workflow) - Format & route alerts
-    RE-08: Document Filing            (sub-workflow) - File docs to Drive + Airtable
+    RE-08: Document Filing            (sub-workflow) - File docs to Drive + Google Sheets
     RE-05: Booking Coordinator        (sub-workflow) - Schedule viewings via Calendar
 
 Usage:
@@ -105,7 +105,7 @@ def gsheets_ref(spreadsheet_id: str, tab_name: str) -> dict:
     """Build Google Sheets document/sheet reference dict for node parameters."""
     return {
         "documentId": {"__rl": True, "value": spreadsheet_id, "mode": "id"},
-        "sheetName": {"__rl": True, "value": tab_name, "mode": "list"},
+        "sheetName": {"__rl": True, "value": tab_name, "mode": "name"},
     }
 
 
@@ -1600,7 +1600,7 @@ def build_re18_connections(nodes):
 # ======================================================================
 # Receives: classification result, file data, client info
 # Builds filename per convention, checks for duplicates, creates Drive
-# folder if needed, uploads file, creates Airtable record, notifies admin.
+# folder if needed, uploads file, creates Google Sheets record, notifies admin.
 # ======================================================================
 
 RE08_BUILD_FILENAME_CODE = r"""
@@ -1696,7 +1696,7 @@ return {
 """
 
 RE08_CREATE_DOC_RECORD_CODE = r"""
-// Prepare document record for Airtable
+// Prepare document record for Google Sheets
 const data = $input.first().json;
 const driveResult = data.drive_file_id
   ? data
@@ -2424,7 +2424,7 @@ return {
 """
 
 RE02_HANDLE_EXISTING_CODE = r"""
-// Determine if lead already exists from Airtable search results
+// Determine if lead already exists from Google Sheets search results
 const results = $input.all();
 const inputData = $('Normalize Phone').first().json;
 
@@ -2819,7 +2819,7 @@ return {
 """
 
 RE03_LOG_OUTBOUND_CODE = r"""
-// Prepare outbound message log for Airtable
+// Prepare outbound message log for Google Sheets
 const data = $input.first().json;
 
 return {
@@ -3244,33 +3244,40 @@ def build_re01_nodes():
         [1320, 300],
     ))
 
-    # 7. Find Agent by phone_number_id
-    nodes.append(build_airtable_search(
-        "Find Agent", RE_BASE_ID, TABLE_AGENTS,
-        "=({phone_number_id} = '{{ $json.phone_number_id }}')",
+    # 7a. Read all agents from Google Sheets
+    nodes.append(build_gsheets_read(
+        "Read Agents Sheet", RE_SPREADSHEET_ID, TAB_AGENTS,
         [1540, 300], always_output=True,
     ))
+
+    # 7b. Filter to matching agent by phone_number_id
+    nodes.append(build_code_node("Find Agent", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Agent Name']);
+const target = $('Not Group?').first().json.phone_number_id;
+const matches = rows.filter(r => String(r['WhatsApp Phone Number ID'] || '') === String(target));
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [1760, 300]))
 
     # 8. Agent found?
     nodes.append(build_if_node(
         "Agent Found?",
-        "={{ $input.all().length > 0 && !!$input.first().json.agent_name }}",
-        [1760, 300],
+        "={{ $input.all().length > 0 && !!$input.first().json['Agent Name'] }}",
+        [1980, 300],
     ))
 
     # 9. Working hours check
-    nodes.append(build_code_node("Check Working Hours", RE01_WORKING_HOURS_CODE, [1980, 300]))
+    nodes.append(build_code_node("Check Working Hours", RE01_WORKING_HOURS_CODE, [2200, 300]))
 
     # 10. Within hours?
     nodes.append(build_if_node(
         "Within Hours?",
         "={{ $json.is_within_hours }}",
-        [2200, 300],
+        [2420, 300],
     ))
 
-    # 11. Log incoming message (within hours path)
-    nodes.append(build_airtable_create(
-        "Log Incoming Message", RE_BASE_ID, TABLE_MESSAGES, [2420, 200],
+    # 11. Log incoming message (within hours path) -- Google Sheets append
+    nodes.append(build_gsheets_append(
+        "Log Incoming Message", RE_SPREADSHEET_ID, TAB_MESSAGES, [2640, 200],
         columns={
             "message_id": "={{ $('Check Working Hours').first().json.message_id }}",
             "conversation_id": "={{ $('Check Working Hours').first().json.from }}",
@@ -3283,51 +3290,63 @@ def build_re01_nodes():
         },
     ))
 
-    # 12. Fetch conversation history
-    nodes.append(build_airtable_search(
-        "Fetch History", RE_BASE_ID, TABLE_MESSAGES,
-        "=({conversation_id} = '{{ $('Check Working Hours').first().json.from }}')",
-        [2640, 200],
-        sort_field="timestamp", sort_desc=True, always_output=True,
+    # 12a. Read Messages sheet for conversation history
+    nodes.append(build_gsheets_read(
+        "Read Messages Sheet", RE_SPREADSHEET_ID, TAB_MESSAGES,
+        [2860, 200], always_output=True,
     ))
 
+    # 12b. Filter to conversation history (keeps old name for downstream refs)
+    nodes.append(build_code_node("Fetch History", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Message ID']);
+const target = $('Check Working Hours').first().json.from;
+const matches = rows.filter(r => String(r['Conversation ID'] || '') === String(target));
+// Sort by timestamp descending
+matches.sort((a, b) => {
+  const ta = new Date(a['Timestamp'] || 0).getTime();
+  const tb = new Date(b['Timestamp'] || 0).getTime();
+  return tb - ta;
+});
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [3080, 200]))
+
     # 13. Rate limit check
-    nodes.append(build_code_node("Rate Limit Check", RE01_RATE_LIMIT_CODE, [2860, 200]))
+    nodes.append(build_code_node("Rate Limit Check", RE01_RATE_LIMIT_CODE, [3300, 200]))
 
     # 14. Not rate limited?
     nodes.append(build_if_node(
         "Not Rate Limited?",
         "={{ !$json.rate_limited }}",
-        [3080, 200],
+        [3520, 200],
     ))
 
     # 15. Call RE-02 Lead Router
     nodes.append(build_execute_workflow(
         "Call RE-02 Lead Router", "={{ $env.RE_WF_RE02_ID || '' }}",
-        [3300, 100],
+        [3740, 100],
     ))
 
     # 16. Call RE-03 WhatsApp AI Comms
     nodes.append(build_execute_workflow(
         "Call RE-03 WA AI Comms", "={{ $env.RE_WF_RE03_ID || '' }}",
-        [3520, 100],
+        [3960, 100],
     ))
 
     # 17. After hours response
-    nodes.append(build_code_node("Build After Hours Reply", RE01_AFTER_HOURS_CODE, [2420, 500]))
+    nodes.append(build_code_node("Build After Hours Reply", RE01_AFTER_HOURS_CODE, [2640, 500]))
 
     # 18. Send after hours reply
     nodes.append(build_http_request(
         "Send After Hours WA", "POST",
         "=https://graph.facebook.com/v18.0/{{ $json.phone_number_id }}/messages",
-        [2640, 500],
+        [2860, 500],
         cred_ref=CRED_WHATSAPP_SEND,
         body='={"messaging_product":"whatsapp","to":"{{ $json.from }}","type":"text","text":{"body":"{{ $json.after_hours_message }}"}}',
     ))
 
-    # 19. Log after hours message
-    nodes.append(build_airtable_create(
-        "Log After Hours", RE_BASE_ID, TABLE_ACTIVITY_LOG, [2860, 500],
+    # 19. Log after hours message -- Google Sheets append
+    nodes.append(build_gsheets_append(
+        "Log After Hours", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [3080, 500],
         columns={
             "activity_type": "After Hours Message",
             "entity_type": "Message",
@@ -3336,6 +3355,7 @@ def build_re01_nodes():
             "performed_by": "System",
             "timestamp": "={{ $now.toISO() }}",
         },
+        continue_on_fail=True,
     ))
 
     return nodes
@@ -3362,9 +3382,12 @@ def build_re01_connections(nodes):
             [],
         ]},
         "Not Group?": {"main": [
-            [{"node": "Find Agent", "type": "main", "index": 0}],
+            [{"node": "Read Agents Sheet", "type": "main", "index": 0}],
             [],
         ]},
+        "Read Agents Sheet": {"main": [[
+            {"node": "Find Agent", "type": "main", "index": 0},
+        ]]},
         "Find Agent": {"main": [[
             {"node": "Agent Found?", "type": "main", "index": 0},
         ]]},
@@ -3380,6 +3403,9 @@ def build_re01_connections(nodes):
             [{"node": "Build After Hours Reply", "type": "main", "index": 0}],
         ]},
         "Log Incoming Message": {"main": [[
+            {"node": "Read Messages Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Messages Sheet": {"main": [[
             {"node": "Fetch History", "type": "main", "index": 0},
         ]]},
         "Fetch History": {"main": [[
@@ -3840,25 +3866,32 @@ def build_re07_nodes():
         [1100, 300],
     ))
 
-    # 6. Check dedup in Airtable
-    nodes.append(build_airtable_search(
-        "Check Email Dedup", RE_BASE_ID, TABLE_EMAIL_THREADS,
-        "=({gmail_message_id} = '{{ $json.gmail_message_id }}')",
+    # 6a. Read Email Threads sheet for dedup check
+    nodes.append(build_gsheets_read(
+        "Read Email Threads Sheet", RE_SPREADSHEET_ID, TAB_EMAIL_THREADS,
         [1320, 300], always_output=True,
     ))
 
-    # 7. Is new email?
+    # 6b. Filter to check if gmail_message_id already exists
+    nodes.append(build_code_node("Check Email Dedup", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Thread ID']);
+const target = $('Extract Email Data').first().json.gmail_message_id;
+const matches = rows.filter(r => String(r['Conversation ID'] || '') === String(target));
+return [{json: { match_count: matches.length, is_new: matches.length === 0 }}];
+""", [1540, 300]))
+
+    # 7. Is new email? (match_count === 0 means new)
     nodes.append(build_if_number_node(
         "Is New Email?",
-        "={{ $input.all().length }}",
+        "={{ $json.match_count }}",
         0, "equals",
-        [1540, 300],
+        [1760, 300],
     ))
 
     # 8. Call RE-04 Email AI Comms
     nodes.append(build_execute_workflow(
         "Call RE-04 Email AI", "={{ $env.RE_WF_RE04_ID || '' }}",
-        [1760, 300],
+        [1980, 300],
     ))
 
     return nodes
@@ -3881,9 +3914,12 @@ def build_re07_connections(nodes):
             {"node": "Not Skip?", "type": "main", "index": 0},
         ]]},
         "Not Skip?": {"main": [
-            [{"node": "Check Email Dedup", "type": "main", "index": 0}],
+            [{"node": "Read Email Threads Sheet", "type": "main", "index": 0}],
             [],
         ]},
+        "Read Email Threads Sheet": {"main": [[
+            {"node": "Check Email Dedup", "type": "main", "index": 0},
+        ]]},
         "Check Email Dedup": {"main": [[
             {"node": "Is New Email?", "type": "main", "index": 0},
         ]]},
@@ -3907,23 +3943,25 @@ def build_re07_connections(nodes):
 
 RE09_VERIFY_AUTH_CODE = r"""
 // Verify Telegram user is authorized (check Admin Staff table results)
-const input = $input.first().json;
-const authResults = $('Check Auth').all();
+// Pull original message data from Extract Message (not $input, which is the auth filter output)
+const msg = $('Extract Message').first().json;
+const authRow = $input.first().json;
 
-const telegramUserId = String(input.from_id || '');
-const isAuthorized = authResults.length > 0
-  && authResults[0].json
-  && String(authResults[0].json.telegram_user_id || authResults[0].json.telegram_chat_id || '') === telegramUserId;
+const telegramUserId = String(msg.from_id || '');
+const hasMatch = authRow && (authRow['Admin ID'] || authRow['Name']);
+const isAuthorized = hasMatch &&
+  (String(authRow['Telegram User ID'] || '') === telegramUserId ||
+   String(authRow['Telegram Chat ID'] || '') === telegramUserId);
 
 return {
   json: {
     is_authorized: isAuthorized,
     telegram_user_id: telegramUserId,
-    chat_id: String(input.chat_id || ''),
-    message_text: input.message_text || '',
-    first_name: input.first_name || '',
-    admin_name: isAuthorized ? (authResults[0].json.name || authResults[0].json.Name || 'Admin') : '',
-    admin_role: isAuthorized ? (authResults[0].json.role || 'staff') : '',
+    chat_id: String(msg.chat_id || ''),
+    message_text: msg.message_text || '',
+    first_name: msg.first_name || '',
+    admin_name: isAuthorized ? (authRow['Name'] || 'Admin') : '',
+    admin_role: isAuthorized ? (authRow['Role'] || 'staff') : '',
   }
 };
 """
@@ -4427,25 +4465,34 @@ return {
 """
     nodes.append(build_code_node("Extract Message", extract_code, [440, 400]))
 
-    # 3. Check authorization (search Admin Staff by telegram_user_id)
-    nodes.append(build_airtable_search(
-        "Check Auth", RE_BASE_ID, TABLE_ADMIN_STAFF,
-        "=OR({telegram_user_id} = '{{ $json.from_id }}', {telegram_chat_id} = '{{ $json.from_id }}')",
+    # 3. Check authorization (read Admin Staff, filter by telegram_user_id)
+    nodes.append(build_gsheets_read(
+        "Read Admin Staff Auth", RE_SPREADSHEET_ID, TAB_ADMIN_STAFF,
         [660, 400], always_output=True,
     ))
+    check_auth_filter = r"""
+const fromId = $('Extract Message').first().json.from_id;
+const rows = $input.all().map(i => i.json).filter(r => r['Admin ID']);
+const matches = rows.filter(r =>
+  String(r['Telegram User ID'] || '') === fromId ||
+  String(r['Telegram Chat ID'] || '') === fromId
+);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Check Auth", check_auth_filter, [880, 400]))
 
     # 4. Verify auth result
-    nodes.append(build_code_node("Verify Auth", RE09_VERIFY_AUTH_CODE, [880, 400]))
+    nodes.append(build_code_node("Verify Auth", RE09_VERIFY_AUTH_CODE, [1100, 400]))
 
     # 5. Is authorized?
     nodes.append(build_if_node(
         "Authorized?",
         "={{ $json.is_authorized }}",
-        [1100, 400],
+        [1320, 400],
     ))
 
     # 6. Parse command (authorized path)
-    nodes.append(build_code_node("Parse Command", RE09_PARSE_COMMAND_CODE, [1320, 400]))
+    nodes.append(build_code_node("Parse Command", RE09_PARSE_COMMAND_CODE, [1540, 400]))
 
     # 7. Command router (Switch node)
     # MVP commands: help, today, lead, newleads, hotleads, unassigned,
@@ -4460,113 +4507,192 @@ return {
             "search", "status", "reassign", "approve", "pause", "resume",
             "senddocs",
         ],
-        [1540, 400],
+        [1760, 400],
     ))
 
     # --- HANDLER NODES ---
 
     # Output 0: /help
-    nodes.append(build_code_node("Handle Help", RE09_HELP_CODE, [1980, -200]))
+    nodes.append(build_code_node("Handle Help", RE09_HELP_CODE, [2200, -200]))
 
-    # Output 1: /today -> needs 3 Airtable queries then format
-    today_date_formula = "=IS_AFTER({created_at}, DATEADD(TODAY(), -1, 'days'))"
-    nodes.append(build_airtable_search(
-        "Today Leads", RE_BASE_ID, TABLE_LEADS,
-        today_date_formula,
-        [1980, -50], always_output=True,
-    ))
-    nodes.append(build_airtable_search(
-        "Today Appointments", RE_BASE_ID, TABLE_APPOINTMENTS,
-        "=IS_SAME({event_start}, TODAY(), 'day')",
+    # Output 1: /today -> needs 3 GSheets reads + filters then format
+    # Read Leads sheet, then filter to today
+    nodes.append(build_gsheets_read(
+        "Read Leads Today", RE_SPREADSHEET_ID, TAB_LEADS,
         [2200, -50], always_output=True,
     ))
-    nodes.append(build_airtable_search(
-        "Open Exceptions", RE_BASE_ID, TABLE_EXCEPTIONS,
-        "=({status} = 'Open')",
-        [2420, -50], always_output=True,
+    today_leads_filter = r"""
+const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r => {
+  const d = new Date(r['Created At']);
+  return !isNaN(d.getTime()) && d > cutoff;
+});
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Today Leads", today_leads_filter, [2420, -50]))
+
+    # Read Appointments sheet, then filter to today
+    nodes.append(build_gsheets_read(
+        "Read Appointments Today", RE_SPREADSHEET_ID, TAB_APPOINTMENTS,
+        [2640, -50], always_output=True,
     ))
-    nodes.append(build_code_node("Handle Today", RE09_TODAY_CODE, [2640, -50]))
+    today_appts_filter = r"""
+const today = new Date().toDateString();
+const rows = $input.all().map(i => i.json).filter(r => r['Appointment ID']);
+const matches = rows.filter(r => new Date(r['Start Time']).toDateString() === today);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Today Appointments", today_appts_filter, [2860, -50]))
+
+    # Read Exceptions sheet, then filter to Open
+    nodes.append(build_gsheets_read(
+        "Read Exceptions Today", RE_SPREADSHEET_ID, TAB_EXCEPTIONS,
+        [3080, -50], always_output=True,
+    ))
+    open_exc_filter = r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Exception ID']);
+const matches = rows.filter(r => r['Status'] === 'Open');
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Open Exceptions", open_exc_filter, [3300, -50]))
+
+    nodes.append(build_code_node("Handle Today", RE09_TODAY_CODE, [3520, -50]))
 
     # Output 2: /lead [id]
-    nodes.append(build_airtable_search(
-        "Search Lead By ID", RE_BASE_ID, TABLE_LEADS,
-        "=({lead_id} = '{{ $('Parse Command').first().json.arg1 }}')",
-        [1980, 100], always_output=True,
+    nodes.append(build_gsheets_read(
+        "Read Leads Lead", RE_SPREADSHEET_ID, TAB_LEADS,
+        [2200, 100], always_output=True,
     ))
-    nodes.append(build_code_node("Handle Lead", RE09_LEAD_DETAIL_CODE, [2200, 100]))
+    lead_id_filter = r"""
+const targetId = $('Parse Command').first().json.arg1;
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r => r['Lead ID'] === targetId);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Search Lead By ID", lead_id_filter, [2420, 100]))
+    nodes.append(build_code_node("Handle Lead", RE09_LEAD_DETAIL_CODE, [2640, 100]))
 
     # Output 3: /newleads
-    nodes.append(build_airtable_search(
-        "New Leads 24h", RE_BASE_ID, TABLE_LEADS,
-        "=IS_AFTER({created_at}, DATEADD(NOW(), -24, 'hours'))",
-        [1980, 250], always_output=True,
+    nodes.append(build_gsheets_read(
+        "Read Leads Newleads", RE_SPREADSHEET_ID, TAB_LEADS,
+        [2200, 250], always_output=True,
     ))
-    nodes.append(build_code_node("Handle Newleads", RE09_NEWLEADS_CODE, [2200, 250]))
+    newleads_filter = r"""
+const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r => {
+  const d = new Date(r['Created At']);
+  return !isNaN(d.getTime()) && d > cutoff;
+});
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("New Leads 24h", newleads_filter, [2420, 250]))
+    nodes.append(build_code_node("Handle Newleads", RE09_NEWLEADS_CODE, [2640, 250]))
 
     # Output 4: /hotleads
-    nodes.append(build_airtable_search(
-        "Hot Leads", RE_BASE_ID, TABLE_LEADS,
-        "=AND({tier} = 'Hot', OR({status} = 'New', {status} = 'Active', {status} = 'Contacted'))",
-        [1980, 400], always_output=True,
+    nodes.append(build_gsheets_read(
+        "Read Leads Hotleads", RE_SPREADSHEET_ID, TAB_LEADS,
+        [2200, 400], always_output=True,
     ))
-    nodes.append(build_code_node("Handle Hotleads", RE09_HOTLEADS_CODE, [2200, 400]))
+    hotleads_filter = r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
+const active = ['New', 'Active', 'Contacted'];
+const matches = rows.filter(r => r['Score'] >= 80 && active.includes(r['Status']));
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Hot Leads", hotleads_filter, [2420, 400]))
+    nodes.append(build_code_node("Handle Hotleads", RE09_HOTLEADS_CODE, [2640, 400]))
 
     # Output 5: /unassigned
-    nodes.append(build_airtable_search(
-        "Unassigned Leads", RE_BASE_ID, TABLE_LEADS,
-        "=OR({assigned_agent} = '', {assigned_agent} = BLANK())",
-        [1980, 550], always_output=True,
+    nodes.append(build_gsheets_read(
+        "Read Leads Unassigned", RE_SPREADSHEET_ID, TAB_LEADS,
+        [2200, 550], always_output=True,
     ))
-    nodes.append(build_code_node("Handle Unassigned", RE09_UNASSIGNED_CODE, [2200, 550]))
+    unassigned_filter = r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r => !r['Assigned Agent'] || r['Assigned Agent'] === '');
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Unassigned Leads", unassigned_filter, [2420, 550]))
+    nodes.append(build_code_node("Handle Unassigned", RE09_UNASSIGNED_CODE, [2640, 550]))
 
     # Output 6: /appointments [date]
-    nodes.append(build_airtable_search(
-        "Search Appointments", RE_BASE_ID, TABLE_APPOINTMENTS,
-        "=IS_SAME({event_start}, IF('{{ $('Parse Command').first().json.arg1 }}' = '', TODAY(), DATETIME_PARSE('{{ $('Parse Command').first().json.arg1 }}')), 'day')",
-        [1980, 700], always_output=True,
+    nodes.append(build_gsheets_read(
+        "Read Appointments Cmd", RE_SPREADSHEET_ID, TAB_APPOINTMENTS,
+        [2200, 700], always_output=True,
     ))
-    nodes.append(build_code_node("Handle Appointments", RE09_APPOINTMENTS_CODE, [2200, 700]))
+    appts_filter = r"""
+const argDate = $('Parse Command').first().json.arg1;
+const target = argDate ? new Date(argDate).toDateString() : new Date().toDateString();
+const rows = $input.all().map(i => i.json).filter(r => r['Appointment ID']);
+const matches = rows.filter(r => new Date(r['Start Time']).toDateString() === target);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Search Appointments", appts_filter, [2420, 700]))
+    nodes.append(build_code_node("Handle Appointments", RE09_APPOINTMENTS_CODE, [2640, 700]))
 
     # Output 7: /agentload
-    nodes.append(build_airtable_search(
-        "Fetch All Agents", RE_BASE_ID, TABLE_AGENTS,
-        "=({Is Active} = TRUE())",
-        [1980, 850], always_output=True,
+    nodes.append(build_gsheets_read(
+        "Read Agents Agentload", RE_SPREADSHEET_ID, TAB_AGENTS,
+        [2200, 850], always_output=True,
     ))
-    nodes.append(build_code_node("Handle Agentload", RE09_AGENTLOAD_CODE, [2200, 850]))
+    agents_filter = r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Agent Name']);
+const matches = rows.filter(r => String(r['Is Active']).toUpperCase() === 'TRUE');
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Fetch All Agents", agents_filter, [2420, 850]))
+    nodes.append(build_code_node("Handle Agentload", RE09_AGENTLOAD_CODE, [2640, 850]))
 
     # Output 8: /exceptions
-    nodes.append(build_airtable_search(
-        "Open Exceptions Data", RE_BASE_ID, TABLE_EXCEPTIONS,
-        "=({status} = 'Open')",
-        [1980, 1000], always_output=True,
+    nodes.append(build_gsheets_read(
+        "Read Exceptions Cmd", RE_SPREADSHEET_ID, TAB_EXCEPTIONS,
+        [2200, 1000], always_output=True,
     ))
-    nodes.append(build_code_node("Handle Exceptions", RE09_EXCEPTIONS_CODE, [2200, 1000]))
+    exceptions_filter = r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Exception ID']);
+const matches = rows.filter(r => r['Status'] === 'Open' || r['Status'] === 'Acknowledged');
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Open Exceptions Data", exceptions_filter, [2420, 1000]))
+    nodes.append(build_code_node("Handle Exceptions", RE09_EXCEPTIONS_CODE, [2640, 1000]))
 
     # Output 9: /search [query]
-    nodes.append(build_airtable_search(
-        "Search Results", RE_BASE_ID, TABLE_LEADS,
-        "=OR(FIND(LOWER('{{ $('Parse Command').first().json.args }}'), LOWER({client_name})), FIND(LOWER('{{ $('Parse Command').first().json.args }}'), LOWER({area})), FIND(LOWER('{{ $('Parse Command').first().json.args }}'), LOWER({email})))",
-        [1980, 1150], always_output=True,
+    nodes.append(build_gsheets_read(
+        "Read Leads Search", RE_SPREADSHEET_ID, TAB_LEADS,
+        [2200, 1150], always_output=True,
     ))
-    nodes.append(build_code_node("Handle Search", RE09_SEARCH_CODE, [2200, 1150]))
+    search_filter = r"""
+const query = $('Parse Command').first().json.args.toLowerCase();
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r => {
+  const name = (r['Client Name'] || '').toLowerCase();
+  const area = (r['Area Preference'] || '').toLowerCase();
+  const email = (r['Email'] || '').toLowerCase();
+  return name.includes(query) || area.includes(query) || email.includes(query);
+});
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+"""
+    nodes.append(build_code_node("Search Results", search_filter, [2420, 1150]))
+    nodes.append(build_code_node("Handle Search", RE09_SEARCH_CODE, [2640, 1150]))
 
     # Output 10: /status
-    nodes.append(build_code_node("Handle Status", RE09_STATUS_CODE, [1980, 1300]))
+    nodes.append(build_code_node("Handle Status", RE09_STATUS_CODE, [2200, 1300]))
 
     # Output 11: /reassign
-    nodes.append(build_code_node("Handle Reassign", RE09_REASSIGN_CODE, [1980, 1450]))
+    nodes.append(build_code_node("Handle Reassign", RE09_REASSIGN_CODE, [2200, 1450]))
     nodes.append(build_if_node(
         "Do Reassign?",
         "={{ $json.do_reassign }}",
-        [2200, 1450],
+        [2420, 1450],
     ))
-    nodes.append(build_airtable_update(
-        "Reassign Lead", RE_BASE_ID, TABLE_LEADS, [2420, 1450],
-        matching_columns=["lead_id"],
+    nodes.append(build_gsheets_update(
+        "Reassign Lead", RE_SPREADSHEET_ID, TAB_LEADS, [2640, 1450],
+        matching_columns=["Lead ID"],
         columns={
-            "lead_id": "={{ $('Handle Reassign').first().json.lead_id }}",
-            "assigned_agent": "={{ $('Handle Reassign').first().json.agent_id }}",
+            "Lead ID": "={{ $('Handle Reassign').first().json.lead_id }}",
+            "Assigned Agent": "={{ $('Handle Reassign').first().json.agent_id }}",
         },
     ))
 
@@ -4581,42 +4707,42 @@ return { json: {
   chat_id: data.chat_id,
 }};
 """
-    nodes.append(build_code_node("Handle Approve", approve_code, [1980, 1600]))
+    nodes.append(build_code_node("Handle Approve", approve_code, [2200, 1600]))
 
     # Output 13: /pause
-    nodes.append(build_code_node("Handle Pause", RE09_PAUSE_RESUME_CODE, [1980, 1750]))
+    nodes.append(build_code_node("Handle Pause", RE09_PAUSE_RESUME_CODE, [2200, 1750]))
     nodes.append(build_if_node(
         "Do Pause?",
         "={{ $json.do_update }}",
-        [2200, 1750],
+        [2420, 1750],
     ))
-    nodes.append(build_airtable_update(
-        "Pause Agent", RE_BASE_ID, TABLE_AGENTS, [2420, 1750],
-        matching_columns=["agent_id"],
+    nodes.append(build_gsheets_update(
+        "Pause Agent", RE_SPREADSHEET_ID, TAB_AGENTS, [2640, 1750],
+        matching_columns=["Agent ID"],
         columns={
-            "agent_id": "={{ $('Handle Pause').first().json.agent_id }}",
-            "Is_Available": "=false",
+            "Agent ID": "={{ $('Handle Pause').first().json.agent_id }}",
+            "Is Active": "=false",
         },
     ))
 
     # Output 14: /resume
-    nodes.append(build_code_node("Handle Resume", RE09_PAUSE_RESUME_CODE, [1980, 1900]))
+    nodes.append(build_code_node("Handle Resume", RE09_PAUSE_RESUME_CODE, [2200, 1900]))
     nodes.append(build_if_node(
         "Do Resume?",
         "={{ $json.do_update }}",
-        [2200, 1900],
+        [2420, 1900],
     ))
-    nodes.append(build_airtable_update(
-        "Resume Agent", RE_BASE_ID, TABLE_AGENTS, [2420, 1900],
-        matching_columns=["agent_id"],
+    nodes.append(build_gsheets_update(
+        "Resume Agent", RE_SPREADSHEET_ID, TAB_AGENTS, [2640, 1900],
+        matching_columns=["Agent ID"],
         columns={
-            "agent_id": "={{ $('Handle Resume').first().json.agent_id }}",
-            "Is_Available": "=true",
+            "Agent ID": "={{ $('Handle Resume').first().json.agent_id }}",
+            "Is Active": "=true",
         },
     ))
 
     # Fallback (output 15 = fallthrough): unknown command
-    nodes.append(build_code_node("Handle Unknown", RE09_UNKNOWN_CODE, [1980, 2050]))
+    nodes.append(build_code_node("Handle Unknown", RE09_UNKNOWN_CODE, [2200, 2050]))
 
     # Unauthorized reply
     unauth_code = r"""
@@ -4627,14 +4753,14 @@ return {
   }
 };
 """
-    nodes.append(build_code_node("Unauthorized Reply", unauth_code, [1320, 600]))
+    nodes.append(build_code_node("Unauthorized Reply", unauth_code, [1540, 600]))
 
     # Single reply node for all handlers
     nodes.append(build_telegram_send(
         "Send Reply",
         "={{ $json.chat_id }}",
         "={{ $json.response }}",
-        [2860, 400],
+        [3740, 400],
     ))
 
     # Reassign success reply
@@ -4645,7 +4771,7 @@ return { json: {
   chat_id: data.chat_id,
 }};
 """
-    nodes.append(build_code_node("Reassign Success", reassign_success_code, [2640, 1450]))
+    nodes.append(build_code_node("Reassign Success", reassign_success_code, [2860, 1450]))
 
     # Pause success reply
     pause_success_code = r"""
@@ -4655,7 +4781,7 @@ return { json: {
   chat_id: data.chat_id,
 }};
 """
-    nodes.append(build_code_node("Pause Success", pause_success_code, [2640, 1750]))
+    nodes.append(build_code_node("Pause Success", pause_success_code, [2860, 1750]))
 
     # Resume success reply
     resume_success_code = r"""
@@ -4665,7 +4791,7 @@ return { json: {
   chat_id: data.chat_id,
 }};
 """
-    nodes.append(build_code_node("Resume Success", resume_success_code, [2640, 1900]))
+    nodes.append(build_code_node("Resume Success", resume_success_code, [2860, 1900]))
 
     # /senddocs handler
     senddocs_code = r"""
@@ -4707,7 +4833,7 @@ return { json: {
   source: 're09',
 }};
 """
-    nodes.append(build_code_node("Handle Senddocs", senddocs_code, [1980, 2200]))
+    nodes.append(build_code_node("Handle Senddocs", senddocs_code, [2200, 2200]))
 
     # Check if senddocs should trigger RE-19
     nodes.append(build_if_node(
@@ -4741,6 +4867,9 @@ def build_re09_connections(nodes):
             {"node": "Extract Message", "type": "main", "index": 0},
         ]]},
         "Extract Message": {"main": [[
+            {"node": "Read Admin Staff Auth", "type": "main", "index": 0},
+        ]]},
+        "Read Admin Staff Auth": {"main": [[
             {"node": "Check Auth", "type": "main", "index": 0},
         ]]},
         "Check Auth": {"main": [[
@@ -4759,24 +4888,24 @@ def build_re09_connections(nodes):
         "Route Command": {"main": [
             # Output 0: /help
             [{"node": "Handle Help", "type": "main", "index": 0}],
-            # Output 1: /today
-            [{"node": "Today Leads", "type": "main", "index": 0}],
-            # Output 2: /lead
-            [{"node": "Search Lead By ID", "type": "main", "index": 0}],
-            # Output 3: /newleads
-            [{"node": "New Leads 24h", "type": "main", "index": 0}],
-            # Output 4: /hotleads
-            [{"node": "Hot Leads", "type": "main", "index": 0}],
-            # Output 5: /unassigned
-            [{"node": "Unassigned Leads", "type": "main", "index": 0}],
-            # Output 6: /appointments
-            [{"node": "Search Appointments", "type": "main", "index": 0}],
-            # Output 7: /agentload
-            [{"node": "Fetch All Agents", "type": "main", "index": 0}],
-            # Output 8: /exceptions
-            [{"node": "Open Exceptions Data", "type": "main", "index": 0}],
-            # Output 9: /search
-            [{"node": "Search Results", "type": "main", "index": 0}],
+            # Output 1: /today -> Read Leads Today
+            [{"node": "Read Leads Today", "type": "main", "index": 0}],
+            # Output 2: /lead -> Read Leads Lead
+            [{"node": "Read Leads Lead", "type": "main", "index": 0}],
+            # Output 3: /newleads -> Read Leads Newleads
+            [{"node": "Read Leads Newleads", "type": "main", "index": 0}],
+            # Output 4: /hotleads -> Read Leads Hotleads
+            [{"node": "Read Leads Hotleads", "type": "main", "index": 0}],
+            # Output 5: /unassigned -> Read Leads Unassigned
+            [{"node": "Read Leads Unassigned", "type": "main", "index": 0}],
+            # Output 6: /appointments -> Read Appointments Cmd
+            [{"node": "Read Appointments Cmd", "type": "main", "index": 0}],
+            # Output 7: /agentload -> Read Agents Agentload
+            [{"node": "Read Agents Agentload", "type": "main", "index": 0}],
+            # Output 8: /exceptions -> Read Exceptions Cmd
+            [{"node": "Read Exceptions Cmd", "type": "main", "index": 0}],
+            # Output 9: /search -> Read Leads Search
+            [{"node": "Read Leads Search", "type": "main", "index": 0}],
             # Output 10: /status
             [{"node": "Handle Status", "type": "main", "index": 0}],
             # Output 11: /reassign
@@ -4796,11 +4925,20 @@ def build_re09_connections(nodes):
         "Handle Help": {"main": [[
             {"node": "Send Reply", "type": "main", "index": 0},
         ]]},
-        # /today chain
+        # /today chain: Read -> Filter -> Read -> Filter -> Read -> Filter -> Handle
+        "Read Leads Today": {"main": [[
+            {"node": "Today Leads", "type": "main", "index": 0},
+        ]]},
         "Today Leads": {"main": [[
+            {"node": "Read Appointments Today", "type": "main", "index": 0},
+        ]]},
+        "Read Appointments Today": {"main": [[
             {"node": "Today Appointments", "type": "main", "index": 0},
         ]]},
         "Today Appointments": {"main": [[
+            {"node": "Read Exceptions Today", "type": "main", "index": 0},
+        ]]},
+        "Read Exceptions Today": {"main": [[
             {"node": "Open Exceptions", "type": "main", "index": 0},
         ]]},
         "Open Exceptions": {"main": [[
@@ -4809,56 +4947,80 @@ def build_re09_connections(nodes):
         "Handle Today": {"main": [[
             {"node": "Send Reply", "type": "main", "index": 0},
         ]]},
-        # /lead -> reply
+        # /lead: Read -> Filter -> Handle -> reply
+        "Read Leads Lead": {"main": [[
+            {"node": "Search Lead By ID", "type": "main", "index": 0},
+        ]]},
         "Search Lead By ID": {"main": [[
             {"node": "Handle Lead", "type": "main", "index": 0},
         ]]},
         "Handle Lead": {"main": [[
             {"node": "Send Reply", "type": "main", "index": 0},
         ]]},
-        # /newleads -> reply
+        # /newleads: Read -> Filter -> Handle -> reply
+        "Read Leads Newleads": {"main": [[
+            {"node": "New Leads 24h", "type": "main", "index": 0},
+        ]]},
         "New Leads 24h": {"main": [[
             {"node": "Handle Newleads", "type": "main", "index": 0},
         ]]},
         "Handle Newleads": {"main": [[
             {"node": "Send Reply", "type": "main", "index": 0},
         ]]},
-        # /hotleads -> reply
+        # /hotleads: Read -> Filter -> Handle -> reply
+        "Read Leads Hotleads": {"main": [[
+            {"node": "Hot Leads", "type": "main", "index": 0},
+        ]]},
         "Hot Leads": {"main": [[
             {"node": "Handle Hotleads", "type": "main", "index": 0},
         ]]},
         "Handle Hotleads": {"main": [[
             {"node": "Send Reply", "type": "main", "index": 0},
         ]]},
-        # /unassigned -> reply
+        # /unassigned: Read -> Filter -> Handle -> reply
+        "Read Leads Unassigned": {"main": [[
+            {"node": "Unassigned Leads", "type": "main", "index": 0},
+        ]]},
         "Unassigned Leads": {"main": [[
             {"node": "Handle Unassigned", "type": "main", "index": 0},
         ]]},
         "Handle Unassigned": {"main": [[
             {"node": "Send Reply", "type": "main", "index": 0},
         ]]},
-        # /appointments -> reply
+        # /appointments: Read -> Filter -> Handle -> reply
+        "Read Appointments Cmd": {"main": [[
+            {"node": "Search Appointments", "type": "main", "index": 0},
+        ]]},
         "Search Appointments": {"main": [[
             {"node": "Handle Appointments", "type": "main", "index": 0},
         ]]},
         "Handle Appointments": {"main": [[
             {"node": "Send Reply", "type": "main", "index": 0},
         ]]},
-        # /agentload -> reply
+        # /agentload: Read -> Filter -> Handle -> reply
+        "Read Agents Agentload": {"main": [[
+            {"node": "Fetch All Agents", "type": "main", "index": 0},
+        ]]},
         "Fetch All Agents": {"main": [[
             {"node": "Handle Agentload", "type": "main", "index": 0},
         ]]},
         "Handle Agentload": {"main": [[
             {"node": "Send Reply", "type": "main", "index": 0},
         ]]},
-        # /exceptions -> reply
+        # /exceptions: Read -> Filter -> Handle -> reply
+        "Read Exceptions Cmd": {"main": [[
+            {"node": "Open Exceptions Data", "type": "main", "index": 0},
+        ]]},
         "Open Exceptions Data": {"main": [[
             {"node": "Handle Exceptions", "type": "main", "index": 0},
         ]]},
         "Handle Exceptions": {"main": [[
             {"node": "Send Reply", "type": "main", "index": 0},
         ]]},
-        # /search -> reply
+        # /search: Read -> Filter -> Handle -> reply
+        "Read Leads Search": {"main": [[
+            {"node": "Search Results", "type": "main", "index": 0},
+        ]]},
         "Search Results": {"main": [[
             {"node": "Handle Search", "type": "main", "index": 0},
         ]]},
@@ -5020,36 +5182,52 @@ def build_re11_nodes():
         },
     })
 
-    # 2. Fetch today's leads
-    nodes.append(build_airtable_search(
-        "Fetch Today Leads", RE_BASE_ID, TABLE_LEADS,
-        "=IS_AFTER({created_at}, DATEADD(NOW(), -24, 'hours'))",
+    # 2. Read Leads sheet + filter to last 24h
+    nodes.append(build_gsheets_read(
+        "Read Leads Sheet", RE_SPREADSHEET_ID, TAB_LEADS,
         [440, 200], always_output=True,
     ))
+    nodes.append(build_code_node("Fetch Today Leads", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r => new Date(r['Created At']) > new Date(Date.now() - 24*3600000));
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [660, 200]))
 
-    # 3. Fetch today's appointments
-    nodes.append(build_airtable_search(
-        "Fetch Today Appointments", RE_BASE_ID, TABLE_APPOINTMENTS,
-        "=IS_SAME({event_start}, TODAY(), 'day')",
-        [660, 200], always_output=True,
-    ))
-
-    # 4. Fetch active deals
-    nodes.append(build_airtable_search(
-        "Fetch Active Deals", RE_BASE_ID, TABLE_DEALS,
-        "=OR({status} = 'Active', {status} = 'In Progress', {status} = 'Pending')",
+    # 3. Read Appointments sheet + filter to today
+    nodes.append(build_gsheets_read(
+        "Read Appointments Sheet", RE_SPREADSHEET_ID, TAB_APPOINTMENTS,
         [880, 200], always_output=True,
     ))
+    nodes.append(build_code_node("Fetch Today Appointments", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Booking ID']);
+const matches = rows.filter(r => new Date(r['Start Time']).toDateString() === new Date().toDateString());
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [1100, 200]))
 
-    # 5. Fetch open exceptions
-    nodes.append(build_airtable_search(
-        "Fetch Open Exceptions", RE_BASE_ID, TABLE_EXCEPTIONS,
-        "=({status} = 'Open')",
-        [1100, 200], always_output=True,
+    # 4. Read Deals sheet + filter to active
+    nodes.append(build_gsheets_read(
+        "Read Deals Sheet", RE_SPREADSHEET_ID, TAB_DEALS,
+        [1320, 200], always_output=True,
     ))
+    nodes.append(build_code_node("Fetch Active Deals", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Deal ID']);
+const matches = rows.filter(r => ['Active', 'In Progress', 'Pending'].includes(r['Status']));
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [1540, 200]))
+
+    # 5. Read Exceptions sheet + filter to open
+    nodes.append(build_gsheets_read(
+        "Read Exceptions Sheet", RE_SPREADSHEET_ID, TAB_EXCEPTIONS,
+        [1760, 200], always_output=True,
+    ))
+    nodes.append(build_code_node("Fetch Open Exceptions", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Exception ID']);
+const matches = rows.filter(r => r['Status'] === 'Open' || r['Status'] === 'Acknowledged');
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [1980, 200]))
 
     # 6. Build summary prompt
-    nodes.append(build_code_node("Build Summary", RE11_BUILD_SUMMARY_CODE, [1320, 300]))
+    nodes.append(build_code_node("Build Summary", RE11_BUILD_SUMMARY_CODE, [2200, 300]))
 
     # 7. Call AI to format summary nicely
     nodes.append(build_openrouter_ai(
@@ -5058,7 +5236,7 @@ def build_re11_nodes():
         "Format the provided summary data into a clean, concise Telegram message using HTML tags. "
         "Use <b>bold</b> for headers. Add relevant emoji sparingly. Keep it under 2000 characters.",
         "$json.prompt_text",
-        [1540, 300],
+        [2420, 300],
         max_tokens=800,
         temperature=0.3,
     ))
@@ -5072,14 +5250,14 @@ const content = (aiResp.choices && aiResp.choices[0])
 
 return { json: { summary_text: content } };
 """
-    nodes.append(build_code_node("Parse AI Summary", parse_code, [1760, 300]))
+    nodes.append(build_code_node("Parse AI Summary", parse_code, [2640, 300]))
 
     # 9. Send via Telegram
     nodes.append(build_telegram_send(
         "Send Daily Summary",
         OWNER_TELEGRAM_CHAT_ID,
         "={{ $json.summary_text }}",
-        [1980, 300],
+        [2860, 300],
     ))
 
     return nodes
@@ -5089,15 +5267,27 @@ def build_re11_connections(nodes):
     """Build RE-11: Daily Summary connections."""
     return {
         "Daily 07:00 SAST": {"main": [[
+            {"node": "Read Leads Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Leads Sheet": {"main": [[
             {"node": "Fetch Today Leads", "type": "main", "index": 0},
         ]]},
         "Fetch Today Leads": {"main": [[
+            {"node": "Read Appointments Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Appointments Sheet": {"main": [[
             {"node": "Fetch Today Appointments", "type": "main", "index": 0},
         ]]},
         "Fetch Today Appointments": {"main": [[
+            {"node": "Read Deals Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Deals Sheet": {"main": [[
             {"node": "Fetch Active Deals", "type": "main", "index": 0},
         ]]},
         "Fetch Active Deals": {"main": [[
+            {"node": "Read Exceptions Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Exceptions Sheet": {"main": [[
             {"node": "Fetch Open Exceptions", "type": "main", "index": 0},
         ]]},
         "Fetch Open Exceptions": {"main": [[
@@ -5221,50 +5411,71 @@ def build_re14_nodes():
         },
     })
 
-    # 2. Find unresponded leads (last_contact > 2 hours, status Active/New)
-    nodes.append(build_airtable_search(
-        "Unresponded Leads", RE_BASE_ID, TABLE_LEADS,
-        "=AND(IS_BEFORE({last_contact}, DATEADD(NOW(), -2, 'hours')), OR({status} = 'New', {status} = 'Active'))",
+    # 2. Read Leads sheet + filter unresponded (last_contact > 2 hours, status Active/New)
+    nodes.append(build_gsheets_read(
+        "Read Leads Sheet", RE_SPREADSHEET_ID, TAB_LEADS,
         [440, 200], always_output=True,
     ))
+    nodes.append(build_code_node("Unresponded Leads", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r =>
+  new Date(r['Last Contact']) < new Date(Date.now() - 2*3600000) &&
+  (r['Status'] === 'New' || r['Status'] === 'Active')
+);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [660, 200]))
 
-    # 3. Find stale deals (no update > 7 days)
-    nodes.append(build_airtable_search(
-        "Stale Deals", RE_BASE_ID, TABLE_DEALS,
-        "=AND(IS_BEFORE({updated_at}, DATEADD(NOW(), -7, 'days')), OR({status} = 'Active', {status} = 'In Progress'))",
-        [660, 200], always_output=True,
-    ))
-
-    # 4. Find missed appointments (No_Show status, not escalated)
-    nodes.append(build_airtable_search(
-        "Missed Appointments", RE_BASE_ID, TABLE_APPOINTMENTS,
-        "=AND({status} = 'No_Show', {escalated} != TRUE())",
+    # 3. Read Deals sheet + filter stale (no update > 7 days)
+    nodes.append(build_gsheets_read(
+        "Read Deals Sheet", RE_SPREADSHEET_ID, TAB_DEALS,
         [880, 200], always_output=True,
     ))
+    nodes.append(build_code_node("Stale Deals", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Deal ID']);
+const matches = rows.filter(r =>
+  new Date(r['Updated At']) < new Date(Date.now() - 7*24*3600000) &&
+  (r['Status'] === 'Active' || r['Status'] === 'In Progress')
+);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [1100, 200]))
+
+    # 4. Read Appointments sheet + filter missed (No_Show, not escalated)
+    nodes.append(build_gsheets_read(
+        "Read Appointments Sheet", RE_SPREADSHEET_ID, TAB_APPOINTMENTS,
+        [1320, 200], always_output=True,
+    ))
+    nodes.append(build_code_node("Missed Appointments", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Booking ID']);
+const matches = rows.filter(r =>
+  r['Status'] === 'No_Show' &&
+  String(r['Escalated'] || '').toUpperCase() !== 'TRUE'
+);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [1540, 200]))
 
     # 5. Merge all exceptions
-    nodes.append(build_code_node("Merge Exceptions", RE14_MERGE_EXCEPTIONS_CODE, [1100, 300]))
+    nodes.append(build_code_node("Merge Exceptions", RE14_MERGE_EXCEPTIONS_CODE, [1760, 300]))
 
     # 6. Check if any exceptions found
     nodes.append(build_if_node(
         "Has Exceptions?",
         "={{ !$json.no_exceptions }}",
-        [1320, 300],
+        [1980, 300],
     ))
 
-    # 7. Create Exception record (true path)
-    nodes.append(build_airtable_create(
-        "Create Exception", RE_BASE_ID, TABLE_EXCEPTIONS, [1540, 200],
+    # 7. Create Exception record (true path) - Google Sheets append
+    nodes.append(build_gsheets_append(
+        "Create Exception", RE_SPREADSHEET_ID, TAB_EXCEPTIONS, [2200, 200],
         columns={
-            "exception_id": "={{ $json.exception_id }}",
-            "exception_type": "={{ $json.exception_type }}",
-            "severity": "={{ $json.severity }}",
-            "entity_type": "={{ $json.entity_type }}",
-            "entity_id": "={{ $json.entity_id }}",
-            "description": "={{ $json.description }}",
-            "assigned_agent": "={{ $json.assigned_agent }}",
-            "status": "={{ $json.status }}",
-            "created_at": "={{ $json.created_at }}",
+            "Exception ID": "={{ $json.exception_id }}",
+            "Exception Type": "={{ $json.exception_type }}",
+            "Severity": "={{ $json.severity }}",
+            "Entity Type": "={{ $json.entity_type }}",
+            "Entity ID": "={{ $json.entity_id }}",
+            "Description": "={{ $json.description }}",
+            "Assigned Agent": "={{ $json.assigned_agent }}",
+            "Status": "={{ $json.status }}",
+            "Created At": "={{ $json.created_at }}",
         },
     ))
 
@@ -5272,26 +5483,27 @@ def build_re14_nodes():
     nodes.append(build_if_node(
         "Is Critical/High?",
         "={{ $json.severity === 'critical' || $json.severity === 'high' }}",
-        [1760, 200],
+        [2420, 200],
     ))
 
     # 9. Call RE-18 for critical/high alerts
     nodes.append(build_execute_workflow(
         "Call RE-18 Alert", "={{ $env.RE_WF_RE18_ID || '' }}",
-        [1980, 200],
+        [2640, 200],
     ))
 
-    # 10. Log to Activity_Log
-    nodes.append(build_airtable_create(
-        "Log Escalation", RE_BASE_ID, TABLE_ACTIVITY_LOG, [2200, 300],
+    # 10. Log to Activity_Log - Google Sheets append
+    nodes.append(build_gsheets_append(
+        "Log Escalation", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [2860, 300],
         columns={
-            "activity_type": "Escalation Check",
-            "entity_type": "System",
-            "entity_id": "=ESC-{{ $now.toFormat('yyyyMMddHHmmss') }}",
-            "description": "=Escalation engine check completed",
-            "performed_by": "System",
-            "timestamp": "={{ $now.toISO() }}",
+            "Activity Type": "Escalation Check",
+            "Entity Type": "System",
+            "Entity ID": "=ESC-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "Description": "=Escalation engine check completed",
+            "Performed By": "System",
+            "Timestamp": "={{ $now.toISO() }}",
         },
+        continue_on_fail=True,
     ))
 
     return nodes
@@ -5301,12 +5513,21 @@ def build_re14_connections(nodes):
     """Build RE-14: Escalation Engine connections."""
     return {
         "Every 15 Min": {"main": [[
+            {"node": "Read Leads Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Leads Sheet": {"main": [[
             {"node": "Unresponded Leads", "type": "main", "index": 0},
         ]]},
         "Unresponded Leads": {"main": [[
+            {"node": "Read Deals Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Deals Sheet": {"main": [[
             {"node": "Stale Deals", "type": "main", "index": 0},
         ]]},
         "Stale Deals": {"main": [[
+            {"node": "Read Appointments Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Appointments Sheet": {"main": [[
             {"node": "Missed Appointments", "type": "main", "index": 0},
         ]]},
         "Missed Appointments": {"main": [[
@@ -5435,18 +5656,18 @@ def build_re17_nodes():
         [1100, 300],
     ))
 
-    # 6. Create Exception (true path)
-    nodes.append(build_airtable_create(
-        "Create Health Exception", RE_BASE_ID, TABLE_EXCEPTIONS, [1320, 200],
+    # 6. Create Exception (true path) - Google Sheets append
+    nodes.append(build_gsheets_append(
+        "Create Health Exception", RE_SPREADSHEET_ID, TAB_EXCEPTIONS, [1320, 200],
         columns={
-            "exception_id": "=HEALTH-{{ $now.toFormat('yyyyMMddHHmmss') }}",
-            "exception_type": "System Health",
-            "severity": "={{ $json.severity }}",
-            "entity_type": "System",
-            "entity_id": "=n8n-health-{{ $now.toFormat('yyyyMMddHHmm') }}",
-            "description": "={{ $json.message }}",
-            "status": "Open",
-            "created_at": "={{ $json.checked_at }}",
+            "Exception ID": "=HEALTH-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "Exception Type": "System Health",
+            "Severity": "={{ $json.severity }}",
+            "Entity Type": "System",
+            "Entity ID": "=n8n-health-{{ $now.toFormat('yyyyMMddHHmm') }}",
+            "Description": "={{ $json.message }}",
+            "Status": "Open",
+            "Created At": "={{ $json.checked_at }}",
         },
     ))
 
@@ -5456,17 +5677,18 @@ def build_re17_nodes():
         [1540, 200],
     ))
 
-    # 8. Log health check
-    nodes.append(build_airtable_create(
-        "Log Health Check", RE_BASE_ID, TABLE_ACTIVITY_LOG, [1320, 500],
+    # 8. Log health check - Google Sheets append
+    nodes.append(build_gsheets_append(
+        "Log Health Check", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [1320, 500],
         columns={
-            "activity_type": "Health Check",
-            "entity_type": "System",
-            "entity_id": "=HEALTH-{{ $now.toFormat('yyyyMMddHHmmss') }}",
-            "description": "={{ $json.message }}",
-            "performed_by": "System",
-            "timestamp": "={{ $json.checked_at }}",
+            "Activity Type": "Health Check",
+            "Entity Type": "System",
+            "Entity ID": "=HEALTH-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "Description": "={{ $json.message }}",
+            "Performed By": "System",
+            "Timestamp": "={{ $json.checked_at }}",
         },
+        continue_on_fail=True,
     ))
 
     return nodes
@@ -5621,39 +5843,51 @@ def build_re12_nodes():
         },
     })
 
-    # 2. Fetch all agents
-    nodes.append(build_airtable_search(
-        "Fetch Performance Agents", RE_BASE_ID, TABLE_AGENTS,
-        "=({Is Active} = TRUE())",
+    # 2. Read Agents sheet + filter to active
+    nodes.append(build_gsheets_read(
+        "Read Agents Sheet", RE_SPREADSHEET_ID, TAB_AGENTS,
         [440, 300], always_output=True,
     ))
+    nodes.append(build_code_node("Fetch Performance Agents", r"""
+const rows = .all().map(i => i.json).filter(r => r['Agent Name']);
+const matches = rows.filter(r => String(r['Is Active']).toUpperCase() === 'TRUE');
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [660, 300]))
 
-    # 3. Fetch all leads (for metrics calculation)
-    nodes.append(build_airtable_search(
-        "Fetch All Leads", RE_BASE_ID, TABLE_LEADS,
-        "=NOT({status} = 'Deleted')",
-        [660, 300], always_output=True,
-    ))
-
-    # 4. Fetch all appointments
-    nodes.append(build_airtable_search(
-        "Fetch All Appointments", RE_BASE_ID, TABLE_APPOINTMENTS,
-        "=NOT({status} = 'Cancelled')",
+    # 3. Read Leads sheet + filter non-deleted
+    nodes.append(build_gsheets_read(
+        "Read Leads Sheet", RE_SPREADSHEET_ID, TAB_LEADS,
         [880, 300], always_output=True,
     ))
+    nodes.append(build_code_node("Fetch All Leads", r"""
+const rows = .all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r => r['Status'] !== 'Deleted');
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [1100, 300]))
+
+    # 4. Read Appointments sheet + filter non-cancelled
+    nodes.append(build_gsheets_read(
+        "Read Appointments Sheet", RE_SPREADSHEET_ID, TAB_APPOINTMENTS,
+        [1320, 300], always_output=True,
+    ))
+    nodes.append(build_code_node("Fetch All Appointments", r"""
+const rows = .all().map(i => i.json).filter(r => r['Booking ID']);
+const matches = rows.filter(r => r['Status'] !== 'Cancelled');
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [1540, 300]))
 
     # 5. Calculate metrics
-    nodes.append(build_code_node("Calculate Metrics", RE12_CALCULATE_METRICS_CODE, [1100, 300]))
+    nodes.append(build_code_node("Calculate Metrics", RE12_CALCULATE_METRICS_CODE, [1760, 300]))
 
     # 6. Build report
-    nodes.append(build_code_node("Build Report", RE12_BUILD_REPORT_CODE, [1320, 300]))
+    nodes.append(build_code_node("Build Report", RE12_BUILD_REPORT_CODE, [1980, 300]))
 
     # 7. Send via Telegram
     nodes.append(build_telegram_send(
         "Send Performance Report",
         OWNER_TELEGRAM_CHAT_ID,
         "={{ $json.report_text }}",
-        [1540, 300],
+        [2200, 300],
     ))
 
     return nodes
@@ -5663,12 +5897,21 @@ def build_re12_connections(nodes):
     """Build RE-12: Agent Performance connections."""
     return {
         "Monday 06:00 SAST": {"main": [[
+            {"node": "Read Agents Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Agents Sheet": {"main": [[
             {"node": "Fetch Performance Agents", "type": "main", "index": 0},
         ]]},
         "Fetch Performance Agents": {"main": [[
+            {"node": "Read Leads Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Leads Sheet": {"main": [[
             {"node": "Fetch All Leads", "type": "main", "index": 0},
         ]]},
         "Fetch All Leads": {"main": [[
+            {"node": "Read Appointments Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Appointments Sheet": {"main": [[
             {"node": "Fetch All Appointments", "type": "main", "index": 0},
         ]]},
         "Fetch All Appointments": {"main": [[
@@ -5793,29 +6036,39 @@ def build_re13_nodes():
         },
     })
 
-    # 2. Find stale leads
-    nodes.append(build_airtable_search(
-        "Find Stale Leads", RE_BASE_ID, TABLE_LEADS,
-        "=AND(IS_BEFORE({last_contact}, DATEADD(NOW(), -48, 'hours')), NOT(OR({status} = 'Converted', {status} = 'Closed', {status} = 'Cold')), {follow_up_count} < 3)",
+    # 2. Read Leads sheet + filter stale leads
+    nodes.append(build_gsheets_read(
+        "Read Leads Sheet", RE_SPREADSHEET_ID, TAB_LEADS,
         [440, 300], always_output=True,
     ))
+    nodes.append(build_code_node("Find Stale Leads", r"""
+const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+const excluded = ['Converted', 'Closed', 'Cold'];
+const rows = .all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r => {
+  const lastContact = new Date(r['Last Contact']);
+  return !isNaN(lastContact.getTime()) && lastContact < cutoff &&
+    !excluded.includes(r['Status']) && parseInt(r['Follow Up Count'] || 0) < 3;
+});
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [660, 300]))
 
     # 3. Has stale leads?
     nodes.append(build_if_number_node(
         "Has Stale Leads?",
         "={{ $input.all().length }}",
         0, "gt",
-        [660, 300],
+        [880, 300],
     ))
 
     # 4. Generate follow-up data
-    nodes.append(build_code_node("Generate Follow-up Data", RE13_GENERATE_FOLLOWUP_CODE, [880, 300]))
+    nodes.append(build_code_node("Generate Follow-up Data", RE13_GENERATE_FOLLOWUP_CODE, [1100, 300]))
 
     # 5. Skip check
     nodes.append(build_if_node(
         "Not Skip?",
         "={{ !$json.skip }}",
-        [1100, 300],
+        [1320, 300],
     ))
 
     # 6. Call AI to generate follow-up message
@@ -5825,31 +6078,31 @@ def build_re13_nodes():
         "warm WhatsApp follow-up message. Keep it under 200 characters. Do not use markdown. "
         "Be conversational and natural.",
         "$json.prompt_text",
-        [1320, 300],
+        [1540, 300],
         max_tokens=200,
         temperature=0.6,
     ))
 
     # 7. Parse AI response
-    nodes.append(build_code_node("Parse Follow-up", RE13_PARSE_FOLLOWUP_CODE, [1540, 300]))
+    nodes.append(build_code_node("Parse Follow-up", RE13_PARSE_FOLLOWUP_CODE, [1760, 300]))
 
     # 8. Send follow-up via WhatsApp
     nodes.append(build_http_request(
         "Send Follow-up WA", "POST",
         "=https://graph.facebook.com/v18.0/{{ $json.phone_number_id }}/messages",
-        [1760, 300],
+        [1980, 300],
         cred_ref=CRED_WHATSAPP_SEND,
         body='={"messaging_product":"whatsapp","to":"{{ $json.phone_normalized }}","type":"text","text":{"body":"{{ $json.follow_up_text }}"}}',
     ))
 
-    # 9. Update lead follow_up_count and last_contact
-    nodes.append(build_airtable_update(
-        "Update Lead Follow-up", RE_BASE_ID, TABLE_LEADS, [1980, 300],
-        matching_columns=["lead_id"],
+    # 9. Update lead follow_up_count and last_contact - Google Sheets update
+    nodes.append(build_gsheets_update(
+        "Update Lead Follow-up", RE_SPREADSHEET_ID, TAB_LEADS, [2200, 300],
+        matching_columns=["Lead ID"],
         columns={
-            "lead_id": "={{ $('Parse Follow-up').first().json.lead_id }}",
-            "follow_up_count": "={{ $('Parse Follow-up').first().json.follow_up_number }}",
-            "last_contact": "={{ $now.toISO() }}",
+            "Lead ID": "={{ $('Parse Follow-up').first().json.lead_id }}",
+            "Follow Up Count": "={{ $('Parse Follow-up').first().json.follow_up_number }}",
+            "Last Contact": "={{ $now.toISO() }}",
         },
     ))
 
@@ -5857,53 +6110,54 @@ def build_re13_nodes():
     nodes.append(build_if_node(
         "Is Final Follow-up?",
         "={{ $('Parse Follow-up').first().json.is_final_followup }}",
-        [2200, 300],
+        [2420, 300],
     ))
 
-    # 11. Mark as Cold
-    nodes.append(build_airtable_update(
-        "Mark Lead Cold", RE_BASE_ID, TABLE_LEADS, [2420, 200],
-        matching_columns=["lead_id"],
+    # 11. Mark as Cold - Google Sheets update
+    nodes.append(build_gsheets_update(
+        "Mark Lead Cold", RE_SPREADSHEET_ID, TAB_LEADS, [2640, 200],
+        matching_columns=["Lead ID"],
         columns={
-            "lead_id": "={{ $('Parse Follow-up').first().json.lead_id }}",
-            "status": "Cold",
-            "tier": "Cold",
+            "Lead ID": "={{ $('Parse Follow-up').first().json.lead_id }}",
+            "Status": "Cold",
+            "Tier": "Cold",
         },
     ))
 
     # 12. Notify agent that lead went cold
     nodes.append(build_execute_workflow(
         "Notify Lead Cold", "={{ $env.RE_WF_RE18_ID || '' }}",
-        [2640, 200],
+        [2860, 200],
     ))
 
-    # 13. Log follow-up to Messages
-    nodes.append(build_airtable_create(
-        "Log Follow-up Message", RE_BASE_ID, TABLE_MESSAGES, [2420, 500],
+    # 13. Log follow-up to Messages - Google Sheets append
+    nodes.append(build_gsheets_append(
+        "Log Follow-up Message", RE_SPREADSHEET_ID, TAB_MESSAGES, [2640, 500],
         columns={
-            "message_id": "=FU-{{ $now.toFormat('yyyyMMddHHmmss') }}",
-            "conversation_id": "={{ $('Parse Follow-up').first().json.phone_normalized }}",
-            "direction": "outbound",
-            "channel": "whatsapp",
-            "body": "={{ $('Parse Follow-up').first().json.follow_up_text }}",
-            "sender": "System",
-            "recipient": "={{ $('Parse Follow-up').first().json.phone_normalized }}",
-            "intent": "follow_up",
-            "timestamp": "={{ $now.toISO() }}",
+            "Message ID": "=FU-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "Conversation ID": "={{ $('Parse Follow-up').first().json.phone_normalized }}",
+            "Direction": "outbound",
+            "Channel": "whatsapp",
+            "Body": "={{ $('Parse Follow-up').first().json.follow_up_text }}",
+            "Sender": "System",
+            "Recipient": "={{ $('Parse Follow-up').first().json.phone_normalized }}",
+            "Intent": "follow_up",
+            "Timestamp": "={{ $now.toISO() }}",
         },
     ))
 
-    # 14. Log to Activity_Log
-    nodes.append(build_airtable_create(
-        "Log Follow-up Activity", RE_BASE_ID, TABLE_ACTIVITY_LOG, [2640, 500],
+    # 14. Log to Activity_Log - Google Sheets append
+    nodes.append(build_gsheets_append(
+        "Log Follow-up Activity", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [2860, 500],
         columns={
-            "activity_type": "Follow-up Sent",
-            "entity_type": "Lead",
-            "entity_id": "={{ $('Parse Follow-up').first().json.lead_id }}",
-            "description": "=Follow-up #{{ $('Parse Follow-up').first().json.follow_up_number }} sent to {{ $('Parse Follow-up').first().json.client_name }}",
-            "performed_by": "System",
-            "timestamp": "={{ $now.toISO() }}",
+            "Activity Type": "Follow-up Sent",
+            "Entity Type": "Lead",
+            "Entity ID": "={{ $('Parse Follow-up').first().json.lead_id }}",
+            "Description": "=Follow-up #{{ $('Parse Follow-up').first().json.follow_up_number }} sent to {{ $('Parse Follow-up').first().json.client_name }}",
+            "Performed By": "System",
+            "Timestamp": "={{ $now.toISO() }}",
         },
+        continue_on_fail=True,
     ))
 
     return nodes
@@ -5913,6 +6167,9 @@ def build_re13_connections(nodes):
     """Build RE-13: Stale Lead Follow-up connections."""
     return {
         "Daily 09:00 SAST": {"main": [[
+            {"node": "Read Leads Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Leads Sheet": {"main": [[
             {"node": "Find Stale Leads", "type": "main", "index": 0},
         ]]},
         "Find Stale Leads": {"main": [[
@@ -6274,8 +6531,8 @@ def build_re19_nodes():
     # 3b. Filter to matching lead by lead_id
     nodes.append(build_code_node("Fetch Lead", r"""
 const target = $('Validate Input').first().json.lead_id;
-const rows = $input.all().map(i => i.json).filter(r => r['lead_id']);
-const matches = rows.filter(r => r['lead_id'] === target);
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r => r['Lead ID'] === target);
 return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
 """, [880, 300]))
 
@@ -6288,8 +6545,8 @@ return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
     # 4b. Filter to matching deal by lead_id
     nodes.append(build_code_node("Fetch Deal", r"""
 const target = $('Validate Input').first().json.lead_id;
-const rows = $input.all().map(i => i.json).filter(r => r['lead_id']);
-const matches = rows.filter(r => r['lead_id'] === target);
+const rows = $input.all().map(i => i.json).filter(r => r['Deal ID']);
+const matches = rows.filter(r => r['Lead ID'] === target);
 return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
 """, [1320, 300]))
 

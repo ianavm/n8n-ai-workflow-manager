@@ -2,7 +2,7 @@
   "name": "RE-05 Booking Coordinator",
   "nodes": [
     {
-      "id": "a72f476f-f05b-45dc-8cfd-341dc64c6108",
+      "id": "8be2c9e3-6fa0-4495-b11e-02d5e0233656",
       "name": "Note RE-05",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "89cffe07-d4d1-46e0-8ec4-aa8d69bc5d1f",
+      "id": "592d2f32-ebf4-4990-b965-f9c579815e98",
       "name": "Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
@@ -29,7 +29,7 @@
       "parameters": {}
     },
     {
-      "id": "8f2f7620-ef56-4669-b4b5-e3db5cae10d6",
+      "id": "8aa86b59-cd16-4e59-8041-556431b91ab1",
       "name": "Validate Booking Date",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -42,7 +42,7 @@
       }
     },
     {
-      "id": "2f20fda4-b117-4b61-a9db-979248a21e4c",
+      "id": "ea1e4996-735d-4306-ae44-06f8540edce8",
       "name": "Date Valid?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -72,39 +72,54 @@
       }
     },
     {
-      "id": "14af195e-5f36-489e-8081-931cd8e1364e",
-      "name": "Get Agent Info",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "e172d15b-38a9-4643-8466-f40d4de2306c",
+      "name": "Read Agents Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         880,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblOIksmbzg44M514",
-          "mode": "id"
+          "value": "Agents",
+          "mode": "name"
         },
-        "filterByFormula": "=({agent_name} = '{{ $('Validate Booking Date').first().json.agent_name }}')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "c97ec056-508a-4ee7-86ac-3b8ec2030c01",
+      "id": "2b8c2092-abad-417b-8989-6285f4aeda80",
+      "name": "Get Agent Info",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\nconst target = $('Validate Booking Date').first().json.agent_name;\nconst rows = $input.all().map(i => i.json).filter(r => r['Agent Name']);\nconst matches = rows.filter(r => r['Agent Name'] === target);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "951b7092-f891-4184-afab-db911bd1f06c",
       "name": "Query Calendar FreeBusy",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -132,7 +147,7 @@
       }
     },
     {
-      "id": "162b156e-f31a-455a-8b43-cf03bb093208",
+      "id": "f93114cc-f915-4220-9c7f-af91178ad193",
       "name": "Generate Available Slots",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -145,7 +160,7 @@
       }
     },
     {
-      "id": "074d868e-5e9c-4fba-98b9-c333aac87a08",
+      "id": "6e869388-fd2c-4576-a2c1-ba5db4987c17",
       "name": "Slots Available?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -175,7 +190,7 @@
       }
     },
     {
-      "id": "cc791133-f93f-4d49-aabb-31b35d47e840",
+      "id": "cc531ae0-dc7a-41ba-9f5f-befa82689f1e",
       "name": "Build AI Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -188,7 +203,7 @@
       }
     },
     {
-      "id": "ac6eed45-7f8b-427f-9cf8-5e3784a43f8d",
+      "id": "9023d0b7-c350-4423-8dfa-74fb033a4128",
       "name": "AI Suggest Slots",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -223,7 +238,7 @@
       }
     },
     {
-      "id": "2a74d981-73a1-41e6-9ee3-643a6456cf47",
+      "id": "ac059273-c487-463c-b9a1-cc664cd75103",
       "name": "Parse AI Suggestion",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -236,7 +251,7 @@
       }
     },
     {
-      "id": "16b30144-4643-43a2-bc28-8c40deeddd65",
+      "id": "f3850e01-fa2a-4c45-9f12-d5476de7e994",
       "name": "Create Calendar Event",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -264,34 +279,34 @@
       }
     },
     {
-      "id": "db829b2a-25f6-44c1-8acc-49ed5ad8ca5e",
+      "id": "4fe5379d-15b7-4d75-b36e-b1371d519709",
       "name": "Create Appointment",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         2640,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblQ72B5XSgRLdKIc",
-          "mode": "id"
+          "value": "Appointments",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "booking_id": "={{ $('Parse AI Suggestion').first().json.booking_id }}",
             "client_name": "={{ $('Parse AI Suggestion').first().json.client_name }}",
@@ -304,39 +319,105 @@
             "status": "Scheduled",
             "booked_at": "={{ $('Parse AI Suggestion').first().json.booked_at }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "booking_id",
+              "type": "string",
+              "display": true,
+              "displayName": "booking_id"
+            },
+            {
+              "id": "client_name",
+              "type": "string",
+              "display": true,
+              "displayName": "client_name"
+            },
+            {
+              "id": "agent_name",
+              "type": "string",
+              "display": true,
+              "displayName": "agent_name"
+            },
+            {
+              "id": "property_id",
+              "type": "string",
+              "display": true,
+              "displayName": "property_id"
+            },
+            {
+              "id": "viewing_type",
+              "type": "string",
+              "display": true,
+              "displayName": "viewing_type"
+            },
+            {
+              "id": "event_start",
+              "type": "string",
+              "display": true,
+              "displayName": "event_start"
+            },
+            {
+              "id": "event_end",
+              "type": "string",
+              "display": true,
+              "displayName": "event_end"
+            },
+            {
+              "id": "duration_min",
+              "type": "string",
+              "display": true,
+              "displayName": "duration_min"
+            },
+            {
+              "id": "status",
+              "type": "string",
+              "display": true,
+              "displayName": "status"
+            },
+            {
+              "id": "booked_at",
+              "type": "string",
+              "display": true,
+              "displayName": "booked_at"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "f95b9d23-9674-44de-b039-d5e43f40368b",
+      "id": "02990caa-d924-4acb-bd51-66daeb365267",
       "name": "Log Booking",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         2860,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Activity Log",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "activity_type": "Viewing Booked",
             "entity_type": "Appointment",
@@ -345,12 +426,55 @@
             "performed_by": "System",
             "timestamp": "={{ $('Parse AI Suggestion').first().json.booked_at }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "activity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "activity_type"
+            },
+            {
+              "id": "entity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_type"
+            },
+            {
+              "id": "entity_id",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_id"
+            },
+            {
+              "id": "description",
+              "type": "string",
+              "display": true,
+              "displayName": "description"
+            },
+            {
+              "id": "performed_by",
+              "type": "string",
+              "display": true,
+              "displayName": "performed_by"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     },
     {
-      "id": "2b7815ef-242a-4463-8392-2610a5bf35b1",
+      "id": "8ba566ae-a21c-4342-a80b-7c410db3e35b",
       "name": "Return Rejection",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -364,19 +488,19 @@
         "assignments": {
           "assignments": [
             {
-              "id": "dfe2612c-749d-41ea-88c2-176adfd4da50",
+              "id": "8aca2a85-7464-4674-8b27-fb9585daa02b",
               "name": "booking_id",
               "value": "={{ $('Validate Booking Date').first().json.booking_id }}",
               "type": "string"
             },
             {
-              "id": "0fdc2c22-5d06-45ce-9428-ed9258572f2e",
+              "id": "5dae75fc-bda9-4eee-ad6b-f0edd3b88033",
               "name": "status",
               "value": "rejected",
               "type": "string"
             },
             {
-              "id": "7067c479-34d0-4f5e-adfd-8926c3cdfcb5",
+              "id": "3131d819-e64c-4e08-9cc8-d8b531fabfe7",
               "name": "rejection_reason",
               "value": "={{ $('Validate Booking Date').first().json.rejection_reason }}",
               "type": "string"
@@ -388,7 +512,7 @@
       }
     },
     {
-      "id": "3a35071f-e126-4cea-957d-66f7cd84ba74",
+      "id": "d4cdea1b-23b2-4c94-bcbb-0d05cd0b4593",
       "name": "Return No Slots",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
@@ -402,19 +526,19 @@
         "assignments": {
           "assignments": [
             {
-              "id": "6b6c2fb2-9ac1-4129-9885-9676437ae85f",
+              "id": "08709963-065d-40f2-9951-dea26e895304",
               "name": "booking_id",
               "value": "={{ $('Validate Booking Date').first().json.booking_id }}",
               "type": "string"
             },
             {
-              "id": "3178eb65-0b53-4319-9726-7c0cb8a8b3cc",
+              "id": "923239f6-2acd-42ff-be06-1e0d34840fed",
               "name": "status",
               "value": "no_availability",
               "type": "string"
             },
             {
-              "id": "5747974d-d42f-4725-bb90-21425b947052",
+              "id": "20654604-b40d-4915-85c2-af68c25674c0",
               "name": "rejection_reason",
               "value": "No available slots in the requested date range",
               "type": "string"
@@ -453,7 +577,7 @@
       "main": [
         [
           {
-            "node": "Get Agent Info",
+            "node": "Read Agents Sheet",
             "type": "main",
             "index": 0
           }
@@ -461,6 +585,17 @@
         [
           {
             "node": "Return Rejection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Agents Sheet": {
+      "main": [
+        [
+          {
+            "node": "Get Agent Info",
             "type": "main",
             "index": 0
           }
@@ -589,6 +724,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-25T15:29:12.395295"
+    "built_at": "2026-04-07T18:38:03.403345"
   }
 }

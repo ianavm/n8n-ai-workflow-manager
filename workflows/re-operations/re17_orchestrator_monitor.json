@@ -2,7 +2,7 @@
   "name": "RE-17 Orchestrator Monitor",
   "nodes": [
     {
-      "id": "bb31ab37-762d-42bf-8a7f-381459c4101d",
+      "id": "8305d052-7942-45e1-814c-71384c0760dc",
       "name": "Note RE-17",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "9d646528-89fd-4689-8652-e43e62fb1d84",
+      "id": "a150dc9c-bc34-45be-aaab-de36cc7c3baf",
       "name": "Every 15 Min Monitor",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -38,7 +38,7 @@
       }
     },
     {
-      "id": "d27c09a4-d140-4c5a-8359-ceaa700cb053",
+      "id": "4e3bf209-d76f-4d1a-b626-4c4558457eb2",
       "name": "Check n8n Health",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -64,7 +64,7 @@
       }
     },
     {
-      "id": "7d27f94f-17bd-4fe6-a3b9-2141152cf750",
+      "id": "6c43c9cc-bc8a-4941-acc6-7c7af0b8ce9d",
       "name": "Check Recent Failures",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -90,7 +90,7 @@
       }
     },
     {
-      "id": "595eb2e1-94ca-4d84-abd2-9b2b1dcb82ea",
+      "id": "79491c94-fbac-4916-b083-a625e3a6bdc3",
       "name": "Analyze Failures",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -103,7 +103,7 @@
       }
     },
     {
-      "id": "e4684112-7213-452d-9bbc-e9f442741bc4",
+      "id": "63043578-305b-439f-b9e4-81b33d0ba337",
       "name": "Has Errors?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -133,50 +133,104 @@
       }
     },
     {
-      "id": "00ca2a92-e495-4f5d-9dc6-de8bc51f99f0",
+      "id": "35275309-da7f-4994-8fcd-5a54e6a07be1",
       "name": "Create Health Exception",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         1320,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblDunXJFQr0elXon",
-          "mode": "id"
+          "value": "Exceptions",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
-            "exception_id": "=HEALTH-{{ $now.toFormat('yyyyMMddHHmmss') }}",
-            "exception_type": "System Health",
-            "severity": "={{ $json.severity }}",
-            "entity_type": "System",
-            "entity_id": "=n8n-health-{{ $now.toFormat('yyyyMMddHHmm') }}",
-            "description": "={{ $json.message }}",
-            "status": "Open",
-            "created_at": "={{ $json.checked_at }}"
+            "Exception ID": "=HEALTH-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "Exception Type": "System Health",
+            "Severity": "={{ $json.severity }}",
+            "Entity Type": "System",
+            "Entity ID": "=n8n-health-{{ $now.toFormat('yyyyMMddHHmm') }}",
+            "Description": "={{ $json.message }}",
+            "Status": "Open",
+            "Created At": "={{ $json.checked_at }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Exception ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Exception ID"
+            },
+            {
+              "id": "Exception Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Exception Type"
+            },
+            {
+              "id": "Severity",
+              "type": "string",
+              "display": true,
+              "displayName": "Severity"
+            },
+            {
+              "id": "Entity Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity Type"
+            },
+            {
+              "id": "Entity ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity ID"
+            },
+            {
+              "id": "Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Description"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "6c26c758-7eb9-47df-b5c7-4bff749ec05c",
+      "id": "cfc62682-cee2-4622-966e-4a1f97652d26",
       "name": "Call RE-18 Health Alert",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
@@ -190,45 +244,88 @@
       }
     },
     {
-      "id": "1c0ca335-ef57-4077-babd-07c80052795b",
+      "id": "960227f1-3395-4715-ae85-e2eae9b0907c",
       "name": "Log Health Check",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         1320,
         500
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Activity Log",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
-            "activity_type": "Health Check",
-            "entity_type": "System",
-            "entity_id": "=HEALTH-{{ $now.toFormat('yyyyMMddHHmmss') }}",
-            "description": "={{ $json.message }}",
-            "performed_by": "System",
-            "timestamp": "={{ $json.checked_at }}"
+            "Activity Type": "Health Check",
+            "Entity Type": "System",
+            "Entity ID": "=HEALTH-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "Description": "={{ $json.message }}",
+            "Performed By": "System",
+            "Timestamp": "={{ $json.checked_at }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Activity Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Activity Type"
+            },
+            {
+              "id": "Entity Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity Type"
+            },
+            {
+              "id": "Entity ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity ID"
+            },
+            {
+              "id": "Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Description"
+            },
+            {
+              "id": "Performed By",
+              "type": "string",
+              "display": true,
+              "displayName": "Performed By"
+            },
+            {
+              "id": "Timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "Timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -332,6 +429,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-25T15:29:18.227648"
+    "built_at": "2026-04-07T18:38:09.376967"
   }
 }

@@ -2,7 +2,7 @@
   "name": "RE-07 Email Intake",
   "nodes": [
     {
-      "id": "27478c55-6179-4bfe-a984-ced025671da3",
+      "id": "5bfdfa0c-eb5f-48bb-a2f8-41850cc17298",
       "name": "Note RE-07",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "0164bcc8-2c0b-43ff-a1e9-a91773a068e5",
+      "id": "bf0b8c21-e3d2-4287-8ca2-5aa07131a274",
       "name": "Poll Gmail",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -38,7 +38,7 @@
       }
     },
     {
-      "id": "7d80b086-fb97-4e5a-b41e-c5916ae36917",
+      "id": "fbece17c-4b85-4640-83f5-bab5b9e45a3d",
       "name": "Fetch Unread Emails",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -65,7 +65,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "19382fee-418d-4a21-bca6-4463f610f545",
+      "id": "75f2795b-bfe3-42fe-a1c0-0f4a22d6de5d",
       "name": "Has Emails?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -95,7 +95,7 @@
       }
     },
     {
-      "id": "ad5630dc-6631-4a6d-85b5-3282accabffb",
+      "id": "68b4b025-2b18-45e2-a77e-5e78bbd37745",
       "name": "Extract Email Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -108,7 +108,7 @@
       }
     },
     {
-      "id": "7efde130-490b-4913-a2d1-c86a6a4d0613",
+      "id": "78130fba-0cd0-484b-b5f7-1ae066550131",
       "name": "Not Skip?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -138,44 +138,59 @@
       }
     },
     {
-      "id": "b8b6fd16-5b29-49a8-9667-21b558a99aba",
-      "name": "Check Email Dedup",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "ca0ae70c-8e8b-41aa-9ed7-32c59ae91059",
+      "name": "Read Email Threads Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         1320,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblCvYpUGqXiSYVRv",
-          "mode": "id"
+          "value": "Email Threads",
+          "mode": "name"
         },
-        "filterByFormula": "=({gmail_message_id} = '{{ $json.gmail_message_id }}')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "9ec99f18-e827-4d13-a670-40adcc420728",
+      "id": "f391b9bb-6b2c-45a9-aabe-61b95bb74484",
+      "name": "Check Email Dedup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Thread ID']);\nconst target = $('Extract Email Data').first().json.gmail_message_id;\nconst matches = rows.filter(r => String(r['Conversation ID'] || '') === String(target));\nreturn [{json: { match_count: matches.length, is_new: matches.length === 0 }}];\n"
+      }
+    },
+    {
+      "id": "6efa2f66-93c5-43fe-b739-1168f03a6b31",
       "name": "Is New Email?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1540,
+        1760,
         300
       ],
       "parameters": {
@@ -188,7 +203,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $input.all().length }}",
+              "leftValue": "={{ $json.match_count }}",
               "rightValue": 0,
               "operator": {
                 "type": "number",
@@ -200,12 +215,12 @@
       }
     },
     {
-      "id": "db0b22fd-fb9e-46b7-b137-6e3d376e4963",
+      "id": "a3b6d221-7feb-4f6e-99c6-f56f761174fc",
       "name": "Call RE-04 Email AI",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        1760,
+        1980,
         300
       ],
       "parameters": {
@@ -264,12 +279,23 @@
       "main": [
         [
           {
-            "node": "Check Email Dedup",
+            "node": "Read Email Threads Sheet",
             "type": "main",
             "index": 0
           }
         ],
         []
+      ]
+    },
+    "Read Email Threads Sheet": {
+      "main": [
+        [
+          {
+            "node": "Check Email Dedup",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Check Email Dedup": {
@@ -311,6 +337,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-25T15:29:15.063729"
+    "built_at": "2026-04-07T18:38:06.073896"
   }
 }

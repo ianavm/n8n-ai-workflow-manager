@@ -2,7 +2,7 @@
   "name": "RE-14 Escalation Engine",
   "nodes": [
     {
-      "id": "6cf7e4be-f934-475a-9d1b-25c6e5149088",
+      "id": "6657da5c-4ff5-450f-82ce-3e2eddae4466",
       "name": "Note RE-14",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "8c3b5539-fc44-493b-a98f-707860f0d4bc",
+      "id": "d989eb06-88b4-45a8-afe7-47d18ef53841",
       "name": "Every 15 Min",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -38,108 +38,153 @@
       }
     },
     {
-      "id": "6fedec30-c2fe-43b8-bf0c-a13f3c7d56f8",
-      "name": "Unresponded Leads",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "18d41fe1-c144-4ae7-8fd6-aea461e5c91c",
+      "name": "Read Leads Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         440,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblnsKB429zyzEpfJ",
-          "mode": "id"
+          "value": "Leads",
+          "mode": "name"
         },
-        "filterByFormula": "=AND(IS_BEFORE({last_contact}, DATEADD(NOW(), -2, 'hours')), OR({status} = 'New', {status} = 'Active'))",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "71c7c7d1-4137-4cd6-b1f1-7acad616fc47",
-      "name": "Stale Deals",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "fc2270dc-a0fd-40bc-bd89-896593665f15",
+      "name": "Unresponded Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         660,
         200
       ],
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
-        }
-      },
       "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
-          "mode": "id"
-        },
-        "table": {
-          "__rl": true,
-          "value": "tblx5NiAfu3Py5ha8",
-          "mode": "id"
-        },
-        "filterByFormula": "=AND(IS_BEFORE({updated_at}, DATEADD(NOW(), -7, 'days')), OR({status} = 'Active', {status} = 'In Progress'))",
-        "options": {}
-      },
-      "alwaysOutputData": true
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);\nconst matches = rows.filter(r =>\n  new Date(r['Last Contact']) < new Date(Date.now() - 2*3600000) &&\n  (r['Status'] === 'New' || r['Status'] === 'Active')\n);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
     },
     {
-      "id": "423b8f4a-cea4-4ff3-9be4-4893459e1e53",
-      "name": "Missed Appointments",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "44ce1c12-5617-4c37-aaae-65c868d162ea",
+      "name": "Read Deals Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         880,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblQ72B5XSgRLdKIc",
-          "mode": "id"
+          "value": "Deals",
+          "mode": "name"
         },
-        "filterByFormula": "=AND({status} = 'No_Show', {escalated} != TRUE())",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "c14b0cbb-af44-4ffa-9e8a-0d746a13237b",
-      "name": "Merge Exceptions",
+      "id": "a432ff0b-604f-4aee-9bee-2f8dfa25818a",
+      "name": "Stale Deals",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         1100,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Deal ID']);\nconst matches = rows.filter(r =>\n  new Date(r['Updated At']) < new Date(Date.now() - 7*24*3600000) &&\n  (r['Status'] === 'Active' || r['Status'] === 'In Progress')\n);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "b347aa73-e5e1-4dd5-b9cf-62aed10d8cdd",
+      "name": "Read Appointments Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Appointments",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "672b421b-a7b9-4086-8edc-24c9b2de4c7c",
+      "name": "Missed Appointments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Booking ID']);\nconst matches = rows.filter(r =>\n  r['Status'] === 'No_Show' &&\n  String(r['Escalated'] || '').toUpperCase() !== 'TRUE'\n);\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "78bb98cf-e9fd-47f1-a404-bbda6a1092fb",
+      "name": "Merge Exceptions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
         300
       ],
       "parameters": {
@@ -147,12 +192,12 @@
       }
     },
     {
-      "id": "537a4cb0-5853-4deb-90ba-29dc2fccd846",
+      "id": "c323e91a-91d6-4808-be30-faca2143a8ab",
       "name": "Has Exceptions?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1320,
+        1980,
         300
       ],
       "parameters": {
@@ -177,56 +222,116 @@
       }
     },
     {
-      "id": "db10e60d-695e-4fb4-b545-1630fbfdb125",
+      "id": "124c94b9-e470-44d3-a98c-25572d81d391",
       "name": "Create Exception",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        1540,
+        2200,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblDunXJFQr0elXon",
-          "mode": "id"
+          "value": "Exceptions",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
-            "exception_id": "={{ $json.exception_id }}",
-            "exception_type": "={{ $json.exception_type }}",
-            "severity": "={{ $json.severity }}",
-            "entity_type": "={{ $json.entity_type }}",
-            "entity_id": "={{ $json.entity_id }}",
-            "description": "={{ $json.description }}",
-            "assigned_agent": "={{ $json.assigned_agent }}",
-            "status": "={{ $json.status }}",
-            "created_at": "={{ $json.created_at }}"
+            "Exception ID": "={{ $json.exception_id }}",
+            "Exception Type": "={{ $json.exception_type }}",
+            "Severity": "={{ $json.severity }}",
+            "Entity Type": "={{ $json.entity_type }}",
+            "Entity ID": "={{ $json.entity_id }}",
+            "Description": "={{ $json.description }}",
+            "Assigned Agent": "={{ $json.assigned_agent }}",
+            "Status": "={{ $json.status }}",
+            "Created At": "={{ $json.created_at }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Exception ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Exception ID"
+            },
+            {
+              "id": "Exception Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Exception Type"
+            },
+            {
+              "id": "Severity",
+              "type": "string",
+              "display": true,
+              "displayName": "Severity"
+            },
+            {
+              "id": "Entity Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity Type"
+            },
+            {
+              "id": "Entity ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity ID"
+            },
+            {
+              "id": "Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Description"
+            },
+            {
+              "id": "Assigned Agent",
+              "type": "string",
+              "display": true,
+              "displayName": "Assigned Agent"
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status"
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "174d5196-2c24-4a1f-b8f9-a653a559a9c6",
+      "id": "b85f307a-25a9-406b-89cb-046034d142a0",
       "name": "Is Critical/High?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1760,
+        2420,
         200
       ],
       "parameters": {
@@ -251,12 +356,12 @@
       }
     },
     {
-      "id": "43f2d7fc-8c20-4c47-b65e-d606ac6f4906",
+      "id": "1f4eef2f-2484-41f3-9941-74ac68063500",
       "name": "Call RE-18 Alert",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        1980,
+        2640,
         200
       ],
       "parameters": {
@@ -265,49 +370,103 @@
       }
     },
     {
-      "id": "5698ab13-0b12-4445-b49e-d255a91b3fdf",
+      "id": "e0fe40c6-eb58-458b-bb91-8d5ea26ea9ca",
       "name": "Log Escalation",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        2200,
+        2860,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Activity Log",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
-            "activity_type": "Escalation Check",
-            "entity_type": "System",
-            "entity_id": "=ESC-{{ $now.toFormat('yyyyMMddHHmmss') }}",
-            "description": "=Escalation engine check completed",
-            "performed_by": "System",
-            "timestamp": "={{ $now.toISO() }}"
+            "Activity Type": "Escalation Check",
+            "Entity Type": "System",
+            "Entity ID": "=ESC-{{ $now.toFormat('yyyyMMddHHmmss') }}",
+            "Description": "=Escalation engine check completed",
+            "Performed By": "System",
+            "Timestamp": "={{ $now.toISO() }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Activity Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Activity Type"
+            },
+            {
+              "id": "Entity Type",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity Type"
+            },
+            {
+              "id": "Entity ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Entity ID"
+            },
+            {
+              "id": "Description",
+              "type": "string",
+              "display": true,
+              "displayName": "Description"
+            },
+            {
+              "id": "Performed By",
+              "type": "string",
+              "display": true,
+              "displayName": "Performed By"
+            },
+            {
+              "id": "Timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "Timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
     "Every 15 Min": {
+      "main": [
+        [
+          {
+            "node": "Read Leads Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads Sheet": {
       "main": [
         [
           {
@@ -322,6 +481,17 @@
       "main": [
         [
           {
+            "node": "Read Deals Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Deals Sheet": {
+      "main": [
+        [
+          {
             "node": "Stale Deals",
             "type": "main",
             "index": 0
@@ -330,6 +500,17 @@
       ]
     },
     "Stale Deals": {
+      "main": [
+        [
+          {
+            "node": "Read Appointments Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Appointments Sheet": {
       "main": [
         [
           {
@@ -436,6 +617,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-25T15:29:17.688804"
+    "built_at": "2026-04-07T18:38:08.807204"
   }
 }

@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Allori - AI Operations Platform | Proposal</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+  :root {
+    --brand: #FF6D5A;
+    --brand-dark: #E55A48;
+    --brand-light: #FF8D7A;
+    --bg: #FFFFFF;
+    --surface: #F8F9FC;
+    --surface2: #EEF0F6;
+    --border: #E2E5ED;
+    --text: #1A1D27;
+    --text-muted: #6B7280;
+    --green: #10B981;
+    --green-bg: #ECFDF5;
+    --yellow: #F59E0B;
+    --yellow-bg: #FFFBEB;
+    --blue: #3B82F6;
+    --blue-bg: #EFF6FF;
+    --purple: #8B5CF6;
+    --purple-bg: #F5F3FF;
+    --red-bg: #FEF2F2;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.65; }
+
+  /* Print styles */
+  @media print {
+    body { font-size: 11pt; }
+    .page-break { page-break-before: always; }
+    .no-print { display: none; }
+    .hero { background: var(--surface) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* Hero / Cover */
+  .hero {
+    background: linear-gradient(135deg, #1A1D27 0%, #2D3148 100%);
+    color: white;
+    padding: 4rem 3rem;
+    text-align: center;
+  }
+  .hero-logo { font-size: 0.85rem; letter-spacing: 3px; text-transform: uppercase; color: var(--brand); margin-bottom: 1rem; font-weight: 600; }
+  .hero h1 { font-size: 2.6rem; font-weight: 800; margin-bottom: 0.5rem; line-height: 1.2; }
+  .hero h1 span { color: var(--brand); }
+  .hero-sub { font-size: 1.15rem; color: rgba(255,255,255,0.7); margin-bottom: 2rem; }
+  .hero-meta { display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap; font-size: 0.85rem; color: rgba(255,255,255,0.5); }
+  .hero-meta span { display: flex; align-items: center; gap: 0.4rem; }
+
+  /* Layout */
+  .container { max-width: 1000px; margin: 0 auto; padding: 2rem 2.5rem; }
+
+  /* Section headers */
+  .section-num { display: inline-block; background: var(--brand); color: white; width: 32px; height: 32px; border-radius: 50%; text-align: center; line-height: 32px; font-size: 0.85rem; font-weight: 700; margin-right: 0.75rem; }
+  h2 { font-size: 1.5rem; font-weight: 700; margin: 3rem 0 1.25rem; display: flex; align-items: center; }
+  h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem; color: var(--text); }
+
+  /* Cards */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.25rem 0; }
+  .card { background: var(--surface); border-radius: 12px; padding: 1.25rem; border: 1px solid var(--border); }
+  .card-header { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.35rem; font-weight: 600; }
+  .card-value { font-size: 1.8rem; font-weight: 800; }
+  .card-detail { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+  th { background: var(--surface); text-align: left; padding: 0.65rem 1rem; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; border-bottom: 2px solid var(--border); }
+  td { padding: 0.65rem 1rem; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: var(--surface); }
+  .right { text-align: right; }
+  .bold { font-weight: 700; }
+  .total-row td { background: var(--surface); font-weight: 700; border-top: 2px solid var(--brand); }
+
+  /* Charts */
+  .chart-container { background: var(--surface); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--border); margin: 1.25rem 0; }
+  .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin: 1.25rem 0; }
+  @media (max-width: 768px) { .chart-grid { grid-template-columns: 1fr; } }
+  .chart-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 1rem; }
+
+  /* Callouts */
+  .callout { padding: 1rem 1.25rem; border-radius: 10px; margin: 1rem 0; font-size: 0.9rem; }
+  .callout-brand { background: var(--red-bg); border-left: 4px solid var(--brand); }
+  .callout-green { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .callout-blue { background: var(--blue-bg); border-left: 4px solid var(--blue); }
+  .callout-yellow { background: var(--yellow-bg); border-left: 4px solid var(--yellow); }
+
+  /* Workflow diagram */
+  .diagram-container { background: var(--surface); border-radius: 12px; padding: 2rem; border: 1px solid var(--border); margin: 1.25rem 0; overflow-x: auto; }
+  .diagram { min-width: 900px; }
+
+  /* SVG diagram styles */
+  .wf-trigger { fill: #DBEAFE; stroke: #3B82F6; }
+  .wf-sub { fill: #F3E8FF; stroke: #8B5CF6; }
+  .wf-scheduled { fill: #FEF3C7; stroke: #F59E0B; }
+  .wf-label { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; fill: #1A1D27; }
+  .wf-desc { font-family: 'Inter', sans-serif; font-size: 9px; fill: #6B7280; }
+  .wf-arrow { stroke: #9DA3AE; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+  .wf-arrow-data { stroke: #3B82F6; stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; marker-end: url(#arrowhead-blue); }
+  .lane-label { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 700; fill: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Badge */
+  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+  .badge-free { background: #ECFDF5; color: #059669; }
+  .badge-paid { background: #FEF2F2; color: #DC2626; }
+  .badge-trigger { background: #DBEAFE; color: #2563EB; }
+  .badge-sub { background: #F3E8FF; color: #7C3AED; }
+  .badge-sched { background: #FEF3C7; color: #D97706; }
+
+  /* Footer */
+  .footer { margin-top: 3rem; padding: 2rem 0; border-top: 2px solid var(--border); color: var(--text-muted); font-size: 0.8rem; text-align: center; }
+  .footer a { color: var(--brand); text-decoration: none; }
+
+  /* TOC */
+  .toc { background: var(--surface); border-radius: 12px; padding: 1.5rem 2rem; border: 1px solid var(--border); margin: 1.5rem 0; }
+  .toc-item { padding: 0.4rem 0; display: flex; justify-content: space-between; border-bottom: 1px dotted var(--border); font-size: 0.9rem; }
+  .toc-item:last-child { border-bottom: none; }
+  .toc-num { color: var(--brand); font-weight: 700; margin-right: 0.75rem; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="hero">
+  <div class="hero-logo">AnyVision Media</div>
+  <h1>Team Allori <span>AI Operations Platform</span></h1>
+  <p class="hero-sub">Telegram-controlled real estate automation with WhatsApp AI, intelligent lead routing, appointment scheduling, and document management</p>
+  <div class="hero-meta">
+    <span>Prepared: 7 April 2026</span>
+    <span>Version: 2.0 (Google Sheets)</span>
+    <span>Team Size: 4 Agents</span>
+    <span>Contact: ian@anyvisionmedia.com</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ============ TABLE OF CONTENTS ============ -->
+<div class="toc">
+  <h3 style="margin-top:0; margin-bottom:0.75rem;">Contents</h3>
+  <div class="toc-item"><span><span class="toc-num">1</span>Executive Summary</span></div>
+  <div class="toc-item"><span><span class="toc-num">2</span>System Architecture & Workflow Map</span></div>
+  <div class="toc-item"><span><span class="toc-num">3</span>Workflow Descriptions (19 Workflows)</span></div>
+  <div class="toc-item"><span><span class="toc-num">4</span>Technology Stack</span></div>
+  <div class="toc-item"><span><span class="toc-num">5</span>Monthly Cost Breakdown</span></div>
+  <div class="toc-item"><span><span class="toc-num">6</span>Usage Projections</span></div>
+  <div class="toc-item"><span><span class="toc-num">7</span>Scaling Projections (4-20 Agents)</span></div>
+  <div class="toc-item"><span><span class="toc-num">8</span>Return on Investment</span></div>
+</div>
+
+<!-- ============ 1. EXEC SUMMARY ============ -->
+<h2><span class="section-num">1</span>Executive Summary</h2>
+
+<p>The Team Allori AI Operations Platform automates the core operational tasks of a real estate team: handling client enquiries via WhatsApp and email, qualifying and routing leads to agents, scheduling property viewings, classifying and filing documents, and providing real-time performance dashboards via Telegram.</p>
+
+<div class="callout callout-green">
+  <strong>Key Outcome:</strong> Each agent saves approximately 40 hours/month of admin work. The system replaces the need for a dedicated admin assistant while providing 24/7 AI-powered client response capabilities. Total cost: <strong>R6,647/month for a 4-agent team</strong> (incl. VAT), compared to R32,000+ for equivalent manual admin support.
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-header">Total Monthly Cost</div>
+    <div class="card-value" style="color:var(--brand);">R6,647</div>
+    <div class="card-detail">Including 15% VAT</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Cost Per Agent</div>
+    <div class="card-value" style="color:var(--blue);">R1,662</div>
+    <div class="card-detail">~$98 USD / month</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Automated Workflows</div>
+    <div class="card-value" style="color:var(--purple);">19</div>
+    <div class="card-detail">Running 24/7 on n8n Cloud</div>
+  </div>
+  <div class="card">
+    <div class="card-header">Monthly Savings</div>
+    <div class="card-value" style="color:var(--green);">R25,353</div>
+    <div class="card-detail">79% reduction in admin costs</div>
+  </div>
+</div>
+
+<!-- ============ 2. ARCHITECTURE ============ -->
+<div class="page-break"></div>
+<h2><span class="section-num">2</span>System Architecture & Workflow Map</h2>
+
+<p>The system is organised into three layers: <strong>Intake channels</strong> (WhatsApp, Email, Telegram), <strong>Processing engines</strong> (AI, routing, scoring), and <strong>Background operations</strong> (scheduling, escalation, monitoring). All data flows through a central Google Sheets CRM with 14 tabs.</p>
+
+<div class="diagram-container">
+<svg class="diagram" viewBox="0 0 960 720" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#9DA3AE"/></marker>
+    <marker id="arrowhead-blue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#3B82F6"/></marker>
+    <marker id="arrowhead-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#10B981"/></marker>
+  </defs>
+
+  <!-- Lane backgrounds -->
+  <rect x="0" y="0" width="960" height="50" rx="0" fill="#F0F4FF"/>
+  <rect x="0" y="50" width="960" height="230" rx="0" fill="#FAFBFF"/>
+  <rect x="0" y="280" width="960" height="210" rx="0" fill="#FEFFF5"/>
+  <rect x="0" y="490" width="960" height="230" rx="0" fill="#FFF5F5"/>
+
+  <!-- Lane labels -->
+  <text x="15" y="33" class="lane-label" fill="#3B82F6">INTAKE CHANNELS (Triggers)</text>
+  <text x="15" y="73" class="lane-label" fill="#8B5CF6">PROCESSING ENGINE (Sub-workflows)</text>
+  <text x="15" y="303" class="lane-label" fill="#D97706">BACKGROUND OPERATIONS (Scheduled)</text>
+  <text x="15" y="513" class="lane-label" fill="#DC2626">MANAGEMENT & MONITORING</text>
+
+  <!-- ====== TRIGGERS (Top row) ====== -->
+  <!-- RE-01 WhatsApp Intake -->
+  <rect x="30" y="95" width="155" height="55" rx="8" class="wf-trigger" stroke-width="2"/>
+  <text x="107" y="117" text-anchor="middle" class="wf-label">RE-01</text>
+  <text x="107" y="131" text-anchor="middle" class="wf-desc">WhatsApp Intake</text>
+
+  <!-- RE-07 Email Intake -->
+  <rect x="30" y="170" width="155" height="55" rx="8" class="wf-trigger" stroke-width="2"/>
+  <text x="107" y="192" text-anchor="middle" class="wf-label">RE-07</text>
+  <text x="107" y="206" text-anchor="middle" class="wf-desc">Email Intake (Gmail)</text>
+
+  <!-- ====== PROCESSING (Middle) ====== -->
+  <!-- RE-02 Lead Router -->
+  <rect x="230" y="95" width="140" height="55" rx="8" class="wf-sub" stroke-width="2"/>
+  <text x="300" y="117" text-anchor="middle" class="wf-label">RE-02</text>
+  <text x="300" y="131" text-anchor="middle" class="wf-desc">Lead Router</text>
+
+  <!-- RE-15 Scoring Engine -->
+  <rect x="410" y="95" width="140" height="55" rx="8" class="wf-sub" stroke-width="2"/>
+  <text x="480" y="117" text-anchor="middle" class="wf-label">RE-15</text>
+  <text x="480" y="131" text-anchor="middle" class="wf-desc">Scoring Engine</text>
+
+  <!-- RE-16 Assignment Engine -->
+  <rect x="590" y="95" width="140" height="55" rx="8" class="wf-sub" stroke-width="2"/>
+  <text x="660" y="117" text-anchor="middle" class="wf-label">RE-16</text>
+  <text x="660" y="131" text-anchor="middle" class="wf-desc">Assignment Engine</text>
+
+  <!-- RE-03 WhatsApp AI Comms -->
+  <rect x="230" y="170" width="140" height="55" rx="8" class="wf-sub" stroke-width="2"/>
+  <text x="300" y="192" text-anchor="middle" class="wf-label">RE-03</text>
+  <text x="300" y="206" text-anchor="middle" class="wf-desc">WhatsApp AI Comms</text>
+
+  <!-- RE-04 Email AI Comms -->
+  <rect x="410" y="170" width="140" height="55" rx="8" class="wf-sub" stroke-width="2"/>
+  <text x="480" y="192" text-anchor="middle" class="wf-label">RE-04</text>
+  <text x="480" y="206" text-anchor="middle" class="wf-desc">Email AI Comms</text>
+
+  <!-- RE-05 Booking Coordinator -->
+  <rect x="590" y="170" width="140" height="55" rx="8" class="wf-sub" stroke-width="2"/>
+  <text x="660" y="192" text-anchor="middle" class="wf-label">RE-05</text>
+  <text x="660" y="206" text-anchor="middle" class="wf-desc">Booking Coordinator</text>
+
+  <!-- RE-06 Document Classifier -->
+  <rect x="230" y="240" width="140" height="30" rx="8" class="wf-sub" stroke-width="1.5"/>
+  <text x="300" y="260" text-anchor="middle" class="wf-desc" style="font-weight:600;">RE-06 Doc Classifier</text>
+
+  <!-- RE-08 Document Filing -->
+  <rect x="410" y="240" width="140" height="30" rx="8" class="wf-sub" stroke-width="1.5"/>
+  <text x="480" y="260" text-anchor="middle" class="wf-desc" style="font-weight:600;">RE-08 Doc Filing</text>
+
+  <!-- RE-10 Notifications -->
+  <rect x="770" y="95" width="155" height="55" rx="8" class="wf-sub" stroke-width="2"/>
+  <text x="847" y="117" text-anchor="middle" class="wf-label">RE-10</text>
+  <text x="847" y="131" text-anchor="middle" class="wf-desc">Team Notifications</text>
+
+  <!-- RE-18 Alert Router -->
+  <rect x="770" y="170" width="155" height="55" rx="8" class="wf-sub" stroke-width="2"/>
+  <text x="847" y="192" text-anchor="middle" class="wf-label">RE-18</text>
+  <text x="847" y="206" text-anchor="middle" class="wf-desc">Telegram Alert Router</text>
+
+  <!-- RE-19 Doc Pack Sender -->
+  <rect x="590" y="240" width="140" height="30" rx="8" class="wf-sub" stroke-width="1.5"/>
+  <text x="660" y="260" text-anchor="middle" class="wf-desc" style="font-weight:600;">RE-19 Doc Pack Sender</text>
+
+  <!-- ====== SCHEDULED (Bottom middle) ====== -->
+  <!-- RE-11 Daily Summary -->
+  <rect x="30" y="330" width="165" height="55" rx="8" class="wf-scheduled" stroke-width="2"/>
+  <text x="112" y="352" text-anchor="middle" class="wf-label">RE-11</text>
+  <text x="112" y="366" text-anchor="middle" class="wf-desc">Daily Summary (07:00)</text>
+
+  <!-- RE-12 Agent Performance -->
+  <rect x="220" y="330" width="165" height="55" rx="8" class="wf-scheduled" stroke-width="2"/>
+  <text x="302" y="352" text-anchor="middle" class="wf-label">RE-12</text>
+  <text x="302" y="366" text-anchor="middle" class="wf-desc">Agent Performance (Mon)</text>
+
+  <!-- RE-13 Stale Lead Follow-up -->
+  <rect x="410" y="330" width="165" height="55" rx="8" class="wf-scheduled" stroke-width="2"/>
+  <text x="492" y="352" text-anchor="middle" class="wf-label">RE-13</text>
+  <text x="492" y="366" text-anchor="middle" class="wf-desc">Stale Lead Follow-up (09:00)</text>
+
+  <!-- RE-14 Escalation Engine -->
+  <rect x="600" y="330" width="165" height="55" rx="8" class="wf-scheduled" stroke-width="2"/>
+  <text x="682" y="352" text-anchor="middle" class="wf-label">RE-14</text>
+  <text x="682" y="366" text-anchor="middle" class="wf-desc">Escalation Engine (15min)</text>
+
+  <!-- RE-17 Orchestrator Monitor -->
+  <rect x="790" y="330" width="155" height="55" rx="8" class="wf-scheduled" stroke-width="2"/>
+  <text x="867" y="352" text-anchor="middle" class="wf-label">RE-17</text>
+  <text x="867" y="366" text-anchor="middle" class="wf-desc">Health Monitor (15min)</text>
+
+  <!-- ====== MANAGEMENT (Bottom) ====== -->
+  <!-- RE-09 Telegram Command Hub -->
+  <rect x="30" y="540" width="240" height="65" rx="10" fill="#FEE2E2" stroke="#DC2626" stroke-width="2.5"/>
+  <text x="150" y="565" text-anchor="middle" class="wf-label" style="font-size:13px;">RE-09 Telegram Command Hub</text>
+  <text x="150" y="582" text-anchor="middle" class="wf-desc">15 commands: /today /lead /search /appointments...</text>
+
+  <!-- Google Sheets CRM -->
+  <rect x="360" y="530" width="240" height="85" rx="10" fill="#ECFDF5" stroke="#10B981" stroke-width="2.5"/>
+  <text x="480" y="553" text-anchor="middle" class="wf-label" style="font-size:12px; fill:#059669;">GOOGLE SHEETS CRM</text>
+  <text x="480" y="570" text-anchor="middle" class="wf-desc">14 Tabs: Clients, Leads, Properties,</text>
+  <text x="480" y="583" text-anchor="middle" class="wf-desc">Agents, Deals, Documents, Appointments,</text>
+  <text x="480" y="596" text-anchor="middle" class="wf-desc">Messages, Email Threads, Assignments...</text>
+
+  <!-- External Services -->
+  <rect x="680" y="530" width="250" height="85" rx="10" fill="#F0F4FF" stroke="#3B82F6" stroke-width="2"/>
+  <text x="805" y="553" text-anchor="middle" class="wf-label" style="font-size:12px; fill:#2563EB;">EXTERNAL SERVICES</text>
+  <text x="805" y="570" text-anchor="middle" class="wf-desc">WhatsApp (360dialog) | Gmail</text>
+  <text x="805" y="583" text-anchor="middle" class="wf-desc">Google Calendar | Google Drive</text>
+  <text x="805" y="596" text-anchor="middle" class="wf-desc">Telegram | OpenRouter (Claude AI)</text>
+
+  <!-- ====== ARROWS ====== -->
+  <!-- RE-01 -> RE-02 -->
+  <line x1="185" y1="122" x2="228" y2="122" class="wf-arrow"/>
+  <!-- RE-01 -> RE-03 -->
+  <line x1="185" y1="122" x2="228" y2="197" class="wf-arrow"/>
+  <!-- RE-07 -> RE-04 -->
+  <line x1="185" y1="197" x2="228" y2="197" class="wf-arrow"/>
+  <!-- RE-07 -> RE-02 -->
+  <line x1="185" y1="197" x2="228" y2="122" class="wf-arrow"/>
+  <!-- RE-02 -> RE-15 -->
+  <line x1="370" y1="122" x2="408" y2="122" class="wf-arrow"/>
+  <!-- RE-15 -> RE-16 -->
+  <line x1="550" y1="122" x2="588" y2="122" class="wf-arrow"/>
+  <!-- RE-16 -> RE-10 -->
+  <line x1="730" y1="122" x2="768" y2="122" class="wf-arrow"/>
+  <!-- RE-05 -> Calendar (external) -->
+  <path d="M 730 197 Q 750 197, 750 400 Q 750 530, 680 555" class="wf-arrow-data"/>
+  <!-- RE-06 -> RE-08 -->
+  <line x1="370" y1="255" x2="408" y2="255" class="wf-arrow"/>
+  <!-- RE-08 -> Drive (external) -->
+  <path d="M 550 255 Q 570 255, 570 420 Q 570 530, 680 570" class="wf-arrow-data"/>
+
+  <!-- All workflows -> Google Sheets (data flow) -->
+  <path d="M 300 150 Q 300 450, 400 560" stroke="#10B981" stroke-width="1" stroke-dasharray="3 3" fill="none" marker-end="url(#arrowhead-green)"/>
+  <path d="M 480 150 Q 480 450, 480 528" stroke="#10B981" stroke-width="1" stroke-dasharray="3 3" fill="none" marker-end="url(#arrowhead-green)"/>
+  <path d="M 660 150 Q 660 450, 560 560" stroke="#10B981" stroke-width="1" stroke-dasharray="3 3" fill="none" marker-end="url(#arrowhead-green)"/>
+
+  <!-- RE-09 -> Google Sheets -->
+  <line x1="270" y1="572" x2="358" y2="572" stroke="#10B981" stroke-width="1.5" stroke-dasharray="3 3" fill="none" marker-end="url(#arrowhead-green)"/>
+
+  <!-- Legend -->
+  <rect x="30" y="650" width="900" height="55" rx="8" fill="#F8F9FC" stroke="#E2E5ED"/>
+  <rect x="50" y="667" width="20" height="14" rx="4" class="wf-trigger" stroke-width="1.5"/>
+  <text x="78" y="679" class="wf-desc" style="font-size:10px;font-weight:600;">Trigger (always active)</text>
+  <rect x="210" y="667" width="20" height="14" rx="4" class="wf-sub" stroke-width="1.5"/>
+  <text x="238" y="679" class="wf-desc" style="font-size:10px;font-weight:600;">Sub-workflow (on-demand)</text>
+  <rect x="400" y="667" width="20" height="14" rx="4" class="wf-scheduled" stroke-width="1.5"/>
+  <text x="428" y="679" class="wf-desc" style="font-size:10px;font-weight:600;">Scheduled (cron timer)</text>
+  <line x1="580" y1="674" x2="610" y2="674" stroke="#9DA3AE" stroke-width="1.5" fill="none"/>
+  <text x="618" y="679" class="wf-desc" style="font-size:10px;font-weight:600;">Calls sub-workflow</text>
+  <line x1="730" y1="674" x2="760" y2="674" stroke="#10B981" stroke-width="1.5" stroke-dasharray="3 3" fill="none"/>
+  <text x="768" y="679" class="wf-desc" style="font-size:10px;font-weight:600;">Reads/writes data</text>
+</svg>
+</div>
+
+<!-- ============ 3. WORKFLOW DESCRIPTIONS ============ -->
+<div class="page-break"></div>
+<h2><span class="section-num">3</span>Workflow Descriptions</h2>
+
+<h3>Intake Channels <span class="badge badge-trigger">Triggers</span></h3>
+<table>
+<thead><tr><th style="width:80px">ID</th><th>Workflow</th><th>What It Does</th><th style="width:100px">Trigger</th></tr></thead>
+<tbody>
+<tr><td class="bold">RE-01</td><td>WhatsApp Intake</td><td>Receives incoming WhatsApp messages, identifies the agent, logs the message, checks business hours, and routes to AI comms (RE-03) or lead router (RE-02)</td><td>WhatsApp webhook</td></tr>
+<tr><td class="bold">RE-07</td><td>Email Intake</td><td>Polls Gmail every 5 minutes, deduplicates against email threads, extracts sender/subject data, and routes to email AI comms (RE-04) or lead router (RE-02)</td><td>Gmail polling</td></tr>
+<tr><td class="bold">RE-09</td><td>Telegram Command Hub</td><td>The team's management dashboard. Authorised users send /commands to query leads, appointments, agent workload, and manage the system in real-time. 15 commands available.</td><td>Telegram bot</td></tr>
+</tbody>
+</table>
+
+<h3>Processing Engine <span class="badge badge-sub">Sub-workflows</span></h3>
+<table>
+<thead><tr><th style="width:80px">ID</th><th>Workflow</th><th>What It Does</th></tr></thead>
+<tbody>
+<tr><td class="bold">RE-02</td><td>Lead Router</td><td>Normalises phone numbers, checks for existing leads (dedup), creates client + lead records, and passes to scoring engine</td></tr>
+<tr><td class="bold">RE-03</td><td>WhatsApp AI Comms</td><td>Generates context-aware AI replies using Claude Sonnet, strips markdown for plain text, sends via WhatsApp Cloud API, handles low-confidence handoff to human agent</td></tr>
+<tr><td class="bold">RE-04</td><td>Email AI Comms</td><td>Classifies email intent with AI, generates professional email reply, logs thread for deduplication</td></tr>
+<tr><td class="bold">RE-05</td><td>Booking Coordinator</td><td>Queries agent's Google Calendar for free slots, validates 2-day minimum advance booking, creates calendar event, sends confirmation via WhatsApp</td></tr>
+<tr><td class="bold">RE-06</td><td>Document Classifier</td><td>AI classifies documents into 15 South African RE categories (FICA, OTP, Mandate, Title, Municipal, etc.) with confidence scoring</td></tr>
+<tr><td class="bold">RE-08</td><td>Document Filing</td><td>Deduplicates by content hash, renames per convention (date_surname_type_ref.ext), uploads to Google Drive folder structure, creates CRM record</td></tr>
+<tr><td class="bold">RE-10</td><td>Team Notifications</td><td>Sends formatted Telegram notifications to team members with email fallback if Telegram delivery fails</td></tr>
+<tr><td class="bold">RE-15</td><td>Scoring Engine</td><td>Scores leads 0-100 using weighted criteria: budget (20%), timeline (15%), pre-approval (15%), area (10%), requirements (10%), engagement (10%), responsiveness (10%), source (10%)</td></tr>
+<tr><td class="bold">RE-16</td><td>Assignment Engine</td><td>Scores available agents by area match (35%), specialisation (25%), workload (25%), round-robin (15%) and assigns the best-fit agent</td></tr>
+<tr><td class="bold">RE-18</td><td>Telegram Alert Router</td><td>Formats and routes system alerts to the appropriate Telegram chat based on severity and type</td></tr>
+<tr><td class="bold">RE-19</td><td>Document Pack Sender</td><td>Assembles and sends buyer/seller/tenant/landlord document packs via email with Google Drive links</td></tr>
+</tbody>
+</table>
+
+<h3>Background Operations <span class="badge badge-sched">Scheduled</span></h3>
+<table>
+<thead><tr><th style="width:80px">ID</th><th>Workflow</th><th>What It Does</th><th style="width:120px">Schedule</th></tr></thead>
+<tbody>
+<tr><td class="bold">RE-11</td><td>Daily Summary</td><td>Sends a morning briefing via Telegram: new leads, today's appointments, active deals, open exceptions</td><td>Daily 07:00 SAST</td></tr>
+<tr><td class="bold">RE-12</td><td>Agent Performance</td><td>Weekly performance report: leads per agent, conversion rates, response times, appointment completion</td><td>Monday 06:00</td></tr>
+<tr><td class="bold">RE-13</td><td>Stale Lead Follow-up</td><td>Detects leads with no contact for 48+ hours, sends AI-generated follow-up messages (max 3 attempts), marks cold if unresponsive</td><td>Daily 09:00 SAST</td></tr>
+<tr><td class="bold">RE-14</td><td>Escalation Engine</td><td>Monitors SLA breaches: unresponded leads (>2hrs), stale deals (>7 days), missed appointments. Creates exception records and alerts management</td><td>Every 15 minutes</td></tr>
+<tr><td class="bold">RE-17</td><td>Orchestrator Monitor</td><td>System health check: verifies all workflows are running, detects execution failures, alerts via Telegram if issues found</td><td>Every 15 minutes</td></tr>
+</tbody>
+</table>
+
+<!-- ============ 4. TECH STACK ============ -->
+<div class="page-break"></div>
+<h2><span class="section-num">4</span>Technology Stack</h2>
+
+<table>
+<thead><tr><th>Component</th><th>Technology</th><th>Purpose</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td class="bold">Automation Engine</td><td>n8n Cloud (Pro plan)</td><td>Hosts and executes all 19 workflows</td><td>&euro;60/month</td></tr>
+<tr><td class="bold">WhatsApp BSP</td><td>360dialog (Regular plan)</td><td>4 WhatsApp Business numbers, one per agent</td><td>&euro;49/number/month</td></tr>
+<tr><td class="bold">WhatsApp API</td><td>Meta Cloud API</td><td>Send/receive WhatsApp messages</td><td>Per message (see below)</td></tr>
+<tr><td class="bold">AI Engine</td><td>Claude Sonnet 4 via OpenRouter</td><td>Lead qualification, auto-replies, document classification, summaries</td><td>$3/$15 per 1M tokens</td></tr>
+<tr><td class="bold">CRM Database</td><td>Google Sheets (14 tabs)</td><td>Central data store for all entities</td><td>Free (incl. Workspace)</td></tr>
+<tr><td class="bold">Email</td><td>Gmail (OAuth2)</td><td>Inbound/outbound email processing</td><td>Free (incl. Workspace)</td></tr>
+<tr><td class="bold">Calendar</td><td>Google Calendar</td><td>Agent availability, appointment scheduling</td><td>Free (incl. Workspace)</td></tr>
+<tr><td class="bold">Document Storage</td><td>Google Drive</td><td>15-folder structure for document filing</td><td>Free (incl. Workspace)</td></tr>
+<tr><td class="bold">Team Dashboard</td><td>Telegram Bot (@TeamAlloriAIBot)</td><td>15 management commands for real-time ops</td><td>Free</td></tr>
+</tbody>
+</table>
+
+<!-- ============ 5. COST BREAKDOWN ============ -->
+<h2><span class="section-num">5</span>Monthly Cost Breakdown</h2>
+
+<p style="margin-bottom:0.5rem;font-size:0.85rem;color:var(--text-muted);">Exchange rates: 1 USD = R17.00 | 1 EUR = R18.50 | VAT: 15%</p>
+
+<table>
+<thead>
+<tr><th>Service</th><th>Item</th><th>Qty</th><th>Unit Cost</th><th class="right">Monthly (USD)</th><th class="right">Monthly (ZAR)</th></tr>
+</thead>
+<tbody>
+<tr><td colspan="6" style="background:var(--blue-bg);font-weight:600;padding:0.4rem 1rem;font-size:0.8rem;color:var(--blue);">WHATSAPP (360dialog + Meta)</td></tr>
+<tr><td>360dialog</td><td>Regular plan (4 numbers @ &euro;49)</td><td>4</td><td>&euro;49/no.</td><td class="right">$215.56</td><td class="right">R3,663</td></tr>
+<tr><td>Meta</td><td>Utility templates (follow-ups + reminders)</td><td>650</td><td>$0.0076</td><td class="right">$4.94</td><td class="right">R84</td></tr>
+<tr><td>Meta</td><td>Marketing templates (listings + re-engage)</td><td>150</td><td>$0.0379</td><td class="right">$5.69</td><td class="right">R97</td></tr>
+<tr><td>Meta</td><td>Service replies (within 24h window)</td><td>1,260</td><td>FREE</td><td class="right">$0.00</td><td class="right">R0</td></tr>
+
+<tr><td colspan="6" style="background:var(--purple-bg);font-weight:600;padding:0.4rem 1rem;font-size:0.8rem;color:var(--purple);">AUTOMATION</td></tr>
+<tr><td>n8n Cloud</td><td>Pro plan (10,000 executions/month)</td><td>1</td><td>&euro;60/mo</td><td class="right">$65.93</td><td class="right">R1,110</td></tr>
+
+<tr><td colspan="6" style="background:var(--green-bg);font-weight:600;padding:0.4rem 1rem;font-size:0.8rem;color:var(--green);">AI (Claude Sonnet 4 via OpenRouter)</td></tr>
+<tr><td>Input tokens</td><td>~2.2M tokens/month</td><td>2.2M</td><td>$3.00/1M</td><td class="right">$6.60</td><td class="right">R112</td></tr>
+<tr><td>Output tokens</td><td>~2.8M tokens/month</td><td>2.8M</td><td>$15.00/1M</td><td class="right">$42.00</td><td class="right">R714</td></tr>
+
+<tr><td colspan="6" style="background:var(--surface);font-weight:600;padding:0.4rem 1rem;font-size:0.8rem;color:var(--text-muted);">INCLUDED (NO EXTRA COST)</td></tr>
+<tr><td>Google Workspace</td><td>Sheets, Gmail, Calendar, Drive (existing)</td><td>-</td><td>-</td><td class="right">$0.00</td><td class="right">R0</td></tr>
+<tr><td>Telegram</td><td>Bot API (free forever)</td><td>-</td><td>-</td><td class="right">$0.00</td><td class="right">R0</td></tr>
+
+<tr class="total-row"><td colspan="4">Subtotal (excl. VAT)</td><td class="right">$340.72</td><td class="right bold">R5,780</td></tr>
+<tr class="total-row"><td colspan="4">+ 15% VAT</td><td class="right">$51.11</td><td class="right">R867</td></tr>
+<tr class="total-row"><td colspan="4" style="font-size:1.05rem;">Grand Total</td><td class="right" style="color:var(--brand);font-size:1.05rem;">$391.83</td><td class="right" style="color:var(--brand);font-size:1.05rem;">R6,647</td></tr>
+</tbody>
+</table>
+
+<div class="callout callout-blue">
+  <strong>Why WhatsApp is affordable:</strong> 70% of WhatsApp messages are AI replies within Meta's free 24-hour service window (customer messaged first). You only pay for templates you initiate outbound: appointment reminders, follow-ups, and marketing messages.
+</div>
+
+<!-- ============ 6. USAGE PROJECTIONS ============ -->
+<h2><span class="section-num">6</span>Usage Projections</h2>
+
+<div class="chart-grid">
+  <div class="chart-container">
+    <div class="chart-title">Monthly Cost Distribution</div>
+    <canvas id="costPieChart" height="260"></canvas>
+  </div>
+  <div class="chart-container">
+    <div class="chart-title">Message Volume by Type</div>
+    <canvas id="messageChart" height="260"></canvas>
+  </div>
+</div>
+
+<div class="chart-grid">
+  <div class="chart-container">
+    <div class="chart-title">n8n Execution Budget (10,000/month)</div>
+    <canvas id="executionChart" height="260"></canvas>
+  </div>
+  <div class="chart-container">
+    <div class="chart-title">AI Token Consumption by Task</div>
+    <canvas id="tokenChart" height="260"></canvas>
+  </div>
+</div>
+
+<!-- ============ 7. SCALING ============ -->
+<div class="page-break"></div>
+<h2><span class="section-num">7</span>Scaling Projections</h2>
+
+<div class="chart-container">
+  <div class="chart-title">Cost Scaling: 4 to 20 Agents</div>
+  <canvas id="scalingChart" height="300"></canvas>
+</div>
+
+<table>
+<thead>
+<tr><th>Agents</th><th class="right">360dialog</th><th class="right">Meta Msgs</th><th class="right">n8n</th><th class="right">AI Tokens</th><th class="right">Total/mo (ZAR)</th><th class="right">Per Agent</th></tr>
+</thead>
+<tbody>
+<tr><td>4</td><td class="right">R3,663</td><td class="right">R181</td><td class="right">R1,110</td><td class="right">R826</td><td class="right bold">R5,780</td><td class="right">R1,445</td></tr>
+<tr><td>6</td><td class="right">R5,494</td><td class="right">R271</td><td class="right">R1,110</td><td class="right">R1,239</td><td class="right bold">R8,114</td><td class="right">R1,352</td></tr>
+<tr><td>8</td><td class="right">R7,326</td><td class="right">R362</td><td class="right">R1,110</td><td class="right">R1,652</td><td class="right bold">R10,450</td><td class="right">R1,306</td></tr>
+<tr><td>10</td><td class="right">R9,158</td><td class="right">R452</td><td class="right">R1,110</td><td class="right">R2,065</td><td class="right bold">R12,785</td><td class="right">R1,279</td></tr>
+<tr><td>15</td><td class="right">R13,736</td><td class="right">R678</td><td class="right">R1,110</td><td class="right">R3,098</td><td class="right bold">R18,622</td><td class="right">R1,241</td></tr>
+<tr><td>20*</td><td class="right">R18,315</td><td class="right">R904</td><td class="right">R14,800</td><td class="right">R4,130</td><td class="right bold">R38,149</td><td class="right">R1,907</td></tr>
+</tbody>
+</table>
+<p style="font-size:0.8rem;color:var(--text-muted);">* At 20 agents, n8n executions exceed Pro plan limit. Upgrade to Business plan (&euro;800/month) required.</p>
+
+<div class="callout callout-green">
+  <strong>Economy of scale:</strong> Per-agent cost <em>decreases</em> as the team grows (shared n8n and infrastructure costs spread out). The sweet spot is 8-15 agents at R1,240-R1,310/agent/month before a platform upgrade is needed.
+</div>
+
+<!-- ============ 8. ROI ============ -->
+<h2><span class="section-num">8</span>Return on Investment</h2>
+
+<div class="grid">
+  <div class="card" style="border-left:4px solid var(--green);">
+    <div class="card-header">Hours Saved / Agent / Month</div>
+    <div class="card-value" style="color:var(--green);">~40 hrs</div>
+    <div class="card-detail">Auto-replies, routing, scheduling, filing, follow-ups</div>
+  </div>
+  <div class="card" style="border-left:4px solid var(--yellow);">
+    <div class="card-header">Manual Admin Cost</div>
+    <div class="card-value" style="color:var(--yellow);">R32,000+</div>
+    <div class="card-detail">1 FT admin (R15k) + agent admin time (R100/hr x 40h x 4)</div>
+  </div>
+  <div class="card" style="border-left:4px solid var(--blue);">
+    <div class="card-header">System Cost</div>
+    <div class="card-value" style="color:var(--blue);">R6,647</div>
+    <div class="card-detail">All-in monthly including VAT</div>
+  </div>
+  <div class="card" style="border-left:4px solid var(--brand);">
+    <div class="card-header">Net Monthly Savings</div>
+    <div class="card-value" style="color:var(--brand);">R25,353</div>
+    <div class="card-detail">79% reduction in admin overhead</div>
+  </div>
+</div>
+
+<div class="chart-container">
+  <div class="chart-title">Manual Admin vs. AI Platform Cost (Monthly)</div>
+  <canvas id="roiChart" height="240"></canvas>
+</div>
+
+<h3>Additional Benefits Not Captured in Cost Savings</h3>
+<table>
+<thead><tr><th>Benefit</th><th>Impact</th></tr></thead>
+<tbody>
+<tr><td class="bold">24/7 Response Capability</td><td>AI responds to WhatsApp and email enquiries outside business hours. No more lost after-hours leads.</td></tr>
+<tr><td class="bold">Consistent Lead Qualification</td><td>Every lead is scored objectively using the same 8-factor weighted model. No human bias or inconsistency.</td></tr>
+<tr><td class="bold">Zero-Delay Routing</td><td>Leads are assigned to the best-fit agent within seconds of first contact, not hours.</td></tr>
+<tr><td class="bold">Automatic Follow-ups</td><td>Stale leads receive AI-generated follow-ups after 48 hours. Up to 3 attempts before marking cold.</td></tr>
+<tr><td class="bold">Document Compliance</td><td>All documents classified into 15 SA-specific RE categories, filed with standardised naming, fully auditable.</td></tr>
+<tr><td class="bold">Real-time Visibility</td><td>Management can query system status, agent workload, and exceptions via Telegram at any time.</td></tr>
+<tr><td class="bold">SLA Monitoring</td><td>Automated escalation for unresponded leads (>2hrs), stale deals (>7 days), and missed appointments.</td></tr>
+</tbody>
+</table>
+
+<!-- ============ FOOTER ============ -->
+<div class="footer">
+  <p><strong>Prepared by:</strong> AnyVision Media &mdash; <strong>Date:</strong> 7 April 2026 &mdash; <strong>Contact:</strong> <a href="mailto:ian@anyvisionmedia.com">ian@anyvisionmedia.com</a></p>
+  <p style="margin-top:0.5rem;">Sources:
+    <a href="https://360dialog.com/pricing">360dialog</a> |
+    <a href="https://www.flowcall.co/blog/whatsapp-business-api-pricing-2026">Meta WhatsApp Rates</a> |
+    <a href="https://openrouter.ai/anthropic/claude-sonnet-4">OpenRouter</a> |
+    <a href="https://n8n.io/pricing/">n8n Cloud</a>
+  </p>
+</div>
+
+</div><!-- /container -->
+
+<!-- ============ CHARTS ============ -->
+<script>
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.color = '#6B7280';
+
+// 1. Cost Pie
+new Chart(document.getElementById('costPieChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['360dialog (4 numbers)', 'Meta Message Fees', 'n8n Cloud Pro', 'AI (OpenRouter)'],
+    datasets: [{
+      data: [3663, 181, 1110, 826],
+      backgroundColor: ['#3B82F6', '#8B5CF6', '#F59E0B', '#10B981'],
+      borderWidth: 2,
+      borderColor: '#FFFFFF',
+      hoverOffset: 8
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '55%',
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, font: {size: 11} } },
+      tooltip: { callbacks: { label: ctx => `${ctx.label}: R${ctx.raw.toLocaleString()} (${(ctx.raw/5780*100).toFixed(0)}%)` } }
+    }
+  }
+});
+
+// 2. Message Volume
+new Chart(document.getElementById('messageChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Inbound\n(free window)', 'AI Replies\n(free)', 'Utility\nTemplates', 'Marketing\nTemplates'],
+    datasets: [{
+      label: 'Messages/month',
+      data: [1800, 1260, 650, 150],
+      backgroundColor: ['#10B981', '#10B981', '#3B82F6', '#EF4444'],
+      borderRadius: 6,
+      barThickness: 42
+    }]
+  },
+  options: {
+    responsive: true,
+    indexAxis: 'y',
+    plugins: { legend: { display: false } },
+    scales: { x: { beginAtZero: true, grid: { color: '#F0F0F0' } }, y: { grid: { display: false } } }
+  }
+});
+
+// 3. Execution Budget
+new Chart(document.getElementById('executionChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['WhatsApp Intake', 'Email Intake', 'Scheduled Jobs', 'Telegram Cmds', 'Remaining'],
+    datasets: [{
+      data: [1800, 2400, 2700, 300, 2800],
+      backgroundColor: ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#E5E7EB'],
+      borderWidth: 2,
+      borderColor: '#FFFFFF'
+    }]
+  },
+  options: {
+    responsive: true,
+    cutout: '55%',
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 10, usePointStyle: true, font: {size: 10} } },
+      tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw.toLocaleString()} exec` } }
+    }
+  }
+});
+
+// 4. Token Chart
+new Chart(document.getElementById('tokenChart'), {
+  type: 'bar',
+  data: {
+    labels: ['WA Replies', 'Email Replies', 'Doc Classify', 'Lead Score', 'Summaries'],
+    datasets: [
+      { label: 'Input (M)', data: [0.38, 0.72, 0.16, 0.72, 0.04], backgroundColor: '#3B82F6', borderRadius: 4, barThickness: 18 },
+      { label: 'Output (M)', data: [0.63, 0.72, 0.20, 0.54, 0.07], backgroundColor: '#FF6D5A', borderRadius: 4, barThickness: 18 }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: {size: 10} } } },
+    scales: {
+      x: { stacked: true, grid: { display: false } },
+      y: { stacked: true, ticks: { callback: v => v + 'M' }, grid: { color: '#F0F0F0' } }
+    }
+  }
+});
+
+// 5. Scaling
+new Chart(document.getElementById('scalingChart'), {
+  type: 'line',
+  data: {
+    labels: ['4 agents', '6 agents', '8 agents', '10 agents', '15 agents', '20 agents'],
+    datasets: [
+      {
+        label: 'Total Monthly (ZAR)',
+        data: [5780, 8114, 10450, 12785, 18622, 38149],
+        borderColor: '#FF6D5A',
+        backgroundColor: 'rgba(255,109,90,0.08)',
+        fill: true, tension: 0.3, pointRadius: 5, pointBackgroundColor: '#FF6D5A', borderWidth: 2.5
+      },
+      {
+        label: 'Per Agent (ZAR)',
+        data: [1445, 1352, 1306, 1279, 1241, 1907],
+        borderColor: '#3B82F6',
+        backgroundColor: 'rgba(59,130,246,0.08)',
+        fill: true, tension: 0.3, pointRadius: 5, pointBackgroundColor: '#3B82F6', borderWidth: 2.5
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { intersect: false, mode: 'index' },
+    plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } },
+      annotation: { annotations: { line1: { type: 'line', yMin: 0, yMax: 0 } } }
+    },
+    scales: {
+      y: { beginAtZero: true, ticks: { callback: v => 'R' + v.toLocaleString() }, grid: { color: '#F0F0F0' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// 6. ROI Comparison
+new Chart(document.getElementById('roiChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Manual Admin\n(status quo)', 'AI Platform\n(Team Allori)'],
+    datasets: [{
+      label: 'Monthly Cost (ZAR)',
+      data: [32000, 6647],
+      backgroundColor: ['#EF4444', '#10B981'],
+      borderRadius: 8,
+      barThickness: 80
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => 'R' + ctx.raw.toLocaleString() + '/month' } }
+    },
+    scales: {
+      y: { beginAtZero: true, ticks: { callback: v => 'R' + v.toLocaleString() }, grid: { color: '#F0F0F0' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+</script>
+</body>
+</html>

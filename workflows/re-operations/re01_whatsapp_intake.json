@@ -2,7 +2,7 @@
   "name": "RE-01 WhatsApp Intake",
   "nodes": [
     {
-      "id": "035eba95-6114-4cf6-844a-57d45431b1b5",
+      "id": "4c2d6cdc-7311-4233-8707-929fd0a3be6b",
       "name": "Note RE-01",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "6cf036ca-0626-4d69-a013-0cf951b7ddf7",
+      "id": "23b42081-5f56-4a05-bda1-640c6925f855",
       "name": "WhatsApp Trigger",
       "type": "n8n-nodes-base.whatsAppTrigger",
       "typeVersion": 1,
@@ -26,7 +26,7 @@
         220,
         300
       ],
-      "webhookId": "a8ddb6f4-5f45-4615-a353-93ef01180f67",
+      "webhookId": "bb0adf29-6d8b-4929-af39-c7e693f60557",
       "credentials": {
         "whatsAppTriggerApi": {
           "id": "rUyqIX1gaBs3ae6Q",
@@ -40,7 +40,7 @@
       }
     },
     {
-      "id": "44b5d015-d475-4e11-b543-4b6dea6654da",
+      "id": "2a8f8afa-89d2-4924-b31a-f8689777e07d",
       "name": "Parse Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "206dc7f5-5e41-41b2-b367-ff3d735b7dec",
+      "id": "e4903609-0090-464e-8488-1ea0ce3168f3",
       "name": "Has Message?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -83,7 +83,7 @@
       }
     },
     {
-      "id": "5d4b1fc5-83cf-41c5-920a-1434fbb4bf1d",
+      "id": "aeafb408-0cb0-4c95-a373-46fabc2cad52",
       "name": "Dedup Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -96,7 +96,7 @@
       }
     },
     {
-      "id": "e121b7a3-95e8-4777-b2d1-06c4798817f1",
+      "id": "22bf8e58-ac59-4c01-a151-9abdd6085690",
       "name": "Not Duplicate?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -126,7 +126,7 @@
       }
     },
     {
-      "id": "eab18870-8e87-4345-ba00-4d09f46d9cde",
+      "id": "acacb50a-89db-40d3-8762-ee51da3d51f3",
       "name": "Not Group?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -156,44 +156,59 @@
       }
     },
     {
-      "id": "32d10522-45ed-4c3e-881e-94ff219d95f9",
-      "name": "Find Agent",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "e19cc6b2-21ac-4d0a-99b2-daa466b1b570",
+      "name": "Read Agents Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
         1540,
         300
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblOIksmbzg44M514",
-          "mode": "id"
+          "value": "Agents",
+          "mode": "name"
         },
-        "filterByFormula": "=({phone_number_id} = '{{ $json.phone_number_id }}')",
         "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "5a925eb0-abc1-4749-ad62-329abd12c69d",
+      "id": "a781a892-baff-4547-a8d8-ec62b2e28820",
+      "name": "Find Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Agent Name']);\nconst target = $('Not Group?').first().json.phone_number_id;\nconst matches = rows.filter(r => String(r['WhatsApp Phone Number ID'] || '') === String(target));\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "32d94d57-a419-4605-a85d-c52bc27e50ee",
       "name": "Agent Found?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1760,
+        1980,
         300
       ],
       "parameters": {
@@ -206,7 +221,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $input.all().length > 0 && !!$input.first().json.agent_name }}",
+              "leftValue": "={{ $input.all().length > 0 && !!$input.first().json['Agent Name'] }}",
               "operator": {
                 "type": "boolean",
                 "operation": "true",
@@ -218,12 +233,12 @@
       }
     },
     {
-      "id": "0b89463f-ed82-45c9-882a-4d79c597936b",
+      "id": "57b2179e-3611-46b7-bcd8-9d0239675963",
       "name": "Check Working Hours",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1980,
+        2200,
         300
       ],
       "parameters": {
@@ -231,12 +246,12 @@
       }
     },
     {
-      "id": "305e20ce-592d-4c99-820e-7359fa9cd052",
+      "id": "b9f678e8-04cc-4f41-90d2-17555c611f80",
       "name": "Within Hours?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        2200,
+        2420,
         300
       ],
       "parameters": {
@@ -261,34 +276,34 @@
       }
     },
     {
-      "id": "1bc578fc-b4eb-4708-a47f-8e23e0b729d4",
+      "id": "02582ace-cb2e-4427-8944-4f5ec87480f9",
       "name": "Log Incoming Message",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        2420,
+        2640,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblgp46QN1C9JcOlt",
-          "mode": "id"
+          "value": "Messages",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "message_id": "={{ $('Check Working Hours').first().json.message_id }}",
             "conversation_id": "={{ $('Check Working Hours').first().json.from }}",
@@ -299,57 +314,118 @@
             "recipient": "={{ $('Check Working Hours').first().json.agent_name }}",
             "timestamp": "={{ $now.toISO() }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "message_id",
+              "type": "string",
+              "display": true,
+              "displayName": "message_id"
+            },
+            {
+              "id": "conversation_id",
+              "type": "string",
+              "display": true,
+              "displayName": "conversation_id"
+            },
+            {
+              "id": "direction",
+              "type": "string",
+              "display": true,
+              "displayName": "direction"
+            },
+            {
+              "id": "channel",
+              "type": "string",
+              "display": true,
+              "displayName": "channel"
+            },
+            {
+              "id": "body",
+              "type": "string",
+              "display": true,
+              "displayName": "body"
+            },
+            {
+              "id": "sender",
+              "type": "string",
+              "display": true,
+              "displayName": "sender"
+            },
+            {
+              "id": "recipient",
+              "type": "string",
+              "display": true,
+              "displayName": "recipient"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
-      "id": "ab9534a6-4e89-431d-9352-52f62a26788a",
-      "name": "Fetch History",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "id": "477f3dea-6352-4e79-8837-b1f6ddc080ff",
+      "name": "Read Messages Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        2640,
+        2860,
         200
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "search",
-        "base": {
+        "operation": "read",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tblgp46QN1C9JcOlt",
-          "mode": "id"
+          "value": "Messages",
+          "mode": "name"
         },
-        "filterByFormula": "=({conversation_id} = '{{ $('Check Working Hours').first().json.from }}')",
-        "options": {},
-        "sort": {
-          "property": [
-            {
-              "field": "timestamp",
-              "direction": "desc"
-            }
-          ]
-        }
+        "options": {}
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "alwaysOutputData": true
     },
     {
-      "id": "db1b1c9d-7e62-4844-8b90-085f45a0054d",
+      "id": "606676f4-04c6-442a-bc13-5f96820972d5",
+      "name": "Fetch History",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\nconst rows = $input.all().map(i => i.json).filter(r => r['Message ID']);\nconst target = $('Check Working Hours').first().json.from;\nconst matches = rows.filter(r => String(r['Conversation ID'] || '') === String(target));\n// Sort by timestamp descending\nmatches.sort((a, b) => {\n  const ta = new Date(a['Timestamp'] || 0).getTime();\n  const tb = new Date(b['Timestamp'] || 0).getTime();\n  return tb - ta;\n});\nreturn matches.length ? matches.map(m => ({json: m})) : [{json: {}}];\n"
+      }
+    },
+    {
+      "id": "385b37e0-41c8-4c9c-9571-d86ced6467d6",
       "name": "Rate Limit Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2860,
+        3300,
         200
       ],
       "parameters": {
@@ -357,12 +433,12 @@
       }
     },
     {
-      "id": "525d7c9d-b711-4200-acf4-59681b451c44",
+      "id": "b038f76e-817a-401a-bf74-46357eaebc08",
       "name": "Not Rate Limited?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3080,
+        3520,
         200
       ],
       "parameters": {
@@ -387,12 +463,12 @@
       }
     },
     {
-      "id": "0c0b3513-b7b2-43d4-b4d4-1f7a60902963",
+      "id": "c9670a12-d6f6-45b7-b866-aea5bc250904",
       "name": "Call RE-02 Lead Router",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        3300,
+        3740,
         100
       ],
       "parameters": {
@@ -401,12 +477,12 @@
       }
     },
     {
-      "id": "330b4e4e-7b96-4309-900d-f799b42410cf",
+      "id": "ba1f9c25-c7f6-41b9-ac43-0f5a4ee22155",
       "name": "Call RE-03 WA AI Comms",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.2,
       "position": [
-        3520,
+        3960,
         100
       ],
       "parameters": {
@@ -415,12 +491,12 @@
       }
     },
     {
-      "id": "41b2594a-354d-4c2a-a0f4-914f627ec74d",
+      "id": "ddff1f89-cfc1-4543-9f1a-7c1eaddcccb0",
       "name": "Build After Hours Reply",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2420,
+        2640,
         500
       ],
       "parameters": {
@@ -428,12 +504,12 @@
       }
     },
     {
-      "id": "b08825f0-9476-47e2-8b83-051afb9725a4",
+      "id": "d6ff0946-1af6-4f18-bd16-96baff8722e9",
       "name": "Send After Hours WA",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2640,
+        2860,
         500
       ],
       "parameters": {
@@ -454,34 +530,34 @@
       }
     },
     {
-      "id": "ff55660c-390b-4004-be14-0beb1db6b6e6",
+      "id": "612f8640-49d2-4af8-925b-6de1b0cc0441",
       "name": "Log After Hours",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
       "position": [
-        2860,
+        3080,
         500
       ],
       "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
         }
       },
       "parameters": {
-        "operation": "create",
-        "base": {
+        "operation": "append",
+        "documentId": {
           "__rl": true,
-          "value": "appCVxBCRi5ppbUpV",
+          "value": "1J3zHyyRnIX2AaGQZZj9vn362XQQm5sqlhOAhNKe0b7I",
           "mode": "id"
         },
-        "table": {
+        "sheetName": {
           "__rl": true,
-          "value": "tbljWVNcirCTGBegR",
-          "mode": "id"
+          "value": "Activity Log",
+          "mode": "name"
         },
-        "options": {},
         "columns": {
+          "mappingMode": "defineBelow",
           "value": {
             "activity_type": "After Hours Message",
             "entity_type": "Message",
@@ -490,9 +566,52 @@
             "performed_by": "System",
             "timestamp": "={{ $now.toISO() }}"
           },
-          "mappingMode": "defineBelow"
-        }
-      }
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "activity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "activity_type"
+            },
+            {
+              "id": "entity_type",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_type"
+            },
+            {
+              "id": "entity_id",
+              "type": "string",
+              "display": true,
+              "displayName": "entity_id"
+            },
+            {
+              "id": "description",
+              "type": "string",
+              "display": true,
+              "displayName": "description"
+            },
+            {
+              "id": "performed_by",
+              "type": "string",
+              "display": true,
+              "displayName": "performed_by"
+            },
+            {
+              "id": "timestamp",
+              "type": "string",
+              "display": true,
+              "displayName": "timestamp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -557,12 +676,23 @@
       "main": [
         [
           {
-            "node": "Find Agent",
+            "node": "Read Agents Sheet",
             "type": "main",
             "index": 0
           }
         ],
         []
+      ]
+    },
+    "Read Agents Sheet": {
+      "main": [
+        [
+          {
+            "node": "Find Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Find Agent": {
@@ -618,6 +748,17 @@
       ]
     },
     "Log Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "Read Messages Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Messages Sheet": {
       "main": [
         [
           {
@@ -711,6 +852,6 @@
   "meta": {
     "templateCredsSetupCompleted": true,
     "builder": "deploy_re_operations.py",
-    "built_at": "2026-03-25T15:29:12.938733"
+    "built_at": "2026-04-07T18:38:03.944892"
   }
 }
