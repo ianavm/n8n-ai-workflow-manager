@@ -44,7 +44,7 @@ from credentials import CREDENTIALS
 # ======================================================================
 
 CRED_OPENROUTER = CREDENTIALS["openrouter"]
-CRED_AIRTABLE = CREDENTIALS["airtable"]
+CRED_GOOGLE_SHEETS = CREDENTIALS["google_sheets"]
 CRED_GMAIL = CREDENTIALS["gmail"]
 CRED_GOOGLE_CALENDAR = CREDENTIALS["google_calendar"]
 CRED_GOOGLE_DRIVE = CREDENTIALS["google_drive"]
@@ -54,25 +54,26 @@ CRED_WHATSAPP_TRIGGER = CREDENTIALS["whatsapp_trigger"]
 
 
 # ======================================================================
-# AIRTABLE IDS (from .env, populated by setup_re_airtable.py)
+# GOOGLE SHEETS CONFIG (single spreadsheet with 14 tabs)
 # ======================================================================
 
-RE_BASE_ID = os.getenv("RE_AIRTABLE_BASE_ID", "REPLACE_AFTER_SETUP")
+RE_SPREADSHEET_ID = os.getenv("RE_GSHEETS_SPREADSHEET_ID", "REPLACE_AFTER_SETUP")
 
-TABLE_CLIENTS = os.getenv("RE_TABLE_CLIENTS", "REPLACE_AFTER_SETUP")
-TABLE_LEADS = os.getenv("RE_TABLE_LEADS", "REPLACE_AFTER_SETUP")
-TABLE_PROPERTIES = os.getenv("RE_TABLE_PROPERTIES", "REPLACE_AFTER_SETUP")
-TABLE_AGENTS = os.getenv("RE_TABLE_AGENTS", "REPLACE_AFTER_SETUP")
-TABLE_ADMIN_STAFF = os.getenv("RE_TABLE_ADMIN_STAFF", "REPLACE_AFTER_SETUP")
-TABLE_DEALS = os.getenv("RE_TABLE_DEALS", "REPLACE_AFTER_SETUP")
-TABLE_DOCUMENTS = os.getenv("RE_TABLE_DOCUMENTS", "REPLACE_AFTER_SETUP")
-TABLE_APPOINTMENTS = os.getenv("RE_TABLE_APPOINTMENTS", "REPLACE_AFTER_SETUP")
-TABLE_MESSAGES = os.getenv("RE_TABLE_MESSAGES", "REPLACE_AFTER_SETUP")
-TABLE_EMAIL_THREADS = os.getenv("RE_TABLE_EMAIL_THREADS", "REPLACE_AFTER_SETUP")
-TABLE_ACTIVITY_LOG = os.getenv("RE_TABLE_ACTIVITY_LOG", "REPLACE_AFTER_SETUP")
-TABLE_ASSIGNMENTS = os.getenv("RE_TABLE_ASSIGNMENTS", "REPLACE_AFTER_SETUP")
-TABLE_EXCEPTIONS = os.getenv("RE_TABLE_EXCEPTIONS", "REPLACE_AFTER_SETUP")
-TABLE_AUDIT_LOG = os.getenv("RE_TABLE_AUDIT_LOG", "REPLACE_AFTER_SETUP")
+# Tab names (static constants — no env vars needed)
+TAB_CLIENTS = "Clients"
+TAB_LEADS = "Leads"
+TAB_PROPERTIES = "Properties"
+TAB_AGENTS = "Agents"
+TAB_ADMIN_STAFF = "Admin Staff"
+TAB_DEALS = "Deals"
+TAB_DOCUMENTS = "Documents"
+TAB_APPOINTMENTS = "Appointments"
+TAB_MESSAGES = "Messages"
+TAB_EMAIL_THREADS = "Email Threads"
+TAB_ACTIVITY_LOG = "Activity Log"
+TAB_ASSIGNMENTS = "Assignments"
+TAB_EXCEPTIONS = "Exceptions"
+TAB_AUDIT_LOG = "Audit Log"
 
 
 # ======================================================================
@@ -100,11 +101,11 @@ def uid():
     return str(uuid.uuid4())
 
 
-def airtable_ref(base_id, table_id):
-    """Build Airtable base/table reference dict for node parameters."""
+def gsheets_ref(spreadsheet_id: str, tab_name: str) -> dict:
+    """Build Google Sheets document/sheet reference dict for node parameters."""
     return {
-        "base": {"__rl": True, "value": base_id, "mode": "id"},
-        "table": {"__rl": True, "value": table_id, "mode": "id"},
+        "documentId": {"__rl": True, "value": spreadsheet_id, "mode": "id"},
+        "sheetName": {"__rl": True, "value": tab_name, "mode": "list"},
     }
 
 
@@ -167,90 +168,108 @@ def build_code_node(name, js_code, position):
     }
 
 
-def build_airtable_search(name, base_id, table_id, formula, position,
-                           sort_field=None, sort_desc=False, always_output=False):
-    """Build an Airtable search node."""
-    params = {
-        "operation": "search",
-        **airtable_ref(base_id, table_id),
-        "filterByFormula": formula,
-        "options": {},
-    }
-    if sort_field:
-        params["sort"] = {
-            "property": [{"field": sort_field, "direction": "desc" if sort_desc else "asc"}]
-        }
+def build_gsheets_read(name: str, spreadsheet_id: str, tab_name: str,
+                       position: list, always_output: bool = False) -> dict:
+    """Build a Google Sheets read node (reads ALL rows from a tab).
 
+    Filtering must happen in a downstream Code node.
+    """
     node = {
         "id": uid(),
         "name": name,
-        "type": "n8n-nodes-base.airtable",
-        "typeVersion": 2.1,
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
         "position": position,
-        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
-        "parameters": params,
+        "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
+        "parameters": {
+            "operation": "read",
+            **gsheets_ref(spreadsheet_id, tab_name),
+            "options": {},
+        },
+        "retryOnFail": True,
+        "maxTries": 3,
+        "waitBetweenTries": 2000,
     }
     if always_output:
         node["alwaysOutputData"] = True
     return node
 
 
-def build_airtable_create(name, base_id, table_id, position, columns=None):
-    """Build an Airtable create node.
+def build_gsheets_append(name: str, spreadsheet_id: str, tab_name: str,
+                         position: list, columns: dict | None = None,
+                         continue_on_fail: bool = False) -> dict:
+    """Build a Google Sheets append node.
 
-    If columns is provided, it sets explicit field mappings (defineBelow).
-    Otherwise the node auto-maps all incoming JSON fields to Airtable columns.
-
-    CRITICAL: The ``columns`` parameter with ``mappingMode`` is REQUIRED for
-    Airtable v2.1 create.  Without it the API request body has no ``fields``
-    key and Airtable returns "Could not find field 'fields'".
+    If columns is provided, uses defineBelow mapping; otherwise auto-maps.
     """
     params = {
-        "operation": "create",
-        **airtable_ref(base_id, table_id),
+        "operation": "append",
+        **gsheets_ref(spreadsheet_id, tab_name),
         "columns": {
             "mappingMode": "autoMapInputData",
-            "value": None,
+            "value": {},
         },
         "options": {},
     }
     if columns:
+        schema = [
+            {"id": k, "type": "string", "display": True, "displayName": k}
+            for k in columns.keys()
+        ]
         params["columns"] = {
             "mappingMode": "defineBelow",
             "value": columns,
+            "matchingColumns": [],
+            "schema": schema,
         }
 
+    node = {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": position,
+        "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
+        "parameters": params,
+        "retryOnFail": True,
+        "maxTries": 3,
+        "waitBetweenTries": 3000,
+    }
+    if continue_on_fail:
+        node["onError"] = "continueRegularOutput"
+    return node
+
+
+def build_gsheets_update(name: str, spreadsheet_id: str, tab_name: str,
+                         position: list, matching_columns: list,
+                         columns: dict | None = None) -> dict:
+    """Build a Google Sheets appendOrUpdate node with matchingColumns."""
+    col_values = columns or {}
+    schema = [
+        {"id": k, "type": "string", "display": True, "displayName": k}
+        for k in col_values.keys()
+    ]
     return {
         "id": uid(),
         "name": name,
-        "type": "n8n-nodes-base.airtable",
-        "typeVersion": 2.1,
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
         "position": position,
-        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
-        "parameters": params,
-    }
-
-
-def build_airtable_update(name, base_id, table_id, position, matching_columns,
-                           columns=None):
-    """Build an Airtable update node with matchingColumns."""
-    params = {
-        "operation": "update",
-        **airtable_ref(base_id, table_id),
-        "matchingColumns": matching_columns,
-        "options": {},
-    }
-    if columns:
-        params["columns"] = {"value": columns}
-
-    return {
-        "id": uid(),
-        "name": name,
-        "type": "n8n-nodes-base.airtable",
-        "typeVersion": 2.1,
-        "position": position,
-        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
-        "parameters": params,
+        "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
+        "parameters": {
+            "operation": "appendOrUpdate",
+            **gsheets_ref(spreadsheet_id, tab_name),
+            "columns": {
+                "mappingMode": "defineBelow",
+                "value": col_values,
+                "matchingColumns": matching_columns,
+                "schema": schema,
+            },
+            "options": {},
+        },
+        "retryOnFail": True,
+        "maxTries": 3,
+        "waitBetweenTries": 3000,
     }
 
 
@@ -755,8 +774,8 @@ def build_re10_nodes():
     nodes.append(build_code_node("Prepare Fallback Log", RE10_LOG_ENTRY_CODE, [1540, 500]))
 
     # 9. Log to Activity_Log
-    nodes.append(build_airtable_create(
-        "Log Notification", RE_BASE_ID, TABLE_ACTIVITY_LOG, [1320, 200],
+    nodes.append(build_gsheets_append(
+        "Log Notification", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [1320, 200],
         columns={
             "activity_type": "={{ $json.activity_type }}",
             "entity_type": "={{ $json.entity_type }}",
@@ -765,11 +784,12 @@ def build_re10_nodes():
             "performed_by": "={{ $json.performed_by }}",
             "timestamp": "={{ $json.timestamp }}",
         },
+        continue_on_fail=True,
     ))
 
     # 10. Log fallback to Activity_Log
-    nodes.append(build_airtable_create(
-        "Log Fallback Notification", RE_BASE_ID, TABLE_ACTIVITY_LOG, [1760, 500],
+    nodes.append(build_gsheets_append(
+        "Log Fallback Notification", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [1760, 500],
         columns={
             "activity_type": "={{ $json.activity_type }}",
             "entity_type": "={{ $json.entity_type }}",
@@ -778,6 +798,7 @@ def build_re10_nodes():
             "performed_by": "={{ $json.performed_by }}",
             "timestamp": "={{ $json.timestamp }}",
         },
+        continue_on_fail=True,
     ))
 
     return nodes
@@ -957,39 +978,48 @@ def build_re16_nodes():
     # 1. Sub-workflow trigger
     nodes.append(build_execute_workflow_trigger("Trigger", [220, 300]))
 
-    # 2. Fetch active, available agents
-    nodes.append(build_airtable_search(
-        "Fetch Available Agents", RE_BASE_ID, TABLE_AGENTS,
-        "=AND({Is Active} = TRUE(), {Is Available} = TRUE())",
+    # 2. Read all agents from Google Sheets
+    nodes.append(build_gsheets_read(
+        "Read Agents Sheet", RE_SPREADSHEET_ID, TAB_AGENTS,
         [440, 300], always_output=True,
     ))
 
+    # 2b. Filter to active + available agents
+    nodes.append(build_code_node("Fetch Available Agents", r"""
+const rows = $input.all().map(i => i.json).filter(r => r['Agent Name']);
+const matches = rows.filter(r =>
+  String(r['Is Active']).toUpperCase() === 'TRUE' &&
+  String(r['Is Available']).toUpperCase() === 'TRUE'
+);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [660, 300]))
+
     # 3. Score candidates
-    nodes.append(build_code_node("Score Candidates", RE16_SCORE_CANDIDATES_CODE, [660, 300]))
+    nodes.append(build_code_node("Score Candidates", RE16_SCORE_CANDIDATES_CODE, [880, 300]))
 
     # 4. Select top scorer
-    nodes.append(build_code_node("Select Top Agent", RE16_SELECT_TOP_CODE, [880, 300]))
+    nodes.append(build_code_node("Select Top Agent", RE16_SELECT_TOP_CODE, [1100, 300]))
 
     # 5. Check assignment success
     nodes.append(build_if_node(
         "Assignment OK?",
         "={{ $json.assignment_success }}",
-        [1100, 300],
+        [1320, 300],
     ))
 
     # 6. Update agent last_assigned_at (success path)
-    nodes.append(build_airtable_update(
-        "Update Agent Last Assigned", RE_BASE_ID, TABLE_AGENTS, [1320, 200],
-        matching_columns=["agent_id"],
+    nodes.append(build_gsheets_update(
+        "Update Agent Last Assigned", RE_SPREADSHEET_ID, TAB_AGENTS, [1540, 200],
+        matching_columns=["Agent ID"],
         columns={
-            "agent_id": "={{ $('Select Top Agent').first().json.agent_id }}",
+            "Agent ID": "={{ $('Select Top Agent').first().json.agent_id }}",
             "last_assigned_at": "={{ $('Select Top Agent').first().json.assigned_at }}",
         },
     ))
 
     # 7. Create Assignment record
-    nodes.append(build_airtable_create(
-        "Create Assignment", RE_BASE_ID, TABLE_ASSIGNMENTS, [1540, 200],
+    nodes.append(build_gsheets_append(
+        "Create Assignment", RE_SPREADSHEET_ID, TAB_ASSIGNMENTS, [1760, 200],
         columns={
             "assignment_id": "={{ $('Select Top Agent').first().json.assignment_id }}",
             "lead_id": "={{ $('Select Top Agent').first().json.lead_id }}",
@@ -1006,8 +1036,8 @@ def build_re16_nodes():
     ))
 
     # 8. Log to Activity_Log
-    nodes.append(build_airtable_create(
-        "Log Assignment", RE_BASE_ID, TABLE_ACTIVITY_LOG, [1760, 200],
+    nodes.append(build_gsheets_append(
+        "Log Assignment", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [1980, 200],
         columns={
             "activity_type": "Lead Assigned",
             "entity_type": "Assignment",
@@ -1016,14 +1046,15 @@ def build_re16_nodes():
             "performed_by": "System",
             "timestamp": "={{ $('Select Top Agent').first().json.assigned_at }}",
         },
+        continue_on_fail=True,
     ))
 
     # 9. No-op for failure path
-    nodes.append(build_noop("No Agent Available", [1320, 500]))
+    nodes.append(build_noop("No Agent Available", [1540, 500]))
 
     # 10. Log failure
-    nodes.append(build_airtable_create(
-        "Log Assignment Failure", RE_BASE_ID, TABLE_ACTIVITY_LOG, [1540, 500],
+    nodes.append(build_gsheets_append(
+        "Log Assignment Failure", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [1760, 500],
         columns={
             "activity_type": "Assignment Failed",
             "entity_type": "Assignment",
@@ -1032,6 +1063,7 @@ def build_re16_nodes():
             "performed_by": "System",
             "timestamp": "={{ $now.toISO() }}",
         },
+        continue_on_fail=True,
     ))
 
     return nodes
@@ -1041,6 +1073,9 @@ def build_re16_connections(nodes):
     """Build RE-16: Assignment Engine connections."""
     return {
         "Trigger": {"main": [[
+            {"node": "Read Agents Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Agents Sheet": {"main": [[
             {"node": "Fetch Available Agents", "type": "main", "index": 0},
         ]]},
         "Fetch Available Agents": {"main": [[
@@ -1747,7 +1782,7 @@ def build_re08_nodes():
     nodes.append(build_sticky_note(
         "Note RE-08", "RE-08: Document Filing\n\n"
         "Files classified documents to Google Drive,\n"
-        "creates Airtable record, deduplicates by hash,\n"
+        "creates Google Sheets record, deduplicates by hash,\n"
         "notifies admin via RE-10.",
         [0, 100], width=300, height=160, color=3,
     ))
@@ -1758,12 +1793,18 @@ def build_re08_nodes():
     # 2. Build filename per convention
     nodes.append(build_code_node("Build Filename", RE08_BUILD_FILENAME_CODE, [440, 300]))
 
-    # 3. Check for duplicate (Airtable search Documents by content_hash)
-    nodes.append(build_airtable_search(
-        "Check Duplicate", RE_BASE_ID, TABLE_DOCUMENTS,
-        "=({content_hash} = '{{ $json.content_hash }}')",
+    # 3. Read Documents sheet + filter by content_hash for dedup
+    nodes.append(build_gsheets_read(
+        "Read Documents Sheet", RE_SPREADSHEET_ID, TAB_DOCUMENTS,
         [660, 300], always_output=True,
     ))
+
+    nodes.append(build_code_node("Check Duplicate", r"""
+const target = $('Build Filename').first().json.content_hash;
+const rows = $input.all().map(i => i.json).filter(r => r['Doc ID']);
+const matches = rows.filter(r => r['Content Hash'] === target);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [880, 300]))
 
     # 4. Handle duplicate result
     nodes.append(build_code_node("Check Duplicate Result", RE08_HANDLE_DUPLICATE_CODE, [880, 300]))
@@ -1779,8 +1820,8 @@ def build_re08_nodes():
     nodes.append(build_code_node("Prepare Skip Log", RE08_SKIP_DUPLICATE_CODE, [1320, 200]))
 
     # 7. Log duplicate skip
-    nodes.append(build_airtable_create(
-        "Log Duplicate Skip", RE_BASE_ID, TABLE_ACTIVITY_LOG, [1540, 200],
+    nodes.append(build_gsheets_append(
+        "Log Duplicate Skip", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [1540, 200],
         columns={
             "activity_type": "={{ $json.activity_type }}",
             "entity_type": "={{ $json.entity_type }}",
@@ -1789,6 +1830,7 @@ def build_re08_nodes():
             "performed_by": "={{ $json.performed_by }}",
             "timestamp": "={{ $json.timestamp }}",
         },
+        continue_on_fail=True,
     ))
 
     # 8. Find/create Drive folder (false = not duplicate, proceed)
@@ -1887,9 +1929,9 @@ return { json: {
     # 14. Prepare Document record
     nodes.append(build_code_node("Prepare Doc Record", RE08_CREATE_DOC_RECORD_CODE, [2640, 500]))
 
-    # 15. Create Document record in Airtable
-    nodes.append(build_airtable_create(
-        "Create Document Record", RE_BASE_ID, TABLE_DOCUMENTS, [2860, 500],
+    # 15. Create Document record in Google Sheets
+    nodes.append(build_gsheets_append(
+        "Create Document Record", RE_SPREADSHEET_ID, TAB_DOCUMENTS, [2860, 500],
         columns={
             "document_id": "={{ $json.document_id }}",
             "filename": "={{ $json.filename }}",
@@ -1912,8 +1954,8 @@ return { json: {
     # 16. Log filing to Activity_Log
     nodes.append(build_code_node("Prepare Filing Log", RE08_LOG_ENTRY_CODE, [3080, 500]))
 
-    nodes.append(build_airtable_create(
-        "Log Document Filing", RE_BASE_ID, TABLE_ACTIVITY_LOG, [3300, 500],
+    nodes.append(build_gsheets_append(
+        "Log Document Filing", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [3300, 500],
         columns={
             "activity_type": "={{ $json.activity_type }}",
             "entity_type": "={{ $json.entity_type }}",
@@ -1922,6 +1964,7 @@ return { json: {
             "performed_by": "={{ $json.performed_by }}",
             "timestamp": "={{ $json.timestamp }}",
         },
+        continue_on_fail=True,
     ))
 
     # 17. Build notification for RE-10
@@ -1937,6 +1980,9 @@ def build_re08_connections(nodes):
             {"node": "Build Filename", "type": "main", "index": 0},
         ]]},
         "Build Filename": {"main": [[
+            {"node": "Read Documents Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Documents Sheet": {"main": [[
             {"node": "Check Duplicate", "type": "main", "index": 0},
         ]]},
         "Check Duplicate": {"main": [[
@@ -2186,12 +2232,18 @@ def build_re05_nodes():
         [660, 300],
     ))
 
-    # 4. Get agent calendar info from Airtable
-    nodes.append(build_airtable_search(
-        "Get Agent Info", RE_BASE_ID, TABLE_AGENTS,
-        "=({agent_name} = '{{ $('Validate Booking Date').first().json.agent_name }}')",
+    # 4. Read Agents sheet + filter by agent_name
+    nodes.append(build_gsheets_read(
+        "Read Agents Sheet", RE_SPREADSHEET_ID, TAB_AGENTS,
         [880, 300], always_output=True,
     ))
+
+    nodes.append(build_code_node("Get Agent Info", r"""
+const target = $('Validate Booking Date').first().json.agent_name;
+const rows = $input.all().map(i => i.json).filter(r => r['Agent Name']);
+const matches = rows.filter(r => r['Agent Name'] === target);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [1100, 300]))
 
     # 5. Query Google Calendar freeBusy
     nodes.append(build_http_request(
@@ -2242,9 +2294,9 @@ def build_re05_nodes():
         body='={"summary":"{{ $json.viewing_type }} - {{ $json.client_name }} @ {{ $json.property_id }}","description":"Booking ID: {{ $json.booking_id }}\\nAgent: {{ $json.agent_name }}\\nViewing Type: {{ $json.viewing_type }}","start":{"dateTime":"{{ $json.event_start }}","timeZone":"Africa/Johannesburg"},"end":{"dateTime":"{{ $json.event_end }}","timeZone":"Africa/Johannesburg"},"reminders":{"useDefault":false,"overrides":[{"method":"email","minutes":60},{"method":"popup","minutes":15}]}}',
     ))
 
-    # 12. Create Appointment record in Airtable
-    nodes.append(build_airtable_create(
-        "Create Appointment", RE_BASE_ID, TABLE_APPOINTMENTS, [2640, 300],
+    # 12. Create Appointment record in Google Sheets
+    nodes.append(build_gsheets_append(
+        "Create Appointment", RE_SPREADSHEET_ID, TAB_APPOINTMENTS, [2640, 300],
         columns={
             "booking_id": "={{ $('Parse AI Suggestion').first().json.booking_id }}",
             "client_name": "={{ $('Parse AI Suggestion').first().json.client_name }}",
@@ -2260,8 +2312,8 @@ def build_re05_nodes():
     ))
 
     # 13. Log to Activity_Log
-    nodes.append(build_airtable_create(
-        "Log Booking", RE_BASE_ID, TABLE_ACTIVITY_LOG, [2860, 300],
+    nodes.append(build_gsheets_append(
+        "Log Booking", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [2860, 300],
         columns={
             "activity_type": "Viewing Booked",
             "entity_type": "Appointment",
@@ -2270,6 +2322,7 @@ def build_re05_nodes():
             "performed_by": "System",
             "timestamp": "={{ $('Parse AI Suggestion').first().json.booked_at }}",
         },
+        continue_on_fail=True,
     ))
 
     # 14. Return rejection result (date invalid path)
@@ -2299,9 +2352,12 @@ def build_re05_connections(nodes):
             {"node": "Date Valid?", "type": "main", "index": 0},
         ]]},
         "Date Valid?": {"main": [
-            [{"node": "Get Agent Info", "type": "main", "index": 0}],
+            [{"node": "Read Agents Sheet", "type": "main", "index": 0}],
             [{"node": "Return Rejection", "type": "main", "index": 0}],
         ]},
+        "Read Agents Sheet": {"main": [[
+            {"node": "Get Agent Info", "type": "main", "index": 0},
+        ]]},
         "Get Agent Info": {"main": [[
             {"node": "Query Calendar FreeBusy", "type": "main", "index": 0},
         ]]},
@@ -2461,12 +2517,18 @@ def build_re02_nodes():
     # 2. Normalize phone
     nodes.append(build_code_node("Normalize Phone", RE02_NORMALIZE_PHONE_CODE, [440, 300]))
 
-    # 3. Search existing leads by phone
-    nodes.append(build_airtable_search(
-        "Search Existing Lead", RE_BASE_ID, TABLE_LEADS,
-        "=({phone_normalized} = '{{ $json.phone_normalized }}')",
+    # 3. Read Leads sheet + filter by phone_normalized
+    nodes.append(build_gsheets_read(
+        "Read Leads Sheet", RE_SPREADSHEET_ID, TAB_LEADS,
         [660, 300], always_output=True,
     ))
+
+    nodes.append(build_code_node("Search Existing Lead", r"""
+const target = $('Normalize Phone').first().json.phone_normalized;
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
+const matches = rows.filter(r => r['Phone Normalized'] === target);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [880, 300]))
 
     # 4. Handle existing check
     nodes.append(build_code_node("Check Existing", RE02_HANDLE_EXISTING_CODE, [880, 300]))
@@ -2479,11 +2541,11 @@ def build_re02_nodes():
     ))
 
     # 6. Update last_contact on existing lead (true path)
-    nodes.append(build_airtable_update(
-        "Update Last Contact", RE_BASE_ID, TABLE_LEADS, [1320, 200],
-        matching_columns=["lead_id"],
+    nodes.append(build_gsheets_update(
+        "Update Last Contact", RE_SPREADSHEET_ID, TAB_LEADS, [1320, 200],
+        matching_columns=["Lead ID"],
         columns={
-            "lead_id": "={{ $('Check Existing').first().json.lead_id }}",
+            "Lead ID": "={{ $('Check Existing').first().json.lead_id }}",
             "last_contact": "={{ $now.toISO() }}",
         },
     ))
@@ -2491,9 +2553,9 @@ def build_re02_nodes():
     # 7. Prepare new client (false path)
     nodes.append(build_code_node("Prepare New Client", RE02_PREPARE_NEW_CLIENT_CODE, [1320, 500]))
 
-    # 8. Create Client record
-    nodes.append(build_airtable_create(
-        "Create Client", RE_BASE_ID, TABLE_CLIENTS, [1540, 500],
+    # 8. Create Client record in Google Sheets
+    nodes.append(build_gsheets_append(
+        "Create Client", RE_SPREADSHEET_ID, TAB_CLIENTS, [1540, 500],
         columns={
             "client_id": "={{ $json.client_id }}",
             "client_name": "={{ $json.client_name }}",
@@ -2504,9 +2566,9 @@ def build_re02_nodes():
         },
     ))
 
-    # 9. Create Lead record
-    nodes.append(build_airtable_create(
-        "Create Lead", RE_BASE_ID, TABLE_LEADS, [1760, 500],
+    # 9. Create Lead record in Google Sheets
+    nodes.append(build_gsheets_append(
+        "Create Lead", RE_SPREADSHEET_ID, TAB_LEADS, [1760, 500],
         columns={
             "lead_id": "={{ $('Prepare New Client').first().json.lead_id }}",
             "client_id": "={{ $('Prepare New Client').first().json.client_id }}",
@@ -2534,8 +2596,8 @@ def build_re02_nodes():
     ))
 
     # 12. Log Activity
-    nodes.append(build_airtable_create(
-        "Log Lead Routed", RE_BASE_ID, TABLE_ACTIVITY_LOG, [2420, 300],
+    nodes.append(build_gsheets_append(
+        "Log Lead Routed", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [2420, 300],
         columns={
             "activity_type": "Lead Routed",
             "entity_type": "Lead",
@@ -2544,6 +2606,7 @@ def build_re02_nodes():
             "performed_by": "System",
             "timestamp": "={{ $now.toISO() }}",
         },
+        continue_on_fail=True,
     ))
 
     return nodes
@@ -2556,6 +2619,9 @@ def build_re02_connections(nodes):
             {"node": "Normalize Phone", "type": "main", "index": 0},
         ]]},
         "Normalize Phone": {"main": [[
+            {"node": "Read Leads Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Leads Sheet": {"main": [[
             {"node": "Search Existing Lead", "type": "main", "index": 0},
         ]]},
         "Search Existing Lead": {"main": [[
@@ -2829,9 +2895,9 @@ def build_re03_nodes():
     # 8. Prepare outbound log
     nodes.append(build_code_node("Prepare Outbound Log", RE03_LOG_OUTBOUND_CODE, [1760, 200]))
 
-    # 9. Log to Messages
-    nodes.append(build_airtable_create(
-        "Log Outbound Message", RE_BASE_ID, TABLE_MESSAGES, [1980, 200],
+    # 9. Log to Messages (Google Sheets)
+    nodes.append(build_gsheets_append(
+        "Log Outbound Message", RE_SPREADSHEET_ID, TAB_MESSAGES, [1980, 200],
         columns={
             "message_id": "={{ $json.message_id }}",
             "conversation_id": "={{ $json.conversation_id }}",
@@ -3526,9 +3592,9 @@ def build_re04_nodes():
         [1320, 500],
     ))
 
-    # 10. Create/update Email Thread record
-    nodes.append(build_airtable_create(
-        "Log Email Thread", RE_BASE_ID, TABLE_EMAIL_THREADS, [1760, 300],
+    # 10. Create/update Email Thread record (Google Sheets)
+    nodes.append(build_gsheets_append(
+        "Log Email Thread", RE_SPREADSHEET_ID, TAB_EMAIL_THREADS, [1760, 300],
         columns={
             "sender": "={{ $('Parse Email AI').first().json.sender }}",
             "subject": "={{ $('Parse Email AI').first().json.email_subject }}",
@@ -3541,9 +3607,9 @@ def build_re04_nodes():
         },
     ))
 
-    # 11. Log to Messages
-    nodes.append(build_airtable_create(
-        "Log Email Message", RE_BASE_ID, TABLE_MESSAGES, [1980, 300],
+    # 11. Log to Messages (Google Sheets)
+    nodes.append(build_gsheets_append(
+        "Log Email Message", RE_SPREADSHEET_ID, TAB_MESSAGES, [1980, 300],
         columns={
             "message_id": "=EMAIL-{{ $now.toFormat('yyyyMMddHHmmss') }}",
             "conversation_id": "={{ $('Parse Email AI').first().json.sender }}",
@@ -6199,33 +6265,47 @@ def build_re19_nodes():
     # 2. Validate input
     nodes.append(build_code_node("Validate Input", RE19_VALIDATE_INPUT_CODE, [440, 300]))
 
-    # 3. Fetch Lead from Airtable
-    nodes.append(build_airtable_search(
-        "Fetch Lead", RE_BASE_ID, TABLE_LEADS,
-        "=({lead_id} = '{{ $json.lead_id }}')",
+    # 3. Read all Leads from Google Sheets
+    nodes.append(build_gsheets_read(
+        "Read Leads Sheet", RE_SPREADSHEET_ID, TAB_LEADS,
         [660, 300], always_output=True,
     ))
 
-    # 4. Fetch Deal from Airtable
-    nodes.append(build_airtable_search(
-        "Fetch Deal", RE_BASE_ID, TABLE_DEALS,
-        "=({lead_id} = '{{ $('Validate Input').first().json.lead_id }}')",
-        [880, 300], always_output=True,
+    # 3b. Filter to matching lead by lead_id
+    nodes.append(build_code_node("Fetch Lead", r"""
+const target = $('Validate Input').first().json.lead_id;
+const rows = $input.all().map(i => i.json).filter(r => r['lead_id']);
+const matches = rows.filter(r => r['lead_id'] === target);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [880, 300]))
+
+    # 4. Read all Deals from Google Sheets
+    nodes.append(build_gsheets_read(
+        "Read Deals Sheet", RE_SPREADSHEET_ID, TAB_DEALS,
+        [1100, 300], always_output=True,
     ))
 
+    # 4b. Filter to matching deal by lead_id
+    nodes.append(build_code_node("Fetch Deal", r"""
+const target = $('Validate Input').first().json.lead_id;
+const rows = $input.all().map(i => i.json).filter(r => r['lead_id']);
+const matches = rows.filter(r => r['lead_id'] === target);
+return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
+""", [1320, 300]))
+
     # 5. Check dedup (already sent?)
-    nodes.append(build_code_node("Check Already Sent", RE19_CHECK_DEDUP_CODE, [1100, 300]))
+    nodes.append(build_code_node("Check Already Sent", RE19_CHECK_DEDUP_CODE, [1540, 300]))
 
     # 6. Already sent?
     nodes.append(build_if_node(
         "Already Sent?",
         "={{ $json.already_sent }}",
-        [1320, 300],
+        [1760, 300],
     ))
 
-    # 7. Log skip (true branch = already sent)
-    nodes.append(build_airtable_create(
-        "Log Skip", RE_BASE_ID, TABLE_ACTIVITY_LOG, [1540, 200],
+    # 7. Log skip (true branch = already sent) (Google Sheets)
+    nodes.append(build_gsheets_append(
+        "Log Skip", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [1980, 200],
         columns={
             "activity_type": "document_pack_skipped",
             "entity_type": "deal",
@@ -6234,42 +6314,43 @@ def build_re19_nodes():
             "performed_by": "RE-19",
             "timestamp": "={{ $now.toISO() }}",
         },
+        continue_on_fail=True,
     ))
 
     # 8. List files from Google Drive folder (false branch = not yet sent)
     nodes.append(build_http_request(
         "List Pack Files", "GET",
         "=" + GOOGLE_DRIVE_API + "/files?q={{ encodeURIComponent(\"'\" + $('Check Already Sent').first().json.drive_folder_id + \"' in parents and trashed=false\") }}&fields=files(id,name,mimeType,size)&pageSize=20",
-        [1540, 500],
+        [1980, 500],
         auth_type="predefinedCredentialType",
         cred_type="googleOAuth2Api",
         cred_ref=CRED_GOOGLE_DRIVE,
     ))
 
     # 9. Parse file list + build AI prompt
-    nodes.append(build_code_node("Build AI Prompt", RE19_BUILD_PROMPT_CODE, [1760, 500]))
+    nodes.append(build_code_node("Build AI Prompt", RE19_BUILD_PROMPT_CODE, [2200, 500]))
 
     # 10. AI generate cover message
     nodes.append(build_openrouter_ai(
         "AI Generate Cover",
         "You are a professional South African real estate assistant. Return ONLY valid JSON.",
         " $json.ai_prompt ",
-        [1980, 500],
+        [2420, 500],
         max_tokens=1500,
         temperature=0.4,
     ))
 
     # 11. Parse AI response
-    nodes.append(build_code_node("Parse AI Response", RE19_PARSE_AI_CODE, [2200, 500]))
+    nodes.append(build_code_node("Parse AI Response", RE19_PARSE_AI_CODE, [2640, 500]))
 
     # 12. Check channels
-    nodes.append(build_code_node("Check Channels", RE19_CHECK_CHANNELS_CODE, [2420, 500]))
+    nodes.append(build_code_node("Check Channels", RE19_CHECK_CHANNELS_CODE, [2860, 500]))
 
     # 13. Has Email?
     nodes.append(build_if_node(
         "Has Email?",
         "={{ $json.send_email }}",
-        [2640, 500],
+        [3080, 500],
     ))
 
     # 14. Send email with doc links (true branch)
@@ -6279,7 +6360,7 @@ def build_re19_nodes():
         "={{ $('Check Channels').first().json.client_email }}",
         "={{ $('Check Channels').first().json.email_subject }}",
         "={{ $('Check Channels').first().json.email_html }}",
-        [2860, 400],
+        [3300, 400],
         is_html=True,
     ))
 
@@ -6287,27 +6368,27 @@ def build_re19_nodes():
     nodes.append(build_if_node(
         "Has WhatsApp?",
         "={{ $('Check Channels').first().json.send_whatsapp }}",
-        [3080, 500],
+        [3520, 500],
     ))
 
     # 16. Prepare WA document messages
-    nodes.append(build_code_node("Prepare WA Docs", RE19_PREPARE_WA_DOCS_CODE, [3300, 400]))
+    nodes.append(build_code_node("Prepare WA Docs", RE19_PREPARE_WA_DOCS_CODE, [3740, 400]))
 
     # 17. Send WhatsApp documents via Graph API
     nodes.append(build_http_request(
         "Send WA Document", "POST",
         "=https://graph.facebook.com/v18.0/{{ $('Check Channels').first().json.phone_number_id }}/messages",
-        [3520, 400],
+        [3960, 400],
         cred_ref=CRED_WHATSAPP_SEND,
         body="={{ $json.wa_doc_body }}",
     ))
 
     # 18. Prepare notification payloads
-    nodes.append(build_code_node("Prepare Notifications", RE19_PREPARE_NOTIFICATIONS_CODE, [3740, 500]))
+    nodes.append(build_code_node("Prepare Notifications", RE19_PREPARE_NOTIFICATIONS_CODE, [4180, 500]))
 
-    # 19. Update Deal - mark docs as sent
-    nodes.append(build_airtable_update(
-        "Update Deal Docs Sent", RE_BASE_ID, TABLE_DEALS, [3960, 500],
+    # 19. Update Deal - mark docs as sent (Google Sheets)
+    nodes.append(build_gsheets_update(
+        "Update Deal Docs Sent", RE_SPREADSHEET_ID, TAB_DEALS, [4400, 500],
         matching_columns=["lead_id"],
         columns={
             "lead_id": "={{ $json.lead_id }}",
@@ -6315,9 +6396,9 @@ def build_re19_nodes():
         },
     ))
 
-    # 20. Log activity
-    nodes.append(build_airtable_create(
-        "Log Activity", RE_BASE_ID, TABLE_ACTIVITY_LOG, [4180, 500],
+    # 20. Log activity (Google Sheets)
+    nodes.append(build_gsheets_append(
+        "Log Activity", RE_SPREADSHEET_ID, TAB_ACTIVITY_LOG, [4620, 500],
         columns={
             "activity_type": "={{ $json.activity_type }}",
             "entity_type": "={{ $json.entity_type }}",
@@ -6326,20 +6407,21 @@ def build_re19_nodes():
             "performed_by": "={{ $json.performed_by }}",
             "timestamp": "={{ $json.timestamp }}",
         },
+        continue_on_fail=True,
     ))
 
     # 21. Notify team via RE-10
     nodes.append(build_execute_workflow(
         "Notify Team RE-10",
         os.getenv("RE_WF_RE10_ID", "REPLACE_AFTER_DEPLOY"),
-        [4400, 400],
+        [4840, 400],
     ))
 
     # 22. Alert via RE-18
     nodes.append(build_execute_workflow(
         "Alert RE-18",
         os.getenv("RE_WF_RE18_ID", "REPLACE_AFTER_DEPLOY"),
-        [4400, 600],
+        [4840, 600],
     ))
 
     return nodes
@@ -6352,9 +6434,15 @@ def build_re19_connections(nodes):
             {"node": "Validate Input", "type": "main", "index": 0},
         ]]},
         "Validate Input": {"main": [[
+            {"node": "Read Leads Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Leads Sheet": {"main": [[
             {"node": "Fetch Lead", "type": "main", "index": 0},
         ]]},
         "Fetch Lead": {"main": [[
+            {"node": "Read Deals Sheet", "type": "main", "index": 0},
+        ]]},
+        "Read Deals Sheet": {"main": [[
             {"node": "Fetch Deal", "type": "main", "index": 0},
         ]]},
         "Fetch Deal": {"main": [[
