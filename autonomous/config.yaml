@@ -1,0 +1,60 @@
+# AWE (Autonomous Workflow Engineer) Configuration
+# All thresholds, tiers, and operational settings for the auto-fix system.
+
+system:
+  name: "AWE (Autonomous Workflow Engineer)"
+  version: "0.1.0"
+  current_tier: 1  # 1=Advisory, 2=Supervised, 3=Semi-autonomous, 4=Autonomous, 5=Near-full
+
+governance:
+  financial_agents:
+    - finance
+    - financial_intel
+  protected_workflows:
+    - Self-Healing
+  safety_caps:
+    ads_daily_zar: 2000
+    ads_weekly_zar: 10000
+    invoice_auto_approve_zar: 10000
+    invoice_escalate_zar: 50000
+
+confidence:
+  threshold_apply: 0.80
+  threshold_stage: 0.60
+  threshold_propose: 0.30
+  weights:
+    pattern_match: 0.30
+    historical_success: 0.25
+    risk_profile: 0.20
+    change_magnitude: 0.10
+    test_quality: 0.15
+
+monitoring:
+  check_interval_minutes: 15
+  error_alert_threshold: 3
+  consecutive_error_threshold: 3
+  health_score_crash_threshold: 30
+  stale_workflow_days: 30
+  execution_history_hours: 24
+
+repair:
+  dedup_cooldown_seconds: 300
+  max_fix_attempts_per_workflow: 3
+  post_fix_verification_executions: 3
+  rollback_on_any_failure: true
+  backup_before_fix: true
+
+optimization:
+  min_execution_count: 10
+  improvement_threshold_pct: 5
+
+paths:
+  decisions_dir: ".tmp/decisions"
+  backup_dir: ".tmp/backups"
+  memory_dir: "autonomous/memory"
+  patterns_dir: ".tmp/repair_patterns"
+
+alerts:
+  telegram_enabled: false
+  email_enabled: false
+  email_recipient: "ian@anyvisionmedia.com"

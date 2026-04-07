@@ -239,6 +239,74 @@ def run_ai_audit():
     return result
 
 
+# ── AWLM Modes ──────────────────────────────────────────────
+
+def run_lifecycle():
+    """Run all AWLM loops once (repair + optimize scan)."""
+    result = run_tool('lifecycle_orchestrator.py')
+    return result
+
+
+def run_repair():
+    """Run one autonomous repair cycle."""
+    import subprocess
+    tools_dir = Path(__file__).parent
+    try:
+        result = subprocess.run(
+            [sys.executable, str(tools_dir / 'lifecycle_orchestrator.py'), 'repair'],
+            capture_output=False, text=True,
+        )
+        return result.returncode
+    except Exception as e:
+        print(f"  Error: {e}")
+        return 1
+
+
+def run_optimize():
+    """Run one optimisation cycle."""
+    import subprocess
+    tools_dir = Path(__file__).parent
+    try:
+        result = subprocess.run(
+            [sys.executable, str(tools_dir / 'lifecycle_orchestrator.py'), 'optimize'],
+            capture_output=False, text=True,
+        )
+        return result.returncode
+    except Exception as e:
+        print(f"  Error: {e}")
+        return 1
+
+
+def run_revamp_scan():
+    """Scan for workflows needing revamp."""
+    import subprocess
+    tools_dir = Path(__file__).parent
+    try:
+        result = subprocess.run(
+            [sys.executable, str(tools_dir / 'lifecycle_orchestrator.py'), 'revamp-scan'],
+            capture_output=False, text=True,
+        )
+        return result.returncode
+    except Exception as e:
+        print(f"  Error: {e}")
+        return 1
+
+
+def run_awlm_status():
+    """Show AWLM system status."""
+    import subprocess
+    tools_dir = Path(__file__).parent
+    try:
+        result = subprocess.run(
+            [sys.executable, str(tools_dir / 'lifecycle_orchestrator.py'), 'status'],
+            capture_output=False, text=True,
+        )
+        return result.returncode
+    except Exception as e:
+        print(f"  Error: {e}")
+        return 1
+
+
 def main():
     """Main entry point with command routing."""
     modes = {
@@ -249,6 +317,12 @@ def main():
         'deploy': run_deploy,
         'docs': run_docs,
         'ai-audit': run_ai_audit,
+        # AWLM modes
+        'lifecycle': run_lifecycle,
+        'repair': run_repair,
+        'optimize': run_optimize,
+        'revamp-scan': run_revamp_scan,
+        'awlm-status': run_awlm_status,
     }
 
     mode = sys.argv[1] if len(sys.argv) > 1 else 'status'

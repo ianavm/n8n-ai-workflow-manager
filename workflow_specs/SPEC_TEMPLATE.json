@@ -1,0 +1,86 @@
+{
+  "$schema": "AWLM Workflow Specification v1",
+  "_description": "Fill in this template to define a new workflow for the AWLM WorkflowBuilder",
+
+  "name": "Department Name - WF## Description",
+  "department": "department-name",
+  "description": "One paragraph describing the workflow's business purpose and what it automates.",
+
+  "business_kpi": "e.g., Reduce invoice processing time by 50%",
+  "technical_kpi": "e.g., >95% success rate, <30s avg execution time",
+
+  "trigger_type": "schedule | webhook | manual | error_trigger",
+  "trigger_config": {
+    "_comment": "For schedule: cron expression. For webhook: path and method.",
+    "rule": {
+      "interval": [{"field": "cronExpression", "expression": "0 7 * * 1"}]
+    }
+  },
+
+  "nodes": [
+    {
+      "name": "Node Display Name",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.example.com/endpoint"
+      },
+      "credentials": {
+        "httpHeaderAuth": {"id": "credential-id", "name": "API Key"}
+      }
+    }
+  ],
+
+  "connections": [
+    {
+      "_comment": "Optional — if omitted, nodes are connected sequentially",
+      "from_node": "Source Node Name",
+      "to_node": "Target Node Name",
+      "from_output": 0,
+      "to_input": 0
+    }
+  ],
+
+  "credentials_needed": [
+    "n8n credential type names needed, e.g.: httpHeaderAuth, airtableTokenApi, gmailOAuth2"
+  ],
+
+  "airtable_tables": {
+    "table_purpose": "tblXXXXXXXXXXXXXX"
+  },
+
+  "risk_class": "low | medium | high | critical",
+  "retry_policy": {
+    "maxRetries": 3,
+    "retryInterval": 5000
+  },
+
+  "fallback_logic": "Describe what happens when the workflow fails after all retries.",
+  "validation_rules": [
+    "Input email must be valid",
+    "Amount must be positive"
+  ],
+
+  "test_requirements": [
+    "Must process sample data without errors",
+    "Must complete within 60 seconds"
+  ],
+
+  "monitoring_requirements": {
+    "alert_on_failure": true,
+    "sla_seconds": 60,
+    "min_success_rate": 95
+  },
+
+  "rollback_plan": "Deactivate workflow, restore from backup JSON in .tmp/backups/",
+
+  "revamp_triggers": [
+    "Error rate >40% for 14 days",
+    "Business requirements change",
+    "API deprecation"
+  ],
+
+  "owner": "ian@anyvisionmedia.com",
+  "stakeholder": "Department lead or client name"
+}
