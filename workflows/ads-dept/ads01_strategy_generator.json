@@ -2,7 +2,7 @@
   "name": "AVM Ads: Strategy Generator",
   "nodes": [
     {
-      "id": "70dc5f3a-ef94-4904-97b6-ffc2c1ee2f7d",
+      "id": "1fef8995-374d-447b-8aca-d484f8891371",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "79367cea-ea16-49a4-a321-adf58a89388b",
+      "id": "2a0ee4c3-6755-4ce7-9c15-ab7493e4b7e1",
       "name": "Read Research Insights",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "863e7893-806c-40ad-8c80-4c98ba2ba967",
+      "id": "fabf2ab7-c5c3-4830-9156-bcb77f914195",
       "name": "Read Current Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -84,7 +84,7 @@
       }
     },
     {
-      "id": "a196f448-1291-4494-bbd1-17ee8f569c89",
+      "id": "7bff7f7a-b2f8-41d7-b744-852fca6f400a",
       "name": "Read Budget Data",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "bd4fd6b9-5f6f-4955-8415-29d9d0de76d2",
+      "id": "10280e1f-af4a-42e7-910c-244d22c389e1",
       "name": "Merge Context",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -128,7 +128,7 @@
       }
     },
     {
-      "id": "3f7a4154-eb92-428b-b43b-d20da2512307",
+      "id": "081046f1-6bc0-434e-8960-c692be8eb53a",
       "name": "Aggregate Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -141,7 +141,7 @@
       }
     },
     {
-      "id": "45312aac-73ea-43d1-abf3-6b019c3473dd",
+      "id": "fd202b8b-43de-40dc-a655-ee42ac993e10",
       "name": "AI Strategy Generator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -171,14 +171,15 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Campaign Strategist for AnyVision Media, a South African SaaS/AI automation company.\\n\\nBUSINESS CONTEXT:\\n- Company: AnyVision Media (www.anyvisionmedia.com)\\n- Services: AI consulting, workflow automation, web development, social media management\\n- Target: SMBs in South Africa looking to automate and scale\\n- Brand color: #FF6D5A\\n- Currency: ZAR (South African Rand)\\n- Key CTA: \\\"Book a Free AI Strategy Call\\\"\\n\\nORGANIC CONTENT PERFORMANCE (last 7 days):\\n{{JSON.stringify($json)}}\\n\\nCURRENT PAID CAMPAIGNS:\\n{{JSON.stringify($json)}}\\n\\nBUDGET ALLOCATION:\\n{{JSON.stringify($json)}}\\n\\nGenerate 3-5 campaign recommendations as a JSON array. Each item must have:\\n- campaign_name: descriptive name\\n- platform: one of \\\"google_ads\\\", \\\"meta_ads\\\", \\\"tiktok_ads\\\"\\n- objective: one of \\\"Traffic\\\", \\\"Conversions\\\", \\\"Lead_Gen\\\", \\\"Awareness\\\", \\\"Video_Views\\\"\\n- target_audience: description of who to target\\n- suggested_daily_budget_zar: number (respect total weekly cap of R10000)\\n- ad_format: one of \\\"RSA\\\", \\\"Image\\\", \\\"Video\\\", \\\"Carousel\\\"\\n- key_messages: array of 2-3 messaging angles\\n- duration_days: 7, 14, or 30\\n- priority: \\\"High\\\", \\\"Medium\\\", or \\\"Low\\\"\\n- reasoning: why this campaign should run\\n\\nFocus on SaaS lead generation and client acquisition. Prioritize campaigns with highest expected ROAS.\\n\\nOutput ONLY valid JSON array, no markdown or extra text.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Campaign Strategist for AnyVision Media, a South African SaaS/AI automation company.\\n\\nBUSINESS CONTEXT:\\n- Company: AnyVision Media (www.anyvisionmedia.com)\\n- Services: AI consulting, workflow automation, web development, social media management\\n- Target: SMBs in South Africa looking to automate and scale\\n- Brand color: #FF6D5A\\n- Currency: ZAR (South African Rand)\\n- Key CTA: \\\"Book a Free AI Strategy Call\\\"\\n\\nORGANIC CONTENT PERFORMANCE (last 7 days):\\n{{JSON.stringify($json)}}\\n\\nCURRENT PAID CAMPAIGNS:\\n{{JSON.stringify($json)}}\\n\\nBUDGET ALLOCATION:\\n{{JSON.stringify($json)}}\\n\\nBUDGET CONSTRAINTS (MANDATORY):\\n- Daily budget per campaign: max R500 (HARD LIMIT \\u2014 never suggest higher)\\n- Weekly total across ALL campaigns: max R2600\\n- Monthly total: max R11000\\n- AVM ONLY runs Google Ads and Meta Ads. Do NOT suggest TikTok, LinkedIn, or other platforms.\\n\\nGenerate 2-3 campaign recommendations as a JSON array. Each item must have:\\n- campaign_name: descriptive name\\n- platform: one of \\\"google_ads\\\", \\\"meta_ads\\\"\\n- objective: one of \\\"Traffic\\\", \\\"Conversions\\\", \\\"Lead_Gen\\\", \\\"Awareness\\\"\\n- target_audience: description of who to target\\n- suggested_daily_budget_zar: number (MUST NOT exceed R500)\\n- ad_format: one of \\\"RSA\\\", \\\"Image\\\", \\\"Video\\\", \\\"Carousel\\\"\\n- key_messages: array of 2-3 messaging angles\\n- duration_days: 7, 14, or 30\\n- priority: \\\"High\\\", \\\"Medium\\\", or \\\"Low\\\"\\n- reasoning: why this campaign should run\\n\\nFocus on SaaS lead generation and client acquisition. Prioritize campaigns with highest expected ROAS.\\n\\nOutput ONLY valid JSON array, no markdown or extra text.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
         "options": {
           "timeout": 60000
         }
-      }
+      },
+      "continueOnFail": true
     },
     {
-      "id": "2cf4fd6f-a915-4088-84d7-b67bb5b85e2b",
+      "id": "5a316d27-0d4e-4a74-a44f-9bf5863ce23e",
       "name": "Parse Strategy",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -191,7 +192,7 @@
       }
     },
     {
-      "id": "a71f74be-797d-4c48-9e11-1b69ca8f6c01",
+      "id": "412532d6-0405-4e2d-80c8-5c2753c55dda",
       "name": "Filter Valid",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -204,7 +205,7 @@
       }
     },
     {
-      "id": "3ad706f9-ecdc-451c-bc57-3d80d0eb446e",
+      "id": "36b185d7-9531-447e-9905-94ddcd106730",
       "name": "Write Planned Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -235,10 +236,11 @@
           "value": null
         },
         "options": {}
-      }
+      },
+      "continueOnFail": true
     },
     {
-      "id": "be34b304-7f78-4f6a-b7cc-dd3e58576ebe",
+      "id": "4a85feb5-ddf4-47d2-acbf-68726ab77600",
       "name": "Email Strategy Summary",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -262,7 +264,7 @@
       }
     },
     {
-      "id": "e0a7b036-88f0-44f8-85bd-addc4abcbf6e",
+      "id": "f2c81214-20ab-49d1-94dc-183ecfe59ec1",
       "name": "Trigger Creative Generation",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,

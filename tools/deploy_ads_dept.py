@@ -441,12 +441,18 @@ CURRENT PAID CAMPAIGNS:
 BUDGET ALLOCATION:
 {budget_data}
 
-Generate 3-5 campaign recommendations as a JSON array. Each item must have:
+BUDGET CONSTRAINTS (MANDATORY):
+- Daily budget per campaign: max R{daily_cap} (HARD LIMIT — never suggest higher)
+- Weekly total across ALL campaigns: max R{weekly_cap}
+- Monthly total: max R{monthly_cap}
+- AVM ONLY runs Google Ads and Meta Ads. Do NOT suggest TikTok, LinkedIn, or other platforms.
+
+Generate 2-3 campaign recommendations as a JSON array. Each item must have:
 - campaign_name: descriptive name
-- platform: one of "google_ads", "meta_ads", "tiktok_ads"
-- objective: one of "Traffic", "Conversions", "Lead_Gen", "Awareness", "Video_Views"
+- platform: one of "google_ads", "meta_ads"
+- objective: one of "Traffic", "Conversions", "Lead_Gen", "Awareness"
 - target_audience: description of who to target
-- suggested_daily_budget_zar: number (respect total weekly cap of R{weekly_cap})
+- suggested_daily_budget_zar: number (MUST NOT exceed R{daily_cap})
 - ad_format: one of "RSA", "Image", "Video", "Carousel"
 - key_messages: array of 2-3 messaging angles
 - duration_days: 7, 14, or 30
@@ -554,6 +560,12 @@ Output JSON: {{"relevance": N, "clarity": N, "cta_strength": N, "differentiation
 
 ADS05_OPTIMIZATION_PROMPT = """You are the AVM Ads Optimization Agent for AnyVision Media.
 
+CRITICAL RULES:
+- AVM ONLY runs Google Ads and Meta Ads (Facebook/Instagram). Do NOT reference YouTube, LinkedIn, TikTok, or any other platform.
+- ONLY reference campaigns that actually exist in the performance data below. NEVER invent campaign names.
+- If the data contains campaign names, use those EXACT names. Do NOT create fictional names like "Facebook Brand Awareness" or "Google Search - Premium Products".
+- If there is insufficient data to make recommendations, say so honestly.
+
 7-DAY PERFORMANCE DATA:
 {performance_data}
 
@@ -561,10 +573,11 @@ CURRENT BUDGET ALLOCATION:
 {budget_data}
 
 SAFETY CONSTRAINTS:
+- Daily budget per campaign: max R{daily_cap}
+- Weekly total across all campaigns: max R{weekly_cap}
+- Monthly total: max R{monthly_cap}
 - Max single bid change: 30%
 - Max auto-approve budget increase: R200/day
-- Daily hard cap: R{daily_cap}
-- Weekly hard cap: R{weekly_cap}
 
 Analyze trends and recommend specific optimizations:
 
@@ -1006,9 +1019,11 @@ def build_ads04_nodes():
     ))
 
     # 10. Write to Ad_Performance table
-    nodes.append(build_airtable_create(
+    node = build_airtable_create(
         "Write Ad Performance", MARKETING_BASE_ID, TABLE_PERFORMANCE, [1750, 300]
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 11. Anomaly Detection
     nodes.append(build_code_node(
@@ -1117,13 +1132,15 @@ def build_ads08_nodes():
     nodes.append(build_merge_node("Merge Report Data", [750, 300]))
 
     # 6. AI Report Generator
-    nodes.append(build_openrouter_request(
+    node = build_openrouter_request(
         "AI Report Generator",
         ADS08_AI_REPORT_PROMPT.replace("{performance_data}", "{{JSON.stringify($json)}}"),
         "JSON.stringify($json)",
         [1000, 300],
         max_tokens=1500,
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 7. Build HTML Report
     nodes.append(build_code_node(
@@ -1310,11 +1327,17 @@ return [{json: {
     ).replace(
         "{budget_data}", "{{JSON.stringify($json)}}"
     ).replace(
+        "{daily_cap}", str(DAILY_CAP)
+    ).replace(
         "{weekly_cap}", str(WEEKLY_CAP)
+    ).replace(
+        "{monthly_cap}", str(MONTHLY_CAP)
     )
-    nodes.append(build_openrouter_request(
+    node = build_openrouter_request(
         "AI Strategy Generator", prompt, "JSON.stringify($json)", [1000, 300], max_tokens=2000,
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 7. Parse AI response into campaign records
     nodes.append(build_code_node("Parse Strategy", ADS01_PARSE_STRATEGY_CODE, [1250, 300]))
@@ -1323,9 +1346,11 @@ return [{json: {
     nodes.append(build_code_node("Filter Valid", ADS04_FILTER_SKIP_CODE, [1500, 300]))
 
     # 9. Write planned campaigns to Airtable
-    nodes.append(build_airtable_create(
+    node = build_airtable_create(
         "Write Planned Campaigns", MARKETING_BASE_ID, TABLE_CAMPAIGNS, [1750, 300],
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 10. Send summary email
     nodes.append(build_gmail_send(
@@ -1399,31 +1424,6 @@ def build_ads01_connections(nodes):
 # ======================================================================
 # ADS-02: AD COPY & CREATIVE GENERATOR
 # ======================================================================
-
-ADS02_ROUTE_BY_PLATFORM_CODE = r"""
-// Split campaigns by platform for platform-specific copy generation
-const items = $input.all();
-const google = [];
-const meta = [];
-const tiktok = [];
-
-for (const item of items) {
-  const platform = (item.json.Platform || '').toLowerCase();
-  // Wrap in clean {json: ...} to avoid pairedItem validation issues
-  const clean = {json: item.json};
-  if (platform.includes('google')) google.push(clean);
-  else if (platform.includes('meta')) meta.push(clean);
-  else if (platform.includes('tiktok')) tiktok.push(clean);
-  else google.push(clean); // default to google
-}
-
-// Return items for each output — skip placeholder for empty branches
-return [
-  google.length > 0 ? google : [{json: {skip: true}}],
-  meta.length > 0 ? meta : [{json: {skip: true}}],
-  tiktok.length > 0 ? tiktok : [{json: {skip: true}}],
-];
-"""
 
 ADS02_PARSE_CREATIVES_CODE = r"""
 // Parse AI creative responses and prepare for Airtable
@@ -1611,9 +1611,11 @@ def build_ads02_nodes():
     nodes.append(build_code_node("Filter Valid Creatives", ADS04_FILTER_SKIP_CODE, [1750, 300]))
 
     # 10. Write to Ad_Creatives table
-    nodes.append(build_airtable_create(
+    node = build_airtable_create(
         "Write Creatives", MARKETING_BASE_ID, TABLE_CREATIVES, [2000, 300],
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 11. Create approval request (defineBelow — singleSelect must match exactly)
     nodes.append({
@@ -1861,12 +1863,14 @@ def build_ads03_nodes():
     nodes.append(build_code_node("Build Meta Campaign", ADS03_BUILD_META_CAMPAIGN_CODE, [1250, 300]))
 
     # 8. Google Ads HTTP (create campaign)
-    nodes.append(build_http_request(
+    node = build_http_request(
         "Create Google Campaign", "POST",
         f"https://googleads.googleapis.com/v20/customers/{GOOGLE_ADS_CUSTOMER_ID}/campaigns:mutate",
         [1500, 100],
         auth_cred=CRED_GOOGLE_ADS,
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 9. Meta Ads (create campaign via Graph API)
     meta_campaign_node = build_facebook_graph_api(
@@ -1886,6 +1890,7 @@ def build_ads03_nodes():
             ]
         }
     }
+    meta_campaign_node["continueOnFail"] = True
     nodes.append(meta_campaign_node)
 
     # 10. Merge results
@@ -2050,7 +2055,6 @@ for (const rec of recommendations) {
     'Details': JSON.stringify(rec),
     'Created At': now,
     'Status': isAuto ? 'Approved' : 'Pending',
-    '_autoApprove': isAuto,
   }});
 }
 
@@ -2111,10 +2115,13 @@ return [{json: {
         "{performance_data}", "{{JSON.stringify($json)}}"
     ).replace("{budget_data}", "{{JSON.stringify($json)}}"
     ).replace("{daily_cap}", str(DAILY_CAP)
-    ).replace("{weekly_cap}", str(WEEKLY_CAP))
-    nodes.append(build_openrouter_request(
+    ).replace("{weekly_cap}", str(WEEKLY_CAP)
+    ).replace("{monthly_cap}", str(MONTHLY_CAP))
+    node = build_openrouter_request(
         "AI Optimizer", prompt, "JSON.stringify($json)", [1250, 300], max_tokens=2000,
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 7. Parse recommendations (single output with _autoApprove flag)
     nodes.append(build_code_node("Parse Optimizations", ADS05_PARSE_OPTIMIZATIONS_CODE, [1500, 300]))
@@ -2123,17 +2130,21 @@ return [{json: {
     nodes.append(build_code_node("Filter Valid Opts", ADS04_FILTER_SKIP_CODE, [1625, 300]))
 
     # 7c. Split by auto-approve flag
-    nodes.append(build_if_node("Auto Approve?", "={{$json._autoApprove}}", [1750, 300]))
+    nodes.append(build_if_node("Auto Approve?", "={{$json.Status === 'Approved'}}", [1750, 300]))
 
     # 8. Log auto-applied changes (true branch)
-    nodes.append(build_airtable_create(
+    node = build_airtable_create(
         "Log Auto Changes", MARKETING_BASE_ID, TABLE_APPROVALS, [2000, 200],
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 9. Create approval requests for manual changes (false branch)
-    nodes.append(build_airtable_create(
+    node = build_airtable_create(
         "Create Approval Requests", MARKETING_BASE_ID, TABLE_APPROVALS, [2000, 500],
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 10. Email optimization summary
     nodes.append(build_gmail_send(
@@ -2323,17 +2334,21 @@ def build_ads06_nodes():
     prompt = ADS06_VARIANT_PROMPT.replace(
         "{top_performers}", "{{JSON.stringify($json)}}"
     ).replace("{original_creatives}", "{{JSON.stringify($json)}}")
-    nodes.append(build_openrouter_request(
+    node = build_openrouter_request(
         "AI Variant Generator", prompt, "JSON.stringify($json)", [1500, 300], max_tokens=2000,
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 7. Parse variants
     nodes.append(build_code_node("Parse Variants", ADS06_GENERATE_VARIANTS_CODE, [1750, 300]))
 
     # 8. Write new creatives
-    nodes.append(build_airtable_create(
+    node = build_airtable_create(
         "Write New Creatives", MARKETING_BASE_ID, TABLE_CREATIVES, [2000, 300],
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 9. Email summary
     nodes.append(build_gmail_send(
@@ -2493,9 +2508,11 @@ def build_ads07_nodes():
     prompt = ADS07_ATTRIBUTION_PROMPT.replace(
         "{attribution_data}", "{{JSON.stringify($json)}}"
     )
-    nodes.append(build_openrouter_request(
+    node = build_openrouter_request(
         "AI Attribution Analyst", prompt, "JSON.stringify($json)", [1250, 300], max_tokens=1500,
-    ))
+    )
+    node["continueOnFail"] = True
+    nodes.append(node)
 
     # 6a. Format AI response into Orchestrator Events fields
     # Event Type options: health_check, alert, escalation, cross_dept, kpi_update, decision, lead_qualified, invoice_created, content_published, support_ticket
