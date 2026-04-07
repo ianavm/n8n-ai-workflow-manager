@@ -668,13 +668,8 @@ def build_airtable_search(name, base_id, table_id, formula, position, sort_field
 
 
 def build_airtable_create(name, base_id, table_id, position):
-    """Build an Airtable create node (auto-maps incoming JSON fields to Airtable).
-
-    CRITICAL: The ``columns`` parameter with ``mappingMode`` is REQUIRED for
-    Airtable v2.1 create.  Without it the API request body has no ``fields``
-    key and Airtable returns "Could not find field 'fields'".
-    """
-    return {
+    """Build an Airtable create node (auto-maps incoming JSON fields to Airtable). Auto-retries 3x."""
+    return make_resilient({
         "id": uid(),
         "name": name,
         "type": "n8n-nodes-base.airtable",
@@ -691,7 +686,7 @@ def build_airtable_create(name, base_id, table_id, position):
             },
             "options": {},
         },
-    }
+    })
 
 
 def build_code_node(name, js_code, position, num_outputs=1):
@@ -713,9 +708,19 @@ def build_code_node(name, js_code, position, num_outputs=1):
     }
 
 
+def make_resilient(node: dict, retries: int = 3, wait_ms: int = 60000) -> dict:
+    """Add retry + continueOnFail to any node for resilience."""
+    node["retryOnFail"] = True
+    node["maxTries"] = retries
+    node["waitBetweenTries"] = wait_ms
+    node["continueOnFail"] = True
+    node["alwaysOutputData"] = True
+    return node
+
+
 def build_openrouter_request(name, system_prompt, user_message_expr, position, max_tokens=1500):
-    """Build an HTTP Request node to OpenRouter for AI generation."""
-    return {
+    """Build an HTTP Request node to OpenRouter for AI generation. Auto-retries 3x."""
+    return make_resilient({
         "id": uid(),
         "name": name,
         "type": "n8n-nodes-base.httpRequest",
@@ -746,7 +751,7 @@ def build_openrouter_request(name, system_prompt, user_message_expr, position, m
             }),
             "options": {"timeout": 60000},
         },
-    }
+    })
 
 
 def build_gmail_send(name, to, subject_expr, body_expr, position, is_html=True):
