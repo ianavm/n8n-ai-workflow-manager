@@ -86,9 +86,9 @@ META_ADS_ACCOUNT_ID = os.getenv("META_ADS_ACCOUNT_ID", "REPLACE")
 TIKTOK_ADS_ADVERTISER_ID = os.getenv("TIKTOK_ADS_ADVERTISER_ID", "REPLACE")
 
 # Budget safety caps
-DAILY_CAP = int(os.getenv("ADS_DAILY_HARD_CAP_ZAR", "500"))
-WEEKLY_CAP = int(os.getenv("ADS_WEEKLY_HARD_CAP_ZAR", "2600"))
-MONTHLY_CAP = int(os.getenv("ADS_MONTHLY_HARD_CAP_ZAR", "11000"))
+DAILY_CAP = int(os.getenv("ADS_DAILY_HARD_CAP_ZAR", "666"))
+WEEKLY_CAP = int(os.getenv("ADS_WEEKLY_HARD_CAP_ZAR", "5000"))
+MONTHLY_CAP = int(os.getenv("ADS_MONTHLY_HARD_CAP_ZAR", "20000"))
 
 
 def uid():
@@ -231,7 +231,7 @@ ADS04_ANOMALY_DETECTION_CODE = r"""
 // Detect anomalies: spend > 2x daily budget, CTR drop > 50% vs 7-day avg
 const items = $input.all();
 const anomalies = [];
-const DAILY_CAP = 400;
+const DAILY_CAP = 666;
 
 for (const item of items) {
   const d = item.json;
@@ -250,8 +250,8 @@ for (const item of items) {
   }
 
   // Flag high CPA
-  if (d['CPA ZAR'] > 500 && d.Conversions > 0) {
-    issues.push(`CPA R${d['CPA ZAR']} exceeds R500 threshold`);
+  if (d['CPA ZAR'] > 800 && d.Conversions > 0) {
+    issues.push(`CPA R${d['CPA ZAR']} exceeds R800 threshold`);
   }
 
   if (issues.length > 0) {
@@ -597,7 +597,7 @@ For each recommendation, output JSON:
 Rules:
 - Be conservative. Only recommend changes backed by data.
 - Flag auto_approvable=true ONLY if bid change < 20% AND budget increase < R200/day
-- Recommend pausing campaigns with CPA > R500 and < 5 conversions
+- Recommend pausing campaigns with CPA > R800 and < 5 conversions
 - Recommend increasing budget for campaigns with ROAS > 3.0
 - Never recommend exceeding safety caps
 
@@ -1166,7 +1166,7 @@ def build_ads08_nodes():
 const gmailResp = $input.first().json;
 
 return [{json: {
-  'Event Type': 'weekly_ads_report',
+  'Event Type': 'kpi_update',
   'Source Agent': 'ADS-08',
   'Priority': 'P4',
   'Status': 'Completed',
@@ -1708,9 +1708,9 @@ def build_ads02_connections(nodes):
 ADS03_BUDGET_SAFETY_CODE = r"""
 // Budget safety check - enforce all caps before campaign creation
 const items = $input.all();
-const DAILY_CAP = 400;
-const WEEKLY_CAP = 2000;
-const MONTHLY_CAP = 8700;
+const DAILY_CAP = 666;
+const WEEKLY_CAP = 5000;
+const MONTHLY_CAP = 20000;
 
 const results = [];
 
