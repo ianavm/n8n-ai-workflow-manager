@@ -398,7 +398,7 @@ return {
                     "Event Type": "roi_analysis",
                     "Source Agent": "agent_marketing",
                     "Target Agent": "agent_orchestrator",
-                    "Priority": "Medium",
+                    "Priority": "P3",
                     "Status": "Completed",
                     "Payload": "={{ JSON.stringify({ lowROIChannels: $json.lowROIChannels, channelCount: $json.channelCount, recommendation: $json.recommendation.substring(0, 500) }) }}",
                 }
@@ -425,7 +425,7 @@ return {
                     "Event Type": "roi_analysis",
                     "Source Agent": "agent_marketing",
                     "Target Agent": "agent_orchestrator",
-                    "Priority": "Low",
+                    "Priority": "P4",
                     "Status": "Completed",
                     "Payload": "=All channels above ROI threshold. No action needed.",
                 }
@@ -578,7 +578,7 @@ def build_mkt06_nodes():
                     "Event Type": "kpi_update",
                     "Source Agent": "agent_marketing",
                     "Target Agent": "agent_orchestrator",
-                    "Priority": "Medium",
+                    "Priority": "P3",
                     "Status": "Completed",
                     "Payload": "={{ JSON.stringify({ type: 'budget_optimization', topPerformers: $('Compute Budget Analysis').first().json.topPerformers, channelCount: $('Compute Budget Analysis').first().json.channelCount }) }}",
                 }

@@ -387,7 +387,7 @@ def build_wa01_nodes():
                 "value": {
                     "Category": "WhatsApp_Quality_Alert",
                     "Source Workflow": "WA-01 Conversation Analyzer",
-                    "Priority": "High",
+                    "Priority": "P2",
                     "Description": "=WhatsApp metrics below threshold - Sentiment: {{ $('Compute Analytics').first().json.sentiment_score }}/100, Resolution: {{ $('Compute Analytics').first().json.resolution_rate }}%",
                     "Details": "={{ JSON.stringify($('Compute Analytics').first().json) }}",
                     "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
@@ -989,7 +989,7 @@ def build_wa03_nodes():
                 "value": {
                     "Category": "WhatsApp_Urgent_Issue",
                     "Source Workflow": "WA-03 Issue Detector",
-                    "Priority": "={{ $('Parse Issue').first().json.classification.severity === 'critical' ? 'Critical' : 'High' }}",
+                    "Priority": "={{ $('Parse Issue').first().json.classification.severity === 'critical' ? 'P1' : 'P2' }}",
                     "Description": "={{ $('Parse Issue').first().json.classification.summary }}",
                     "Details": "={{ JSON.stringify({contact: $('Parse Issue').first().json.scan.contact, severity: $('Parse Issue').first().json.classification.severity, issue_type: $('Parse Issue').first().json.classification.issue_type, keywords: $('Parse Issue').first().json.scan.found_keywords}) }}",
                     "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",

@@ -285,7 +285,7 @@ def build_cr01_nodes():
                 "value": {
                     "Category": "Client_Churn_Risk",
                     "Source Workflow": "CR-01 Client Health Scorer",
-                    "Priority": "High",
+                    "Priority": "P2",
                     "Description": "={{ $json.summary.at_risk_count }} clients with health score < 40. Avg score: {{ $json.summary.avg_score }}",
                     "Details": "={{ JSON.stringify($json.at_risk_clients.map(c => ({name: c.client_name, email: c.client_email, score: c.composite_score}))) }}",
                     "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",
@@ -683,7 +683,7 @@ def build_cr02_nodes():
                 "value": {
                     "Category": "Renewal_At_Risk",
                     "Source Workflow": "CR-02 Renewal Manager",
-                    "Priority": "High",
+                    "Priority": "P2",
                     "Description": "={{ $json.summary.at_risk_count }} at-risk renewals need personal outreach",
                     "Details": "={{ JSON.stringify($json.at_risk_renewals.map(r => ({name: r.client_name, email: r.client_email, plan: r.plan, days: r.days_until_expiry, health: r.health_score}))) }}",
                     "Created At": "={{ $now.toFormat('yyyy-MM-dd HH:mm:ss') }}",

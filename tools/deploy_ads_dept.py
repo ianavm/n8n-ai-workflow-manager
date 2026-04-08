@@ -2252,18 +2252,29 @@ return ranked.length > 0
   : [{json: {skip: true, reason: 'No top performers found'}}];
 """
 
+ADS06_PREPARE_AI_INPUT_CODE = r"""
+// Aggregate top performers + creatives into a single item for AI
+const topPerformers = $('Filter Valid').all().map(i => i.json);
+const creatives = $('Read Original Creatives').all().map(i => i.json);
+
+return [{json: {
+  topPerformers: topPerformers.slice(0, 5),
+  creatives: creatives.slice(0, 10),
+}}];
+"""
+
 ADS06_GENERATE_VARIANTS_CODE = r"""
 // Parse AI variant suggestions and create new creative records
 const aiResp = $('AI Variant Generator').first().json;
 const content = aiResp.choices?.[0]?.message?.content || '[]';
-const originals = $('Read Original Creatives').all();
+const creatives = $('Prepare AI Input').first().json.creatives || [];
 
 let variants;
 try {
   const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
   variants = JSON.parse(cleaned);
 } catch (e) {
-  return [{json: {skip: true}}];
+  return [{json: {skip: true, reason: 'Failed to parse AI response'}}];
 }
 
 if (!Array.isArray(variants)) variants = [variants];
@@ -2273,7 +2284,7 @@ const results = [];
 
 for (let i = 0; i < variants.length; i++) {
   const v = variants[i];
-  const orig = originals[0]?.json || {};
+  const orig = creatives[0] || {};
 
   results.push({json: {
     'Creative Name': `${orig['Creative Name'] || 'Recycled'} - Variant ${now} #${i + 1}`,
@@ -2290,7 +2301,7 @@ for (let i = 0; i < variants.length; i++) {
   }});
 }
 
-return results.length > 0 ? results : [{json: {skip: true}}];
+return results.length > 0 ? results : [{json: {skip: true, reason: 'No variants generated'}}];
 """
 
 ADS06_VARIANT_PROMPT = """You are the AVM Creative Recycler for AnyVision Media.
@@ -2307,7 +2318,7 @@ Generate 2-3 new ad creative variants based on the winning patterns. For each va
 - Maintain platform-specific format requirements
 - Reference the original creative it's based on
 
-Output as JSON array with fields: campaign_name, platform, ad_format, headlines[], descriptions[], primary_text, cta"""
+Output ONLY a JSON array (no markdown, no explanation) with fields: campaign_name, platform, ad_format, headlines[], descriptions[], primary_text, cta"""
 
 
 def build_ads06_nodes():
@@ -2335,32 +2346,38 @@ def build_ads06_nodes():
         "=OR({Status}='Active',{Status}='Approved')", [1250, 300],
     ))
 
-    # 6. AI Variant Generator
+    # 6. Prepare AI Input — aggregate top performers + creatives into single item
+    nodes.append(build_code_node("Prepare AI Input", ADS06_PREPARE_AI_INPUT_CODE, [1500, 300]))
+
+    # 7. AI Variant Generator — runs once with aggregated data
     prompt = ADS06_VARIANT_PROMPT.replace(
-        "{top_performers}", "{{JSON.stringify($json)}}"
-    ).replace("{original_creatives}", "{{JSON.stringify($json)}}")
+        "{top_performers}", "={{JSON.stringify($json.topPerformers)}}"
+    ).replace("{original_creatives}", "={{JSON.stringify($json.creatives)}}")
     node = build_openrouter_request(
-        "AI Variant Generator", prompt, "JSON.stringify($json)", [1500, 300], max_tokens=2000,
+        "AI Variant Generator", prompt, "JSON.stringify($json)", [1750, 300], max_tokens=2000,
     )
     node["continueOnFail"] = True
     nodes.append(node)
 
-    # 7. Parse variants
-    nodes.append(build_code_node("Parse Variants", ADS06_GENERATE_VARIANTS_CODE, [1750, 300]))
+    # 8. Parse variants
+    nodes.append(build_code_node("Parse Variants", ADS06_GENERATE_VARIANTS_CODE, [2000, 300]))
 
-    # 8. Write new creatives
+    # 9. Filter out skip items before Airtable write
+    nodes.append(build_code_node("Filter Variants", ADS04_FILTER_SKIP_CODE, [2250, 300]))
+
+    # 10. Write new creatives
     node = build_airtable_create(
-        "Write New Creatives", MARKETING_BASE_ID, TABLE_CREATIVES, [2000, 300],
+        "Write New Creatives", MARKETING_BASE_ID, TABLE_CREATIVES, [2500, 300],
     )
     node["continueOnFail"] = True
     nodes.append(node)
 
-    # 9. Email summary
+    # 11. Email summary
     nodes.append(build_gmail_send(
         "Email Recycler Summary", ALERT_EMAIL,
         "AVM Ads - Creative Recycler: New Variants Created",
         "={{\"<h2>Creative Recycler Results</h2><pre>\" + JSON.stringify($json, null, 2) + \"</pre>\"}}",
-        [2250, 300],
+        [2750, 300],
     ))
 
     return nodes
@@ -2382,12 +2399,18 @@ def build_ads06_connections(nodes):
             {"node": "Read Original Creatives", "type": "main", "index": 0},
         ]]},
         "Read Original Creatives": {"main": [[
+            {"node": "Prepare AI Input", "type": "main", "index": 0},
+        ]]},
+        "Prepare AI Input": {"main": [[
             {"node": "AI Variant Generator", "type": "main", "index": 0},
         ]]},
         "AI Variant Generator": {"main": [[
             {"node": "Parse Variants", "type": "main", "index": 0},
         ]]},
         "Parse Variants": {"main": [[
+            {"node": "Filter Variants", "type": "main", "index": 0},
+        ]]},
+        "Filter Variants": {"main": [[
             {"node": "Write New Creatives", "type": "main", "index": 0},
         ]]},
         "Write New Creatives": {"main": [[
@@ -2521,8 +2544,8 @@ def build_ads07_nodes():
 
     # 6a. Format AI response into Orchestrator Events fields
     # Event Type options: health_check, alert, escalation, cross_dept, kpi_update, decision, lead_qualified, invoice_created, content_published, support_ticket
-    # Priority options: Critical, High, Medium, Low
-    # Status options: Pending, In Progress, Resolved, Escalated
+    # Priority options (Airtable select): P1, P2, P3, P4
+    # Status options (Airtable select): Pending, Processing, Completed, Failed
     nodes.append(build_code_node("Format Attribution Data", r"""
 // Transform AI Attribution Analyst response into Orchestrator Events fields
 const aiResp = $input.first().json;
@@ -2531,8 +2554,8 @@ const content = aiResp.choices?.[0]?.message?.content || JSON.stringify(aiResp);
 return [{json: {
   'Event Type': 'kpi_update',
   'Source Agent': 'ADS-07',
-  'Priority': 'Low',
-  'Status': 'Resolved',
+  'Priority': 'P4',
+  'Status': 'Completed',
   'Payload': typeof content === 'string' ? content : JSON.stringify(content),
   'Created At': new Date().toISOString(),
 }}];

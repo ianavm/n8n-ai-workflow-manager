@@ -2,7 +2,7 @@
   "name": "AVM Ads: Creative Recycler",
   "nodes": [
     {
-      "id": "1228952b-f128-4bc6-ab7e-c7347215f918",
+      "id": "f58d80af-cf8d-48be-8f7f-648ab04c92de",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "573cf42b-4927-4ab1-840b-7a9fcc72393f",
+      "id": "eedeabb0-61d3-49dc-b724-44043401f171",
       "name": "Read Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "8ef726fa-99a1-4268-a166-5e825d70919b",
+      "id": "0886b9ef-b804-4678-89a6-08b0ba69b3b1",
       "name": "Find Top Performers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -66,7 +66,7 @@
       }
     },
     {
-      "id": "c4887bdb-ff6f-4fb4-8d4d-7c6f3136a2d5",
+      "id": "dcff1a47-a09a-4b17-bdc4-161503dcab3b",
       "name": "Filter Valid",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -79,7 +79,7 @@
       }
     },
     {
-      "id": "46423754-c629-4a90-892e-551d85ded7cf",
+      "id": "0ed22d82-3953-4191-a643-5926ed71d5e1",
       "name": "Read Original Creatives",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -110,12 +110,25 @@
       }
     },
     {
-      "id": "ce6d0d4b-bdb9-4307-9aff-a42be7549285",
+      "id": "008cddfe-5c8a-483d-b924-b3509e5a94f9",
+      "name": "Prepare AI Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Aggregate top performers + creatives into a single item for AI\nconst topPerformers = $('Filter Valid').all().map(i => i.json);\nconst creatives = $('Read Original Creatives').all().map(i => i.json);\n\nreturn [{json: {\n  topPerformers: topPerformers.slice(0, 5),\n  creatives: creatives.slice(0, 10),\n}}];\n"
+      }
+    },
+    {
+      "id": "03963a38-bdd0-4f95-9e58-977889bee714",
       "name": "AI Variant Generator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1500,
+        1750,
         300
       ],
       "credentials": {
@@ -140,33 +153,50 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Creative Recycler for AnyVision Media.\\n\\nTOP PERFORMING CAMPAIGNS:\\n{{JSON.stringify($json)}}\\n\\nORIGINAL CREATIVES:\\n{{JSON.stringify($json)}}\\n\\nGenerate 2-3 new ad creative variants based on the winning patterns. For each variant:\\n- Keep the winning messaging angle but change the specific wording\\n- Try different hooks, CTAs, or emotional triggers\\n- Maintain platform-specific format requirements\\n- Reference the original creative it's based on\\n\\nOutput as JSON array with fields: campaign_name, platform, ad_format, headlines[], descriptions[], primary_text, cta\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Creative Recycler for AnyVision Media.\\n\\nTOP PERFORMING CAMPAIGNS:\\n={{JSON.stringify($json.topPerformers)}}\\n\\nORIGINAL CREATIVES:\\n={{JSON.stringify($json.creatives)}}\\n\\nGenerate 2-3 new ad creative variants based on the winning patterns. For each variant:\\n- Keep the winning messaging angle but change the specific wording\\n- Try different hooks, CTAs, or emotional triggers\\n- Maintain platform-specific format requirements\\n- Reference the original creative it's based on\\n\\nOutput ONLY a JSON array (no markdown, no explanation) with fields: campaign_name, platform, ad_format, headlines[], descriptions[], primary_text, cta\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
         "options": {
           "timeout": 60000
         }
       },
-      "continueOnFail": true
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 60000,
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
-      "id": "a79a0ae8-7b18-4095-a4c6-dafa9f4f2af9",
+      "id": "abe4735d-80de-4b1f-975e-3dbdf635682c",
       "name": "Parse Variants",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1750,
+        2000,
         300
       ],
       "parameters": {
-        "jsCode": "\n// Parse AI variant suggestions and create new creative records\nconst aiResp = $('AI Variant Generator').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\nconst originals = $('Read Original Creatives').all();\n\nlet variants;\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  variants = JSON.parse(cleaned);\n} catch (e) {\n  return [{json: {skip: true}}];\n}\n\nif (!Array.isArray(variants)) variants = [variants];\n\nconst now = new Date().toISOString().split('T')[0];\nconst results = [];\n\nfor (let i = 0; i < variants.length; i++) {\n  const v = variants[i];\n  const orig = originals[0]?.json || {};\n\n  results.push({json: {\n    'Creative Name': `${orig['Creative Name'] || 'Recycled'} - Variant ${now} #${i + 1}`,\n    'Campaign Name': v.campaign_name || orig['Campaign Name'] || '',\n    'Platform': v.platform || orig.Platform || 'google_ads',\n    'Ad Format': v.ad_format || orig['Ad Format'] || 'RSA',\n    'Status': 'Draft',\n    'Headlines': JSON.stringify(v.headlines || []),\n    'Descriptions': JSON.stringify(v.descriptions || []),\n    'Primary Text': v.primary_text || '',\n    'CTA': v.cta || 'Learn_More',\n    'Parent Creative ID': orig['Creative Name'] || '',\n    'Created At': now,\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
+        "jsCode": "\n// Parse AI variant suggestions and create new creative records\nconst aiResp = $('AI Variant Generator').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\nconst creatives = $('Prepare AI Input').first().json.creatives || [];\n\nlet variants;\ntry {\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  variants = JSON.parse(cleaned);\n} catch (e) {\n  return [{json: {skip: true, reason: 'Failed to parse AI response'}}];\n}\n\nif (!Array.isArray(variants)) variants = [variants];\n\nconst now = new Date().toISOString().split('T')[0];\nconst results = [];\n\nfor (let i = 0; i < variants.length; i++) {\n  const v = variants[i];\n  const orig = creatives[0] || {};\n\n  results.push({json: {\n    'Creative Name': `${orig['Creative Name'] || 'Recycled'} - Variant ${now} #${i + 1}`,\n    'Campaign Name': v.campaign_name || orig['Campaign Name'] || '',\n    'Platform': v.platform || orig.Platform || 'google_ads',\n    'Ad Format': v.ad_format || orig['Ad Format'] || 'RSA',\n    'Status': 'Draft',\n    'Headlines': JSON.stringify(v.headlines || []),\n    'Descriptions': JSON.stringify(v.descriptions || []),\n    'Primary Text': v.primary_text || '',\n    'CTA': v.cta || 'Learn_More',\n    'Parent Creative ID': orig['Creative Name'] || '',\n    'Created At': now,\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No variants generated'}}];\n"
       }
     },
     {
-      "id": "c3962c1e-9e20-415f-8d6c-deaf074e1aba",
+      "id": "6e11267b-1795-4579-9093-3f5e90924b72",
+      "name": "Filter Variants",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2250,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\n// Filter out skip items (no data from platform)\nconst items = $input.all();\nreturn items.filter(item => !item.json.skip);\n"
+      }
+    },
+    {
+      "id": "1d3562dc-7441-412e-8642-86f13bc9d511",
       "name": "Write New Creatives",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
       "position": [
-        2000,
+        2500,
         300
       ],
       "credentials": {
@@ -193,15 +223,19 @@
         },
         "options": {}
       },
-      "continueOnFail": true
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 60000,
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
-      "id": "0de89d08-690d-4268-a3f8-35ce0c74312a",
+      "id": "fc00079e-0365-47dc-9925-a0aff3dcb237",
       "name": "Email Recycler Summary",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        2250,
+        2750,
         300
       ],
       "credentials": {
@@ -269,6 +303,17 @@
       "main": [
         [
           {
+            "node": "Prepare AI Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI Input": {
+      "main": [
+        [
+          {
             "node": "AI Variant Generator",
             "type": "main",
             "index": 0
@@ -288,6 +333,17 @@
       ]
     },
     "Parse Variants": {
+      "main": [
+        [
+          {
+            "node": "Filter Variants",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Variants": {
       "main": [
         [
           {
@@ -313,6 +369,7 @@
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "L915QaaJuo6au7Oe"
   }
 }
