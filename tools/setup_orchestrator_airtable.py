@@ -47,10 +47,10 @@ AGENT_STATUS_CHOICES = [
 ]
 
 PRIORITY_CHOICES = [
-    {"name": "Critical", "color": "redBright"},
-    {"name": "High", "color": "orangeBright"},
-    {"name": "Medium", "color": "yellowBright"},
-    {"name": "Low", "color": "blueBright"},
+    {"name": "P1", "color": "redBright"},
+    {"name": "P2", "color": "orangeBright"},
+    {"name": "P3", "color": "yellowBright"},
+    {"name": "P4", "color": "grayBright"},
 ]
 
 SEVERITY_CHOICES = [
@@ -132,9 +132,9 @@ TABLE_DEFINITIONS = {
                 "options": {
                     "choices": [
                         {"name": "Pending", "color": "yellowBright"},
-                        {"name": "In Progress", "color": "blueBright"},
-                        {"name": "Resolved", "color": "greenBright"},
-                        {"name": "Escalated", "color": "redBright"},
+                        {"name": "Processing", "color": "blueBright"},
+                        {"name": "Completed", "color": "greenBright"},
+                        {"name": "Failed", "color": "redBright"},
                     ]
                 },
             },

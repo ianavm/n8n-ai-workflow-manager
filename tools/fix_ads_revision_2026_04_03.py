@@ -197,7 +197,7 @@ const aiResp = $input.first().json;
 const content = aiResp.choices?.[0]?.message?.content || JSON.stringify(aiResp);
 
 return [{json: {
-  'Event Type': 'attribution_report',
+  'Event Type': 'kpi_update',
   'Source Agent': 'ADS-07',
   'Priority': 'P3',
   'Status': 'Completed',
@@ -357,7 +357,7 @@ FORMAT_REPORT_LOG_CODE = """\
 const gmailResp = $input.first().json;
 
 return [{json: {
-  'Event Type': 'weekly_ads_report',
+  'Event Type': 'kpi_update',
   'Source Agent': 'ADS-08',
   'Priority': 'P4',
   'Status': 'Completed',

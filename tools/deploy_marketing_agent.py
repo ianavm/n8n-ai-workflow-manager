@@ -395,7 +395,7 @@ return {
             "columns": {
                 "value": {
                     "Event ID": "=evt_mkt05_{{ $now.toFormat('yyyyMMddHHmmss') }}",
-                    "Event Type": "roi_analysis",
+                    "Event Type": "kpi_update",
                     "Source Agent": "agent_marketing",
                     "Target Agent": "agent_orchestrator",
                     "Priority": "P3",
@@ -422,7 +422,7 @@ return {
             "columns": {
                 "value": {
                     "Event ID": "=evt_mkt05_ok_{{ $now.toFormat('yyyyMMddHHmmss') }}",
-                    "Event Type": "roi_analysis",
+                    "Event Type": "kpi_update",
                     "Source Agent": "agent_marketing",
                     "Target Agent": "agent_orchestrator",
                     "Priority": "P4",

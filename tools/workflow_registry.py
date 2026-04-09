@@ -73,16 +73,18 @@ WORKFLOWS = {
     "OPT_02": "I37U9l1kOcsr8fpP",      # A/B Test Analyzer
 
     # ============================================================
-    # Ads Department (8 workflows)
+    # Ads Department (8 workflows + 2 support workflows)
     # ============================================================
-    "ADS_01": "MotNj5FeH4gOoADg",     # Campaign Strategy Generator
-    "ADS_02": "cYkaNVG10Pnvjjcy",     # Ad Copy & Creative Generator
-    "ADS_03": "0CTAnjA2R05JHJwQ",     # Campaign Builder & Publisher
-    "ADS_04": "BRe2QmohEsnIYqPi",     # Performance Monitor
-    "ADS_05": "D51N98bhjjahd0ed",     # Optimization Engine
-    "ADS_06": "6okBtJubjoPfoOvF",     # Creative Recycler
-    "ADS_07": "bT4hWPLioD4HefU8",     # Cross-Channel Attribution
-    "ADS_08": "jkP78rX7RNqjVzXA",     # Reporting Dashboard
+    "ADS_01": "mrzwNb9Eul9Lq2uM",     # Strategy Generator
+    "ADS_02": "7BBjmuvwF1l8DMQX",     # Copy & Creative Generator
+    "ADS_03": "oEZIqJ81NXOb3jix",     # Campaign Builder (INACTIVE - Google Ads CUSTOMER_NOT_ENABLED)
+    "ADS_04": "rIYu0FHFx741ml8d",     # Performance Monitor
+    "ADS_05": "cfDyiFLx0X89s3VL",     # Optimization Engine
+    "ADS_06": "bXxRU6rBC4kKw8bZ",     # Creative Recycler
+    "ADS_07": "HkhBl7f69GckvEpY",     # Attribution Engine
+    "ADS_08": "m8Kjjiy9jwliykOo",     # Reporting Dashboard
+    "ADS_ERR": "L915QaaJuo6au7Oe",    # Error Handler
+    "ADS_SHM": "5k1OKJuaAWVPf7Lb",    # Self-Healing Monitor
 
     # ============================================================
     # Support (4 workflows)
