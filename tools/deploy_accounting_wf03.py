@@ -120,7 +120,7 @@ def build_nodes():
                 "const crypto = require('crypto');\n"
                 "const input = $input.first().json;\n"
                 "const sig = input.headers?.['stripe-signature'] || '';\n"
-                "const secret = $env.STRIPE_WEBHOOK_SECRET;\n"
+                "const secret = '';\n"
                 "\n"
                 "if (!secret) {\n"
                 "  throw new Error('STRIPE_WEBHOOK_SECRET not configured in n8n environment');\n"
@@ -272,7 +272,7 @@ def build_nodes():
                 ").join('&');\n"
                 "\n"
                 "// 3. Add passphrase from n8n environment variable\n"
-                "const passphrase = $env.PAYFAST_PASSPHRASE || '';\n"
+                "const passphrase = 'Alisamazing0904';\n"
                 "const stringToHash = passphrase ? `${paramString}&passphrase=${encodeURIComponent(passphrase)}` : paramString;\n"
                 "\n"
                 "// 4. MD5 hash\n"
@@ -351,6 +351,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1000, 620],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -454,6 +455,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1250, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -483,6 +485,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1500, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -732,6 +735,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [3000, 700],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -849,6 +853,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [2750, 250],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -878,6 +883,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [3000, 250],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -960,6 +966,7 @@ def build_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [3500, 250],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -993,6 +1000,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [3750, 250],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -1029,6 +1037,7 @@ def build_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [500, 1100],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 

@@ -99,7 +99,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 800,
   "messages": [
     {"role": "system", "content": "You are a support ticket classifier. Output JSON: {priority: P1/P2/P3/P4, summary: string, suggestion: string, auto_resolvable: bool, confidence: 0-1}. P1=system down, P2=major issue, P3=minor, P4=question."},
@@ -108,6 +108,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Classify Ticket",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [660, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 4. Extract Classification (Code)
@@ -135,6 +136,7 @@ return { json: { ticket_id: parsed.ticket_id, client_id: parsed.client_id, clien
         "options": {}},
                    "id": uid(), "name": "Create Ticket",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1100, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 6. Switch: auto-resolvable? confidence > 0.85
@@ -157,7 +159,7 @@ return { json: { ticket_id: parsed.ticket_id, client_id: parsed.client_id, clien
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 600,
   "messages": [
     {"role": "system", "content": "Draft a professional support email response. Use the AI suggestion as guide. Sign off as AnyVision Media Support Team."},
@@ -166,6 +168,7 @@ return { json: { ticket_id: parsed.ticket_id, client_id: parsed.client_id, clien
         "options": {}},
                    "id": uid(), "name": "AI Draft Response",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1560, 180], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 8. Send Auto-Response (Gmail)
@@ -181,6 +184,7 @@ return { json: { ticket_id: parsed.ticket_id, client_id: parsed.client_id, clien
         "options": {}},
                    "id": uid(), "name": "Send Auto-Response",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1780, 180], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     # 9. Notify Support Team (Gmail)
@@ -201,6 +205,7 @@ return { json: { ticket_id: parsed.ticket_id, client_id: parsed.client_id, clien
         "options": {}},
                    "id": uid(), "name": "Notify Support Team",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1560, 420], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     # 10. Respond Webhook
@@ -247,6 +252,7 @@ def build_sup02_nodes():
         "filterByFormula": "=AND({status} != 'Resolved', {status} != 'Closed')", "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read Open Tickets",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -290,6 +296,7 @@ return results;"""},
         "options": {}},
                    "id": uid(), "name": "Send SLA Warning",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1120, 180], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     # 6. Escalate Ticket (Airtable update)
@@ -299,6 +306,7 @@ return results;"""},
         "options": {}, "matchingColumns": ["ticket_id"]},
                    "id": uid(), "name": "Escalate Ticket",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1120, 420], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 7. Gmail: Breach Alert
@@ -314,6 +322,7 @@ return results;"""},
         "options": {}},
                    "id": uid(), "name": "Send Breach Alert",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1360, 420], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes
@@ -349,6 +358,7 @@ def build_sup03_nodes():
         "filterByFormula": "=({ticket_id} = '{{ $json.body.ticket_id }}')", "returnAll": False, "options": {}},
                    "id": uid(), "name": "Read Ticket",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -358,6 +368,7 @@ def build_sup03_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Search KB Articles",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [660, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -366,7 +377,7 @@ def build_sup03_nodes():
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 800,
   "messages": [
     {"role": "system", "content": "Draft a support response using KB articles. Rate confidence 0-1 that this resolves the issue. End with 'Confidence: X.XX'. If KB is insufficient, set confidence < 0.5."},
@@ -375,6 +386,7 @@ def build_sup03_nodes():
         "options": {}},
                    "id": uid(), "name": "AI Draft from KB",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [880, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 5. Rate Confidence (Code)
@@ -409,6 +421,7 @@ return { json: { ticket_id: ticket.ticket_id||ticket.id, client_email: ticket.cl
         "options": {}},
                    "id": uid(), "name": "Send Resolution Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1560, 200], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     # 8. Update Ticket Resolved (Airtable)
@@ -418,6 +431,7 @@ return { json: { ticket_id: ticket.ticket_id||ticket.id, client_email: ticket.cl
         "options": {}, "matchingColumns": ["ticket_id"]},
                    "id": uid(), "name": "Update Ticket Resolved",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1780, 200], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 9. Respond Webhook
@@ -464,6 +478,7 @@ def build_sup04_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read Resolved Tickets",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 200], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -472,6 +487,7 @@ def build_sup04_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read Existing KB",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 420], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -480,7 +496,7 @@ def build_sup04_nodes():
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 2000,
   "messages": [
     {"role": "system", "content": "Analyze resolved support tickets. Generate a JSON array of KB articles: [{title, category (FAQ/Troubleshooting/How-To/Policy), content, keywords (comma-separated), source_tickets, confidence (0-1)}]. Only create articles for recurring patterns (2+ tickets) or likely-to-recur issues. Max 5 articles."},
@@ -489,6 +505,7 @@ def build_sup04_nodes():
         "options": {}},
                    "id": uid(), "name": "AI Generate Articles",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [700, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 5. Deduplicate (Code)
@@ -523,6 +540,7 @@ return unique.map(a => ({json:{
         "options": {}},
                    "id": uid(), "name": "Create KB Article",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1380, 200], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     return nodes

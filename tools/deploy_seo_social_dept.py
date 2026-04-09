@@ -641,6 +641,7 @@ def build_wf_score_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -902,7 +903,7 @@ def build_wf05_nodes():
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n"
                 "  \"max_tokens\": 1500,\n"
                 "  \"temperature\": 0.5,\n"
@@ -1194,6 +1195,7 @@ def build_wf05_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -1339,6 +1341,7 @@ def build_wf06_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [680, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -1456,7 +1459,7 @@ def build_wf06_nodes():
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n"
                 "  \"max_tokens\": 2000,\n"
                 "  \"temperature\": 0.7,\n"
@@ -1571,7 +1574,7 @@ def build_wf06_nodes():
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n"
                 "  \"max_tokens\": 300,\n"
                 "  \"temperature\": 0.8,\n"
@@ -1790,6 +1793,7 @@ def build_wf06_nodes():
             "options": {},
         },
         "id": uid(), "name": "Error Notification", "type": "n8n-nodes-base.gmail", "position": [440, 960], "typeVersion": 2.1, "credentials": {"gmailOAuth2": CRED_GMAIL},
+        "onError": "continueRegularOutput",
     })
 
     nodes.append({"parameters": {"content": "## WF-06: SEO Content Production\n\n**Schedule:** Daily 9:30AM SAST\n**Purpose:** Read calendar + keywords, AI content generation with quality gate.\n**Quality Gate:** Score >= 6 -> Approved + Queue | < 6 -> Draft for review.", "height": 160, "width": 420}, "id": "wf06-note-1", "type": "n8n-nodes-base.stickyNote", "position": [140, 220], "typeVersion": 1, "name": "Note 1"})
@@ -1847,6 +1851,7 @@ def build_wf07_nodes():
         },
         "id": uid(), "name": "Read Publish Queue",
         "type": "n8n-nodes-base.airtable", "position": [440, 500], "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True, "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -1881,6 +1886,7 @@ def build_wf07_nodes():
         },
         "id": uid(), "name": "Read Content",
         "type": "n8n-nodes-base.airtable", "position": [1160, 600], "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True, "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -2056,6 +2062,7 @@ def build_wf07_nodes():
         "parameters": {"sendTo": "ian@anyvisionmedia.com", "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}", "emailType": "html",
             "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>", "options": {}},
         "id": uid(), "name": "Error Notification", "type": "n8n-nodes-base.gmail", "position": [440, 880], "typeVersion": 2.1, "credentials": {"gmailOAuth2": CRED_GMAIL},
+        "onError": "continueRegularOutput",
     })
     nodes.append({"parameters": {"content": "## WF-07: Publishing & Scheduling\n\n**Schedule:** Daily 10:30AM SAST\n**Purpose:** Read publish queue, post to TikTok, Instagram, Facebook via Blotato, log results.\n**No AI tokens used** - pure distribution.", "height": 140, "width": 420}, "id": "wf07-note-1", "type": "n8n-nodes-base.stickyNote", "position": [140, 220], "typeVersion": 1, "name": "Note 1"})
     return nodes
@@ -2258,7 +2265,7 @@ def build_wf08_nodes():
             "method": "POST", "url": "https://openrouter.ai/api/v1/chat/completions",
             "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
             "sendBody": True, "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n"
                 "  \"max_tokens\": 500,\n"
                 "  \"temperature\": 0.7,\n"
@@ -2301,6 +2308,7 @@ def build_wf08_nodes():
         "parameters": {"sendTo": "ian@anyvisionmedia.com", "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}", "emailType": "html",
             "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>", "options": {}},
         "id": uid(), "name": "Error Notification", "type": "n8n-nodes-base.gmail", "position": [440, 880], "typeVersion": 2.1, "credentials": {"gmailOAuth2": CRED_GMAIL},
+        "onError": "continueRegularOutput",
     })
     nodes.append({"parameters": {"content": "## WF-08: Engagement & Community\n\n**Schedule:** Every 30min 5AM-7PM UTC\n**Purpose:** Monitor engagement metrics, detect spikes, AI comment suggestions.\n**Spike Threshold:** Engagement score > 80 -> Gmail alert + AI suggestions.", "height": 160, "width": 420}, "id": "wf08-note-1", "type": "n8n-nodes-base.stickyNote", "position": [140, 220], "typeVersion": 1, "name": "Note 1"})
     return nodes
@@ -2631,6 +2639,7 @@ def build_wf09_nodes():
         "parameters": {"sendTo": "ian@anyvisionmedia.com", "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}", "emailType": "html",
             "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>", "options": {}},
         "id": uid(), "name": "Error Notification", "type": "n8n-nodes-base.gmail", "position": [440, 1100], "typeVersion": 2.1, "credentials": {"gmailOAuth2": CRED_GMAIL},
+        "onError": "continueRegularOutput",
     })
     nodes.append({"parameters": {"content": "## WF-09: Lead Capture & Attribution\n\n**Triggers:** Webhook (POST /seo-social/lead-capture) + Daily batch\n**Purpose:** Parse UTM params, deduplicate, score leads, route by quality.\n**Hot leads (>=80):** Immediate Gmail alert to Ian.", "height": 160, "width": 420}, "id": "wf09-note-1", "type": "n8n-nodes-base.stickyNote", "position": [140, 220], "typeVersion": 1, "name": "Note 1"})
     return nodes
@@ -2813,7 +2822,7 @@ def build_wf10_nodes():
             "method": "POST", "url": "https://openrouter.ai/api/v1/chat/completions",
             "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
             "sendBody": True, "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n"
                 "  \"max_tokens\": 1000,\n"
                 "  \"temperature\": 0.5,\n"
@@ -2929,6 +2938,7 @@ def build_wf10_nodes():
         "parameters": {"sendTo": "ian@anyvisionmedia.com", "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}", "emailType": "html",
             "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>", "options": {}},
         "id": uid(), "name": "Error Notification", "type": "n8n-nodes-base.gmail", "position": [440, 880], "typeVersion": 2.1, "credentials": {"gmailOAuth2": CRED_GMAIL},
+        "onError": "continueRegularOutput",
     })
     nodes.append({"parameters": {"content": "## WF-10: SEO Maintenance\n\n**Schedule:** Weekly Sunday 2AM SAST\n**Purpose:** Crawl pages, check broken links, PageSpeed API, AI SEO analysis.\n**Output:** SEO Audits table + Content Topics score update + report email.", "height": 160, "width": 420}, "id": "wf10-note-1", "type": "n8n-nodes-base.stickyNote", "position": [140, 220], "typeVersion": 1, "name": "Note 1"})
     return nodes
@@ -3113,7 +3123,7 @@ def build_wf11_nodes():
             "method": "POST", "url": "https://openrouter.ai/api/v1/chat/completions",
             "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
             "sendBody": True, "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n"
                 "  \"max_tokens\": 1500,\n"
                 "  \"temperature\": 0.6,\n"
@@ -3253,7 +3263,7 @@ def build_wf11_nodes():
             "method": "POST", "url": "https://openrouter.ai/api/v1/chat/completions",
             "authentication": "genericCredentialType", "genericAuthType": "httpHeaderAuth",
             "sendBody": True, "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n"
                 "  \"max_tokens\": 2500,\n"
                 "  \"temperature\": 0.6,\n"
@@ -3296,6 +3306,7 @@ def build_wf11_nodes():
         "parameters": {"sendTo": "ian@anyvisionmedia.com", "subject": "SEO/SOCIAL ERROR - {{ $json.workflow.name }}", "emailType": "html",
             "message": "=<h2>SEO + Social Engine Error</h2>\n<p><strong>Workflow:</strong> {{ $json.workflow.name }}</p>\n<p><strong>Error:</strong> {{ $json.execution.error.message }}</p>\n<p><strong>Node:</strong> {{ $json.execution.lastNodeExecuted }}</p>\n<p><a href=\"{{ $json.execution.url }}\">View Execution</a></p>", "options": {}},
         "id": uid(), "name": "Error Notification", "type": "n8n-nodes-base.gmail", "position": [440, 1000], "typeVersion": 2.1, "credentials": {"gmailOAuth2": CRED_GMAIL},
+        "onError": "continueRegularOutput",
     })
     nodes.append({"parameters": {"content": "## WF-11: Analytics & Reporting\n\n**Schedule:** Weekly Mon 6AM SAST\n**Purpose:** Compute KPIs across all tables, AI insights, HTML report.\n**Monthly:** If day <= 7, triggers extended AI strategy review.", "height": 160, "width": 420}, "id": "wf11-note-1", "type": "n8n-nodes-base.stickyNote", "position": [140, 220], "typeVersion": 1, "name": "Note 1"})
     return nodes

@@ -196,6 +196,7 @@ def build_nodes() -> list[dict]:
             "type": "n8n-nodes-base.httpRequest",
             "position": [920, 300],
             "typeVersion": 4.2,
+            "onError": "continueRegularOutput",
             "alwaysOutputData": True,
         }
     )

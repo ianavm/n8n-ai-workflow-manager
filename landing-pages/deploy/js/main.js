@@ -234,11 +234,11 @@
                             /* Contact form -> Airtable + email notification */
                             fetch('https://ianimmelman89.app.n8n.cloud/webhook/website-contact-form', {
                                 method: 'POST', headers: webhookHeaders, body: leadPayload
-                            }).catch(function() {});
+                            }).catch(function(err) { console.warn('Lead webhook failed (contact):', err.message || err); });
                             /* SEO lead capture pipeline */
                             fetch('https://ianimmelman89.app.n8n.cloud/webhook/seo-social/lead-capture', {
                                 method: 'POST', headers: webhookHeaders, body: leadPayload
-                            }).catch(function() { /* silent -- Netlify already captured */ });
+                            }).catch(function(err) { console.warn('Lead webhook failed (SEO):', err.message || err); });
 
                             contactForm.reset();
                         } else {

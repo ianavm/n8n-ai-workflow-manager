@@ -224,7 +224,7 @@ return [{json: {html, has_critical: data.has_critical}}];
     # -- 10. Send report email -----------------------------------
     nodes.append(outlook_send_node(
         "Send Compliance Report",
-        "={{ $env.FA_COMPLIANCE_EMAIL || 'compliance@anyvisionmedia.com' }}",
+        os.getenv("FA_COMPLIANCE_EMAIL", "compliance@anyvisionmedia.com"),
         "=Daily Compliance Report - {{ $now.toFormat('dd MMM yyyy') }}",
         "={{ $json.html }}",
         [1500, 400],
@@ -244,7 +244,7 @@ return [{json: {html, has_critical: data.has_critical}}];
     # -- 12. Teams alert for critical ----------------------------
     nodes.append(teams_message_node(
         "Alert Compliance Team",
-        "={{ $env.FA_COMPLIANCE_TEAMS_CHANNEL }}",
+        os.getenv("FA_COMPLIANCE_TEAMS_CHANNEL", ""),
         """={{ '<h3 style="color:#dc2626;">CRITICAL Compliance Alert</h3><p>The daily compliance report has identified CRITICAL issues requiring immediate attention. Please review the compliance report sent to your email.</p><p>Report date: ' + $now.toFormat('dd MMM yyyy HH:mm') + '</p>' }}""",
         [2100, 300],
     ))

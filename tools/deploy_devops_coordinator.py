@@ -89,6 +89,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Fetch Current Workflow",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [660, 300], "credentials": {"httpHeaderAuth": CRED_N8N_API}})
 
     # 4. Store Pre-Deploy Snapshot (Airtable)
@@ -105,6 +106,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Store Snapshot",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [880, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 5. Execute Deploy Action (Code - activate or deactivate)
@@ -139,6 +141,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Execute Action",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1320, 300], "credentials": {"httpHeaderAuth": CRED_N8N_API}})
 
     # 7. Wait 60 seconds for health check
@@ -154,6 +157,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Health Check Executions",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1760, 300], "credentials": {"httpHeaderAuth": CRED_N8N_API}})
 
     # 9. Evaluate Health (Code)
@@ -193,6 +197,7 @@ return { json: {
         "options": {}, "matchingColumns": ["deploy_id"]},
                    "id": uid(), "name": "Update Success",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [2420, 200], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 12. Auto-Rollback (httpRequest - deactivate)
@@ -203,6 +208,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Auto-Rollback",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [2420, 420], "credentials": {"httpHeaderAuth": CRED_N8N_API}})
 
     # 13. Update Failed (Airtable)
@@ -214,6 +220,7 @@ return { json: {
         "options": {}, "matchingColumns": ["deploy_id"]},
                    "id": uid(), "name": "Update Failed",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [2640, 420], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 14. Alert Rollback Email (Gmail)
@@ -234,6 +241,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Alert Rollback Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [2860, 420], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     # 15. Respond Webhook
@@ -341,6 +349,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Check Results",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [660, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 4. If needs alert
@@ -371,6 +380,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Alert Credential Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1100, 200], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes
@@ -421,6 +431,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Fetch Executions",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [660, 200], "credentials": {"httpHeaderAuth": CRED_N8N_API}})
 
     # 4. Fetch Workflows (n8n API)
@@ -431,6 +442,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Fetch Workflows",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [660, 420], "credentials": {"httpHeaderAuth": CRED_N8N_API}})
 
     # 5. Compile Changes (Code)
@@ -480,7 +492,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1500,
   "messages": [
     {"role": "system", "content": "Generate professional release notes for AnyVision Media's automation platform. Format as markdown with sections: ## Summary, ## Changes, ## Stats, ## Notes. Be concise and highlight key changes."},
@@ -489,6 +501,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Generate Release Notes",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1120, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 7. Extract Notes (Code)
@@ -521,6 +534,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Release Notes",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1560, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 9. Respond Webhook

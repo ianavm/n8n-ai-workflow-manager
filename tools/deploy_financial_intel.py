@@ -138,6 +138,7 @@ def build_fintel01_nodes():
         "name": "Fetch Employees",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [660, 300],
         "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
@@ -161,6 +162,7 @@ def build_fintel01_nodes():
         "name": "Fetch Payslips",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [880, 300],
         "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
@@ -197,6 +199,7 @@ def build_fintel01_nodes():
         "name": "AI Variance Analysis",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1100, 300],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -225,6 +228,7 @@ def build_fintel01_nodes():
         "name": "Write Summary to Airtable",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1320, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -241,6 +245,7 @@ def build_fintel01_nodes():
         "name": "Alert Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -372,6 +377,7 @@ def build_fintel02_nodes():
         "name": "Fetch Trial Balance",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [660, 300],
         "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
@@ -395,6 +401,7 @@ def build_fintel02_nodes():
         "name": "Fetch Tax Rates",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [880, 300],
         "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
@@ -493,6 +500,7 @@ return [{
         "name": "AI Review and Flag",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1320, 300],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -523,6 +531,7 @@ return [{
         "name": "Write to Airtable",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -539,6 +548,7 @@ return [{
         "name": "Alert Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -673,6 +683,7 @@ def build_fintel03_nodes():
         "name": "Fetch Bank Summary",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [660, 200],
         "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
@@ -696,6 +707,7 @@ def build_fintel03_nodes():
         "name": "Fetch Aged Receivables",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [660, 400],
         "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
@@ -719,6 +731,7 @@ def build_fintel03_nodes():
         "name": "Fetch Aged Payables",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [660, 600],
         "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
@@ -755,6 +768,7 @@ def build_fintel03_nodes():
         "name": "AI Scenario Modeling",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [880, 400],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -821,6 +835,7 @@ return [{
         "name": "Write to Airtable",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1320, 400],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -837,6 +852,7 @@ return [{
         "name": "Send Report",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 400],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -940,6 +956,7 @@ def build_fintel04_nodes():
         "name": "Fetch Unpaid Bills",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [440, 300],
         "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
@@ -963,6 +980,7 @@ def build_fintel04_nodes():
         "name": "Fetch Bank Balance",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [660, 300],
         "credentials": {"quickBooksOAuth2Api": CRED_QUICKBOOKS},
     })
@@ -999,6 +1017,7 @@ def build_fintel04_nodes():
         "name": "AI Payment Strategy",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [880, 300],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -1064,6 +1083,7 @@ return [{
         "name": "Write to Airtable",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1320, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -1080,6 +1100,7 @@ return [{
         "name": "Alert Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })

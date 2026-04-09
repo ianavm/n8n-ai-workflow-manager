@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
         agent_id: agentId,
         status: action,
       }),
+      signal: AbortSignal.timeout(5000),
     }).catch((err) => {
       console.error("n8n webhook sync failed:", err);
     });

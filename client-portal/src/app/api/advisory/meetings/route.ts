@@ -146,6 +146,7 @@ export async function POST(req: NextRequest) {
         scheduled_at: parsed.data.scheduled_at,
         meeting_type: parsed.data.meeting_type,
       }),
+      signal: AbortSignal.timeout(5000),
     }).catch(() => {
       // Non-blocking webhook; failure is logged but not surfaced
     });

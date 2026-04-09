@@ -667,8 +667,23 @@ def build_airtable_search(name, base_id, table_id, formula, position, sort_field
     }
 
 
-def build_airtable_create(name, base_id, table_id, position):
-    """Build an Airtable create node (auto-maps incoming JSON fields to Airtable). Auto-retries 3x."""
+def build_airtable_create(name, base_id, table_id, position, columns=None):
+    """Build an Airtable create node. Uses defineBelow if columns provided, else autoMapInputData.
+
+    Args:
+        columns: Optional dict of {field_name: expression} for explicit field mapping.
+                 Use this for tables with singleSelect fields to avoid 422 errors.
+    """
+    if columns:
+        col_config = {
+            "mappingMode": "defineBelow",
+            "value": columns,
+        }
+    else:
+        col_config = {
+            "mappingMode": "autoMapInputData",
+            "value": None,
+        }
     return make_resilient({
         "id": uid(),
         "name": name,
@@ -680,10 +695,7 @@ def build_airtable_create(name, base_id, table_id, position):
             "operation": "create",
             "base": {"__rl": True, "mode": "id", "value": base_id},
             "table": {"__rl": True, "mode": "id", "value": table_id},
-            "columns": {
-                "mappingMode": "autoMapInputData",
-                "value": None,
-            },
+            "columns": col_config,
             "options": {},
         },
     })
@@ -1399,7 +1411,7 @@ return [{json: {
             "url": f"{n8n_base}/webhook/ads-generate-creatives",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\"triggered_by\": \"ADS-01\", \"timestamp\": \"\" + $now.toISO() + \"\"}",
+            "jsonBody": "{\"triggered_by\": \"ADS-01\", \"timestamp\": \"\" + $now.toISO() + \"\"}",
             "options": {"timeout": 10000},
         },
         "continueOnFail": True,

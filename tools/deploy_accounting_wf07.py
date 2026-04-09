@@ -203,6 +203,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [700, 500],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -333,6 +334,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1960, 300],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -375,6 +377,7 @@ def build_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [2220, 300],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -803,6 +806,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [2520, 1100],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -844,6 +848,7 @@ def build_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [460, 1600],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 

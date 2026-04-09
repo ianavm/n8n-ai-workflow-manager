@@ -83,7 +83,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 800,
   "messages": [
     {"role": "system", "content": "Score this content for brand compliance. Check: tone (professional, innovative), terminology (use 'digital growth partner' not 'agency'), color references (#FF6D5A), call to action clarity. Return JSON only: {compliance_score: 0-100, issues: [], recommendations: [], approved: bool}. approved = true if score >= 80."},
@@ -92,6 +92,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Brand Check",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [660, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 4. Parse Score (Code)
@@ -143,6 +144,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Audit Record",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1320, 420], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 8. Respond Rejected (respondToWebhook)
@@ -187,6 +189,7 @@ def build_brand02_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Fetch Recent Content",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -205,7 +208,7 @@ return { json: { content_count: items.length, content_list: contentList, audit_d
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1500,
   "messages": [
     {"role": "system", "content": "You are AnyVision Media's brand auditor. Analyze all content for brand consistency. Brand guidelines: tone=professional+innovative, terminology='digital growth partner' (not 'agency'), primary color=#FF6D5A, values=innovation+results+transparency. Return JSON: {overall_score: 0-100, content_audited: number, consistent_count: number, inconsistent_items: [{title, issues}], trends: string, recommendations: []}"},
@@ -214,6 +217,7 @@ return { json: { content_count: items.length, content_list: contentList, audit_d
         "options": {}},
                    "id": uid(), "name": "AI Brand Audit",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [880, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 5. Parse Audit Results (Code)
@@ -247,6 +251,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Audit Results",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1320, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 7. Send Report Email (Gmail)
@@ -268,6 +273,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Send Report Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1540, 300], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes
@@ -308,7 +314,7 @@ def build_brand03_nodes():
     nodes.append({"parameters": {
         "method": "POST", "url": "https://api.tavily.com/search",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "query": "{{ $json.competitors }}",
   "search_depth": "advanced",
   "max_results": 10,
@@ -322,6 +328,7 @@ def build_brand03_nodes():
         "options": {}},
                    "id": uid(), "name": "Tavily Search Competitors",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [660, 300]})
 
     # 4. Extract Search Results (Code)
@@ -339,7 +346,7 @@ return { json: { competitor_data: summaries, answer, our_positioning: positionin
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1500,
   "messages": [
     {"role": "system", "content": "Analyze competitor positioning vs AnyVision Media. Return JSON: {differentiation_score: 0-100, our_strengths: [], competitor_threats: [], messaging_gaps: [], opportunities: [], recommended_actions: [], executive_summary: string}. Focus on actionable insights for South African digital marketing landscape."},
@@ -348,6 +355,7 @@ return { json: { competitor_data: summaries, answer, our_positioning: positionin
         "options": {}},
                    "id": uid(), "name": "AI Differentiation Analysis",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1100, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 6. Parse Analysis (Code)
@@ -382,6 +390,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write to Brand Audit",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1540, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 8. Send Insights Email (Gmail)
@@ -404,6 +413,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Send Insights Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1760, 300], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes

@@ -428,6 +428,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [2580, 260],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {
             "airtableTokenApi": CRED_AIRTABLE
@@ -502,6 +503,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [3040, 160],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {
             "airtableTokenApi": CRED_AIRTABLE
         }
@@ -537,6 +539,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [3040, 380],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {
             "airtableTokenApi": CRED_AIRTABLE
         }
@@ -602,6 +605,7 @@ def build_nodes():
         "type": "n8n-nodes-base.googleSheets",
         "position": [3280, 260],
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "credentials": {
             "googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS
         }
@@ -645,7 +649,7 @@ def build_nodes():
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a professional business development writer. Write a short, personalized cold outreach email to a business owner.\\n\\nINSTRUCTIONS:\\n1. Write a subject line (max 50 chars) specific to their business type\\n2. Write a personalized opening referencing their industry\\n3. Write 2-3 sentences with a clear value proposition\\n4. End with a low-commitment CTA\\n5. Keep body under 150 words\\n6. Professional, friendly tone - NOT salesy\\n7. No exclamation marks excess\\n\\nOUTPUT FORMAT (JSON only):\\n{\\\"subject\\\": \\\"...\\\", \\\"body\\\": \\\"...\\\", \\\"cta_text\\\": \\\"...\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Business: {{ $('Score Leads').item.json.businessName }}\\nIndustry: {{ $('Score Leads').item.json.industry }}\\nLocation: {{ $('Score Leads').item.json.location }}\\nWebsite: {{ $('Score Leads').item.json.website }}\"\n    }\n  ]\n}",
+            "jsonBody": "{\n  \"model\": \"anthropic/claude-sonnet-4-20250514\",\n  \"max_tokens\": 500,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a professional business development writer. Write a short, personalized cold outreach email to a business owner.\\n\\nINSTRUCTIONS:\\n1. Write a subject line (max 50 chars) specific to their business type\\n2. Write a personalized opening referencing their industry\\n3. Write 2-3 sentences with a clear value proposition\\n4. End with a low-commitment CTA\\n5. Keep body under 150 words\\n6. Professional, friendly tone - NOT salesy\\n7. No exclamation marks excess\\n\\nOUTPUT FORMAT (JSON only):\\n{\\\"subject\\\": \\\"...\\\", \\\"body\\\": \\\"...\\\", \\\"cta_text\\\": \\\"...\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Business: {{ $('Score Leads').item.json.businessName }}\\nIndustry: {{ $('Score Leads').item.json.industry }}\\nLocation: {{ $('Score Leads').item.json.location }}\\nWebsite: {{ $('Score Leads').item.json.website }}\"\n    }\n  ]\n}",
             "options": {}
         },
         "id": uid(),
@@ -854,6 +858,7 @@ def build_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 740],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {
             "gmailOAuth2": CRED_GMAIL
         }

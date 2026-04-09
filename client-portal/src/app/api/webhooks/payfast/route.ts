@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     // Step 1: Validate ITN signature
     if (!validateITN(data)) {
       console.error("[webhooks/payfast] Invalid ITN signature");
-      return new NextResponse("INVALID SIGNATURE", { status: 200 });
+      return new NextResponse("INVALID SIGNATURE", { status: 400 });
     }
 
     // Step 2: Confirm with PayFast server
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     const isValid = await confirmWithPayFast(paramString);
     if (!isValid) {
       console.error("[webhooks/payfast] PayFast server confirmation failed");
-      return new NextResponse("CONFIRMATION FAILED", { status: 200 });
+      return new NextResponse("CONFIRMATION FAILED", { status: 400 });
     }
 
     // Step 3: Extract identifiers

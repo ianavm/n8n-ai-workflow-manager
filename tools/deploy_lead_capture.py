@@ -109,6 +109,7 @@ def build_airtable_create_node(
         "name": name,
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": position,
         "parameters": {
             "operation": "create",
@@ -138,6 +139,7 @@ def build_gmail_send_node(
         "name": name,
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": position,
         "parameters": {
             "sendTo": ALERT_EMAIL,

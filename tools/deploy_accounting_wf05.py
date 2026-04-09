@@ -223,6 +223,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1200, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -241,6 +242,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1460, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -259,6 +261,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1720, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -277,6 +280,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1980, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -518,6 +522,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [3280, 300],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -861,6 +866,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [4840, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -895,6 +901,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [5100, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -940,6 +947,7 @@ def build_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [5360, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -980,6 +988,7 @@ def build_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [460, 900],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 

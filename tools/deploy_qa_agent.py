@@ -192,6 +192,7 @@ return [{json: {
         },
         "id": uid(), "name": "Write Results",
         "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -234,6 +235,7 @@ return [{json: {
         },
         "id": uid(), "name": "Alert Email",
         "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1980, 200],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -493,6 +495,7 @@ return [{json: {
         },
         "id": uid(), "name": "Send Weekly Report",
         "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -667,6 +670,7 @@ return data.results.map(r => ({json: r}));"""},
         },
         "id": uid(), "name": "Write Benchmark",
         "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -709,6 +713,7 @@ return data.results.map(r => ({json: r}));"""},
         },
         "id": uid(), "name": "Alert on Degradation",
         "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [2200, 200],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })

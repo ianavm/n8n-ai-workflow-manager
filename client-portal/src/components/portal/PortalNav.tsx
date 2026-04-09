@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useState, useEffect, useCallback, useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -117,10 +118,13 @@ export function PortalNav() {
           }}
         >
           {theme.logoUrl ? (
-            <img
+            <Image
               src={theme.logoUrl}
               alt={theme.companyName}
+              width={160}
+              height={36}
               style={{ maxHeight: "36px", maxWidth: "160px", objectFit: "contain" }}
+              unoptimized
             />
           ) : (
             <>

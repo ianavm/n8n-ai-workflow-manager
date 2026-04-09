@@ -83,6 +83,7 @@ def build_comply01_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Check Suppression Table",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [660, 200], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -92,6 +93,7 @@ def build_comply01_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Check Decision Log",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [660, 420], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -129,7 +131,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1200,
   "messages": [
     {"role": "system", "content": "You are a compliance auditor for a South African digital marketing company. Assess compliance based on: email suppression (POPIA), audit trail completeness, data handling. Return JSON: {overall_score: 0-100, findings: [{area, status: 'Compliant'|'Non-Compliant'|'Warning', detail, severity: 'Critical'|'High'|'Medium'|'Low'}], recommendations: [], risk_level: 'Low'|'Medium'|'High'|'Critical'}"},
@@ -138,6 +140,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Compliance Assessment",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1120, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 7. Parse Assessment (Code)
@@ -176,6 +179,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Compliance Results",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1560, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 9. Check Violations (If v2.2)
@@ -204,6 +208,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Alert Violations Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [2000, 200], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     # 11. Summary Email (Gmail - all clear)
@@ -224,6 +229,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Summary Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [2000, 420], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes
@@ -267,6 +273,7 @@ def build_comply02_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read Recent Ads",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -288,7 +295,7 @@ return { json: { ad_count: items.length, ad_data: adList, check_date: new Date()
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1500,
   "messages": [
     {"role": "system", "content": "You are an advertising policy compliance checker. Check ads against Google Ads, Meta (Facebook/Instagram), and TikTok advertising policies. Common violations: misleading claims, prohibited content, missing disclaimers, trademark issues, targeting restrictions. Return JSON: {compliant_count: number, violation_count: number, findings: [{ad_title, platform, violation_type, policy_reference, severity: 'Critical'|'High'|'Medium'|'Low', recommendation}], overall_risk: 'Low'|'Medium'|'High'|'Critical'}"},
@@ -297,6 +304,7 @@ return { json: { ad_count: items.length, ad_data: adList, check_date: new Date()
         "options": {}},
                    "id": uid(), "name": "AI Policy Check",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [880, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 5. Parse Policy Results (Code)
@@ -332,6 +340,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Findings",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1320, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 7. Check for Violations (If v2.2)
@@ -358,6 +367,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Alert Policy Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1760, 200], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes
@@ -394,6 +404,7 @@ def build_comply03_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read Suppression Records",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 200], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -403,6 +414,7 @@ def build_comply03_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read Lead Data",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 420], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -462,7 +474,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1500,
   "messages": [
     {"role": "system", "content": "You are a POPIA (Protection of Personal Information Act, South Africa) compliance auditor. Assess data handling practices. Key POPIA requirements: lawful processing, purpose limitation, data minimization, storage limitation, integrity/confidentiality, information officer duties. Return JSON: {popia_score: 0-100, findings: [{area, status: 'Compliant'|'Non-Compliant'|'Warning', detail, popia_section, severity: 'Critical'|'High'|'Medium'|'Low'}], data_retention_compliant: bool, consent_management_score: 0-100, recommendations: [], risk_level: 'Low'|'Medium'|'High'|'Critical'}"},
@@ -471,6 +483,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI POPIA Assessment",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [940, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 6. Parse POPIA Results (Code)
@@ -510,6 +523,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write POPIA Audit",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1380, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 8. Check Violations (If v2.2)
@@ -539,6 +553,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Alert POPIA Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1820, 200], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     # 10. Summary Email (Gmail - all clear)
@@ -558,6 +573,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "POPIA Summary Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1820, 420], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes

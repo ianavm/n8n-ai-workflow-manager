@@ -404,6 +404,7 @@ def build_cr01_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -783,6 +784,7 @@ def build_cr02_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -1026,6 +1028,7 @@ def build_cr03_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 800],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -1192,7 +1195,7 @@ def build_cr04_nodes():
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').first().json.aiModel }}\",\n"
                 "  \"max_tokens\": 3000,\n"
                 "  \"temperature\": 0.7,\n"
@@ -1329,6 +1332,7 @@ def build_cr04_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 

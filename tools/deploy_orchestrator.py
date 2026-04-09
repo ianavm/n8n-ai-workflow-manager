@@ -507,6 +507,7 @@ def build_orch01_nodes():
         "name": "Fetch Executions",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [880, 300],
         "credentials": {"httpHeaderAuth": CRED_N8N_API},
     })
@@ -610,6 +611,7 @@ def build_orch01_nodes():
         "name": "Update Registry Healthy",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [2000, 100],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -637,6 +639,7 @@ def build_orch01_nodes():
         "name": "Log Auto Fix Decision",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [2000, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -665,6 +668,7 @@ def build_orch01_nodes():
         "name": "Create Escalation",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [2000, 520],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -695,6 +699,7 @@ def build_orch01_nodes():
         "name": "Send Alert Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [2240, 520],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -782,6 +787,7 @@ def build_orch02_nodes():
         "name": "Log Event",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [660, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -865,6 +871,7 @@ def build_orch03_nodes():
         "name": "Read Marketing Metrics",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [660, 140],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
@@ -909,6 +916,7 @@ def build_orch03_nodes():
         "name": "Read Execution Stats",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [660, 540],
         "credentials": {"httpHeaderAuth": CRED_N8N_API},
     })
@@ -949,6 +957,7 @@ def build_orch03_nodes():
         "name": "Write KPI Snapshots",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1160, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -971,6 +980,7 @@ def build_orch03_nodes():
         "name": "Update Agent KPIs",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1380, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -1029,6 +1039,7 @@ def build_orch04_nodes():
         "name": "Read KPI History",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 140],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
@@ -1048,6 +1059,7 @@ def build_orch04_nodes():
         "name": "Read Escalations",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 340],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
@@ -1067,6 +1079,7 @@ def build_orch04_nodes():
         "name": "Read Decisions",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 540],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
@@ -1091,7 +1104,7 @@ def build_orch04_nodes():
             "nodeCredentialType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": """={
+            "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514",
   "max_tokens": 1500,
   "messages": [
@@ -1111,6 +1124,7 @@ def build_orch04_nodes():
         "name": "AI Generate Summary",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [940, 300],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -1138,6 +1152,7 @@ def build_orch04_nodes():
         "name": "Send Weekly Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1380, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })

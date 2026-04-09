@@ -137,6 +137,7 @@ def build_intel04_nodes():
         "name": "Tavily Search",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [660, 300],
     })
 
@@ -223,6 +224,7 @@ return [{
         "name": "AI Analyze Changes",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1100, 300],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -316,6 +318,7 @@ return records;"""
         "name": "Write to Airtable",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -367,6 +370,7 @@ return records;"""
         "name": "Alert Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1980, 200],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -496,6 +500,7 @@ def build_intel05_nodes():
         "name": "Read Week Findings",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [660, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
@@ -534,6 +539,7 @@ def build_intel05_nodes():
         "name": "AI Market Digest",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [880, 300],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -621,6 +627,7 @@ return [{ json: { html, subject: 'Weekly Market Intel Digest - ' + weekLabel } }
         "name": "Send Digest Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1320, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -715,6 +722,7 @@ def build_intel06_nodes():
         "name": "Tavily Search Regulatory",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [440, 300],
     })
 
@@ -814,6 +822,7 @@ return [{
         "name": "AI Classify Impact",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1100, 200],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -901,6 +910,7 @@ return records;"""
         "name": "Write Alert",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -952,6 +962,7 @@ return records;"""
         "name": "Send High Impact Alert",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1980, 100],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })

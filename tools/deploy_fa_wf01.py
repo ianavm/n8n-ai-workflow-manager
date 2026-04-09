@@ -248,13 +248,13 @@ return [{json: {client_id: clientId, ...clientData}}];
     nodes.append(outlook_send_node(
         "Send Welcome Email",
         "={{ $('Extract Client ID').first().json.email }}",
-        "=Welcome to {{ $env.FA_FIRM_NAME || 'our advisory firm' }} - Your Financial Advisory Journey",
+        "=Welcome to our advisory firm - Your Financial Advisory Journey",
         """={{ (function() {
   const name = $('Extract Client ID').first().json.first_name;
   return `<h2>Welcome, ${name}!</h2>
   <p>Thank you for choosing us as your financial adviser. Your dedicated adviser will be in touch shortly to schedule your discovery meeting.</p>
   <p>In the meantime, you can access your client portal to view your profile and track your advisory journey.</p>
-  <p><a href="${$env.PORTAL_URL || 'https://portal.anyvisionmedia.com'}/portal/advisory/dashboard" style="display:inline-block;background:#6C63FF;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;">Access Your Portal</a></p>
+  <p><a href="${'https://portal.anyvisionmedia.com'}/portal/advisory/dashboard" style="display:inline-block;background:#6C63FF;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;">Access Your Portal</a></p>
   <p>We look forward to helping you achieve your financial goals.</p>`;
 })() }}""",
         [2300, -200],
@@ -263,7 +263,7 @@ return [{json: {client_id: clientId, ...clientData}}];
     # ── 15. Notify Adviser via Teams ────────────────────────
     nodes.append(teams_message_node(
         "Notify Adviser",
-        "={{ $env.FA_TEAMS_CHAT_ID || 'REPLACE_CHAT_ID' }}",
+        os.getenv("FA_TEAMS_CHAT_ID", "REPLACE_CHAT_ID"),
         """={{ `<b>New Client Intake</b><br>
 <b>Name:</b> ${$('Extract Client ID').first().json.first_name} ${$('Extract Client ID').first().json.last_name}<br>
 <b>Email:</b> ${$('Extract Client ID').first().json.email}<br>

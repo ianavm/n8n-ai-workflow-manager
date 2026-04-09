@@ -195,6 +195,84 @@ def _fix_execution_order(wf: dict) -> List[str]:
     return changes
 
 
+def _fix_google_sheets_schema_drift(wf: dict) -> List[str]:
+    """Add onError + alwaysOutputData to Google Sheets nodes for schema drift."""
+    changes: List[str] = []
+    for node in wf.get("nodes", []):
+        ntype = node.get("type", "")
+        if "googleSheets" not in ntype:
+            continue
+        modified = False
+        if node.get("onError") != "continueRegularOutput":
+            node["onError"] = "continueRegularOutput"
+            modified = True
+        if not node.get("alwaysOutputData"):
+            node["alwaysOutputData"] = True
+            modified = True
+        if modified:
+            changes.append(
+                f"Added onError+alwaysOutputData to Google Sheets node '{node['name']}'"
+            )
+    return changes
+
+
+def _fix_credential_auth_none_mismatch(wf: dict) -> List[str]:
+    """Remove authentication=none when a real credential is referenced."""
+    changes: List[str] = []
+    for node in wf.get("nodes", []):
+        params = node.get("parameters", {})
+        creds = node.get("credentials", {})
+        auth_val = params.get("authentication", "")
+        # Node has a credential but auth is explicitly set to none/empty
+        if creds and auth_val in ("none", ""):
+            has_real_cred = any(
+                isinstance(v, dict) and v.get("id")
+                for v in creds.values()
+            )
+            if has_real_cred:
+                params.pop("authentication", None)
+                changes.append(
+                    f"Removed authentication='none' from '{node['name']}' "
+                    f"(credential refs: {list(creds.keys())})"
+                )
+    return changes
+
+
+def _fix_broken_input_prefix(wf: dict) -> List[str]:
+    """Restore missing $input prefix on .all()/.first() calls in Code nodes."""
+    changes: List[str] = []
+    # Match assignments like `= .all()` or `= .first()` missing the $input prefix
+    broken_re = re.compile(r'(=\s*)\.((all|first)\(\))')
+    for node in wf.get("nodes", []):
+        if node.get("type", "") != "n8n-nodes-base.code":
+            continue
+        js_code = node.get("parameters", {}).get("jsCode", "")
+        if not broken_re.search(js_code):
+            continue
+        fixed_code = broken_re.sub(r'\1$input.\2', js_code)
+        node["parameters"]["jsCode"] = fixed_code
+        changes.append(
+            f"Restored $input prefix in Code node '{node['name']}'"
+        )
+    return changes
+
+
+def _fix_airtable_invalid_select_value(wf: dict) -> List[str]:
+    """Add onError to Airtable nodes hitting invalid singleSelect values."""
+    changes: List[str] = []
+    for node in wf.get("nodes", []):
+        ntype = node.get("type", "")
+        if "airtable" not in ntype.lower():
+            continue
+        if node.get("onError") != "continueRegularOutput":
+            node["onError"] = "continueRegularOutput"
+            changes.append(
+                f"Added onError=continueRegularOutput to Airtable node "
+                f"'{node['name']}' (invalid select value guard)"
+            )
+    return changes
+
+
 # ── Helper ──────────────────────────────────────────────────
 
 def _update_connection_refs(wf: dict) -> None:
@@ -399,6 +477,70 @@ BUILTIN_PATTERNS: List[RepairPattern] = [
         node_types_affected=["n8n-nodes-base.code", "n8n-nodes-base.set"],
         fix_function=lambda wf: [],  # Needs context-specific replacement
         confidence=0.70,
+        risk_level=RiskLevel.MEDIUM,
+        action_type=ActionType.UPDATE_NODE_PARAMS,
+        requires_deploy_script_update=True,
+    ),
+    # ── New patterns (2026-04-09) ──────────────────────────────
+    RepairPattern(
+        pattern_id="google_sheets_schema_drift",
+        name="Google Sheets column schema drift",
+        description="Google Sheets node fails because column names were updated after setup",
+        error_signatures=[
+            r"(?i)column names were updated",
+            r"(?i)column.*updated.*after.*setup",
+        ],
+        node_types_affected=["n8n-nodes-base.googleSheets"],
+        fix_function=_fix_google_sheets_schema_drift,
+        confidence=0.85,
+        risk_level=RiskLevel.MEDIUM,
+        action_type=ActionType.UPDATE_NODE_PARAMS,
+        requires_deploy_script_update=True,
+    ),
+    RepairPattern(
+        pattern_id="credential_auth_none_mismatch",
+        name="Credential present but authentication set to none",
+        description="Node has a real credential ID but authentication parameter is 'none', "
+                    "causing 401 or 'No cookie auth credentials found'",
+        error_signatures=[
+            r"(?i)no cookie auth credentials found",
+            r"(?i)401.*unauthorized",
+            r"(?i)authentication.*none.*credential",
+        ],
+        node_types_affected=["*"],
+        fix_function=_fix_credential_auth_none_mismatch,
+        confidence=0.80,
+        risk_level=RiskLevel.MEDIUM,
+        action_type=ActionType.UPDATE_NODE_PARAMS,
+        requires_deploy_script_update=True,
+    ),
+    RepairPattern(
+        pattern_id="broken_input_prefix",
+        name="Missing $input prefix in Code node",
+        description="Code node has .all() or .first() without $input prefix, causing SyntaxError",
+        error_signatures=[
+            r"(?i)unexpected token '\.'",
+            r"(?i)syntaxerror.*code.*node",
+            r"=\s*\.(all|first)\(\)",
+        ],
+        node_types_affected=["n8n-nodes-base.code"],
+        fix_function=_fix_broken_input_prefix,
+        confidence=0.90,
+        risk_level=RiskLevel.MEDIUM,
+        action_type=ActionType.UPDATE_NODE_PARAMS,
+        requires_deploy_script_update=True,
+    ),
+    RepairPattern(
+        pattern_id="airtable_invalid_select_value",
+        name="Airtable invalid singleSelect value",
+        description="Airtable rejects a value not in the singleSelect field options",
+        error_signatures=[
+            r"(?i)insufficient permissions to create new select option",
+            r"(?i)invalid.*select.*option",
+        ],
+        node_types_affected=["n8n-nodes-base.airtable"],
+        fix_function=_fix_airtable_invalid_select_value,
+        confidence=0.80,
         risk_level=RiskLevel.MEDIUM,
         action_type=ActionType.UPDATE_NODE_PARAMS,
         requires_deploy_script_update=True,

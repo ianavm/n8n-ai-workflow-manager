@@ -325,7 +325,7 @@ def build_nodes():
     })
 
     # Execute Retry
-    n8n_url_expr = "={{ $env.N8N_BASE_URL || '" + N8N_BASE_URL + "' }}"
+    n8n_url_expr = N8N_BASE_URL
     nodes.append({
         "parameters": {
             "method": "POST",
@@ -451,7 +451,7 @@ def build_nodes():
     nodes.append({
         "parameters": {
             "method": "POST",
-            "url": "={{ $('Parse AI Response').first().json.workflowId ? ($env.N8N_BASE_URL || '" + N8N_BASE_URL + "') + '/api/v1/workflows/' + $('Parse AI Response').first().json.workflowId + '/activate' : '' }}",
+            "url": "={{ $('Parse AI Response').first().json.workflowId ? '" + N8N_BASE_URL + "' + '/api/v1/workflows/' + $('Parse AI Response').first().json.workflowId + '/activate' : '' }}",
             "authentication": "genericCredentialType",
             "genericAuthType": "httpHeaderAuth",
             "options": {"timeout": 30000},
@@ -520,7 +520,7 @@ def build_nodes():
     nodes.append({
         "parameters": {
             "method": "POST",
-            "url": "={{ $('Compute Wait Time').first().json.executionId ? ($env.N8N_BASE_URL || '" + N8N_BASE_URL + "') + '/api/v1/executions/' + $('Compute Wait Time').first().json.executionId + '/retry' : '' }}",
+            "url": "={{ $('Compute Wait Time').first().json.executionId ? '" + N8N_BASE_URL + "' + '/api/v1/executions/' + $('Compute Wait Time').first().json.executionId + '/retry' : '' }}",
             "authentication": "genericCredentialType",
             "genericAuthType": "httpHeaderAuth",
             "options": {"timeout": 30000},
@@ -659,7 +659,7 @@ def build_nodes():
     # Fetch All Workflows
     nodes.append({
         "parameters": {
-            "url": "={{ $env.N8N_BASE_URL || '" + N8N_BASE_URL + "' }}/api/v1/workflows?limit=250",
+            "url": "=" + N8N_BASE_URL + "/api/v1/workflows?limit=250",
             "authentication": "genericCredentialType",
             "genericAuthType": "httpHeaderAuth",
             "options": {"timeout": 30000},
@@ -676,7 +676,7 @@ def build_nodes():
     # Fetch Recent Errors
     nodes.append({
         "parameters": {
-            "url": "={{ $env.N8N_BASE_URL || '" + N8N_BASE_URL + "' }}/api/v1/executions?status=error&limit=20",
+            "url": "=" + N8N_BASE_URL + "/api/v1/executions?status=error&limit=20",
             "authentication": "genericCredentialType",
             "genericAuthType": "httpHeaderAuth",
             "options": {"timeout": 30000},

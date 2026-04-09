@@ -565,6 +565,7 @@ def build_airtable_search(name, table_id, filter_formula, position, always_outpu
         "name": name,
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": position,
         "parameters": {
             "operation": "search",
@@ -592,6 +593,7 @@ def build_airtable_create(name, table_id, fields_expr, position):
         "name": name,
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": position,
         "parameters": {
             "operation": "create",
@@ -614,6 +616,7 @@ def build_airtable_update(name, table_id, fields_expr, matching_column, position
         "name": name,
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": position,
         "parameters": {
             "operation": "update",
@@ -642,7 +645,7 @@ def build_whatsapp_text(name, to_expr, text_expr, position):
         position=position,
         body=body,
         headers=[
-            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"},
+            {"name": "Authorization", "value": "=Bearer "},
             {"name": "Content-Type", "value": "application/json"},
         ],
     )
@@ -672,7 +675,7 @@ def build_whatsapp_list(name, to_expr, header_text, body_text, button_text,
         position=position,
         body=json.dumps(payload),
         headers=[
-            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"},
+            {"name": "Authorization", "value": "=Bearer "},
             {"name": "Content-Type", "value": "application/json"},
         ],
     )
@@ -699,7 +702,7 @@ def build_whatsapp_buttons(name, to_expr, body_text, buttons, position):
         position=position,
         body=json.dumps(payload),
         headers=[
-            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"},
+            {"name": "Authorization", "value": "=Bearer "},
             {"name": "Content-Type", "value": "application/json"},
         ],
     )
@@ -723,7 +726,7 @@ def build_whatsapp_document(name, to_expr, document_link, caption, position):
         position=position,
         body=json.dumps(payload),
         headers=[
-            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"},
+            {"name": "Authorization", "value": "=Bearer "},
             {"name": "Content-Type", "value": "application/json"},
         ],
     )
@@ -747,7 +750,7 @@ def build_openrouter_request(name, system_prompt, user_prompt_expr, position):
         position=position,
         body=body,
         headers=[
-            {"name": "Authorization", "value": "=Bearer {{ $env.OPENROUTER_API_KEY }}"},
+            {"name": "Authorization", "value": "=Bearer "},
             {"name": "Content-Type", "value": "application/json"},
         ],
     )
@@ -781,6 +784,7 @@ def build_gmail_send(name, to, subject_expr, html_body_expr, position):
         "name": name,
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": position,
         "parameters": {
             "sendTo": to,
@@ -894,7 +898,7 @@ def build_ord01_nodes():
         position=[940, 400],
         body=read_receipt_body,
         headers=[
-            {"name": "Authorization", "value": "=Bearer {{ $env.WHATSAPP_ACCESS_TOKEN }}"},
+            {"name": "Authorization", "value": "=Bearer "},
             {"name": "Content-Type", "value": "application/json"},
         ],
     ))

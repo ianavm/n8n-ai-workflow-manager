@@ -93,6 +93,7 @@ return { json: {
         "options": {"timeout": 15000}},
                    "id": uid(), "name": "Fetch Calendar Availability",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [660, 300]})
 
     # 4. Find Available Slots (Code)
@@ -151,7 +152,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 600,
   "messages": [
     {"role": "system", "content": "You are a scheduling assistant for AnyVision Media. Given available time slots, suggest the best 3 options. Consider: proximity to preferred date, morning slots preferred for strategy meetings, afternoon for demos. Output JSON only: {recommended_slots: [{start, end, reason}], selected_slot: {start, end}}"},
@@ -160,6 +161,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Suggest Slots",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1100, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 6. Extract AI Selection (Code)
@@ -194,6 +196,7 @@ return { json: {
         "options": {"timeout": 15000}},
                    "id": uid(), "name": "Create Calendar Event",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1540, 300]})
 
     # 8. Write to Booking_Log (Airtable)
@@ -211,6 +214,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Booking Log",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1760, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 9. Send Confirmation Email (Gmail)
@@ -237,6 +241,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Send Confirmation Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1980, 300], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     # 10. Respond Webhook
@@ -283,6 +288,7 @@ def build_book02_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read Upcoming Bookings",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -319,6 +325,7 @@ def build_book02_nodes():
         "options": {}},
                    "id": uid(), "name": "Send Reminder Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [880, 300], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     # 5. Update Booking_Log: follow_up_sent = true (Airtable update)
@@ -328,6 +335,7 @@ def build_book02_nodes():
         "options": {}},
                    "id": uid(), "name": "Mark Follow-Up Sent",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1100, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     return nodes
@@ -374,6 +382,7 @@ def build_book03_nodes():
         "options": {"timeout": 15000}},
                    "id": uid(), "name": "Fetch Next Week Events",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [440, 300]})
 
     # 3. Analyze Meeting Density (Code)
@@ -443,7 +452,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1200,
   "messages": [
     {"role": "system", "content": "You are a calendar optimization expert for AnyVision Media. Analyze the meeting schedule and provide actionable recommendations. Consider: meeting density per day, focus time availability, back-to-back meetings, overloaded days. Output JSON: {summary: string, overload_warnings: [{day, issue, suggestion}], rescheduling_suggestions: [{event, reason, suggested_time}], focus_blocks: [{day, time_range, recommended_use}], weekly_score: 0-100}"},
@@ -452,6 +461,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Calendar Optimization",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [880, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 5. Extract Recommendations (Code)
@@ -491,6 +501,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Analysis to Log",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1320, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 7. Email Weekly Calendar Report (Gmail)
@@ -517,6 +528,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Email Calendar Report",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1540, 300], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes

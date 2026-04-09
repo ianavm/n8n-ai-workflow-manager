@@ -107,6 +107,7 @@ return targets.map(t => ({json: t}));"""},
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Fetch Table Records",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [660, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -175,6 +176,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Dedup Results",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1100, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 6. Check if duplicates > 20 (If v2.2)
@@ -211,6 +213,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Alert Duplicates Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1540, 200], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     # 8. Summary Log (Set)
@@ -260,6 +263,7 @@ def build_cure02_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read Weekly Scans",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -319,7 +323,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1000,
   "messages": [
     {"role": "system", "content": "You are a data quality analyst for AnyVision Media. Analyze weekly data quality metrics across Airtable tables. Identify tables with degrading quality, recommend specific actions. Output JSON: {overall_grade: A/B/C/D/F, summary: string, table_assessments: [{table_name, grade, trend: improving/stable/degrading, recommendation}], priority_actions: [{action, table, urgency: high/medium/low}]}"},
@@ -328,6 +332,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Quality Assessment",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [880, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 5. Extract Assessment (Code)
@@ -368,6 +373,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Weekly Report",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1320, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 7. Email Quality Report (Gmail)
@@ -396,6 +402,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Email Quality Report",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1540, 300], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes
@@ -445,6 +452,7 @@ return bases.map(b => ({json: b}));"""},
         "options": {"timeout": 30000}},
                    "id": uid(), "name": "Fetch Base Schema",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [660, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 4. Analyze Schema (Code)
@@ -510,6 +518,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Audit Results",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1100, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 6. Check for Drift (If v2.2)
@@ -546,6 +555,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Alert Schema Drift",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1540, 200], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes

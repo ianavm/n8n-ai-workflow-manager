@@ -135,6 +135,7 @@ def build_crm01_nodes():
         "name": "Fetch Airtable Leads",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [660, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
@@ -157,6 +158,7 @@ def build_crm01_nodes():
         "name": "Fetch QuickBooks Contacts",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [660, 420],
         "credentials": {"oAuth2Api": CRED_QUICKBOOKS},
     })
@@ -265,6 +267,7 @@ return records.map(r => ({ json: r }));"""
         "name": "Search Unified Table",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
@@ -316,6 +319,7 @@ return records.map(r => ({ json: r }));"""
         "name": "Create New Records",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1980, 100],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -350,6 +354,7 @@ return records.map(r => ({ json: r }));"""
         "name": "Update Existing",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1980, 320],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -377,6 +382,7 @@ return records.map(r => ({ json: r }));"""
         "name": "Log Sync",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [2200, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -489,6 +495,7 @@ def build_crm02_nodes():
         "name": "Read All Unified Records",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -646,6 +653,7 @@ return [{ json: {
         "name": "AI Merge Decision",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1100, 200],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -743,6 +751,7 @@ return updates.map(u => ({ json: u }));"""
         "name": "Update Primary Records",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 100],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "onError": "continueRegularOutput",
@@ -786,6 +795,7 @@ return dups.map(d => ({ json: d }));"""
         "name": "Mark Duplicates",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 320],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "onError": "continueRegularOutput",
@@ -814,6 +824,7 @@ return dups.map(d => ({ json: d }));"""
         "name": "Log Dedup Results",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1980, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -856,6 +867,7 @@ return dups.map(d => ({ json: d }));"""
         "name": "Send Alert Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [2200, 380],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -969,6 +981,7 @@ def build_crm03_nodes():
         "name": "Read Needing Enrichment",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
@@ -1042,7 +1055,7 @@ return enrichable.map(r => ({ json: r }));"""
             "url": "https://api.tavily.com/search",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": """={
+            "jsonBody": """{
   "query": "{{ $json.searchQuery }}",
   "search_depth": "basic",
   "max_results": 3,
@@ -1060,6 +1073,7 @@ return enrichable.map(r => ({ json: r }));"""
         "name": "Enrich via Tavily",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1100, 200],
         "onError": "continueRegularOutput",
     })
@@ -1096,6 +1110,7 @@ return enrichable.map(r => ({ json: r }));"""
         "name": "AI Extract Profile",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1320, 200],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
         "onError": "continueRegularOutput",
@@ -1158,6 +1173,7 @@ return [{ json: {
         "name": "Update Enriched Records",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "onError": "continueRegularOutput",
@@ -1186,6 +1202,7 @@ return [{ json: {
         "name": "Log Enrichment",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1980, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })

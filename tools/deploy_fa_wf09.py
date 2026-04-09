@@ -206,7 +206,7 @@ return [{json: {
     # -- 10. Notify adviser about upload -------------------------
     nodes.append(outlook_send_node(
         "Notify Adviser",
-        "={{ $('Extract Metadata').first().json.adviser_id ? '' : ($env.FA_DEFAULT_ADVISER_EMAIL || 'adviser@anyvisionmedia.com') }}",
+        "={{ $('Extract Metadata').first().json.adviser_id ? '' : ('adviser@anyvisionmedia.com') }}",
         "=Document uploaded: {{ $('Extract Metadata').first().json.file_name }}",
         """={{ (function() {
   const meta = $('Extract Metadata').first().json;

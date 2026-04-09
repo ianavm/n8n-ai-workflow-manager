@@ -88,6 +88,7 @@ def build_km01_nodes():
         "options": {"timeout": 30000}},
                    "id": uid(), "name": "Fetch Recent Drive Files",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [440, 300]})
 
     # 3. Extract File List (Code)
@@ -135,7 +136,7 @@ return files.map(f => ({json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 600,
   "messages": [
     {"role": "system", "content": "Summarize this document in 2-3 sentences. Classify type: Contract, SOP, FAQ, Brand Guide, Policy, Template. Extract key terms as tags (comma-separated, max 8). Output JSON only: {summary: string, doc_type: string, tags: string, key_topics: [string]}"},
@@ -186,6 +187,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Knowledge Graph",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1760, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 9. Log Indexed Count (Code)
@@ -237,6 +239,7 @@ def build_km02_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read All Knowledge Records",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -300,7 +303,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1500,
   "messages": [
     {"role": "system", "content": "Compare these documents covering the same topic. Identify any contradictions, inconsistencies, or outdated information. For each contradiction, cite the specific documents and conflicting statements. Output JSON: {contradictions_found: number, contradictions: [{topic, doc_a: {doc_id, file_name, statement}, doc_b: {doc_id, file_name, statement}, severity: high/medium/low, recommendation}], summary: string}"},
@@ -309,6 +312,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Contradiction Detection",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1100, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 6. Extract Contradictions (Code)
@@ -388,6 +392,7 @@ return [{ json: {
         "options": {}},
                    "id": uid(), "name": "Alert Contradictions Email",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1760, 200], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes
@@ -430,6 +435,7 @@ def build_km03_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read Resolved Tickets",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 200], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -439,6 +445,7 @@ def build_km03_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Read Existing FAQs",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 420], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -447,7 +454,7 @@ def build_km03_nodes():
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 2000,
   "messages": [
     {"role": "system", "content": "Based on these resolved support tickets, generate FAQ entries. Avoid duplicating existing FAQs. Format output as JSON array: [{question: string, answer: string, category: string, source_articles: [string], confidence: 0-1}]. Only generate FAQs for recurring patterns or commonly asked questions. Max 5 new FAQs."},
@@ -456,6 +463,7 @@ def build_km03_nodes():
         "options": {}},
                    "id": uid(), "name": "AI Generate FAQs",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [700, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 5. Parse and Deduplicate FAQs (Code)
@@ -509,6 +517,7 @@ return unique.map(f => ({json: {
         "options": {}},
                    "id": uid(), "name": "Create FAQ Records",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1360, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 8. Log FAQ Generation Count (Code)

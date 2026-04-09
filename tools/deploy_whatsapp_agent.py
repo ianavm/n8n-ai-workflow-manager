@@ -437,6 +437,7 @@ def build_wa01_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -749,6 +750,7 @@ def build_wa02_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -919,7 +921,7 @@ def build_wa03_nodes():
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"" + AI_MODEL + "\",\n"
                 "  \"max_tokens\": 500,\n"
                 "  \"temperature\": 0.3,\n"
@@ -964,7 +966,7 @@ def build_wa03_nodes():
     nodes.append({
         "parameters": {
             "method": "POST",
-            "url": "={{ $env.N8N_BASE_URL || 'https://ianimmelman89.app.n8n.cloud' }}/webhook/support-ticket",
+            "url": "=https://ianimmelman89.app.n8n.cloud/webhook/support-ticket",
             "authentication": "none",
             "sendBody": True,
             "specifyBody": "json",
@@ -1067,6 +1069,7 @@ def build_wa03_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 

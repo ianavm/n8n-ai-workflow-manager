@@ -127,6 +127,7 @@ def build_bridge01_nodes():
         "name": "Read Scraper Leads",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [640, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SCRAPER},
     })
@@ -146,6 +147,7 @@ def build_bridge01_nodes():
         "name": "Read SEO Leads",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [640, 420],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
     })
@@ -290,6 +292,7 @@ return items.map(lead => ({ json: lead }));"""
         "name": "Create in SEO Table",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
     })
@@ -310,6 +313,7 @@ return items.map(lead => ({ json: lead }));"""
         "name": "Summary Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -424,6 +428,7 @@ return [{ json: { lastRow } }];"""
         "name": "Read Email Log",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [640, 300],
         "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
     })
@@ -528,6 +533,7 @@ return [{ json: {
         "name": "Search Scraper Leads",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1300, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SCRAPER},
         "onError": "continueRegularOutput",
@@ -550,6 +556,7 @@ return [{ json: {
         "name": "Search SEO Leads",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1500, 420],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
         "onError": "continueRegularOutput",
@@ -682,6 +689,7 @@ return matches.map(m => ({ json: m }));"""
         "name": "Update Scraper Lead",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1580, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SCRAPER},
         "onError": "continueRegularOutput",
@@ -711,6 +719,7 @@ return matches.map(m => ({ json: m }));"""
         "name": "Update SEO Lead",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1580, 420],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
         "onError": "continueRegularOutput",
@@ -731,6 +740,7 @@ return matches.map(m => ({ json: m }));"""
         "name": "Summary Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1800, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -870,6 +880,7 @@ def build_bridge03_nodes():
         "name": "Read Unscored Leads",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
     })
@@ -1009,6 +1020,7 @@ return results;"""
         "name": "Execute WF-SCORE",
         "type": "n8n-nodes-base.executeWorkflow",
         "typeVersion": 1.2,
+        "onError": "continueRegularOutput",
         "position": [1100, 200],
     })
 
@@ -1038,6 +1050,7 @@ return results;"""
         "name": "Update Score & Grade",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1320, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
     })
@@ -1108,6 +1121,7 @@ return results;"""
         "name": "Hot Lead Alert",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1780, 100],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -1136,6 +1150,7 @@ return results;"""
         "name": "Queue for Nurture",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1780, 320],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
     })
@@ -1155,6 +1170,7 @@ return results;"""
         "name": "Summary Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [2000, 200],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -1257,6 +1273,7 @@ def build_bridge04_nodes():
         "name": "Read Warm Leads Due",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
     })
@@ -1376,7 +1393,7 @@ return results;"""
             },
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": """={
+            "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514",
   "max_tokens": 500,
   "messages": [
@@ -1396,6 +1413,7 @@ return results;"""
         "name": "AI Generate Email",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1100, 200],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -1450,6 +1468,7 @@ return [{
         "name": "Send Nurture Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 200],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -1480,6 +1499,7 @@ return [{
         "name": "Update Nurture Stage",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
     })
@@ -1499,6 +1519,7 @@ return [{
         "name": "Summary Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1980, 200],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -1521,6 +1542,7 @@ return [{
         "name": "Read Cold Leads Due",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 600],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
         "alwaysOutputData": True,
@@ -1606,7 +1628,7 @@ return results.length > 0 ? results : [{ json: { _empty: true } }];"""
             },
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": """={
+            "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514",
   "max_tokens": 300,
   "messages": [
@@ -1626,6 +1648,7 @@ return results.length > 0 ? results : [{ json: { _empty: true } }];"""
         "name": "AI Generate Cold Email",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1100, 600],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -1679,6 +1702,7 @@ return [{
         "name": "Send Cold Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 600],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -1709,6 +1733,7 @@ return [{
         "name": "Mark Exhausted",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 600],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
     })
@@ -1731,6 +1756,7 @@ return [{
         "name": "Read Unanswered",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 900],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
         "alwaysOutputData": True,
@@ -1816,7 +1842,7 @@ return results.length > 0 ? results : [{ json: { _empty: true } }];"""
             },
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": """={
+            "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514",
   "max_tokens": 300,
   "messages": [
@@ -1836,6 +1862,7 @@ return results.length > 0 ? results : [{ json: { _empty: true } }];"""
         "name": "AI Generate Follow-Up",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1100, 900],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -1889,6 +1916,7 @@ return [{
         "name": "Send Follow-Up",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 900],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -1918,6 +1946,7 @@ return [{
         "name": "Update Follow-Up Stage",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 900],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE_SEO},
     })

@@ -149,6 +149,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [680, 500],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -209,6 +210,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1400, 500],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -679,6 +681,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [2640, 1000],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -728,6 +731,7 @@ def build_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [3120, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -735,7 +739,7 @@ def build_nodes():
     nodes.append({
         "parameters": {
             "method": "POST",
-            "url": "https://graph.facebook.com/v18.0/{{ $env.WHATSAPP_PHONE_ID }}/messages",
+            "url": "https://graph.facebook.com/v18.0/956186580917374/messages",
             "authentication": "genericCredentialType",
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
@@ -794,6 +798,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [3360, 500],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -822,6 +827,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [2120, 800],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -866,6 +872,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [3600, 500],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -892,7 +899,7 @@ def build_nodes():
         "parameters": {
             "jsCode": (
                 "const authHeader = $input.first().json.headers?.authorization || '';\n"
-                "const expected = $env.WEBHOOK_AUTH_TOKEN;\n"
+                "const expected = '';\n"
                 "if (!expected || authHeader !== `Bearer ${expected}`) {\n"
                 "  throw new Error('Unauthorized: invalid or missing Bearer token');\n"
                 "}\n"
@@ -978,6 +985,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [680, 1200],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -1010,6 +1018,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [920, 1200],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -1049,6 +1058,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1160, 1200],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -1093,6 +1103,7 @@ def build_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1400, 1200],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -1187,6 +1198,7 @@ def build_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 1500],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 

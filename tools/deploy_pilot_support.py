@@ -87,6 +87,7 @@ def build_pilot01_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [440, 400],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
     })
@@ -344,6 +345,7 @@ def build_pilot02_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1160, 300],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
     })

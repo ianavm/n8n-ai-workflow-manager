@@ -162,6 +162,7 @@ return actionable;
         "name": "Read Document Log",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [1120, 300],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -265,6 +266,7 @@ return [{{
         "name": "Update Document Log",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [1560, 300],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -303,6 +305,7 @@ return [{{
         "name": "Resolve Review",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [1780, 300],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -353,6 +356,7 @@ return [{{
         "name": "Audit Log - Review",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [2000, 300],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -372,6 +376,7 @@ return [{{
         "name": "Confirm Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [2220, 300],
         "credentials": {
             "gmailOAuth2": config["cred_gmail"],

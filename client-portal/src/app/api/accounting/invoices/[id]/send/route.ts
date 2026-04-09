@@ -48,6 +48,7 @@ export async function POST(
         invoice_id: id,
         client_id: invoice.client_id,
       }),
+      signal: AbortSignal.timeout(5000),
     }).catch(() => {
       // Non-blocking — n8n send is async
     });

@@ -123,25 +123,25 @@ WORKFLOWS = {
     # ============================================================
     # RE Operations (19 workflows)
     # ============================================================
-    "RE_01": "GEVrxiSWmmlxAaH0",      # WhatsApp Intake
-    "RE_02": "cPJnLkWpPrgJkSS6",      # Lead Router
-    "RE_03": "E5KOoMCK5E9EGoK5",      # WhatsApp AI Comms
-    "RE_04": "qLGbpfJf8DA1NXg3",      # Email AI Comms
-    "RE_05": "tsJsDqaXKajM4Ji4",      # Booking Coordinator
-    "RE_06": "1yyPXJbYXJc9R3W6",      # Document Classifier
-    "RE_07": "qpZlTfgUuRsnBQFw",      # Email Intake
-    "RE_08": "deajJpSeUQqKhvEb",      # Document Filing
-    "RE_09": "KGc5cpmCHYbPaOgO",      # Telegram Command Hub
-    "RE_10": "HC1VNZrZqARCXnZJ",      # Team Notifications
-    "RE_11": "4HnNBzw00rkdc2rR",      # Daily Summary
-    "RE_12": "DU4UaP6HSVxdydAk",      # Agent Performance
-    "RE_13": "HFclWELoCQDC4qEO",      # Stale Lead Follow-up
-    "RE_14": "gYfJuJh6WPbKJHwx",      # Escalation Engine
-    "RE_15": "T0UJYKCsfeaa5lE8",      # Scoring Engine
-    "RE_16": "HnFI6dKPXDJFMsVP",      # Assignment Engine
-    "RE_17": "APCxVRECbsa1xbH0",      # Orchestrator Monitor
-    "RE_18": "MfGMU3RLTepoiQEV",      # Telegram Alert Router
-    "RE_19": "IxC9jNsGeU7Fonoh",      # Document Pack Sender
+    "RE_01": "jSQffhA4lVBEFa0B",      # WhatsApp Intake
+    "RE_02": "bJeb4zpmohTE1st4",      # Lead Router
+    "RE_03": "KsWDHyXUmtxno12T",      # WhatsApp AI Comms
+    "RE_04": "YzMyYwPZXHiBtiBL",      # Email AI Comms
+    "RE_05": "dxabzaSrjVr7O8Fx",      # Booking Coordinator
+    "RE_06": "JR1H7rptiHAJNi1S",      # Document Classifier
+    "RE_07": "JoYiRqFD6ojgfzKV",      # Email Intake
+    "RE_08": "00EZVC3HHyoIXDXu",      # Document Filing
+    "RE_09": "6dx07Rl1R9kyxXDH",      # Telegram Command Hub
+    "RE_10": "tI5ZBhikrNLoow5C",      # Team Notifications
+    "RE_11": "RMfnjJLTYJqrbNfx",      # Daily Summary
+    "RE_12": "m8SCmtv4RTyay036",      # Agent Performance
+    "RE_13": "QzfuUFjAKhOFfMyb",      # Stale Lead Follow-up
+    "RE_14": "AZHnQmu1bY9d67xG",      # Escalation Engine
+    "RE_15": "Y3csJfc9iGhOcOoc",      # Scoring Engine
+    "RE_16": "9TociwjnepPEUrLk",      # Assignment Engine
+    "RE_17": "CsNZ0pHR28MMU00I",      # Orchestrator Monitor
+    "RE_18": "BHxuBeVNOH0ecuyI",      # Telegram Alert Router
+    "RE_19": "rJbZxRVeeXIkoUJX",      # Document Pack Sender
 
     # ============================================================
     # NEW AGENTS - Market Intelligence (3 workflows)

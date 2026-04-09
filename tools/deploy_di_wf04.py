@@ -266,6 +266,7 @@ return [{
         "name": "Review Alert Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1200, 200],
         "credentials": {
             "gmailOAuth2": config["cred_gmail"],
@@ -307,6 +308,7 @@ return [{
         "name": "Daily Summary Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1200, 500],
         "credentials": {
             "gmailOAuth2": config["cred_gmail"],
@@ -364,6 +366,7 @@ return [{
         "name": "Error Alert Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [740, 700],
         "credentials": {
             "gmailOAuth2": config["cred_gmail"],
@@ -414,6 +417,7 @@ return [{
         "name": "Audit Log - Error",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [960, 700],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],

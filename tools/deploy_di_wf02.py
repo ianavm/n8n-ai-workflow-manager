@@ -145,6 +145,7 @@ return [{
         "name": "Download from Drive",
         "type": "n8n-nodes-base.googleDrive",
         "typeVersion": 3,
+        "onError": "continueRegularOutput",
         "position": [660, 300],
         "credentials": {
             "googleDriveOAuth2Api": config["cred_google_drive"],
@@ -403,6 +404,7 @@ return [{{
         "name": "AI Classify",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1760, 100],
         "credentials": {
             "httpHeaderAuth": config["cred_openrouter"],
@@ -585,6 +587,7 @@ return [{
         "name": "Add to Review Queue",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [2640, 400],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -629,6 +632,7 @@ return [{
         "name": "Update Doc - Review",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [2860, 400],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -817,6 +821,7 @@ return [{{
         "name": "Create Property",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [3080, 60],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -1087,6 +1092,7 @@ return [{
         "name": "Update Doc - Processed",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [4840, -20],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -1137,6 +1143,7 @@ return [{
         "name": "Audit Log - Processed",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [5060, -20],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],

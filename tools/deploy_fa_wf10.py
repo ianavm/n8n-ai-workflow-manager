@@ -239,7 +239,7 @@ return [{json: {
     # -- 10. Send weekly report email ----------------------------
     nodes.append(outlook_send_node(
         "Send Weekly Report",
-        "={{ $env.FA_ADMIN_EMAIL || 'admin@anyvisionmedia.com' }}",
+        os.getenv("FA_ADMIN_EMAIL", "admin@anyvisionmedia.com"),
         "=Weekly Advisory Report - {{ $now.toFormat('dd MMM yyyy') }}",
         "={{ $json.html }}",
         [1500, 400],

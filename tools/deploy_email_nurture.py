@@ -343,6 +343,7 @@ def build_workflow() -> dict:
             "type": "n8n-nodes-base.gmail",
             "position": [x_pos, y_pos],
             "typeVersion": 2.1,
+            "onError": "continueRegularOutput",
             "credentials": {"gmailOAuth2": CRED_GMAIL},
         })
 

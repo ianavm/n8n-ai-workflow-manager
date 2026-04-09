@@ -325,6 +325,7 @@ return [{
         "name": "Log Duplicate",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [1800, 200],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -375,6 +376,7 @@ return [{
         "name": "Audit Log - Duplicate",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [2020, 200],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -397,6 +399,7 @@ return [{
         "name": "Upload to Drive",
         "type": "n8n-nodes-base.googleDrive",
         "typeVersion": 3,
+        "onError": "continueRegularOutput",
         "position": [1800, 400],
         "credentials": {
             "googleDriveOAuth2Api": config["cred_google_drive"],
@@ -477,6 +480,7 @@ return [{
         "name": "Log to Document_Log",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [2240, 400],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -527,6 +531,7 @@ return [{
         "name": "Audit Log - Intake",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [2460, 400],
         "credentials": {
             "googleSheetsOAuth2Api": config["cred_google_sheets"],
@@ -549,6 +554,7 @@ return [{
         "name": "Trigger Processing",
         "type": "n8n-nodes-base.executeWorkflow",
         "typeVersion": 1.1,
+        "onError": "continueRegularOutput",
         "position": [2680, 400],
     })
 

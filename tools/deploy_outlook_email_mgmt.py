@@ -81,6 +81,7 @@ def outlook_node(name, resource, operation, message_id_expr, position,
         "name": name,
         "type": "n8n-nodes-base.microsoftOutlook",
         "typeVersion": 2,
+        "onError": "continueRegularOutput",
         "position": position,
         "credentials": {
             "microsoftOutlookOAuth2Api": CRED_OUTLOOK
@@ -599,6 +600,7 @@ def build_nodes():
         "name": "Check Sender DNT",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [420, 520],
         "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
         "onError": "continueRegularOutput",
@@ -845,6 +847,7 @@ def build_nodes():
         "name": "Create Draft Reply",
         "type": "n8n-nodes-base.microsoftOutlook",
         "typeVersion": 2,
+        "onError": "continueRegularOutput",
         "position": [1760, 1472],
         "credentials": {"microsoftOutlookOAuth2Api": CRED_OUTLOOK},
         "retryOnFail": True,
@@ -910,6 +913,7 @@ def build_nodes():
         "name": "Update Lead - Stop Follow Up",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 1648],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "onError": "continueRegularOutput",
@@ -933,6 +937,7 @@ def build_nodes():
         "name": "Log to Email Sheet",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [1500, 1960],
         "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
     })
@@ -982,6 +987,7 @@ def build_nodes():
         "name": "Log New Lead",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [2016, 2112],
         "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
     })
@@ -1006,6 +1012,7 @@ def build_nodes():
         "name": "Create Follow-Up",
         "type": "n8n-nodes-base.googleCalendar",
         "typeVersion": 1,
+        "onError": "continueRegularOutput",
         "position": [2272, 2112],
         "credentials": {"googleCalendarOAuth2Api": CRED_GOOGLE_CALENDAR},
     })
@@ -1043,6 +1050,7 @@ def build_nodes():
         "name": "Send Thank You",
         "type": "n8n-nodes-base.microsoftOutlook",
         "typeVersion": 2,
+        "onError": "continueRegularOutput",
         "position": [1760, 2352],
         "credentials": {"microsoftOutlookOAuth2Api": CRED_OUTLOOK},
         "retryOnFail": True,
@@ -1081,6 +1089,7 @@ def build_nodes():
         "name": "Update Lead Status",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [2272, 2352],
         "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
     })
@@ -1147,6 +1156,7 @@ def build_nodes():
         "name": "Log Error to Sheet",
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": [720, -200],
         "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
     })

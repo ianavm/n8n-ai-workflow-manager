@@ -204,6 +204,7 @@ return [{
         "name": "Create AB Test",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [880, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -230,6 +231,7 @@ return [{
         "name": "Log Decision",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1100, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -344,6 +346,7 @@ def build_opt02_nodes():
         "name": "Read Running Tests",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
         "alwaysOutputData": True,
@@ -498,6 +501,7 @@ return results;"""
         "name": "Update Test Record",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1320, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -524,6 +528,7 @@ return results;"""
         "name": "Log Decision",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -554,6 +559,7 @@ return results;"""
         "name": "Notify Results",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1760, 200],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -642,7 +648,7 @@ def build_opt03_nodes():
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "x-admin-key", "value": "={{ $env.PORTAL_ADMIN_KEY || '' }}"},
+                    {"name": "x-admin-key", "value": os.getenv("PORTAL_ADMIN_KEY", "")},
                 ]
             },
             "options": {},
@@ -651,6 +657,7 @@ def build_opt03_nodes():
         "name": "Fetch Clients",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [440, 300],
     })
 
@@ -779,6 +786,7 @@ return [{
         "name": "Create Escalation",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1100, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -818,6 +826,7 @@ return risks.map(r => ({ json: r }));"""
         "name": "Create Churn Event",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1320, 400],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -849,6 +858,7 @@ return risks.map(r => ({ json: r }));"""
         "name": "Summary Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 200],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })

@@ -146,7 +146,7 @@ return [{json: {
     # -- 7. Send Teams message -----------------------------------
     nodes.append(teams_message_node(
         "Send Teams",
-        "={{ $env.FA_TEAMS_CHANNEL_ID }}",
+        os.getenv("FA_TEAMS_CHANNEL_ID", ""),
         "={{ $('Validate Input').first().json.body }}",
         [1200, 200],
     ))

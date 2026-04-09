@@ -492,6 +492,7 @@ def build_combined_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 5500],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -580,6 +581,7 @@ def build_wf01_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [680, 500],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -702,7 +704,7 @@ def build_wf01_nodes():
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').item.json.aiModel }}\",\n"
                 "  \"max_tokens\": 1500,\n"
                 "  \"temperature\": 0.5,\n"
@@ -1044,6 +1046,7 @@ def build_wf01_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -1200,6 +1203,7 @@ def build_wf02_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [680, 380],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -1218,6 +1222,7 @@ def build_wf02_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [680, 540],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -1236,6 +1241,7 @@ def build_wf02_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [680, 700],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -1254,6 +1260,7 @@ def build_wf02_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [680, 860],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -1374,7 +1381,7 @@ def build_wf02_nodes():
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').item.json.aiModel }}\",\n"
                 "  \"max_tokens\": 2000,\n"
                 "  \"temperature\": 0.7,\n"
@@ -1615,6 +1622,7 @@ def build_wf02_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -1770,6 +1778,7 @@ def build_wf03_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [680, 500],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -1840,7 +1849,7 @@ def build_wf03_nodes():
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').item.json.aiModel }}\",\n"
                 "  \"max_tokens\": 500,\n"
                 "  \"temperature\": 0.7,\n"
@@ -1883,7 +1892,7 @@ def build_wf03_nodes():
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={\n"
+            "jsonBody": "{\n"
                 "  \"model\": \"{{ $('System Config').item.json.aiModel }}\",\n"
                 "  \"max_tokens\": 300,\n"
                 "  \"temperature\": 0.8,\n"
@@ -2301,6 +2310,7 @@ def build_wf03_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 
@@ -2463,6 +2473,7 @@ def build_wf04_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [440, 500],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -2512,6 +2523,7 @@ def build_wf04_nodes():
         "type": "n8n-nodes-base.airtable",
         "position": [1160, 600],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -2821,6 +2833,7 @@ def build_wf04_nodes():
         "type": "n8n-nodes-base.gmail",
         "position": [440, 880],
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
 

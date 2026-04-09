@@ -101,6 +101,7 @@ def build_nodes() -> list[dict]:
         "name": "Query Pending Emails",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [300, 0],
     })
 
@@ -278,6 +279,7 @@ return [{{
         "name": "Send Email",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1350, 150],
         "credentials": {
             "gmailOAuth2": {"id": CRED_GMAIL, "name": "Gmail AnyVision"},
@@ -306,6 +308,7 @@ return [{{
         "name": "Log Email Sent",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1600, 150],
         "continueOnFail": True,
     })

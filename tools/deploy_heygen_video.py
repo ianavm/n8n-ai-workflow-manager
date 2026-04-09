@@ -367,6 +367,7 @@ def build_video01():
         },
         "id": uid(), "name": "Fetch Pending Jobs",
         "type": "n8n-nodes-base.airtable", "position": [700, 400], "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True, "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
@@ -431,6 +432,7 @@ def build_video01():
         },
         "id": uid(), "name": "Generate Script",
         "type": "n8n-nodes-base.httpRequest", "position": [1460, 300], "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
 
@@ -472,6 +474,7 @@ def build_video01():
         },
         "id": uid(), "name": "Generate Caption",
         "type": "n8n-nodes-base.httpRequest", "position": [1740, 300], "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
 
@@ -622,6 +625,7 @@ def build_video02():
         },
         "id": uid(), "name": "Lookup Video Job",
         "type": "n8n-nodes-base.airtable", "position": [740, 400], "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "alwaysOutputData": True, "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 

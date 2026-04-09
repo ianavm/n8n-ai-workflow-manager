@@ -86,7 +86,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 800,
   "messages": [
     {"role": "system", "content": "Translate this natural language question into a PostgreSQL query for the Supabase database. Tables available: clients (id, name, email, company, plan, status, created_at), client_health_scores (id, client_id, health_score, revenue_at_risk, churn_probability, last_interaction, scored_at), agent_status (id, agent_id, agent_name, status, health_score, last_heartbeat), orchestrator_alerts (id, alert_type, severity, message, resolved, created_at). Use parameterized queries only. NEVER use DROP, DELETE, UPDATE, or ALTER. Return JSON: {sql: string, explanation: string, safe: bool}. Set safe=false if the query could modify data."},
@@ -95,6 +95,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Translate to SQL",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [660, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 4. Parse SQL (Code)
@@ -126,7 +127,7 @@ return { json: {
         "method": "POST",
         "url": "=" + SUPABASE_URL + "/rest/v1/rpc/raw_sql",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": "={\"query\": \"{{ $('Parse SQL').first().json.sql }}\"}",
+        "jsonBody": "{\"query\": \"{{ $('Parse SQL').first().json.sql }}\"}",
         "sendHeaders": True,
         "headerParameters": {"parameters": [
             {"name": "apikey", "value": SUPABASE_ANON_KEY},
@@ -136,6 +137,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Execute Query",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1320, 200]})
 
     # 7. AI Format Results (OpenRouter)
@@ -143,7 +145,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1000,
   "messages": [
     {"role": "system", "content": "Format these SQL query results into a clear, human-readable summary. Include key numbers, trends, and actionable insights. Use bullet points for clarity."},
@@ -152,6 +154,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Format Results",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [1540, 200], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 8. Extract Summary (Code)
@@ -182,6 +185,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Analysis",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1980, 200], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 10. Respond with Results
@@ -236,6 +240,7 @@ def build_data02_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Query KPI Snapshots",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -306,7 +311,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 1000,
   "messages": [
     {"role": "system", "content": "Analyze KPI trends for AnyVision Media's automation platform. Provide actionable insights, highlight concerns, and suggest optimizations. Be concise with bullet points."},
@@ -315,6 +320,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Trend Insights",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [880, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 5. Extract Insights (Code)
@@ -337,6 +343,7 @@ return { json: { ...trends, ai_insights: insights }};"""},
         "options": {}},
                    "id": uid(), "name": "Write Trend Data",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1320, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 7. Email Daily Trends (Gmail)
@@ -361,6 +368,7 @@ return { json: { ...trends, ai_insights: insights }};"""},
         "options": {}},
                    "id": uid(), "name": "Email Daily Trends",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1540, 300], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes
@@ -395,6 +403,7 @@ def build_data03_nodes():
         "returnAll": True, "options": {}},
                    "id": uid(), "name": "Fetch KPI Data",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [440, 200], "credentials": {"airtableTokenApi": CRED_AIRTABLE},
                    "alwaysOutputData": True})
 
@@ -406,6 +415,7 @@ def build_data03_nodes():
         "options": {}},
                    "id": uid(), "name": "Fetch QuickBooks P&L",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [440, 420]})
 
     # 4. Aggregate Monthly Data (Code)
@@ -465,7 +475,7 @@ return { json: {
         "method": "POST", "url": OPENROUTER_URL,
         "authentication": "predefinedCredentialType", "nodeCredentialType": "httpHeaderAuth",
         "sendBody": True, "specifyBody": "json",
-        "jsonBody": """={
+        "jsonBody": """{
   "model": "anthropic/claude-sonnet-4-20250514", "max_tokens": 2000,
   "messages": [
     {"role": "system", "content": "Generate a comprehensive monthly report for AnyVision Media. Include: Executive Summary, Operations Performance, Financial Overview, Key Achievements, Areas of Concern, Recommendations for Next Month. Use ZAR (R) for all currency. Format as clean HTML for email."},
@@ -474,6 +484,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "AI Generate Report",
                    "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+                   "onError": "continueRegularOutput",
                    "position": [940, 300], "credentials": {"httpHeaderAuth": CRED_OPENROUTER}})
 
     # 6. Extract Report (Code)
@@ -505,6 +516,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Write Monthly Report",
                    "type": "n8n-nodes-base.airtable", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1380, 300], "credentials": {"airtableTokenApi": CRED_AIRTABLE}})
 
     # 8. Email Monthly Report (Gmail)
@@ -531,6 +543,7 @@ return { json: {
         "options": {}},
                    "id": uid(), "name": "Email Monthly Report",
                    "type": "n8n-nodes-base.gmail", "typeVersion": 2.1,
+                   "onError": "continueRegularOutput",
                    "position": [1600, 300], "credentials": {"gmailOAuth2": CRED_GMAIL}})
 
     return nodes

@@ -125,6 +125,7 @@ def build_intel01_nodes():
         "name": "Read KPI Snapshots",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [640, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -248,6 +249,7 @@ return [{
         "name": "AI Narrate Insights",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1080, 300],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -314,6 +316,7 @@ return [{
         "name": "Write Intelligence Report",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1520, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -342,6 +345,7 @@ return [{
         "name": "Email Insights",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1740, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -465,6 +469,7 @@ def build_intel02_nodes():
         "name": "Read KPI Snapshots",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [640, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -483,6 +488,7 @@ def build_intel02_nodes():
         "name": "Read Escalation Queue",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [640, 420],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -501,6 +507,7 @@ def build_intel02_nodes():
         "name": "Read Decision Log",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [640, 640],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -618,6 +625,7 @@ return [{
         "name": "AI Executive Summary",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [1100, 420],
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
     })
@@ -708,6 +716,7 @@ return [{ json: { html, subject: 'AVM Monthly Executive Report - ' + data.monthL
         "name": "Send Executive Report",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1540, 420],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
     })
@@ -841,6 +850,7 @@ def build_intel03_nodes():
         "name": "Fetch Executions",
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": [640, 300],
         "credentials": {"httpHeaderAuth": CRED_N8N_API},
     })
@@ -970,6 +980,7 @@ return results.map(r => ({ json: r }));"""
         "name": "Write Performance Data",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1300, 200],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
@@ -1019,6 +1030,7 @@ return results.map(r => ({ json: r }));"""
         "name": "Create Escalation",
         "type": "n8n-nodes-base.airtable",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1300, 420],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })

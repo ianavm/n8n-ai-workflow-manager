@@ -51,6 +51,7 @@ CRED_GOOGLE_DRIVE = CREDENTIALS["google_drive"]
 CRED_TELEGRAM = CREDENTIALS["telegram"]
 CRED_WHATSAPP_SEND = CREDENTIALS["whatsapp_send"]
 CRED_WHATSAPP_TRIGGER = CREDENTIALS["whatsapp_trigger"]
+CRED_HTTP_HEADER_AUTH = CREDENTIALS["http_header_auth"]
 
 
 # ======================================================================
@@ -179,6 +180,7 @@ def build_gsheets_read(name: str, spreadsheet_id: str, tab_name: str,
         "name": name,
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": position,
         "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
         "parameters": {
@@ -228,6 +230,7 @@ def build_gsheets_append(name: str, spreadsheet_id: str, tab_name: str,
         "name": name,
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": position,
         "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
         "parameters": params,
@@ -254,6 +257,7 @@ def build_gsheets_update(name: str, spreadsheet_id: str, tab_name: str,
         "name": name,
         "type": "n8n-nodes-base.googleSheets",
         "typeVersion": 4.5,
+        "onError": "continueRegularOutput",
         "position": position,
         "credentials": {"googleSheetsOAuth2Api": CRED_GOOGLE_SHEETS},
         "parameters": {
@@ -281,6 +285,7 @@ def build_openrouter_ai(name, system_prompt, user_message_expr, position,
         "name": name,
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": position,
         "credentials": {"httpHeaderAuth": CRED_OPENROUTER},
         "parameters": {
@@ -315,6 +320,7 @@ def build_telegram_send(name, chat_id_expr, message_expr, position, parse_mode="
         "name": name,
         "type": "n8n-nodes-base.telegram",
         "typeVersion": 1.2,
+        "onError": "continueRegularOutput",
         "position": position,
         "credentials": {"telegramApi": CRED_TELEGRAM},
         "parameters": {
@@ -335,6 +341,7 @@ def build_gmail_send(name, to_expr, subject_expr, body_expr, position, is_html=T
         "name": name,
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": position,
         "credentials": {"gmailOAuth2": CRED_GMAIL},
         "parameters": {
@@ -498,6 +505,7 @@ def build_execute_workflow(name, workflow_id, position):
         "name": name,
         "type": "n8n-nodes-base.executeWorkflow",
         "typeVersion": 1.2,
+        "onError": "continueRegularOutput",
         "position": position,
         "parameters": {
             "workflowId": workflow_id,
@@ -514,6 +522,7 @@ def build_http_request(name, method, url, position, auth_type=None,
         "name": name,
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
         "position": position,
         "parameters": {
             "method": method,
@@ -1836,7 +1845,7 @@ return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
     # 8. Find/create Drive folder (false = not duplicate, proceed)
     nodes.append(build_http_request(
         "Find Drive Folder", "GET",
-        "=" + GOOGLE_DRIVE_API + "/files?q={{ encodeURIComponent(\"mimeType='application/vnd.google-apps.folder' and name='\" + $('Build Filename').first().json.folder_name + \"' and '\" + $env.RE_GDRIVE_ROOT_FOLDER_ID + \"' in parents and trashed=false\") }}&fields=files(id,name)",
+        "=" + GOOGLE_DRIVE_API + "/files?q={{ encodeURIComponent(\"mimeType='application/vnd.google-apps.folder' and name='\" + $('Build Filename').first().json.folder_name + \"' and '\" + '1uADkEzkR34TVciAOko6uAcosfT3zRIo6' + \"' in parents and trashed=false\") }}&fields=files(id,name)",
         [1320, 500],
         auth_type="predefinedCredentialType",
         cred_type="googleOAuth2Api",
@@ -1867,7 +1876,7 @@ return { json: {
   create_folder_body: {
     name: fileData.folder_name,
     mimeType: 'application/vnd.google-apps.folder',
-    parents: [$env.RE_GDRIVE_ROOT_FOLDER_ID || ''],
+    parents: ['1uADkEzkR34TVciAOko6uAcosfT3zRIo6'],
   },
 }};
 """
@@ -2585,13 +2594,13 @@ return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
 
     # 10. Call RE-15 Scoring Engine
     nodes.append(build_execute_workflow(
-        "Call RE-15 Scoring", "={{ $env.RE_WF_RE15_ID || '' }}",
+        "Call RE-15 Scoring", os.getenv("RE_WF_RE15_ID", ""),
         [1980, 300],
     ))
 
     # 11. Call RE-16 Assignment Engine
     nodes.append(build_execute_workflow(
-        "Call RE-16 Assignment", "={{ $env.RE_WF_RE16_ID || '' }}",
+        "Call RE-16 Assignment", os.getenv("RE_WF_RE16_ID", ""),
         [2200, 300],
     ))
 
@@ -2934,7 +2943,7 @@ def build_re03_nodes():
 
     # 13. Notify team of handoff via RE-18
     nodes.append(build_execute_workflow(
-        "Call RE-18 Handoff Alert", "={{ $env.RE_WF_RE18_ID || '' }}",
+        "Call RE-18 Handoff Alert", os.getenv("RE_WF_RE18_ID", ""),
         [1980, 500],
     ))
 
@@ -2982,7 +2991,7 @@ return {
 
     # 16. Call RE-19 Document Pack Sender
     nodes.append(build_execute_workflow(
-        "Call RE-19 Send Docs", "={{ $env.RE_WF_RE19_ID || '' }}",
+        "Call RE-19 Send Docs", os.getenv("RE_WF_RE19_ID", ""),
         [2640, 200],
     ))
 
@@ -3322,13 +3331,13 @@ return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
 
     # 15. Call RE-02 Lead Router
     nodes.append(build_execute_workflow(
-        "Call RE-02 Lead Router", "={{ $env.RE_WF_RE02_ID || '' }}",
+        "Call RE-02 Lead Router", os.getenv("RE_WF_RE02_ID", ""),
         [3740, 100],
     ))
 
     # 16. Call RE-03 WhatsApp AI Comms
     nodes.append(build_execute_workflow(
-        "Call RE-03 WA AI Comms", "={{ $env.RE_WF_RE03_ID || '' }}",
+        "Call RE-03 WA AI Comms", os.getenv("RE_WF_RE03_ID", ""),
         [3960, 100],
     ))
 
@@ -3594,6 +3603,7 @@ def build_re04_nodes():
         "name": "Save Draft",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [1320, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
         "parameters": {
@@ -3608,13 +3618,13 @@ def build_re04_nodes():
 
     # 8. Notify agent about draft (output 1 continuation)
     nodes.append(build_execute_workflow(
-        "Notify Draft Ready", "={{ $env.RE_WF_RE18_ID || '' }}",
+        "Notify Draft Ready", os.getenv("RE_WF_RE18_ID", ""),
         [1540, 300],
     ))
 
     # 9. Notify admin for review (output 2)
     nodes.append(build_execute_workflow(
-        "Notify Admin Review", "={{ $env.RE_WF_RE18_ID || '' }}",
+        "Notify Admin Review", os.getenv("RE_WF_RE18_ID", ""),
         [1320, 500],
     ))
 
@@ -3692,7 +3702,7 @@ return {
 
     # 14. Call RE-19 Document Pack Sender
     nodes.append(build_execute_workflow(
-        "Call RE-19 Email Docs", "={{ $env.RE_WF_RE19_ID || '' }}",
+        "Call RE-19 Email Docs", os.getenv("RE_WF_RE19_ID", ""),
         [2640, 300],
     ))
 
@@ -3833,6 +3843,7 @@ def build_re07_nodes():
         "name": "Fetch Unread Emails",
         "type": "n8n-nodes-base.gmail",
         "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
         "position": [440, 300],
         "credentials": {"gmailOAuth2": CRED_GMAIL},
         "parameters": {
@@ -3890,7 +3901,7 @@ return [{json: { match_count: matches.length, is_new: matches.length === 0 }}];
 
     # 8. Call RE-04 Email AI Comms
     nodes.append(build_execute_workflow(
-        "Call RE-04 Email AI", "={{ $env.RE_WF_RE04_ID || '' }}",
+        "Call RE-04 Email AI", os.getenv("RE_WF_RE04_ID", ""),
         [1980, 300],
     ))
 
@@ -4844,7 +4855,7 @@ return { json: {
 
     # Call RE-19
     nodes.append(build_execute_workflow(
-        "Call RE-19 Docs", "={{ $env.RE_WF_RE19_ID || '' }}",
+        "Call RE-19 Docs", os.getenv("RE_WF_RE19_ID", ""),
         [2640, 2100],
     ))
 
@@ -5488,7 +5499,7 @@ return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
 
     # 9. Call RE-18 for critical/high alerts
     nodes.append(build_execute_workflow(
-        "Call RE-18 Alert", "={{ $env.RE_WF_RE18_ID || '' }}",
+        "Call RE-18 Alert", os.getenv("RE_WF_RE18_ID", ""),
         [2640, 200],
     ))
 
@@ -5630,20 +5641,24 @@ def build_re17_nodes():
         },
     })
 
-    # 2. Check n8n health
+    # 2. Check n8n health (use httpHeaderAuth credential, NOT $env)
     nodes.append(build_http_request(
         "Check n8n Health", "GET",
         N8N_BASE_URL + "/api/v1/workflows?limit=1",
         [440, 300],
-        headers=[{"name": "X-N8N-API-KEY", "value": "={{ $env.N8N_API_KEY }}"}],
+        auth_type="genericCredentialType",
+        cred_type="httpHeaderAuth",
+        cred_ref=CRED_HTTP_HEADER_AUTH,
     ))
 
-    # 3. Check recent execution failures
+    # 3. Check recent execution failures (use httpHeaderAuth credential, NOT $env)
     nodes.append(build_http_request(
         "Check Recent Failures", "GET",
         N8N_BASE_URL + "/api/v1/executions?status=error&limit=10",
         [660, 300],
-        headers=[{"name": "X-N8N-API-KEY", "value": "={{ $env.N8N_API_KEY }}"}],
+        auth_type="genericCredentialType",
+        cred_type="httpHeaderAuth",
+        cred_ref=CRED_HTTP_HEADER_AUTH,
     ))
 
     # 4. Analyze failures
@@ -5673,7 +5688,7 @@ def build_re17_nodes():
 
     # 7. Call RE-18 alert
     nodes.append(build_execute_workflow(
-        "Call RE-18 Health Alert", "={{ $env.RE_WF_RE18_ID || '' }}",
+        "Call RE-18 Health Alert", os.getenv("RE_WF_RE18_ID", ""),
         [1540, 200],
     ))
 
@@ -5849,7 +5864,7 @@ def build_re12_nodes():
         [440, 300], always_output=True,
     ))
     nodes.append(build_code_node("Fetch Performance Agents", r"""
-const rows = .all().map(i => i.json).filter(r => r['Agent Name']);
+const rows = $input.all().map(i => i.json).filter(r => r['Agent Name']);
 const matches = rows.filter(r => String(r['Is Active']).toUpperCase() === 'TRUE');
 return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
 """, [660, 300]))
@@ -5860,7 +5875,7 @@ return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
         [880, 300], always_output=True,
     ))
     nodes.append(build_code_node("Fetch All Leads", r"""
-const rows = .all().map(i => i.json).filter(r => r['Lead ID']);
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
 const matches = rows.filter(r => r['Status'] !== 'Deleted');
 return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
 """, [1100, 300]))
@@ -5871,7 +5886,7 @@ return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
         [1320, 300], always_output=True,
     ))
     nodes.append(build_code_node("Fetch All Appointments", r"""
-const rows = .all().map(i => i.json).filter(r => r['Booking ID']);
+const rows = $input.all().map(i => i.json).filter(r => r['Booking ID']);
 const matches = rows.filter(r => r['Status'] !== 'Cancelled');
 return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
 """, [1540, 300]))
@@ -6044,7 +6059,7 @@ def build_re13_nodes():
     nodes.append(build_code_node("Find Stale Leads", r"""
 const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
 const excluded = ['Converted', 'Closed', 'Cold'];
-const rows = .all().map(i => i.json).filter(r => r['Lead ID']);
+const rows = $input.all().map(i => i.json).filter(r => r['Lead ID']);
 const matches = rows.filter(r => {
   const lastContact = new Date(r['Last Contact']);
   return !isNaN(lastContact.getTime()) && lastContact < cutoff &&
@@ -6126,7 +6141,7 @@ return matches.length ? matches.map(m => ({json: m})) : [{json: {}}];
 
     # 12. Notify agent that lead went cold
     nodes.append(build_execute_workflow(
-        "Notify Lead Cold", "={{ $env.RE_WF_RE18_ID || '' }}",
+        "Notify Lead Cold", os.getenv("RE_WF_RE18_ID", ""),
         [2860, 200],
     ))
 
@@ -6241,8 +6256,8 @@ if (!packType || !['buyer', 'seller'].includes(packType)) {
 
 // Map pack type to Google Drive folder ID (set in env vars)
 const folderMap = {
-  buyer: $env.RE_GDRIVE_BUYER_PACK_FOLDER_ID || '',
-  seller: $env.RE_GDRIVE_SELLER_PACK_FOLDER_ID || '',
+  buyer: '1HCcYMvv3eg-M8x2sY5OVXDd05G3jnc2O',
+  seller: '1N_n36EhGE36UKDm8A5FNLnmr8_dt1FS7',
 };
 
 const folderId = folderMap[packType];
@@ -6274,7 +6289,7 @@ const dealData = $('Fetch Deal').first().json;
 const clientName = leadData.client_name || leadData.name || leadData.Name || 'Client';
 const clientEmail = leadData.email || leadData.Email || '';
 const clientPhone = leadData.phone || leadData.Phone || leadData.whatsapp_number || '';
-const phoneNumberId = leadData.phone_number_id || $env.RE_WHATSAPP_PHONE_ID || '';
+const phoneNumberId = leadData.phone_number_id || '956186580917374';
 
 // Check if docs already sent for this deal + pack type
 const docsSentField = 'docs_' + input.pack_type + '_sent';
