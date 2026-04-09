@@ -1179,12 +1179,33 @@ return [{json: {
 }}];
 """, [1625, 300]))
 
-    # 9b. Log to orchestrator (non-critical — don't block report on log failure)
-    log_node = build_airtable_create(
-        "Log Report Event", ORCH_BASE_ID, TABLE_ORCH_EVENTS, [1750, 300]
-    )
-    log_node["continueOnFail"] = True
-    nodes.append(log_node)
+    # 9b. Log to orchestrator (defineBelow to prevent field leaking into singleSelect)
+    nodes.append({
+        "id": uid(),
+        "name": "Log Report Event",
+        "type": "n8n-nodes-base.airtable",
+        "typeVersion": 2.1,
+        "position": [1750, 300],
+        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "continueOnFail": True,
+        "parameters": {
+            "operation": "create",
+            "base": {"__rl": True, "mode": "id", "value": ORCH_BASE_ID},
+            "table": {"__rl": True, "mode": "id", "value": TABLE_ORCH_EVENTS},
+            "columns": {
+                "mappingMode": "defineBelow",
+                "value": {
+                    "Event Type": "={{ $json['Event Type'] }}",
+                    "Source Agent": "={{ $json['Source Agent'] }}",
+                    "Priority": "={{ $json['Priority'] }}",
+                    "Status": "={{ $json['Status'] }}",
+                    "Payload": "={{ $json['Payload'] }}",
+                    "Created At": "={{ $json['Created At'] }}",
+                },
+            },
+            "options": {},
+        },
+    })
 
     return nodes
 
@@ -1557,6 +1578,13 @@ def build_ads02_nodes():
         "={Status}='Planned'", [500, 300],
     ))
 
+    # 2b. Guard against empty results (Switch crashes on 0 items)
+    nodes.append(build_if_node(
+        "Has Campaigns?",
+        "={{$input.all().length > 0}}",
+        [625, 300],
+    ))
+
     # 3. Route by platform (Switch node — 3 outputs: google, meta, tiktok)
     nodes.append(build_switch_node(
         "Route by Platform",
@@ -1667,8 +1695,12 @@ def build_ads02_connections(nodes):
             {"node": "Read Campaign Plans", "type": "main", "index": 0},
         ]]},
         "Read Campaign Plans": {"main": [[
-            {"node": "Route by Platform", "type": "main", "index": 0},
+            {"node": "Has Campaigns?", "type": "main", "index": 0},
         ]]},
+        "Has Campaigns?": {"main": [
+            [{"node": "Route by Platform", "type": "main", "index": 0}],
+            [],
+        ]},
         "Route by Platform": {"main": [
             [{"node": "Google Copy Agent", "type": "main", "index": 0}],
             [{"node": "Meta Copy Agent", "type": "main", "index": 0}],
@@ -2137,19 +2169,61 @@ return [{json: {
     # 7c. Split by auto-approve flag
     nodes.append(build_if_node("Auto Approve?", "={{$json.Status === 'Approved'}}", [1750, 300]))
 
-    # 8. Log auto-applied changes (true branch)
-    node = build_airtable_create(
-        "Log Auto Changes", MARKETING_BASE_ID, TABLE_APPROVALS, [2000, 200],
-    )
-    node["continueOnFail"] = True
-    nodes.append(node)
+    # 8. Log auto-applied changes (true branch — defineBelow to prevent field leaking)
+    nodes.append({
+        "id": uid(),
+        "name": "Log Auto Changes",
+        "type": "n8n-nodes-base.airtable",
+        "typeVersion": 2.1,
+        "position": [2000, 200],
+        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "continueOnFail": True,
+        "parameters": {
+            "operation": "create",
+            "base": {"__rl": True, "mode": "id", "value": MARKETING_BASE_ID},
+            "table": {"__rl": True, "mode": "id", "value": TABLE_APPROVALS},
+            "columns": {
+                "mappingMode": "defineBelow",
+                "value": {
+                    "Campaign Name": "={{ $json['Campaign Name'] }}",
+                    "Request Type": "={{ $json['Request Type'] }}",
+                    "Requested By": "={{ $json['Requested By'] }}",
+                    "Status": "={{ $json['Status'] }}",
+                    "Details": "={{ $json['Details'] }}",
+                    "Created At": "={{ $json['Created At'] }}",
+                },
+            },
+            "options": {},
+        },
+    })
 
-    # 9. Create approval requests for manual changes (false branch)
-    node = build_airtable_create(
-        "Create Approval Requests", MARKETING_BASE_ID, TABLE_APPROVALS, [2000, 500],
-    )
-    node["continueOnFail"] = True
-    nodes.append(node)
+    # 9. Create approval requests for manual changes (false branch — defineBelow)
+    nodes.append({
+        "id": uid(),
+        "name": "Create Approval Requests",
+        "type": "n8n-nodes-base.airtable",
+        "typeVersion": 2.1,
+        "position": [2000, 500],
+        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "continueOnFail": True,
+        "parameters": {
+            "operation": "create",
+            "base": {"__rl": True, "mode": "id", "value": MARKETING_BASE_ID},
+            "table": {"__rl": True, "mode": "id", "value": TABLE_APPROVALS},
+            "columns": {
+                "mappingMode": "defineBelow",
+                "value": {
+                    "Campaign Name": "={{ $json['Campaign Name'] }}",
+                    "Request Type": "={{ $json['Request Type'] }}",
+                    "Requested By": "={{ $json['Requested By'] }}",
+                    "Status": "={{ $json['Status'] }}",
+                    "Details": "={{ $json['Details'] }}",
+                    "Created At": "={{ $json['Created At'] }}",
+                },
+            },
+            "options": {},
+        },
+    })
 
     # 10. Email optimization summary
     nodes.append(build_gmail_send(
@@ -2561,7 +2635,7 @@ return [{json: {
 }}];
 """, [1500, 300]))
 
-    # 7b. Write attribution data to Operations Events table (defineBelow to avoid leaking unwanted fields)
+    # 7b. Write attribution data to Operations Events table (defineBelow + continueOnFail so email still sends)
     nodes.append({
         "id": uid(),
         "name": "Write Attribution",
@@ -2569,6 +2643,7 @@ return [{json: {
         "typeVersion": 2.1,
         "position": [1750, 300],
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "continueOnFail": True,
         "parameters": {
             "operation": "create",
             "base": {"__rl": True, "mode": "id", "value": ORCH_BASE_ID},
