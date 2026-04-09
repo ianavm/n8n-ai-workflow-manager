@@ -1,0 +1,190 @@
+{
+  "name": "AVM: Brain Writer",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "15f8c570-5ec4-4f13-9070-d92a0533675a",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Format incoming data for Supabase brain_events insert\nconst input = $input.first().json;\n\n// Safe JSON parse for details field\nlet parsedDetails = {};\nif (input.details) {\n  if (typeof input.details === 'string') {\n    try { parsedDetails = JSON.parse(input.details); }\n    catch (e) { parsedDetails = { raw: input.details, parseError: e.message }; }\n  } else {\n    parsedDetails = input.details;\n  }\n}\n\nconst event = {\n  source: input.source || 'unknown',\n  source_type: input.source_type || 'workflow',\n  event_type: input.event_type || 'execution_success',\n  severity: input.severity || 'info',\n  department: input.department || null,\n  summary: input.summary || 'No summary provided',\n  details: parsedDetails,\n  resolved: false\n};\n\n// Build brain_state upsert if entity_id provided\nlet stateUpsert = null;\nif (input.entity_id) {\n  const isFailure = ['execution_failure', 'alert'].includes(event.event_type);\n  const isCritical = ['error', 'critical'].includes(event.severity);\n\n  stateUpsert = {\n    entity_type: 'workflow',\n    entity_id: input.entity_id,\n    entity_name: input.entity_name || input.source,\n    status: isCritical ? 'failing' : (isFailure ? 'degraded' : 'healthy'),\n    last_seen: new Date().toISOString(),\n    updated_at: new Date().toISOString(),\n    notes: event.summary\n  };\n\n  if (isFailure) {\n    stateUpsert.last_failure = new Date().toISOString();\n  } else {\n    stateUpsert.last_success = new Date().toISOString();\n    stateUpsert.failure_count = 0;\n  }\n}\n\nreturn [{ json: { event, stateUpsert, hasStateUpsert: !!stateUpsert } }];\n"
+      },
+      "id": "af6b39c0-d273-41f7-a6d1-577f0319d23a",
+      "name": "Format Event",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        420,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/brain_events",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmdnNxanNybG54anBscWVmaG9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0MTkxODEsImV4cCI6MjA4Njk5NTE4MX0.HXN8ffSjVTwr_yqWcade2JbhDit26jfuTXvFk3aWhQE"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.event) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "f7a43c6e-fbee-4346-81fb-fd66f44eead2",
+      "name": "Insert brain_events",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        640,
+        300
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "mlYOg9wSp9IFlm4k",
+          "name": "Supabase Service Role"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Format Event').first().json.hasStateUpsert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cae22cc9-c10b-4d8c-8534-77fcbb71a981",
+      "name": "Has State Update?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        640,
+        500
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qfvsqjsrlnxjplqefhon.supabase.co/rest/v1/brain_state?on_conflict=entity_type,entity_id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmdnNxanNybG54anBscWVmaG9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0MTkxODEsImV4cCI6MjA4Njk5NTE4MX0.HXN8ffSjVTwr_yqWcade2JbhDit26jfuTXvFk3aWhQE"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Format Event').first().json.stateUpsert) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "c3fa59f7-3339-4276-bfce-aa2167452d1e",
+      "name": "Upsert brain_state",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        880,
+        440
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "mlYOg9wSp9IFlm4k",
+          "name": "Supabase Service Role"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Format Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Event": {
+      "main": [
+        [
+          {
+            "node": "Insert brain_events",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Has State Update?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has State Update?": {
+      "main": [
+        [
+          {
+            "node": "Upsert brain_state",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

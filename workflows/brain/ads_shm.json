@@ -1,0 +1,267 @@
+{
+  "name": "AVM Ads: Self-Healing Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */2 * * *"
+            }
+          ]
+        }
+      },
+      "id": "80379f93-e37d-4ad4-8119-828847b150e1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        250,
+        300
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://ianimmelman89.app.n8n.cloud/api/v1/executions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "error"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "55dc22dc-8f78-4983-ab74-02d0fdb2a7bb",
+      "name": "Check Recent Failures",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        500,
+        300
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xymp9Nho08mRW2Wz",
+          "name": "n8n API Header Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Check for ADS workflow failures in the last 4 hours\nconst resp = $input.first().json;\nconst executions = resp.data || [];\nconst now = Date.now();\nconst fourHoursAgo = now - (4 * 60 * 60 * 1000);\n\n// ADS workflow IDs to monitor (updated 2026-04-09)\nconst ADS_WORKFLOWS = {\n  \"mrzwNb9Eul9Lq2uM\": \"ADS-01 Strategy\",\n  \"7BBjmuvwF1l8DMQX\": \"ADS-02 Creative\",\n  \"rIYu0FHFx741ml8d\": \"ADS-04 Monitor\",\n  \"cfDyiFLx0X89s3VL\": \"ADS-05 Optimizer\",\n  \"bXxRU6rBC4kKw8bZ\": \"ADS-06 Recycler\",\n  \"HkhBl7f69GckvEpY\": \"ADS-07 Attribution\",\n  \"m8Kjjiy9jwliykOo\": \"ADS-08 Report\"\n};\n\nconst recentFailures = [];\nfor (const exec of executions) {\n  if (!ADS_WORKFLOWS[exec.workflowId]) continue;\n  const stoppedAt = new Date(exec.stoppedAt).getTime();\n  if (stoppedAt < fourHoursAgo) continue;\n  recentFailures.push({\n    executionId: exec.id,\n    workflowId: exec.workflowId,\n    workflowName: ADS_WORKFLOWS[exec.workflowId],\n    stoppedAt: exec.stoppedAt,\n    status: exec.status,\n  });\n}\n\nif (recentFailures.length === 0) {\n  return [{json: {healthy: true, message: 'All ADS workflows healthy', checkedAt: new Date().toISOString()}}];\n}\n\nreturn [{json: {\n  healthy: false,\n  failureCount: recentFailures.length,\n  failures: recentFailures,\n  checkedAt: new Date().toISOString(),\n}}];\n"
+      },
+      "id": "2b3ad196-cf48-4f63-a725-d04d17b7e0e7",
+      "name": "Analyze Failures",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        750,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{$json.healthy}}",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "id": "fd7890bf-aa49-44ce-998c-96b693c7a4bc",
+      "name": "Has Failures?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1000,
+        300
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{\"ADS Health Check: \" + $json.failureCount + \" failure(s) detected\"}}",
+        "emailType": "html",
+        "message": "={{\"<h2>ADS Self-Healing Monitor</h2><p>\" + $json.failureCount + \" failure(s) in last 4 hours:</p><pre>\" + JSON.stringify($json.failures, null, 2) + \"</pre><p>If failures persist, manual review is needed.</p>\"}}",
+        "options": {}
+      },
+      "id": "57b05f07-0bbc-4ba9-b3eb-48ee3972dec9",
+      "name": "Send Failure Summary",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1250,
+        200
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "aad249fa-ea7b-4361-bc79-0970d10eb8da",
+      "name": "All Healthy",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        1250,
+        450
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "XpGdo7DKv3XEpqZc"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        },
+        "inputData": {
+          "values": [
+            {
+              "name": "source",
+              "value": "=n8n:ADS-SHM"
+            },
+            {
+              "name": "source_type",
+              "value": "=workflow"
+            },
+            {
+              "name": "event_type",
+              "value": "={{ $json.healthy ? \"execution_success\" : \"alert\" }}"
+            },
+            {
+              "name": "severity",
+              "value": "={{ $json.healthy ? \"info\" : ($json.failureCount > 3 ? \"critical\" : \"warning\") }}"
+            },
+            {
+              "name": "department",
+              "value": "=ads"
+            },
+            {
+              "name": "summary",
+              "value": "={{ $json.healthy ? \"All ADS workflows healthy\" : $json.failureCount + \" ADS workflow failures detected\" }}"
+            },
+            {
+              "name": "details",
+              "value": "={{ JSON.stringify($json) }}"
+            },
+            {
+              "name": "entity_id",
+              "value": "=5k1OKJuaAWVPf7Lb"
+            },
+            {
+              "name": "entity_name",
+              "value": "=ADS-SHM Self-Healing Monitor"
+            }
+          ]
+        }
+      },
+      "id": "87d14d16-4caf-40fb-b7e9-46f06f3ebfcf",
+      "name": "Write to Brain",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "position": [
+        1000,
+        500
+      ],
+      "typeVersion": 1.2,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Recent Failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Recent Failures": {
+      "main": [
+        [
+          {
+            "node": "Analyze Failures",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Failures": {
+      "main": [
+        [
+          {
+            "node": "Has Failures?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Write to Brain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Failures?": {
+      "main": [
+        [
+          {
+            "node": "Send Failure Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "All Healthy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
