@@ -1203,6 +1203,38 @@
                     return;
                 }
 
+                // Reject if the submitted value matches a placeholder (catches browsers
+                // or autofill that copy placeholder text into the value on submit)
+                var companyPlaceholder = (form.querySelector('#company').getAttribute('placeholder') || '').trim().toLowerCase();
+                var painPlaceholder = (form.querySelector('#pain_point').getAttribute('placeholder') || '').trim().toLowerCase();
+                if (company.toLowerCase() === companyPlaceholder) {
+                    showError('Please enter your actual company name.');
+                    return;
+                }
+                if (painPoint.toLowerCase() === painPlaceholder) {
+                    showError('Please describe your biggest pain point in your own words.');
+                    return;
+                }
+
+                // Meaningful-content checks: too short, or trivially echoing the prompt
+                if (name.length < 2) {
+                    showError('Please enter your full name.');
+                    return;
+                }
+                if (company.length < 2) {
+                    showError('Please enter your actual company name.');
+                    return;
+                }
+                if (painPoint.length < 15) {
+                    showError('Please tell us a bit more about your pain point (at least a full sentence).');
+                    return;
+                }
+                // Block the common case of a user typing the question back as the answer
+                if (/^what('?s|s| is)?\s+the\s+(most|msot)/i.test(painPoint)) {
+                    showError('Please describe your own pain point — not the prompt question.');
+                    return;
+                }
+
                 var btn = form.querySelector('.btn-submit');
                 var origHTML = btn.innerHTML;
                 btn.innerHTML = '<span>Submitting...</span>';

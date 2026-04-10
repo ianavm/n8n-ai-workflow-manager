@@ -1918,6 +1918,30 @@
 
                 qcForm.addEventListener('submit', function(e) {
                     e.preventDefault();
+                    // Validation: reject empty, placeholder echo, or trivially short values
+                    var _fd = new FormData(qcForm);
+                    var _email = (_fd.get('email') || '').toString().trim();
+                    var _name = (_fd.get('name') || '').toString().trim();
+                    var _company = (_fd.get('company') || '').toString().trim();
+                    var _emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(_email);
+                    var _emailEl = qcForm.querySelector('[name="email"]');
+                    var _nameEl = qcForm.querySelector('[name="name"]');
+                    var _companyEl = qcForm.querySelector('[name="company"]');
+                    var _emailPh = (_emailEl && _emailEl.getAttribute('placeholder') || '').trim().toLowerCase();
+                    var _namePh = (_nameEl && _nameEl.getAttribute('placeholder') || '').trim().toLowerCase();
+                    var _companyPh = (_companyEl && _companyEl.getAttribute('placeholder') || '').trim().toLowerCase();
+                    if (!_email || !_emailOk || _email.toLowerCase() === _emailPh) {
+                        alert('Please enter a valid email address.');
+                        return;
+                    }
+                    if (_name && (_name.length < 2 || _name.toLowerCase() === _namePh)) {
+                        alert('Please enter your actual name.');
+                        return;
+                    }
+                    if (_company && (_company.length < 2 || _company.toLowerCase() === _companyPh)) {
+                        alert('Please enter your actual company name.');
+                        return;
+                    }
                     var btn = qcForm.querySelector('button');
                     var origHTML = btn.innerHTML;
                     btn.innerHTML = 'Sending...';

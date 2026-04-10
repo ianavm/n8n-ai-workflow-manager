@@ -170,10 +170,70 @@
             /* ================================
                FORM SUBMISSION (NETLIFY FORMS + n8n WEBHOOK)
                ================================ */
+            /**
+             * Validate a lead submission. Blocks empty fields, obvious
+             * placeholder echoes, trivially short values, and invalid email.
+             * @param {HTMLFormElement} formEl
+             * @returns {{ ok: true } | { ok: false, message: string }}
+             */
+            function validateLeadForm(formEl) {
+                var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                var fd = new FormData(formEl);
+                var firstName = (fd.get('firstName') || fd.get('name') || '').toString().trim();
+                var lastName = (fd.get('lastName') || '').toString().trim();
+                var email = (fd.get('email') || '').toString().trim();
+                var company = (fd.get('company') || '').toString().trim();
+                var message = (fd.get('message') || '').toString().trim();
+                var interest = (fd.get('interest') || '').toString().trim();
+
+                if (!firstName || !email) {
+                    return { ok: false, message: 'Please fill in your name and email.' };
+                }
+                if (!emailRegex.test(email)) {
+                    return { ok: false, message: 'Please enter a valid email address.' };
+                }
+                if (firstName.length < 2 || (lastName && lastName.length < 2)) {
+                    return { ok: false, message: 'Please enter your full name.' };
+                }
+                // Reject fields that equal their placeholder text (case-insensitive)
+                var placeholderFields = ['firstName', 'lastName', 'company', 'message', 'email'];
+                for (var i = 0; i < placeholderFields.length; i++) {
+                    var fieldName = placeholderFields[i];
+                    var input = formEl.querySelector('[name="' + fieldName + '"]');
+                    if (!input) continue;
+                    var placeholder = (input.getAttribute('placeholder') || '').trim().toLowerCase();
+                    var value = (fd.get(fieldName) || '').toString().trim().toLowerCase();
+                    if (placeholder && value && value === placeholder) {
+                        return { ok: false, message: 'Please enter your actual details, not the placeholder text.' };
+                    }
+                }
+                if (company && company.length < 2) {
+                    return { ok: false, message: 'Please enter a valid company name.' };
+                }
+                if (interest && !formEl.querySelector('[name="interest"]').value) {
+                    return { ok: false, message: 'Please select what you are interested in.' };
+                }
+                return { ok: true };
+            }
+
             var contactForm = document.getElementById('contactForm');
             if (contactForm) {
                 contactForm.addEventListener('submit', function(e) {
                     e.preventDefault();
+
+                    var validation = validateLeadForm(contactForm);
+                    if (!validation.ok) {
+                        var existing = contactForm.querySelector('.form-inline-error');
+                        if (existing) existing.remove();
+                        var errDiv = document.createElement('div');
+                        errDiv.className = 'form-inline-error';
+                        errDiv.setAttribute('role', 'alert');
+                        errDiv.style.cssText = 'color:#ff6b6b;background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.25);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:0.9rem;';
+                        errDiv.textContent = validation.message;
+                        contactForm.insertBefore(errDiv, contactForm.firstChild);
+                        setTimeout(function() { if (errDiv.parentNode) errDiv.remove(); }, 5000);
+                        return;
+                    }
 
                     var submitBtn = contactForm.querySelector('.btn-primary');
                     var originalHTML = submitBtn.innerHTML;
