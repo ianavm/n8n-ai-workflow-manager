@@ -1,0 +1,412 @@
+{
+  "name": "AVM Ads: Budget Enforcer",
+  "nodes": [
+    {
+      "id": "0457e90f-cec4-44ad-ba87-f5f8f131bf6a",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/30 * * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "386f4456-4710-4c6c-9b6a-ff1d55d269fd",
+      "name": "Read Recent Performance",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblH1ztufqk5Kkkln"
+        },
+        "filterByFormula": "=IS_AFTER({Date}, DATEADD(TODAY(), -30, 'days'))",
+        "options": {}
+      }
+    },
+    {
+      "id": "0b86d94d-444d-4fd7-9cdf-99ac4c900efb",
+      "name": "Compute Violations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\nconst DAILY_CAP = 666;\nconst WEEKLY_CAP = 5000;\nconst MONTHLY_CAP = 20000;\n\nconst today = new Date().toISOString().slice(0, 10);\nconst weekStart = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);\nconst monthStart = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);\n\n// \u2500\u2500 Step 1: bucket records \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Google: keep latest snapshot per (campaign, date)  \u2192 cumulative-since-launch\n// Meta: keep MAX snapshot per (campaign, date)       \u2192 cumulative-since-midnight\nconst googleByDate = {};   // key: name|date  \u2192 {date, hour, spend, name, platform, ext_id}\nconst metaByDate = {};     // key: name|date  \u2192 {date, spend, name, platform, ext_id}\n\nfunction extId(pid) {\n  if (!pid) return null;\n  const m = pid.match(/^[a-z]+_([^_]+)_/);\n  return m ? m[1] : null;\n}\n\nfor (const item of items) {\n  const f = item.json.fields || item.json;\n  const name = f['Campaign Name'];\n  if (!name) continue;\n  const date = (f['Date'] || '').slice(0, 10);\n  if (!date) continue;\n  const hour = f['Snapshot Hour'] || '';\n  const spend = parseFloat(f['Spend ZAR'] || 0);\n  const platform = f['Platform'] || 'unknown';\n  const id = extId(f['Performance ID'] || '');\n\n  if (platform === 'google_ads') {\n    const key = name + '|' + date;\n    const cur = googleByDate[key];\n    if (!cur || (hour > cur.hour) || (spend > cur.spend)) {\n      googleByDate[key] = {date, hour, spend, name, platform, ext_id: id || (cur && cur.ext_id) || null};\n    }\n  } else if (platform === 'meta_ads') {\n    const key = name + '|' + date;\n    const cur = metaByDate[key];\n    if (!cur || spend > cur.spend) {\n      metaByDate[key] = {date, spend, name, platform, ext_id: id || (cur && cur.ext_id) || null};\n    }\n  }\n}\n\n// \u2500\u2500 Step 2: compute per-campaign daily/weekly/monthly with platform logic\nconst byCampaign = {};\n\n// Google: build sorted date list per campaign and compute deltas\nconst googleByCamp = {};\nfor (const k of Object.keys(googleByDate)) {\n  const r = googleByDate[k];\n  if (!googleByCamp[r.name]) googleByCamp[r.name] = [];\n  googleByCamp[r.name].push(r);\n}\nfor (const name of Object.keys(googleByCamp)) {\n  const rows = googleByCamp[name].sort((a, b) => a.date.localeCompare(b.date));\n  const platform = rows[0].platform;\n  const ext_id = rows.find(r => r.ext_id)?.ext_id || null;\n  let prev = 0;\n  let daily = 0, weekly = 0;\n  const lifetime = rows[rows.length - 1].spend;\n  for (const r of rows) {\n    const delta = Math.max(0, r.spend - prev);\n    if (r.date === today) daily += delta;\n    if (r.date >= weekStart) weekly += delta;\n    prev = r.spend;\n  }\n  byCampaign[name + '|google_ads'] = {\n    campaign: name, platform, external_id: ext_id,\n    daily, weekly, monthly: lifetime, // lifetime \u2248 monthly within 30d window\n  };\n}\n\n// Meta: daily=max-of-today, weekly=sum of daily-max in last 7 days, monthly=sum in last 30\nconst metaByCamp = {};\nfor (const k of Object.keys(metaByDate)) {\n  const r = metaByDate[k];\n  if (!metaByCamp[r.name]) metaByCamp[r.name] = [];\n  metaByCamp[r.name].push(r);\n}\nfor (const name of Object.keys(metaByCamp)) {\n  const rows = metaByCamp[name];\n  const platform = rows[0].platform;\n  const ext_id = rows.find(r => r.ext_id)?.ext_id || null;\n  let daily = 0, weekly = 0, monthly = 0;\n  for (const r of rows) {\n    if (r.date === today) daily += r.spend;\n    if (r.date >= weekStart) weekly += r.spend;\n    if (r.date >= monthStart) monthly += r.spend;\n  }\n  byCampaign[name + '|meta_ads'] = {\n    campaign: name, platform, external_id: ext_id, daily, weekly, monthly,\n  };\n}\n\n// \u2500\u2500 Step 3: identify violations \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nconst violations = [];\nlet totalDaily = 0, totalWeekly = 0, totalMonthly = 0;\nfor (const c of Object.values(byCampaign)) {\n  totalDaily += c.daily;\n  totalWeekly += c.weekly;\n  totalMonthly += c.monthly;\n  const reasons = [];\n  if (c.daily > DAILY_CAP) reasons.push(`daily R${c.daily.toFixed(0)} > R${DAILY_CAP}`);\n  if (c.weekly > WEEKLY_CAP) reasons.push(`weekly R${c.weekly.toFixed(0)} > R${WEEKLY_CAP}`);\n  if (c.monthly > MONTHLY_CAP) reasons.push(`monthly R${c.monthly.toFixed(0)} > R${MONTHLY_CAP}`);\n  if (reasons.length > 0) {\n    violations.push({...c, reasons: reasons.join('; '), action: 'PAUSE'});\n  }\n}\n\n// Global cap breach: top spender pays the price if no individual breach yet\nconst globalBreach = totalDaily > DAILY_CAP || totalWeekly > WEEKLY_CAP || totalMonthly > MONTHLY_CAP;\nif (globalBreach && violations.length === 0) {\n  const sorted = Object.values(byCampaign).sort((a, b) => b.daily - a.daily);\n  if (sorted[0]) {\n    violations.push({\n      ...sorted[0],\n      reasons: `global breach: daily R${totalDaily.toFixed(0)}/R${DAILY_CAP}, weekly R${totalWeekly.toFixed(0)}/R${WEEKLY_CAP}, monthly R${totalMonthly.toFixed(0)}/R${MONTHLY_CAP}`,\n      action: 'PAUSE',\n    });\n  }\n}\n\nif (violations.length === 0) {\n  return [{json: {\n    skip: true,\n    summary: {totalDaily, totalWeekly, totalMonthly, campaignCount: Object.keys(byCampaign).length},\n  }}];\n}\n\nreturn violations.map(v => ({json: v}));\n"
+      }
+    },
+    {
+      "id": "0459ef08-4d84-4f7b-857c-f4b15e46ba58",
+      "name": "Has Violations?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ !$json.skip }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0c9998d4-213d-4f98-8952-91dcd9c61d64",
+      "name": "Route by Platform",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\n// Tag each violation with platform-specific pause payload\nconst items = $input.all();\nconst out = [];\nfor (const item of items) {\n  const v = item.json;\n  if (v.skip) continue;\n  if (!v.external_id) continue;  // can't pause without an id\n\n  const platform = (v.platform || '').toLowerCase();\n  if (platform.includes('google')) {\n    out.push({json: {...v, _route: 'google'}});\n  } else if (platform.includes('meta') || platform.includes('facebook')) {\n    out.push({json: {...v, _route: 'meta'}});\n  }\n}\nreturn out.length > 0 ? out : [{json: {skip: true}}];\n"
+      }
+    },
+    {
+      "id": "68547e73-4614-44d9-a66e-d892d821d1cb",
+      "name": "Is Google?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json._route === 'google' }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "0eb39ce8-fc53-46a9-ace1-672013f4888f",
+      "name": "Pause Google Campaign",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1750,
+        100
+      ],
+      "credentials": {
+        "googleAdsOAuth2Api": {
+          "id": "abkg9bL66BFOj2F3",
+          "name": "Google Ads OAuth2"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://googleads.googleapis.com/v17/customers/5876156009/campaigns:mutate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleAdsOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "login-customer-id",
+              "value": "8709868142"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"operations\": [{\"update\": {\"resourceName\": \"={{ 'customers/5876156009/campaigns/' + $json.external_id }}\", \"status\": \"PAUSED\"}, \"updateMask\": \"status\"}]}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "dda2330a-40ea-4ac1-9785-74d940af0c7d",
+      "name": "Pause Meta Campaign",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1750,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "4UZH1VRXvVufgvrI",
+          "name": "Meta Ads Graph API"
+        }
+      },
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v25.0",
+        "node": "={{ $json.external_id }}",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "status",
+                "value": "PAUSED"
+              }
+            ]
+          }
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "44d406e3-d5b7-4bbf-9e27-9a8a360e15eb",
+      "name": "Merge Pause Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2000,
+        200
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "e3d250a4-b67b-439c-92b8-3d1d3e8d3f28",
+      "name": "Format Pause Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2250,
+        200
+      ],
+      "parameters": {
+        "jsCode": "\n// Collect all pause attempts (success or failure) for logging\nconst items = $input.all();\nconst paused = [];\nfor (const item of items) {\n  const d = item.json;\n  if (d.skip) continue;\n  paused.push({\n    campaign: d.campaign || '?',\n    platform: d.platform || '?',\n    external_id: d.external_id || '?',\n    reasons: d.reasons || '',\n    api_status: d.error ? 'FAILED' : 'PAUSED',\n    api_error: d.error || null,\n    paused_at: new Date().toISOString(),\n  });\n}\nif (paused.length === 0) {\n  return [{json: {skip: true}}];\n}\nreturn [{json: {\n  paused,\n  count: paused.length,\n  summary: paused.map(p => `${p.campaign} (${p.platform}): ${p.api_status}`).join('\\n'),\n}}];\n"
+      }
+    },
+    {
+      "id": "9cb26d93-cee6-4ad7-971b-7cddb6dec125",
+      "name": "Email Pause Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2500,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "send",
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "\ud83d\udea8 AVM Ads \u2014 Auto-paused {{ $json.count }} campaigns",
+        "emailType": "html",
+        "message": "={{ '<h2>\ud83d\udea8 ADS Budget Enforcer \u2014 Campaigns Paused</h2><p>The following campaigns exceeded budget caps and have been paused:</p><pre>' + $json.summary + '</pre><p>Run <code>python tools/analyze_ads_full.py</code> for the full picture.</p>' }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "e63b3dc1-531e-40e3-817b-e5d929f18ac7",
+      "name": "No Violations",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1250,
+        400
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Recent Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Recent Performance": {
+      "main": [
+        [
+          {
+            "node": "Compute Violations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Violations": {
+      "main": [
+        [
+          {
+            "node": "Has Violations?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Violations?": {
+      "main": [
+        [
+          {
+            "node": "Route by Platform",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Violations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Platform": {
+      "main": [
+        [
+          {
+            "node": "Is Google?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Google?": {
+      "main": [
+        [
+          {
+            "node": "Pause Google Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pause Meta Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause Google Campaign": {
+      "main": [
+        [
+          {
+            "node": "Merge Pause Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause Meta Campaign": {
+      "main": [
+        [
+          {
+            "node": "Merge Pause Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Pause Results": {
+      "main": [
+        [
+          {
+            "node": "Format Pause Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Pause Log": {
+      "main": [
+        [
+          {
+            "node": "Email Pause Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -101,7 +101,12 @@ def uid():
 # ======================================================================
 
 ADS04_TRANSFORM_GOOGLE_CODE = r"""
-// Transform Google Ads API response to common schema
+// Transform Google Ads API response to common schema.
+// IMPORTANT: Google Ads API returns LIFETIME CUMULATIVE metrics — each value
+// is the running total since campaign launch. Performance ID is keyed by
+// (campaign_id, date) only (no hour) so subsequent same-day runs UPSERT and
+// overwrite with the latest cumulative figure. Aggregation logic in readers
+// must take the LATEST snapshot per campaign to get totals.
 const items = $input.all();
 
 // Handle upstream error / empty data (continueOnFail produces error item)
@@ -138,14 +143,15 @@ for (const item of items) {
 
   results.push({
     json: {
-      'Performance ID': `gads_${campaignId}_${now}_${hour}`,
+      // Performance ID = (platform, campaign, date) — no hour, enables upsert
+      'Performance ID': `gads_${campaignId}_${now}`,
       'Campaign Name': campaignName,
       'Platform': 'google_ads',
       'Date': now,
       'Impressions': impressions,
       'Clicks': clicks,
       'CTR': parseFloat(ctr.toFixed(4)),
-      'Spend ZAR': parseFloat(spendZAR.toFixed(2)),
+      'Spend ZAR': parseFloat(spendZAR.toFixed(2)),  // lifetime cumulative
       'Conversions': Math.round(conversions),
       'CPA ZAR': parseFloat(cpa.toFixed(2)),
       'ROAS': parseFloat(roas.toFixed(2)),
@@ -153,7 +159,7 @@ for (const item of items) {
       'CPC ZAR': parseFloat(cpc.toFixed(2)),
       'Video Views': videoViews,
       'Engagement Rate': 0,
-      'Snapshot Hour': hour,
+      'Snapshot Hour': hour,  // kept for debugging; not part of upsert key
     }
   });
 }
@@ -204,14 +210,17 @@ for (const d of campaigns) {
 
   results.push({
     json: {
-      'Performance ID': `meta_${d.campaign_id || 'unknown'}_${now}_${hour}`,
+      // Performance ID = (platform, campaign, date) — no hour, enables upsert.
+      // Meta returns cumulative-since-midnight, so the latest snapshot of the
+      // day = end-of-day total. Subsequent runs overwrite the row.
+      'Performance ID': `meta_${d.campaign_id || 'unknown'}_${now}`,
       'Campaign Name': d.campaign_name || 'Unknown',
       'Platform': 'meta_ads',
       'Date': now,
       'Impressions': impressions,
       'Clicks': clicks,
       'CTR': parseFloat(ctr.toFixed(4)),
-      'Spend ZAR': parseFloat(spend.toFixed(2)),
+      'Spend ZAR': parseFloat(spend.toFixed(2)),  // cumulative-since-midnight
       'Conversions': conversions,
       'CPA ZAR': parseFloat(cpa.toFixed(2)),
       'ROAS': parseFloat(roas.toFixed(2)),
@@ -219,7 +228,7 @@ for (const d of campaigns) {
       'CPC ZAR': parseFloat(cpc.toFixed(2)),
       'Video Views': parseInt(d.video_views || 0),
       'Engagement Rate': parseFloat(engRate.toFixed(4)),
-      'Snapshot Hour': hour,
+      'Snapshot Hour': hour,  // kept for debugging; not part of upsert key
     }
   });
 }
@@ -1035,10 +1044,15 @@ def build_ads04_nodes():
         "Filter Valid Data", ADS04_FILTER_SKIP_CODE, [1500, 300]
     ))
 
-    # 10. Write to Ad_Performance table
+    # 10. Write to Ad_Performance table (UPSERT to dedupe by Performance ID)
+    # Fixed 2026-04-10: was create, causing 3.5x row duplication.
+    # Note: matchingColumns must be INSIDE parameters.columns for Airtable v2.1
+    # upsert, NOT at parameters root.
     node = build_airtable_create(
         "Write Ad Performance", MARKETING_BASE_ID, TABLE_PERFORMANCE, [1750, 300]
     )
+    node["parameters"]["operation"] = "upsert"
+    node["parameters"]["columns"]["matchingColumns"] = ["Performance ID"]
     node["continueOnFail"] = True
     nodes.append(node)
 
@@ -1464,14 +1478,39 @@ def build_ads01_connections(nodes):
 # ======================================================================
 
 ADS02_PARSE_CREATIVES_CODE = r"""
-// Parse AI creative responses and prepare for Airtable
+// Parse AI creative responses and prepare for Airtable.
+// Fixed 2026-04-10: recovers Campaign Name + Platform via paired-item
+// lookup to `Read Campaign Plans`. Drops items that cannot be matched
+// instead of writing "Unknown" garbage rows downstream.
 const items = $input.all();
 const results = [];
 const now = new Date().toISOString().split('T')[0];
 let idx = 0;
 
-for (const item of items) {
+for (let i = 0; i < items.length; i++) {
+  const item = items[i];
   if (item.json.skip) continue;
+
+  // Recover original campaign via paired-item reference
+  let campaignName = null;
+  let platform = null;
+  try {
+    const original = $('Read Campaign Plans').itemMatching(i);
+    if (original && original.json) {
+      const fields = original.json.fields || original.json;
+      campaignName = fields['Campaign Name'] || null;
+      platform = fields['Platform'] || null;
+    }
+  } catch (e) {
+    // pairedItem unavailable — fall through
+  }
+
+  // Fall back to inline metadata if present
+  if (!campaignName) campaignName = item.json._campaignName || null;
+  if (!platform) platform = item.json._platform || 'google_ads';
+
+  // Drop items with no recoverable campaign — prevents "Unknown" garbage rows
+  if (!campaignName || campaignName === 'Unknown') continue;
 
   const resp = item.json;
   const content = resp.choices?.[0]?.message?.content || JSON.stringify(resp);
@@ -1483,9 +1522,6 @@ for (const item of items) {
   } catch (e) {
     creative = {raw: content};
   }
-
-  const campaignName = item.json._campaignName || 'Unknown';
-  const platform = item.json._platform || 'google_ads';
 
   // Handle Google RSA format
   if (creative.headlines) {
@@ -1677,11 +1713,14 @@ def build_ads02_nodes():
             "columns": {
                 "mappingMode": "defineBelow",
                 "value": {
-                    "Campaign Name": "={{ $json.fields ? $json.fields['Campaign Name'] : $json['Campaign Name'] }}",
+                    # Fixed 2026-04-10: $json after Write Creatives is the Airtable
+                    # response (id+createdTime), not the data. Use paired-item ref
+                    # to Parse Creatives to recover the original Campaign Name.
+                    "Campaign Name": "={{ $('Parse Creatives').item.json['Campaign Name'] }}",
                     "Request Type": "Creative_Update",
                     "Requested By": "ADS-02",
                     "Status": "Pending",
-                    "Details": "={{ ($json.fields ? $json.fields['Creative Name'] : $json['Creative Name']) + ' (' + ($json.fields ? $json.fields['Platform'] : $json['Platform']) + ')' }}",
+                    "Details": "={{ $('Parse Creatives').item.json['Creative Name'] + ' (' + $('Parse Creatives').item.json['Platform'] + ')' }}",
                     "Created At": "={{ new Date().toISOString().split('T')[0] }}",
                 },
             },
