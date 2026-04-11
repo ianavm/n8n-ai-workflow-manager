@@ -256,7 +256,29 @@ const BLOCKED_DOMAINS = [
   '@eftcorp.atlassian.net',
   '@noreply.github.com',
   '@notifications.google.com',
-  '@mailer-daemon.'
+  '@mailer-daemon.',
+  // n8n platform alerts (execution reports, workflow failures, billing)
+  '@n8n.io',
+  '@app.n8n.cloud',
+  '@ianimmelman89.app.n8n.cloud'
+];
+
+// Subject patterns for n8n-generated reports/updates - no drafts needed
+// Catches self-sent workflow reports even when 'from' is ian@anyvisionmedia.com
+const N8N_REPORT_SUBJECT_PATTERNS = [
+  /\bworkflow\s+execution/i,
+  /\bexecution\s+(report|failed|error)/i,
+  /\[n8n\]/i,
+  /\bn8n\s+(alert|report|notification|update)/i,
+  /\b(daily|weekly|monthly)\s+report\b/i,
+  /\baudit\s+report\b/i,
+  /\bbudget\s+enforcer/i,
+  /\[ADS-\d+\]/i,
+  /\[SHM\]/i,
+  /\[ERR\]/i,
+  /\[LI-\d+\]/i,
+  /\bSHM\s+health\s+check/i,
+  /\bworkflow\s+(update|summary)/i
 ];
 
 for (const item of items) {
@@ -275,6 +297,7 @@ for (const item of items) {
 
   const fromLower = emailData.from.toLowerCase();
   const isBlockedDomain = BLOCKED_DOMAINS.some(d => fromLower.includes(d));
+  const isN8nReport = N8N_REPORT_SUBJECT_PATTERNS.some(rx => rx.test(emailData.subject || ''));
 
   const classificationPrompt = `Analyze this business email. Return ONLY valid JSON, no markdown, no backticks.
 
@@ -316,7 +339,8 @@ Rules:
     json: {
       ...emailData,
       classificationPrompt,
-      is_blocked_domain: isBlockedDomain
+      is_blocked_domain: isBlockedDomain,
+      is_n8n_report: isN8nReport
     }
   });
 }
@@ -458,6 +482,7 @@ const TICKET_PATTERNS = [
       matched_reference_pattern,
       is_opt_out,
       is_blocked_domain: emailData.is_blocked_domain || false,
+      is_n8n_report: emailData.is_n8n_report || false,
       processed_at: new Date().toISOString(),
       ticket_number: 'TKT-' + Date.now()
     }
@@ -805,7 +830,8 @@ def build_nodes() -> list[dict]:
     # ── Reply Logic ───────────────────────────────────────────────────
 
     # 24. Reply Needed? (guards: action required + not spam + not no-reply
-    #     + not blocked domain + not opt-out + no reference number)
+    #     + not blocked domain + not opt-out + no reference number
+    #     + not an n8n report/update — read-only, never draft)
     nodes.append(if_node(
         "Reply Needed?",
         [
@@ -819,6 +845,7 @@ def build_nodes() -> list[dict]:
             cond_bool("={{ $json.has_reference_number }}", "false"),
             cond_bool("={{ $json.is_opt_out }}", "false"),
             cond_bool("={{ $json.is_blocked_domain }}", "false"),
+            cond_bool("={{ $json.is_n8n_report }}", "false"),
         ],
         [1250, 1520],
         case_sensitive=False,
@@ -1333,10 +1360,26 @@ def _get_client() -> "N8nClient | None":
 
 
 def deploy(workflow: dict) -> str | None:
-    """Deploy workflow to n8n Cloud (inactive)."""
+    """Deploy workflow to n8n Cloud.
+
+    If BUSINESS_EMAIL_MGMT_WORKFLOW_ID is set in .env, updates the existing
+    workflow in place (preserves active state). Otherwise creates a new one.
+    """
     client = _get_client()
     if client is None:
         return None
+    existing_id = os.getenv("BUSINESS_EMAIL_MGMT_WORKFLOW_ID", "").strip()
+    if existing_id:
+        # n8n PUT /workflows/:id only accepts name/nodes/connections/settings.
+        payload = {
+            "name": workflow["name"],
+            "nodes": workflow["nodes"],
+            "connections": workflow["connections"],
+            "settings": workflow.get("settings", {"executionOrder": "v1"}),
+        }
+        client.update_workflow(existing_id, payload)
+        print(f"Updated: {existing_id}")
+        return existing_id
     resp = client.create_workflow(workflow)
     wf_id = resp.get("id", "unknown")
     print(f"Deployed: {wf_id} (inactive)")

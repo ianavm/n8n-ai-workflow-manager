@@ -66,6 +66,10 @@ ALERT_EMAIL = "ian@anyvisionmedia.com"
 WORKFLOW_NAME = "AVM Ads: Budget Enforcer"
 OUTPUT_PATH = ROOT / "workflows" / "ads-dept" / "ads09_budget_enforcer.json"
 
+# Brain Writer sub-workflow (AVM: Brain Writer) — logs audit events to Postgres
+BRAIN_WF_ID = "XpGdo7DKv3XEpqZc"
+SELF_WORKFLOW_ID = "YR6LFkWO9rnNceOp"
+
 
 def uid() -> str:
     return str(uuid.uuid4())
@@ -219,6 +223,9 @@ return violations.map(v => ({json: v}));
 """
 
 # ── Code: route by platform (split google vs meta) ──────────────────────
+# CRITICAL: must return [] (not a skip sentinel) when no routable violations.
+# A skip sentinel would leak into "Is Google?" and cascade to a bogus pause
+# attempt with no external_id, producing "? (?): FAILED" alerts.
 ROUTE_PLATFORM_CODE = r"""
 // Tag each violation with platform-specific pause payload
 const items = $input.all();
@@ -230,57 +237,113 @@ for (const item of items) {
 
   const platform = (v.platform || '').toLowerCase();
   if (platform.includes('google')) {
-    out.push({json: {...v, _route: 'google'}});
+    out.push({json: {...v, _route: 'google'}, pairedItem: {item: items.indexOf(item)}});
   } else if (platform.includes('meta') || platform.includes('facebook')) {
-    out.push({json: {...v, _route: 'meta'}});
+    out.push({json: {...v, _route: 'meta'}, pairedItem: {item: items.indexOf(item)}});
   }
 }
-return out.length > 0 ? out : [{json: {skip: true}}];
+return out;  // may be [] — downstream nodes will not execute
 """
 
-# ── Code: format pause result for logging + email ───────────────────────
-FORMAT_PAUSE_LOG_CODE = r"""
-// Collect all pause attempts (success or failure) for logging
-const items = $input.all();
-const paused = [];
-for (const item of items) {
-  const d = item.json;
-  if (d.skip) continue;
-  paused.push({
-    campaign: d.campaign || '?',
-    platform: d.platform || '?',
-    external_id: d.external_id || '?',
-    reasons: d.reasons || '',
-    api_status: d.error ? 'FAILED' : 'PAUSED',
-    api_error: d.error || null,
+# ── Code: tag pause result with recovered violation context ─────────────
+# Runs in runOnceForEachItem mode so $('Route by Platform').item.json gives
+# the paired upstream violation (survives HTTP pause-node failure).
+TAG_GOOGLE_PAUSE_CODE = r"""
+// runOnceForEachItem mode
+let v = {};
+try { v = $('Route by Platform').item.json || {}; } catch (e) { v = {}; }
+const errored = !!($json.error || $json.errors || $json.httpCode >= 400);
+return {
+  json: {
+    campaign: v.campaign || '(unknown)',
+    platform: 'google_ads',
+    external_id: v.external_id || '(no id)',
+    reasons: v.reasons || '',
+    api_status: errored ? 'FAILED' : 'PAUSED',
+    api_error: errored ? JSON.stringify($json.error || $json.errors || $json).slice(0, 500) : null,
     paused_at: new Date().toISOString(),
-  });
-}
+  },
+};
+"""
+
+TAG_META_PAUSE_CODE = r"""
+// runOnceForEachItem mode
+let v = {};
+try { v = $('Route by Platform').item.json || {}; } catch (e) { v = {}; }
+const errored = !!($json.error || $json.errors || $json.httpCode >= 400);
+return {
+  json: {
+    campaign: v.campaign || '(unknown)',
+    platform: 'meta_ads',
+    external_id: v.external_id || '(no id)',
+    reasons: v.reasons || '',
+    api_status: errored ? 'FAILED' : 'PAUSED',
+    api_error: errored ? JSON.stringify($json.error || $json.errors || $json).slice(0, 500) : null,
+    paused_at: new Date().toISOString(),
+  },
+};
+"""
+
+# ── (Classify Pause Results Code node removed — replaced by an If node
+#     routing on api_status === 'PAUSED'. Multi-output Code nodes in n8n
+#     v2 fail validation with "Code doesn't return items properly" when
+#     returning the documented [[output0],[output1]] shape from certain
+#     Merge upstreams, so we use the native If instead.)
+
+# ── Code: format paused summary (success only) ──────────────────────────
+FORMAT_PAUSED_SUMMARY_CODE = r"""
+const items = $input.all();
+const paused = items.map(i => i.json).filter(d =>
+  d.api_status === 'PAUSED' &&
+  d.campaign && d.campaign !== '(unknown)' &&
+  d.platform
+);
 if (paused.length === 0) {
-  return [{json: {skip: true}}];
+  return [];  // nothing real to report
 }
 return [{json: {
   paused,
   count: paused.length,
-  summary: paused.map(p => `${p.campaign} (${p.platform}): ${p.api_status}`).join('\n'),
+  summary: paused.map(p => `${p.campaign} (${p.platform}): ${p.reasons || 'cap exceeded'}`).join('\n'),
+}}];
+"""
+
+# ── Code: format failed summary (failures only) ─────────────────────────
+FORMAT_FAILED_SUMMARY_CODE = r"""
+const items = $input.all();
+const failed = items.map(i => i.json).filter(d => d.api_status === 'FAILED');
+if (failed.length === 0) {
+  return [];
+}
+return [{json: {
+  failed,
+  count: failed.length,
+  summary: failed.map(f =>
+    `${f.campaign || '(unknown)'} (${f.platform || '(unknown)'}) id=${f.external_id || '?'}: ${f.api_error || 'unknown error'}`
+  ).join('\n'),
 }}];
 """
 
 
 # ── Build nodes ─────────────────────────────────────────────────────────
 def build_pause_google_node(name: str, position: list[int]) -> dict:
-    """HTTP node that pauses a Google Ads campaign via the v17 mutate API."""
-    body = {
-        "operations": [
-            {
-                "update": {
-                    "resourceName": "={{ 'customers/" + GOOGLE_ADS_CUSTOMER_ID + "/campaigns/' + $json.external_id }}",
-                    "status": "PAUSED",
-                },
-                "updateMask": "status",
-            }
-        ]
-    }
+    """HTTP node that pauses a Google Ads campaign via the v20 mutate API.
+
+    v17 is sunset (2025-08). Matches pattern used by ADS-03 Campaign Builder
+    in deploy_ads_dept.py::1956. jsonBody is built as an n8n expression so
+    `$json.external_id` interpolates per-item.
+    """
+    # Built as a single n8n expression — the `=` prefix tells n8n to evaluate
+    # the JS inside {{}}. JSON.stringify produces the final JSON body.
+    json_body_expr = (
+        "={{ JSON.stringify({"
+        "operations: [{"
+        f"update: {{resourceName: 'customers/{GOOGLE_ADS_CUSTOMER_ID}/campaigns/' + $json.external_id, "
+        "status: 'PAUSED'}, "
+        "updateMask: 'status'"
+        "}]"
+        "}) }}"
+    )
     node = {
         "id": uid(),
         "name": name,
@@ -290,7 +353,7 @@ def build_pause_google_node(name: str, position: list[int]) -> dict:
         "credentials": {"googleAdsOAuth2Api": CRED_GOOGLE_ADS},
         "parameters": {
             "method": "POST",
-            "url": f"https://googleads.googleapis.com/v17/customers/{GOOGLE_ADS_CUSTOMER_ID}/campaigns:mutate",
+            "url": f"https://googleads.googleapis.com/v20/customers/{GOOGLE_ADS_CUSTOMER_ID}/campaigns:mutate",
             "authentication": "predefinedCredentialType",
             "nodeCredentialType": "googleAdsOAuth2Api",
             "sendHeaders": True,
@@ -301,7 +364,7 @@ def build_pause_google_node(name: str, position: list[int]) -> dict:
             },
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": json.dumps(body),
+            "jsonBody": json_body_expr,
             "options": {"timeout": 30000},
         },
     }
@@ -329,6 +392,62 @@ def build_pause_meta_node(name: str, position: list[int]) -> dict:
         },
     }
     return make_resilient(node, retries=2, wait_ms=5000)
+
+
+def build_code_node_each(name: str, js_code: str, position: list[int]) -> dict:
+    """Code node in runOnceForEachItem mode — lets $('NodeName').item.json
+    resolve the paired upstream item even after a failed HTTP pause node."""
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": position,
+        "parameters": {
+            "mode": "runOnceForEachItem",
+            "jsCode": js_code,
+        },
+    }
+
+
+def build_brain_write_node(
+    name: str,
+    position: list[int],
+    event_type_expr: str,
+    severity_expr: str,
+    summary_expr: str,
+    details_expr: str,
+) -> dict:
+    """Execute Workflow node that calls AVM: Brain Writer with ADS-09 context.
+
+    All expression strings should be n8n expressions starting with `=`.
+    Pattern mirrors deploy_ads_shm.py::Write to Brain.
+    """
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.2,
+        "position": position,
+        "onError": "continueRegularOutput",
+        "parameters": {
+            "workflowId": {"__rl": True, "mode": "id", "value": BRAIN_WF_ID},
+            "options": {"waitForSubWorkflow": False},
+            "inputData": {
+                "values": [
+                    {"name": "source", "value": "=n8n:ADS-09"},
+                    {"name": "source_type", "value": "=workflow"},
+                    {"name": "event_type", "value": event_type_expr},
+                    {"name": "severity", "value": severity_expr},
+                    {"name": "department", "value": "=ads"},
+                    {"name": "summary", "value": summary_expr},
+                    {"name": "details", "value": details_expr},
+                    {"name": "entity_id", "value": f"={SELF_WORKFLOW_ID}"},
+                    {"name": "entity_name", "value": "=AVM Ads: Budget Enforcer"},
+                ],
+            },
+        },
+    }
 
 
 def build_ads09_nodes() -> list[dict]:
@@ -371,30 +490,90 @@ def build_ads09_nodes() -> list[dict]:
     # 8. Pause Meta campaign
     nodes.append(build_pause_meta_node("Pause Meta Campaign", [1750, 300]))
 
-    # 9. Merge results
-    nodes.append(build_merge_node("Merge Pause Results", [2000, 200]))
-
-    # 10. Format pause log
-    nodes.append(build_code_node(
-        "Format Pause Log", FORMAT_PAUSE_LOG_CODE, [2250, 200]
+    # 9. Tag Google pause result (runOnceForEachItem — recovers paired violation)
+    nodes.append(build_code_node_each(
+        "Tag Google Pause Result", TAG_GOOGLE_PAUSE_CODE, [2000, 100]
     ))
 
-    # 11. Email Ian with pause report
-    email_body = (
+    # 10. Tag Meta pause result
+    nodes.append(build_code_node_each(
+        "Tag Meta Pause Result", TAG_META_PAUSE_CODE, [2000, 300]
+    ))
+
+    # 11. Merge tagged results (google + meta)
+    nodes.append(build_merge_node("Merge Pause Results", [2250, 200]))
+
+    # 12. Classify via native If node (deterministic — no Code validation surprises)
+    nodes.append(build_if_node(
+        "Is Paused?",
+        "={{ $json.api_status === 'PAUSED' }}",
+        [2500, 200],
+    ))
+
+    # 13. Format paused summary (success branch)
+    nodes.append(build_code_node(
+        "Format Paused Summary", FORMAT_PAUSED_SUMMARY_CODE, [2750, 100]
+    ))
+
+    # 14. Format failed summary (failure branch)
+    nodes.append(build_code_node(
+        "Format Failed Summary", FORMAT_FAILED_SUMMARY_CODE, [2750, 300]
+    ))
+
+    # 15. Email Ian with successful-pause report
+    paused_email_body = (
         "={{ '<h2>🚨 ADS Budget Enforcer — Campaigns Paused</h2>"
         "<p>The following campaigns exceeded budget caps and have been paused:</p>"
         "<pre>' + $json.summary + '</pre>"
         "<p>Run <code>python tools/analyze_ads_full.py</code> for the full picture.</p>' }}"
     )
     nodes.append(build_gmail_send(
-        "Email Pause Report",
+        "Email Paused Report",
         ALERT_EMAIL,
-        "🚨 AVM Ads — Auto-paused {{ $json.count }} campaigns",
-        email_body,
-        [2500, 200],
+        "=🚨 AVM Ads — Auto-paused {{ $json.count }} campaigns",
+        paused_email_body,
+        [3000, 100],
     ))
 
-    # 12. No-violation pass-through
+    # 16. Email Ian with pause-failed alert
+    failed_email_body = (
+        "={{ '<h2>⚠️ ADS Budget Enforcer — Pause FAILED (manual action needed)</h2>"
+        "<p>The enforcer detected budget violations and attempted to pause the "
+        "following campaigns, but the platform API rejected the calls. "
+        "<b>Manual intervention required.</b></p>"
+        "<pre>' + $json.summary + '</pre>"
+        "<p>Check Google Ads / Meta OAuth credentials, then run: "
+        "<code>python tools/analyze_ads_full.py</code></p>' }}"
+    )
+    nodes.append(build_gmail_send(
+        "Email Failed Alert",
+        ALERT_EMAIL,
+        "=⚠️ AVM Ads — {{ $json.count }} pause attempts FAILED (manual action)",
+        failed_email_body,
+        [3000, 300],
+    ))
+
+    # 17. Brain Writer — log successful pause event (audit trail)
+    nodes.append(build_brain_write_node(
+        "Brain: Log Paused",
+        [3250, 100],
+        event_type_expr='="fix_applied"',
+        severity_expr='="warning"',
+        summary_expr='={{ "Budget Enforcer auto-paused " + $json.count + " campaign(s): " + $json.summary.replace(/\\n/g, " | ") }}',
+        details_expr='={{ JSON.stringify({count: $json.count, paused: $json.paused}) }}',
+    ))
+
+    # 18. Brain Writer — log pause failure (critical)
+    nodes.append(build_brain_write_node(
+        "Brain: Log Failed",
+        [3250, 300],
+        event_type_expr='="alert"',
+        severity_expr='="critical"',
+        summary_expr='={{ "Budget Enforcer FAILED to pause " + $json.count + " campaign(s): " + $json.summary.replace(/\\n/g, " | ") }}',
+        details_expr='={{ JSON.stringify({count: $json.count, failed: $json.failed}) }}',
+    ))
+
+    # 19. No-violation pass-through
     no_violation = {
         "id": uid(),
         "name": "No Violations",
@@ -431,16 +610,31 @@ def build_ads09_connections(nodes: list[dict]) -> dict:
             [{"node": "Pause Meta Campaign", "type": "main", "index": 0}],
         ]},
         "Pause Google Campaign": {"main": [[
-            {"node": "Merge Pause Results", "type": "main", "index": 0}
+            {"node": "Tag Google Pause Result", "type": "main", "index": 0}
         ]]},
         "Pause Meta Campaign": {"main": [[
+            {"node": "Tag Meta Pause Result", "type": "main", "index": 0}
+        ]]},
+        "Tag Google Pause Result": {"main": [[
+            {"node": "Merge Pause Results", "type": "main", "index": 0}
+        ]]},
+        "Tag Meta Pause Result": {"main": [[
             {"node": "Merge Pause Results", "type": "main", "index": 1}
         ]]},
         "Merge Pause Results": {"main": [[
-            {"node": "Format Pause Log", "type": "main", "index": 0}
+            {"node": "Is Paused?", "type": "main", "index": 0}
         ]]},
-        "Format Pause Log": {"main": [[
-            {"node": "Email Pause Report", "type": "main", "index": 0}
+        "Is Paused?": {"main": [
+            [{"node": "Format Paused Summary", "type": "main", "index": 0}],
+            [{"node": "Format Failed Summary", "type": "main", "index": 0}],
+        ]},
+        "Format Paused Summary": {"main": [[
+            {"node": "Email Paused Report", "type": "main", "index": 0},
+            {"node": "Brain: Log Paused", "type": "main", "index": 0},
+        ]]},
+        "Format Failed Summary": {"main": [[
+            {"node": "Email Failed Alert", "type": "main", "index": 0},
+            {"node": "Brain: Log Failed", "type": "main", "index": 0},
         ]]},
     }
 
