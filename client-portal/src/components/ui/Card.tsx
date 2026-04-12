@@ -21,27 +21,13 @@ export function Card({
   if (variant === "gradient") {
     return (
       <div
+        className={`glass-card ${className}`}
         style={{
-          position: "relative",
-          borderRadius: "16px",
-          padding: "1px",
-          overflow: "hidden",
-          background: "linear-gradient(135deg, rgba(108,99,255,0.25), rgba(0,212,170,0.15))",
+          padding: pad,
+          borderLeft: "3px solid var(--brand-primary)",
         }}
       >
-        <div
-          className={className}
-          style={{
-            position: "relative",
-            borderRadius: "16px",
-            background: "rgba(10,15,28,0.95)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            padding: pad,
-          }}
-        >
-          {children}
-        </div>
+        {children}
       </div>
     );
   }

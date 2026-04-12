@@ -46,7 +46,7 @@ function BreakdownBar({
       <span
         style={{
           fontSize: "12px",
-          color: "#6B7280",
+          color: "#71717A",
           width: "80px",
           textAlign: "right",
           flexShrink: 0,
@@ -142,7 +142,7 @@ export function HealthGauge({
               ? { duration: 1.2, ease: [0.16, 1, 0.3, 1] }
               : { duration: 0 }
           }
-          style={{ filter: `drop-shadow(0 0 6px ${color}40)` }}
+          style={{}}
         />
       </svg>
 
@@ -173,7 +173,7 @@ export function HealthGauge({
           {/* AnimatedNumber renders above — this span is a layout helper */}
         </span>
         {label && (
-          <span style={{ fontSize: `${labelSize}px`, color: "#6B7280", marginTop: "2px" }}>
+          <span style={{ fontSize: `${labelSize}px`, color: "#71717A", marginTop: "2px" }}>
             {label}
           </span>
         )}

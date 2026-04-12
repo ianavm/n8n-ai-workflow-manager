@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Shield, Lock } from "lucide-react";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
@@ -30,7 +31,6 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // Server-side role check (uses service role to bypass RLS)
     try {
       const res = await fetch("/api/auth/check-role");
       if (!res.ok) {
@@ -57,53 +57,22 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
-      {/* Animated gradient orbs */}
-      <div
-        className="absolute top-1/4 -left-32 w-96 h-96 rounded-full opacity-30 blur-3xl pointer-events-none animate-float"
-        style={{ background: "radial-gradient(circle, rgba(108,99,255,0.3), transparent 70%)" }}
-      />
-      <div
-        className="absolute bottom-1/4 -right-32 w-80 h-80 rounded-full opacity-25 blur-3xl pointer-events-none animate-float"
-        style={{ background: "radial-gradient(circle, rgba(255,109,90,0.25), transparent 70%)", animationDelay: "2s", animationDirection: "reverse" }}
-      />
-      <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full opacity-10 blur-3xl pointer-events-none"
-        style={{ background: "radial-gradient(circle, rgba(0,212,170,0.2), transparent 70%)" }}
-      />
-
+    <div className="min-h-screen flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-lg relative animate-fade-in-up">
         {/* Logo */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-3 mb-5">
-            <svg viewBox="0 0 200 200" width="44" height="44" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <linearGradient id="adminGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#6C63FF" />
-                  <stop offset="100%" stopColor="#00D4AA" />
-                </linearGradient>
-              </defs>
-              <path d="M16,100 Q100,2 184,100 Q100,198 16,100 Z" fill="url(#adminGrad)" opacity="0.10" />
-              <path d="M16,100 Q100,2 184,100 Q100,198 16,100 Z" fill="none" stroke="url(#adminGrad)" strokeWidth="8" strokeLinejoin="round" />
-              <circle cx="100" cy="100" r="42" fill="none" stroke="url(#adminGrad)" strokeWidth="5" opacity="0.5" />
-              <path d="M100,52 L140,100 L100,92 Z" fill="url(#adminGrad)" />
-              <path d="M100,108 L140,100 L100,148 Z" fill="url(#adminGrad)" />
-              <path d="M100,52 L60,100 L100,92 Z" fill="url(#adminGrad)" />
-              <path d="M100,108 L60,100 L100,148 Z" fill="url(#adminGrad)" />
-              <circle cx="100" cy="100" r="16" fill="#0A0F1C" />
-              <circle cx="100" cy="100" r="16" fill="none" stroke="url(#adminGrad)" strokeWidth="2" opacity="0.4" />
-              <circle cx="91" cy="91" r="5" fill="rgba(255,255,255,0.85)" />
-            </svg>
+          <div className="inline-flex items-center gap-2.5 mb-4">
+            <Shield size={28} className="text-[#6366F1]" />
             <span className="text-2xl font-bold text-white">
-              AnyVision<span className="text-[#FF6D5A]">.</span>
+              AnyVision<span className="text-[#10B981]">.</span>
             </span>
           </div>
-          <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
-          <p className="text-base text-[#6B7280] mt-2">Internal access only</p>
+          <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
+          <p className="text-sm text-[#71717A] mt-2">Internal access only</p>
         </div>
 
         {/* Form */}
-        <div className="glass-card p-10 transition-shadow duration-300 focus-within:shadow-[0_0_30px_rgba(108,99,255,0.08)]">
+        <div className="glass-card p-10">
           <form onSubmit={handleLogin} className="space-y-5">
             <Input
               label="Email"
@@ -131,11 +100,17 @@ export default function AdminLoginPage() {
               </p>
             )}
 
-            <Button type="submit" variant="coral" loading={loading} className="w-full">
+            <Button type="submit" variant="primary" loading={loading} className="w-full">
               Sign In
             </Button>
           </form>
         </div>
+      </div>
+
+      {/* Trust signal */}
+      <div className="flex items-center gap-1.5 mt-8 text-[12px] text-[#52525B]">
+        <Lock size={13} />
+        <span>Secured connection</span>
       </div>
     </div>
   );

@@ -13,19 +13,17 @@ interface StatCardProps {
 }
 
 const iconColors: Record<string, string> = {
-  purple: "#6C63FF",
-  teal: "#00D4AA",
+  purple: "#6366F1",
+  teal: "#10B981",
   red: "#EF4444",
   amber: "#F59E0B",
-  coral: "#FF6D5A",
 };
 
 const iconBgs: Record<string, string> = {
-  purple: "rgba(108,99,255,0.1)",
-  teal: "rgba(0,212,170,0.1)",
+  purple: "rgba(99,102,241,0.1)",
+  teal: "rgba(16,185,129,0.1)",
   red: "rgba(239,68,68,0.1)",
   amber: "rgba(245,158,11,0.1)",
-  coral: "rgba(255,109,90,0.1)",
 };
 
 export function StatCard({
@@ -38,8 +36,8 @@ export function StatCard({
 }: StatCardProps) {
   if (loading) {
     return (
-      <div className="floating-card" style={{ padding: "28px" }}>
-        <Skeleton className="w-12 h-12 mb-4" />
+      <div className="floating-card" style={{ padding: "24px" }}>
+        <Skeleton className="w-10 h-10 mb-3" />
         <Skeleton className="h-8 w-24 mb-2" />
         <Skeleton className="h-4 w-20" />
       </div>
@@ -47,38 +45,31 @@ export function StatCard({
   }
 
   return (
-    <div className="floating-card" style={{ padding: "28px" }}>
-      {/* Icon wrap -- 48px, 12px border-radius */}
+    <div className="floating-card" style={{ padding: "24px" }}>
       <div
         style={{
-          width: "48px",
-          height: "48px",
-          borderRadius: "12px",
+          width: "40px",
+          height: "40px",
+          borderRadius: "8px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          marginBottom: "20px",
-          backgroundColor: iconBgs[color],
-          color: iconColors[color],
+          marginBottom: "16px",
+          backgroundColor: iconBgs[color] || iconBgs.purple,
+          color: iconColors[color] || iconColors.purple,
         }}
       >
         {icon}
       </div>
 
-      {/* Stat number -- 32px, shimmer gradient text */}
-      <div
-        className="stat-number-shimmer"
-        style={{ marginBottom: "8px" }}
-      >
+      <div className="stat-number-shimmer" style={{ marginBottom: "6px" }}>
         {typeof value === "number" ? value.toLocaleString() : value}
       </div>
 
-      {/* Label -- 13px, muted */}
-      <div style={{ fontSize: "14px", color: "#B0B8C8", fontWeight: 400 }}>
+      <div style={{ fontSize: "13px", color: "#A1A1AA", fontWeight: 400 }}>
         {title}
       </div>
 
-      {/* Percentage badge */}
       {change !== undefined && (
         <span
           style={{

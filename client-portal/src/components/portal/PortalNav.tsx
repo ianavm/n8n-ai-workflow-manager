@@ -24,6 +24,7 @@ import {
   Megaphone,
   HeartPulse,
   Plug,
+  Shield,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 
@@ -78,252 +79,93 @@ export function PortalNav() {
     router.push("/portal/login");
   }
 
+  const isActive = (href: string) => pathname === href;
+
   return (
     <>
-      {/* Desktop sidebar -- V1 Command Center exact styling */}
-      <aside
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          bottom: 0,
-          width: "264px",
-          background: "rgba(10,15,28,0.95)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          zIndex: 100,
-          borderRight: "1px solid rgba(255,255,255,0.08)",
-        }}
-        className="hidden lg:flex lg:flex-col"
-      >
-        {/* Gradient stripe on left edge (V1 sidebar::before) */}
+      {/* Desktop sidebar */}
+      <aside className="portal-sidebar hidden lg:flex lg:flex-col fixed top-0 left-0 bottom-0 w-[264px] bg-[#0F0F13] border-r border-[rgba(255,255,255,0.08)] z-[100]">
+        {/* Brand accent line */}
         <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: "3px",
-            background: "linear-gradient(180deg, #6C63FF, #00D4AA, #FF6D5A)",
-          }}
+          className="absolute top-0 left-0 bottom-0 w-[3px]"
+          style={{ background: "var(--brand-primary)" }}
         />
 
-        {/* Logo area — white-label aware */}
-        <div
-          style={{
-            padding: "28px 24px 24px 24px",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-          }}
-        >
+        {/* Logo area */}
+        <div className="flex items-center gap-3 px-6 py-6">
           {theme.logoUrl ? (
             <Image
               src={theme.logoUrl}
               alt={theme.companyName}
               width={160}
               height={36}
-              style={{ maxHeight: "36px", maxWidth: "160px", objectFit: "contain" }}
+              className="max-h-9 max-w-[160px] object-contain"
               unoptimized
             />
           ) : (
-            <>
-              <svg width="36" height="36" viewBox="0 0 48 48" fill="none">
-                <defs>
-                  <linearGradient id="lgSide" x1="0" y1="0" x2="48" y2="48">
-                    <stop stopColor="var(--brand-primary, #6C63FF)" />
-                    <stop offset="1" stopColor="#00D4AA" />
-                  </linearGradient>
-                </defs>
-                <circle cx="24" cy="24" r="22" stroke="url(#lgSide)" strokeWidth="2" fill="none" />
-                <circle cx="24" cy="24" r="14" stroke="url(#lgSide)" strokeWidth="1.5" fill="none" opacity="0.5" />
-                <circle cx="24" cy="24" r="5" fill="url(#lgSide)" />
-                <circle cx="24" cy="6" r="3" fill="var(--brand-primary, #6C63FF)" />
-                <circle cx="42" cy="24" r="3" fill="#00D4AA" />
-                <circle cx="24" cy="42" r="3" fill="#FF6D5A" />
-              </svg>
-              <span
-                style={{
-                  fontSize: "15px",
-                  fontWeight: 700,
-                  letterSpacing: "2px",
-                  background: `linear-gradient(135deg, var(--brand-primary, #6C63FF), #00D4AA)`,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
+            <div className="flex items-center gap-2">
+              <Shield size={22} style={{ color: "var(--brand-primary)" }} />
+              <span className="text-[15px] font-bold tracking-wide text-white">
                 {theme.isCustomBranded ? theme.companyName.toUpperCase() : "ANYVISION"}
               </span>
-            </>
+            </div>
           )}
         </div>
 
         {/* Nav items */}
-        <nav
-          style={{
-            flex: 1,
-            padding: "8px 12px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "2px",
-          }}
-        >
+        <nav className="flex-1 px-3 py-1 flex flex-col gap-0.5 overflow-y-auto">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            const active = isActive(item.href);
             const Icon = item.icon;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: isActive ? "11px 14px 11px 11px" : "11px 14px",
-                  borderRadius: "10px",
-                  color: isActive ? "#fff" : "#6B7280",
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-                  textDecoration: "none",
-                  background: isActive ? "rgba(108,99,255,0.15)" : "transparent",
-                  borderLeft: isActive ? "3px solid #6C63FF" : "none",
-                  fontFamily: "inherit",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) {
-                    (e.currentTarget as HTMLElement).style.color = "#B0B8C8";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) {
-                    (e.currentTarget as HTMLElement).style.color = "#6B7280";
-                  }
-                }}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150 ${
+                  active
+                    ? "bg-[var(--brand-primary-bg)] text-white border-l-[3px] border-[var(--brand-primary)] pl-[9px]"
+                    : "text-[#71717A] hover:text-[#A1A1AA] hover:bg-[rgba(255,255,255,0.03)]"
+                }`}
               >
-                <Icon size={20} style={{ flexShrink: 0 }} />
+                <Icon size={18} className="flex-shrink-0" />
                 {item.label}
               </Link>
             );
           })}
         </nav>
 
-        {/* System status widget */}
-        <div
-          style={{
-            margin: "12px",
-            padding: "14px 16px",
-            borderRadius: "12px",
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            fontSize: "12px",
-            color: "#B0B8C8",
-          }}
-        >
-          <span
-            className="pulse-dot"
-            style={{
-              width: "8px",
-              height: "8px",
-              borderRadius: "50%",
-              background: "#10B981",
-              flexShrink: 0,
-              display: "inline-block",
-            }}
-          />
+        {/* System status */}
+        <div className="mx-3 mb-2 px-4 py-3 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] flex items-center gap-2.5 text-xs text-[#A1A1AA]">
+          <span className="pulse-dot w-2 h-2 rounded-full bg-emerald-500 inline-block flex-shrink-0" />
           All Systems Operational
         </div>
 
         {/* Logout */}
-        <div style={{ padding: "8px 12px 12px 12px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="px-3 py-3 border-t border-[rgba(255,255,255,0.06)]">
           <button
             onClick={handleLogout}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "12px",
-              padding: "11px 14px",
-              borderRadius: "10px",
-              color: "#6B7280",
-              fontSize: "14px",
-              fontWeight: 500,
-              cursor: "pointer",
-              background: "none",
-              border: "none",
-              width: "100%",
-              textAlign: "left",
-              fontFamily: "inherit",
-              transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.color = "#EF4444";
-              (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.05)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.color = "#6B7280";
-              (e.currentTarget as HTMLElement).style.background = "none";
-            }}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#71717A] hover:text-red-400 hover:bg-red-500/5 w-full transition-colors duration-150"
           >
-            <LogOut size={20} />
+            <LogOut size={18} />
             Sign Out
           </button>
         </div>
       </aside>
 
       {/* Mobile header */}
-      <header
-        className="lg:hidden flex items-center justify-between"
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "56px",
-          background: "rgba(10,15,28,0.95)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-          zIndex: 100,
-          padding: "0 16px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[#0F0F13] border-b border-[rgba(255,255,255,0.08)] z-[100] flex items-center justify-between px-4">
+        <div className="flex items-center gap-2.5">
           <div
-            style={{
-              width: "3px",
-              height: "32px",
-              borderRadius: "2px",
-              background: "linear-gradient(180deg, #6C63FF, #00D4AA, #FF6D5A)",
-            }}
+            className="w-[3px] h-8 rounded-sm"
+            style={{ background: "var(--brand-primary)" }}
           />
-          <span
-            style={{
-              fontSize: "15px",
-              fontWeight: 700,
-              letterSpacing: "2px",
-              background: "linear-gradient(135deg, #6C63FF, #00D4AA)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            ANYVISION
+          <span className="text-sm font-bold tracking-wide text-white">
+            {theme.isCustomBranded ? theme.companyName.toUpperCase() : "ANYVISION"}
           </span>
         </div>
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          style={{
-            color: "#B0B8C8",
-            padding: "8px",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-          }}
+          className="text-[#A1A1AA] p-2"
           aria-label="Toggle menu"
         >
           {mobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -332,74 +174,38 @@ export function PortalNav() {
 
       {/* Mobile dropdown */}
       {mobileOpen && (
-        <div
-          className="lg:hidden animate-fade-in-up"
-          style={{
-            position: "fixed",
-            inset: 0,
-            top: "56px",
-            background: "rgba(10,15,28,0.98)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            zIndex: 90,
-            padding: "16px",
-          }}
-        >
-          <nav style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+        <div className="lg:hidden fixed inset-0 top-14 bg-[#0F0F13] z-[90] p-4 animate-fade-in-up">
+          <nav className="flex flex-col gap-0.5">
             {navItems.map((item) => {
-              const isActive = pathname === item.href;
+              const active = isActive(item.href);
               const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "12px",
-                    padding: "14px",
-                    borderRadius: "10px",
-                    color: isActive ? "#fff" : "#6B7280",
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    textDecoration: "none",
-                    background: isActive ? "rgba(108,99,255,0.15)" : "transparent",
-                    borderLeft: isActive ? "3px solid #6C63FF" : "3px solid transparent",
-                  }}
+                  className={`flex items-center gap-3 px-3 py-3.5 rounded-lg text-sm font-medium ${
+                    active
+                      ? "bg-[var(--brand-primary-bg)] text-white border-l-[3px] border-[var(--brand-primary)] pl-[9px]"
+                      : "text-[#71717A]"
+                  }`}
                 >
-                  <Icon size={20} />
+                  <Icon size={18} />
                   {item.label}
                 </Link>
               );
             })}
 
-            {/* Status + logout */}
-            <div style={{ paddingTop: "16px", marginTop: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", fontSize: "12px", color: "#B0B8C8" }}>
-                <span className="pulse-dot" style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#10B981", display: "inline-block" }} />
+            <div className="pt-4 mt-4 border-t border-[rgba(255,255,255,0.06)]">
+              <div className="flex items-center gap-2.5 px-3 py-2.5 text-xs text-[#A1A1AA]">
+                <span className="pulse-dot w-2 h-2 rounded-full bg-emerald-500 inline-block" />
                 All Systems Operational
               </div>
               <button
                 onClick={handleLogout}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "14px",
-                  borderRadius: "10px",
-                  color: "#EF4444",
-                  fontSize: "14px",
-                  fontWeight: 500,
-                  background: "none",
-                  border: "none",
-                  width: "100%",
-                  textAlign: "left",
-                  fontFamily: "inherit",
-                  cursor: "pointer",
-                }}
+                className="flex items-center gap-3 px-3 py-3.5 rounded-lg text-sm text-red-400 w-full cursor-pointer"
               >
-                <LogOut size={20} />
+                <LogOut size={18} />
                 Sign Out
               </button>
             </div>

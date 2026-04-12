@@ -8,7 +8,7 @@ export default function AdminLayout({
   return (
     <>
       <AdminNav />
-      <main className="admin-content pt-14 lg:pt-0 min-h-screen overflow-x-hidden dot-matrix-bg">
+      <main className="admin-content pt-14 lg:pt-0 min-h-screen overflow-x-hidden">
         <div className="p-4 lg:p-8">{children}</div>
       </main>
     </>

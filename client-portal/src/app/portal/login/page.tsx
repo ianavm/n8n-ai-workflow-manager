@@ -4,7 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { Check, Mail } from "lucide-react";
+import { Check, Mail, Lock, ShieldCheck } from "lucide-react";
+import { useTheme } from "@/lib/theme-provider";
+import Image from "next/image";
 
 export default function PortalLoginPage() {
   const [email, setEmail] = useState("");
@@ -18,6 +20,7 @@ export default function PortalLoginPage() {
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const theme = useTheme();
 
   async function handleGoogleLogin() {
     setError("");
@@ -73,7 +76,6 @@ export default function PortalLoginPage() {
       return;
     }
 
-    // Server-side role check (uses service role to bypass RLS)
     try {
       const res = await fetch("/api/auth/check-role");
       if (!res.ok) {
@@ -87,8 +89,11 @@ export default function PortalLoginPage() {
         setLoading(false);
         return;
       }
+      // Record login metadata (fire-and-forget, don't block redirect)
+      fetch("/api/auth/record-login", { method: "POST" }).catch(() => {});
       window.location.href = target;
     } catch {
+      fetch("/api/auth/record-login", { method: "POST" }).catch(() => {});
       window.location.href = "/portal";
     }
   }
@@ -111,108 +116,56 @@ export default function PortalLoginPage() {
     setLoading(false);
   }
 
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        position: "relative",
-        backgroundImage: "radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)",
-        backgroundSize: "32px 32px",
-        overflow: "hidden",
-        padding: "0 16px",
-      }}
-    >
-      {/* Login blobs */}
-      <div className="login-blob lb1" />
-      <div className="login-blob lb2" />
+  const brandColor = theme.brandColor || "#6366F1";
 
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
       {/* Login card */}
-      <div
-        className="animate-fade-in-up"
-        style={{
-          width: "100%",
-          maxWidth: "480px",
-          padding: "48px",
-          background: "rgba(255,255,255,0.05)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: "20px",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
+      <div className="animate-fade-in-up w-full max-w-[440px] bg-[#1C1C22] border border-[rgba(255,255,255,0.08)] rounded-lg p-10 relative">
+        {/* Top accent line */}
+        <div
+          className="absolute top-0 left-0 right-0 h-[3px] rounded-t-lg"
+          style={{ background: brandColor }}
+        />
+
         {/* Logo */}
-        <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={{ margin: "0 auto" }}>
-            <defs>
-              <linearGradient id="lgLogin" x1="0" y1="0" x2="48" y2="48">
-                <stop stopColor="#6C63FF" />
-                <stop offset="1" stopColor="#00D4AA" />
-              </linearGradient>
-            </defs>
-            <circle cx="24" cy="24" r="22" stroke="url(#lgLogin)" strokeWidth="2" fill="none" />
-            <circle cx="24" cy="24" r="14" stroke="url(#lgLogin)" strokeWidth="1.5" fill="none" opacity="0.5" />
-            <circle cx="24" cy="24" r="5" fill="url(#lgLogin)" />
-            <circle cx="24" cy="6" r="3" fill="#6C63FF" />
-            <circle cx="42" cy="24" r="3" fill="#00D4AA" />
-            <circle cx="24" cy="42" r="3" fill="#FF6D5A" />
-          </svg>
-          <div
-            style={{
-              fontSize: "26px",
-              fontWeight: 700,
-              letterSpacing: "3px",
-              background: "linear-gradient(135deg, #6C63FF, #00D4AA)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-              marginTop: "16px",
-            }}
-          >
-            ANYVISION MEDIA
-          </div>
-          <div style={{ fontSize: "14px", color: "#6B7280", marginTop: "6px" }}>
-            {resetMode ? "Reset your password" : magicLinkMode ? "Sign in with email link" : "AI Workflow Command Center"}
+        <div className="text-center mb-8">
+          {theme.logoUrl ? (
+            <Image
+              src={theme.logoUrl}
+              alt={theme.companyName}
+              width={180}
+              height={40}
+              className="mx-auto max-h-10 object-contain"
+              unoptimized
+            />
+          ) : (
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <ShieldCheck size={28} style={{ color: brandColor }} />
+              <span className="text-xl font-bold tracking-wide text-white">
+                {theme.isCustomBranded ? theme.companyName.toUpperCase() : "ANYVISION MEDIA"}
+              </span>
+            </div>
+          )}
+          <div className="text-sm text-[#71717A] mt-3">
+            {resetMode ? "Reset your password" : magicLinkMode ? "Sign in with email link" : "Sign in to your portal"}
           </div>
         </div>
 
         {/* Reset sent confirmation */}
         {resetSent && (
-          <div style={{ textAlign: "center" }}>
-            <div
-              style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "50%",
-                background: "rgba(16,185,129,0.1)",
-                border: "1px solid rgba(16,185,129,0.2)",
-                margin: "0 auto 16px auto",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#00D4AA",
-              }}
-            >
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 mx-auto mb-4 flex items-center justify-center text-emerald-400">
               <Check size={24} />
             </div>
-            <p style={{ color: "#fff", fontWeight: 500, marginBottom: "8px" }}>Check your email</p>
-            <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "20px" }}>
+            <p className="text-white font-medium mb-2">Check your email</p>
+            <p className="text-sm text-[#71717A] mb-5">
               We sent a password reset link to {email}
             </p>
             <button
               onClick={() => { setResetMode(false); setResetSent(false); }}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#6C63FF",
-                cursor: "pointer",
-                fontSize: "13px",
-                fontFamily: "inherit",
-              }}
+              className="text-sm cursor-pointer bg-transparent border-none font-[inherit]"
+              style={{ color: brandColor }}
             >
               Back to login
             </button>
@@ -221,37 +174,18 @@ export default function PortalLoginPage() {
 
         {/* Magic link sent confirmation */}
         {magicLinkSent && !resetSent && (
-          <div style={{ textAlign: "center" }}>
-            <div
-              style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "50%",
-                background: "rgba(16,185,129,0.1)",
-                border: "1px solid rgba(16,185,129,0.2)",
-                margin: "0 auto 16px auto",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#00D4AA",
-              }}
-            >
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 mx-auto mb-4 flex items-center justify-center text-emerald-400">
               <Mail size={24} />
             </div>
-            <p style={{ color: "#fff", fontWeight: 500, marginBottom: "8px" }}>Check your email</p>
-            <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "20px" }}>
+            <p className="text-white font-medium mb-2">Check your email</p>
+            <p className="text-sm text-[#71717A] mb-5">
               We sent a sign-in link to {email}
             </p>
             <button
               onClick={() => { setMagicLinkMode(false); setMagicLinkSent(false); }}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#6C63FF",
-                cursor: "pointer",
-                fontSize: "13px",
-                fontFamily: "inherit",
-              }}
+              className="text-sm cursor-pointer bg-transparent border-none font-[inherit]"
+              style={{ color: brandColor }}
             >
               Back to login
             </button>
@@ -263,31 +197,14 @@ export default function PortalLoginPage() {
           <>
             {/* Google SSO button */}
             {!resetMode && !magicLinkMode && (
-              <div style={{ marginBottom: "20px" }}>
+              <div className="mb-5">
                 <button
                   onClick={handleGoogleLogin}
                   disabled={googleLoading}
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "12px",
-                    padding: "14px 18px",
-                    borderRadius: "12px",
-                    border: "none",
-                    background: "rgba(255,255,255,0.95)",
-                    color: "#1f2937",
-                    fontFamily: "inherit",
-                    fontSize: "15px",
-                    fontWeight: 500,
-                    cursor: googleLoading ? "not-allowed" : "pointer",
-                    opacity: googleLoading ? 0.6 : 1,
-                    transition: "all 0.2s",
-                  }}
+                  className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-lg border-none bg-white text-gray-800 font-medium text-sm cursor-pointer transition-opacity duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {googleLoading ? (
-                    <div style={{ width: 20, height: 20, border: "2px solid #d1d5db", borderTopColor: "#4b5563", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                    <div className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                   ) : (
                     <svg width="20" height="20" viewBox="0 0 24 24">
                       <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -300,18 +217,18 @@ export default function PortalLoginPage() {
                 </button>
 
                 {/* Divider */}
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "20px 0" }}>
-                  <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.06)" }} />
-                  <span style={{ fontSize: "11px", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px" }}>or</span>
-                  <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.06)" }} />
+                <div className="flex items-center gap-3 my-5">
+                  <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
+                  <span className="text-[11px] text-[#71717A] uppercase tracking-wider">or</span>
+                  <div className="flex-1 h-px bg-[rgba(255,255,255,0.06)]" />
                 </div>
               </div>
             )}
 
             <form onSubmit={resetMode ? handleReset : magicLinkMode ? handleMagicLink : handleLogin}>
               {/* Email field */}
-              <div style={{ marginBottom: "22px" }}>
-                <label style={{ display: "block", fontSize: "14px", fontWeight: 500, color: "#B0B8C8", marginBottom: "8px" }}>
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-[#A1A1AA] mb-2">
                   Email Address
                 </label>
                 <input
@@ -321,24 +238,13 @@ export default function PortalLoginPage() {
                   placeholder="you@company.co.za"
                   required
                   autoComplete="email"
-                  style={{
-                    width: "100%",
-                    padding: "14px 18px",
-                    borderRadius: "10px",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "rgba(255,255,255,0.04)",
-                    color: "#fff",
-                    fontFamily: "inherit",
-                    fontSize: "14px",
-                    outline: "none",
-                  }}
                 />
               </div>
 
               {/* Password field (only for standard login) */}
               {!resetMode && !magicLinkMode && (
-                <div style={{ marginBottom: "22px" }}>
-                  <label style={{ display: "block", fontSize: "14px", fontWeight: 500, color: "#B0B8C8", marginBottom: "8px" }}>
+                <div className="mb-5">
+                  <label className="block text-sm font-medium text-[#A1A1AA] mb-2">
                     Password
                   </label>
                   <input
@@ -348,48 +254,21 @@ export default function PortalLoginPage() {
                     placeholder="Enter your password"
                     required
                     autoComplete="current-password"
-                    style={{
-                      width: "100%",
-                      padding: "14px 18px",
-                      borderRadius: "10px",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.04)",
-                      color: "#fff",
-                      fontFamily: "inherit",
-                      fontSize: "14px",
-                      outline: "none",
-                    }}
                   />
                 </div>
               )}
 
-              {/* Remember me / Forgot / Magic link */}
+              {/* Remember me / Forgot */}
               {!resetMode && !magicLinkMode && (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "24px",
-                    fontSize: "13px",
-                    color: "#B0B8C8",
-                  }}
-                >
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
-                    <input type="checkbox" style={{ accentColor: "#6C63FF" }} /> Remember me
+                <div className="flex justify-between items-center mb-6 text-[13px] text-[#A1A1AA]">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" style={{ accentColor: brandColor }} /> Remember me
                   </label>
                   <button
                     type="button"
                     onClick={() => { setResetMode(true); setError(""); }}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#6C63FF",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      fontFamily: "inherit",
-                      textDecoration: "none",
-                    }}
+                    className="bg-transparent border-none cursor-pointer text-[13px] font-[inherit]"
+                    style={{ color: brandColor }}
                   >
                     Forgot password?
                   </button>
@@ -398,15 +277,7 @@ export default function PortalLoginPage() {
 
               {/* Error message */}
               {error && (
-                <p style={{
-                  fontSize: "13px",
-                  color: "#EF4444",
-                  background: "rgba(239,68,68,0.1)",
-                  border: "1px solid rgba(239,68,68,0.2)",
-                  borderRadius: "10px",
-                  padding: "8px 12px",
-                  marginBottom: "18px",
-                }}>
+                <p className="text-[13px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">
                   {error}
                 </p>
               )}
@@ -415,20 +286,8 @@ export default function PortalLoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                style={{
-                  width: "100%",
-                  padding: "14px 32px",
-                  borderRadius: "12px",
-                  border: "none",
-                  background: "linear-gradient(135deg, #6C63FF, #00D4AA)",
-                  color: "#fff",
-                  fontFamily: "inherit",
-                  fontSize: "15px",
-                  fontWeight: 600,
-                  cursor: loading ? "not-allowed" : "pointer",
-                  opacity: loading ? 0.6 : 1,
-                  transition: "all 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-                }}
+                className="w-full py-3.5 rounded-lg border-none text-white font-semibold text-[15px] cursor-pointer transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: brandColor }}
               >
                 {loading
                   ? "Please wait..."
@@ -439,23 +298,13 @@ export default function PortalLoginPage() {
                   : "Sign In"}
               </button>
 
-              {/* Magic link option (below password login) */}
+              {/* Magic link option */}
               {!resetMode && !magicLinkMode && (
-                <div style={{ textAlign: "center", marginTop: "14px" }}>
+                <div className="text-center mt-3.5">
                   <button
                     type="button"
                     onClick={() => { setMagicLinkMode(true); setError(""); }}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#6B7280",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      fontFamily: "inherit",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
+                    className="bg-transparent border-none text-[#71717A] cursor-pointer text-[13px] font-[inherit] inline-flex items-center gap-1.5"
                   >
                     <Mail size={14} />
                     Sign in with email link instead
@@ -465,18 +314,12 @@ export default function PortalLoginPage() {
 
               {/* Back to login from sub-modes */}
               {(resetMode || magicLinkMode) && (
-                <div style={{ textAlign: "center", marginTop: "16px" }}>
+                <div className="text-center mt-4">
                   <button
                     type="button"
                     onClick={() => { setResetMode(false); setMagicLinkMode(false); setError(""); }}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#6C63FF",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      fontFamily: "inherit",
-                    }}
+                    className="bg-transparent border-none cursor-pointer text-[13px] font-[inherit]"
+                    style={{ color: brandColor }}
                   >
                     Back to login
                   </button>
@@ -485,12 +328,13 @@ export default function PortalLoginPage() {
 
               {/* Create account link */}
               {!resetMode && !magicLinkMode && (
-                <div style={{ textAlign: "center", marginTop: "16px" }}>
+                <div className="text-center mt-4">
                   <Link
                     href="/portal/signup"
-                    style={{ fontSize: "13px", color: "#6B7280", textDecoration: "none" }}
+                    className="text-[13px] text-[#71717A] no-underline"
                   >
-                    Don&apos;t have an account? <span style={{ color: "#6C63FF" }}>Sign up</span>
+                    Don&apos;t have an account?{" "}
+                    <span style={{ color: brandColor }}>Sign up</span>
                   </Link>
                 </div>
               )}
@@ -499,20 +343,30 @@ export default function PortalLoginPage() {
         )}
       </div>
 
-      {/* Back to main site */}
-      <p style={{
-        position: "absolute",
-        bottom: "24px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        fontSize: "12px",
-        color: "#6B7280",
-        zIndex: 1,
-      }}>
-        <a href="https://www.anyvisionmedia.com" style={{ color: "inherit", textDecoration: "none" }}>
-          &larr; Back to anyvisionmedia.com
+      {/* Trust signals */}
+      <div className="flex items-center gap-6 mt-8 text-[12px] text-[#52525B]">
+        <div className="flex items-center gap-1.5">
+          <Lock size={13} />
+          <span>256-bit encrypted</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <ShieldCheck size={13} />
+          <span>POPIA compliant</span>
+        </div>
+      </div>
+
+      {/* Legal links + back to site */}
+      <div className="flex items-center gap-4 mt-6 text-[12px] text-[#52525B]">
+        <Link href="/portal/legal/privacy" className="text-inherit no-underline hover:text-[#71717A]">
+          Privacy
+        </Link>
+        <Link href="/portal/legal/terms" className="text-inherit no-underline hover:text-[#71717A]">
+          Terms
+        </Link>
+        <a href="https://www.anyvisionmedia.com" className="text-inherit no-underline hover:text-[#71717A]">
+          &larr; anyvisionmedia.com
         </a>
-      </p>
+      </div>
     </div>
   );
 }

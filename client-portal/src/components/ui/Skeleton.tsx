@@ -8,7 +8,7 @@ interface SkeletonProps {
 export function Skeleton({ className = "", variant = "rect" }: SkeletonProps) {
   return (
     <div
-      className={`animate-shimmer bg-[rgba(255,255,255,0.04)] ${
+      className={`animate-pulse bg-[rgba(255,255,255,0.06)] ${
         variant === "circle" ? "rounded-full" : "rounded-lg"
       } ${className}`}
       aria-hidden="true"

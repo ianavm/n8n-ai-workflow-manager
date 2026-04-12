@@ -23,17 +23,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} font-sans antialiased`}>
-        <div className="dot-bg" aria-hidden="true" />
-        <div className="relative z-10 min-h-screen">{children}</div>
+        <div className="relative min-h-screen">{children}</div>
         <Toaster
           theme="dark"
           position="bottom-right"
           toastOptions={{
             style: {
-              background: "rgba(17, 24, 39, 0.95)",
+              background: "#1C1C22",
               border: "1px solid rgba(255, 255, 255, 0.08)",
-              color: "#B0B8C8",
-              backdropFilter: "blur(20px)",
+              color: "#A1A1AA",
             },
           }}
         />

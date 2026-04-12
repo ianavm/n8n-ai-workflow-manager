@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
-import { Settings, Check, Eye, EyeOff } from "lucide-react";
+import { Settings, Check, Eye, EyeOff, Shield, FileText } from "lucide-react";
+import Link from "next/link";
 
 const PASSWORD_RULES = [
   { test: (p: string) => p.length >= 8, label: "At least 8 characters" },
@@ -135,7 +136,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center gap-3">
-        <Settings size={24} className="text-[#6C63FF]" />
+        <Settings size={24} className="text-[#6366F1]" />
         <h1 className="text-2xl font-bold text-white">Settings</h1>
       </div>
 
@@ -282,8 +283,39 @@ export default function SettingsPage() {
       {/* Account Info */}
       <Card>
         <h2 className="text-lg font-semibold text-white mb-3">Account Details</h2>
-        <div className="text-sm text-[#6B7280] space-y-2">
+        <div className="text-sm text-[#71717A] space-y-2">
           <p>Member since: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-ZA", { year: "numeric", month: "long", day: "numeric" }) : "N/A"}</p>
+        </div>
+      </Card>
+
+      {/* Security & Legal */}
+      <Card>
+        <h2 className="text-lg font-semibold text-white mb-4">Security & Legal</h2>
+        <div className="space-y-3">
+          <Link
+            href="/portal/settings/security"
+            className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-colors text-sm text-[#A1A1AA] hover:text-white no-underline"
+          >
+            <Shield size={18} className="text-[#6366F1]" />
+            Security Settings
+            <span className="ml-auto text-[#52525B]">&rarr;</span>
+          </Link>
+          <Link
+            href="/portal/legal/privacy"
+            className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-colors text-sm text-[#A1A1AA] hover:text-white no-underline"
+          >
+            <FileText size={18} className="text-[#71717A]" />
+            Privacy Policy
+            <span className="ml-auto text-[#52525B]">&rarr;</span>
+          </Link>
+          <Link
+            href="/portal/legal/terms"
+            className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-colors text-sm text-[#A1A1AA] hover:text-white no-underline"
+          >
+            <FileText size={18} className="text-[#71717A]" />
+            Terms of Service
+            <span className="ml-auto text-[#52525B]">&rarr;</span>
+          </Link>
         </div>
       </Card>
     </div>

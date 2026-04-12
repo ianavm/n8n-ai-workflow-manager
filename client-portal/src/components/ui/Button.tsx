@@ -19,17 +19,17 @@ export function Button({
   ...props
 }: ButtonProps) {
   const base =
-    "inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#0A0F1C]";
+    "inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#09090B]";
 
   const variants = {
-    primary: "btn-gradient focus:ring-[#6C63FF]",
+    primary: "btn-gradient focus:ring-[#6366F1]",
     secondary:
-      "bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[#B0B8C8] hover:bg-[rgba(255,255,255,0.08)] hover:border-[rgba(108,99,255,0.4)] focus:ring-[#6C63FF]",
+      "bg-[#1C1C22] border border-[rgba(255,255,255,0.08)] text-[#A1A1AA] hover:bg-[#27272A] hover:border-[rgba(255,255,255,0.12)] focus:ring-[#6366F1]",
     danger:
       "bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 focus:ring-red-500",
     ghost:
-      "text-[#B0B8C8] hover:text-white hover:bg-[rgba(255,255,255,0.05)] focus:ring-[#6C63FF]",
-    coral: "btn-coral focus:ring-[#FF6D5A]",
+      "text-[#A1A1AA] hover:text-white hover:bg-[rgba(255,255,255,0.05)] focus:ring-[#6366F1]",
+    coral: "btn-gradient focus:ring-[#6366F1]",
   };
 
   const sizes = {

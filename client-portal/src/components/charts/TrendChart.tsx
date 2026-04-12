@@ -24,8 +24,8 @@ interface TrendChartProps {
 }
 
 const colors = {
-  purple: { stroke: "#6C63FF", fill: "rgba(108, 99, 255, 0.15)" },
-  teal: { stroke: "#00D4AA", fill: "rgba(0, 212, 170, 0.15)" },
+  purple: { stroke: "#6366F1", fill: "rgba(99, 102, 241, 0.12)" },
+  teal: { stroke: "#10B981", fill: "rgba(16, 185, 129, 0.12)" },
 };
 
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number }>; label?: string }) {
@@ -33,16 +33,17 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   return (
     <div
       style={{
-        background: "rgba(255,255,255,0.05)",
+        background: "#1C1C22",
         border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: "8px",
-        backdropFilter: "blur(20px)",
+        borderRadius: "6px",
         padding: "8px 12px",
         fontSize: "12px",
       }}
     >
-      <p style={{ color: "#6B7280" }}>{label}</p>
-      <p style={{ color: "#fff", fontWeight: 600 }}>{payload[0].value.toLocaleString()}</p>
+      <p style={{ color: "#71717A" }}>{label}</p>
+      <p style={{ color: "#fff", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+        {payload[0].value.toLocaleString()}
+      </p>
     </div>
   );
 }
@@ -67,10 +68,10 @@ export function TrendChart({
 
   return (
     <div className="glass-card" style={{ padding: "24px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: subtitle ? "4px" : "20px" }}>
-        <div style={{ fontSize: "14px", fontWeight: 600, color: "#fff" }}>{title}</div>
+      <div className="flex items-center justify-between" style={{ marginBottom: subtitle ? "4px" : "20px" }}>
+        <div className="text-sm font-semibold text-white">{title}</div>
         {showGranularity && (
-          <div style={{ display: "flex", gap: "4px" }}>
+          <div className="flex gap-1">
             {granularityOptions.map((opt) => (
               <button
                 key={opt.value}
@@ -78,17 +79,11 @@ export function TrendChart({
                   setGranularity(opt.value);
                   onGranularityChange?.(opt.value);
                 }}
-                style={{
-                  padding: "2px 8px",
-                  fontSize: "12px",
-                  borderRadius: "6px",
-                  border: "none",
-                  background: granularity === opt.value ? "rgba(108,99,255,0.15)" : "transparent",
-                  color: granularity === opt.value ? "#6C63FF" : "#6B7280",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                  transition: "all 0.2s",
-                }}
+                className={`px-2 py-0.5 text-xs rounded border-none cursor-pointer font-[inherit] transition-colors duration-150 ${
+                  granularity === opt.value
+                    ? "bg-[rgba(99,102,241,0.1)] text-[#6366F1]"
+                    : "bg-transparent text-[#71717A] hover:text-[#A1A1AA]"
+                }`}
               >
                 {opt.label}
               </button>
@@ -97,25 +92,25 @@ export function TrendChart({
         )}
       </div>
       {subtitle && (
-        <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "20px" }}>{subtitle}</div>
+        <div className="text-xs text-[#71717A] mb-5">{subtitle}</div>
       )}
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
           <defs>
             <linearGradient id={`gradient-${color}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={c.stroke} stopOpacity={0.3} />
+              <stop offset="0%" stopColor={c.stroke} stopOpacity={0.2} />
               <stop offset="100%" stopColor={c.stroke} stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
           <XAxis
             dataKey="date"
-            tick={{ fill: "#6B7280", fontSize: 11 }}
+            tick={{ fill: "#71717A", fontSize: 11 }}
             axisLine={{ stroke: "rgba(255,255,255,0.05)" }}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: "#6B7280", fontSize: 11 }}
+            tick={{ fill: "#71717A", fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             width={40}
@@ -125,7 +120,7 @@ export function TrendChart({
             type="monotone"
             dataKey="value"
             stroke={c.stroke}
-            strokeWidth={2.5}
+            strokeWidth={2}
             fill={`url(#gradient-${color})`}
           />
         </AreaChart>
