@@ -5,8 +5,10 @@ import { StatGraphic } from "./compositions/StatGraphic";
 import { TalkingHeadOverlay } from "./compositions/TalkingHeadOverlay";
 
 // Shared dimensions: 9:16 portrait (Reels/Shorts)
-const WIDTH = 1080;
-const HEIGHT = 1920;
+// 720x1280 (not 1080x1920) to reduce Railway memory usage
+// Still 9:16 ratio, still HD — acceptable for social feeds
+const WIDTH = 720;
+const HEIGHT = 1280;
 const FPS = 30;
 
 export const RemotionRoot: React.FC = () => {

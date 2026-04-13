@@ -1501,9 +1501,9 @@ def build_sc04_nodes() -> list[dict]:
         "onError": "continueRegularOutput",
     })
 
-    # -- Wait for Render --
+    # -- Wait for Render (3 min — Railway is slower than local) --
     nodes.append({
-        "parameters": {"amount": 60, "unit": "seconds"},
+        "parameters": {"amount": 180, "unit": "seconds"},
         "id": uid(),
         "name": "Wait 30s",
         "type": "n8n-nodes-base.wait",
