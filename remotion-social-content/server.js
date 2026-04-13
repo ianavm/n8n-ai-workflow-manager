@@ -32,20 +32,33 @@ import fs from "fs/promises";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || "3000", 10);
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "social-content";
 const RENDER_API_KEY = process.env.RENDER_API_KEY || "dev-key";
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error("ERROR: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY required");
-  process.exit(1);
+console.log(`Starting AVM Render Server`);
+console.log(`  PORT: ${PORT}`);
+console.log(`  SUPABASE_URL: ${SUPABASE_URL ? "set" : "MISSING"}`);
+console.log(`  SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_KEY ? "set" : "MISSING"}`);
+console.log(`  SUPABASE_BUCKET: ${SUPABASE_BUCKET}`);
+console.log(`  RENDER_API_KEY: ${RENDER_API_KEY === "dev-key" ? "DEFAULT (insecure)" : "set"}`);
+
+// Warn but don't exit — healthcheck must still pass so we can see the logs
+const supabase = SUPABASE_URL && SUPABASE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
+
+if (!supabase) {
+  console.warn("WARNING: Supabase client not initialized. /render will fail until env vars are set.");
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const app = express();
 app.use(express.json({ limit: "10mb" }));
+
+// Trust Railway's proxy (for correct req.ip, etc.)
+app.set("trust proxy", true);
 
 // In-memory job store (reset on restart). For production, use Redis.
 const jobs = new Map();
@@ -80,15 +93,18 @@ function requireAuth(req, res, next) {
   next();
 }
 
-app.get("/health", (req, res) => {
-  // Return ok even if bundle isn't ready yet — Railway healthcheck passes
-  // bundleReady flag tells clients if /render will actually work
+// Healthcheck at both / and /health so Railway (and any other host) can hit either
+function healthResponse(req, res) {
   res.json({
     status: "ok",
     bundleReady: bundleLocation !== null,
     bundleError: bundleError,
+    supabaseConfigured: supabase !== null,
+    uptime: process.uptime(),
   });
-});
+}
+app.get("/", healthResponse);
+app.get("/health", healthResponse);
 
 /**
  * POST /render
@@ -103,7 +119,11 @@ app.post("/render", requireAuth, async (req, res) => {
   }
 
   if (!bundleLocation) {
-    return res.status(503).json({ error: "Bundle not ready" });
+    return res.status(503).json({ error: "Bundle not ready yet, try again in 30s" });
+  }
+
+  if (!supabase) {
+    return res.status(500).json({ error: "Supabase not configured — set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY env vars" });
   }
 
   const jobId = randomUUID();
