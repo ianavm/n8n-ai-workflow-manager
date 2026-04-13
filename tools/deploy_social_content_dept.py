@@ -63,15 +63,17 @@ SC03_WORKFLOW_ID = os.getenv("SC03_WORKFLOW_ID", "REPLACE_AFTER_DEPLOY")
 # -- Blotato Account IDs --------------------------------------------------
 
 BLOTATO_ACCOUNTS = {
-    "tiktok": {"accountId": "27801", "name": "TikTok"},
-    "instagram": {"accountId": "29194", "name": "Instagram"},
-    "facebook": {"accountId": "369", "subAccountId": "161711670360847", "name": "Facebook"},
-    "linkedin": {"accountId": "4590", "name": "LinkedIn"},
-    "twitter": {"accountId": "38", "name": "Twitter"},
-    "youtube": {"accountId": "111", "name": "YouTube"},
-    "threads": {"accountId": "3", "name": "Threads"},
-    "bluesky": {"accountId": "8", "name": "Bluesky"},
-    "pinterest": {"accountId": "358", "name": "Pinterest"},
+    # Real AVM Blotato account IDs — queried from /v2/users/me/accounts on 2026-04-13
+    "instagram": {"accountId": "35463", "name": "Instagram (anyvision.media)"},
+    "linkedin": {"accountId": "15167", "name": "LinkedIn (Ian Immelman)"},
+    "tiktok": {"accountId": "33677", "name": "TikTok (anyvision.media)"},
+    "facebook": {"accountId": "23022", "name": "Facebook (Ian Immelman)"},
+    "twitter": {"accountId": "14195", "name": "Twitter (AnyVisionMedia)"},
+    # Not currently connected in Blotato — reconnect in Blotato dashboard to enable:
+    "youtube": {"accountId": "NOT_CONNECTED", "name": "YouTube"},
+    "threads": {"accountId": "NOT_CONNECTED", "name": "Threads"},
+    "bluesky": {"accountId": "NOT_CONNECTED", "name": "Bluesky"},
+    "pinterest": {"accountId": "NOT_CONNECTED", "name": "Pinterest"},
 }
 
 # -- Search Queries --------------------------------------------------------
@@ -1804,73 +1806,83 @@ return [{
         "typeVersion": 2,
     })
 
-    # -- Instagram Blotato (v2 syntax with mediaUrls) --
-    ig = BLOTATO_ACCOUNTS["instagram"]
-    nodes.append({
-        "parameters": {
-            "resource": "post",
-            "operation": "create",
-            "platform": "instagram",
-            "accountId": {"__rl": True, "mode": "list", "value": ig["accountId"]},
-            "postContentText": "={{ $json.captionInstagram }}",
-            "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
-            "options": {},
-        },
-        "id": uid(),
-        "name": "Instagram",
-        "type": "@blotato/n8n-nodes-blotato.blotato",
-        "position": [1560, 200],
-        "typeVersion": 2,
-        "credentials": {"blotatoApi": CRED_BLOTATO},
-        "onError": "continueRegularOutput",
-    })
+    # -- Platform publish nodes (only include connected accounts) --
+    # Account IDs are queried from Blotato /v2/users/me/accounts
+    # YouTube is not currently connected in Blotato — skipped until user reconnects
 
-    # -- LinkedIn Blotato (v2 syntax with mediaUrls) --
-    li = BLOTATO_ACCOUNTS["linkedin"]
-    nodes.append({
-        "parameters": {
-            "resource": "post",
-            "operation": "create",
-            "platform": "linkedin",
-            "accountId": {"__rl": True, "mode": "list", "value": li["accountId"]},
-            "postContentText": "={{ $json.captionLinkedin }}",
-            "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
-            "options": {},
-        },
-        "id": uid(),
-        "name": "LinkedIn",
-        "type": "@blotato/n8n-nodes-blotato.blotato",
-        "position": [1560, 400],
-        "typeVersion": 2,
-        "credentials": {"blotatoApi": CRED_BLOTATO},
-        "onError": "continueRegularOutput",
-    })
+    def _is_connected(platform_key: str) -> bool:
+        return BLOTATO_ACCOUNTS[platform_key]["accountId"] != "NOT_CONNECTED"
 
-    # -- YouTube Blotato (v2 syntax — requires title, privacy, notify, kids, synthetic flags) --
-    yt = BLOTATO_ACCOUNTS["youtube"]
-    nodes.append({
-        "parameters": {
-            "resource": "post",
-            "operation": "create",
-            "platform": "youtube",
-            "accountId": {"__rl": True, "mode": "list", "value": yt["accountId"]},
-            "postContentText": "={{ $json.captionYoutube }}",
-            "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
-            "postCreateYoutubeOptionTitle": "={{ $json.hook || 'AnyVision Media' }}",
-            "postCreateYoutubeOptionPrivacyStatus": "public",
-            "postCreateYoutubeOptionShouldNotifySubscribers": True,
-            "postCreateYoutubeOptionMadeForKids": False,
-            "postCreateYoutubeOptionContainsSyntheticMedia": True,
-            "options": {},
-        },
-        "id": uid(),
-        "name": "YouTube",
-        "type": "@blotato/n8n-nodes-blotato.blotato",
-        "position": [1560, 600],
-        "typeVersion": 2,
-        "credentials": {"blotatoApi": CRED_BLOTATO},
-        "onError": "continueRegularOutput",
-    })
+    # -- Instagram Blotato --
+    if _is_connected("instagram"):
+        ig = BLOTATO_ACCOUNTS["instagram"]
+        nodes.append({
+            "parameters": {
+                "resource": "post",
+                "operation": "create",
+                "platform": "instagram",
+                "accountId": {"__rl": True, "mode": "list", "value": ig["accountId"]},
+                "postContentText": "={{ $json.captionInstagram }}",
+                "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
+                "options": {},
+            },
+            "id": uid(),
+            "name": "Instagram",
+            "type": "@blotato/n8n-nodes-blotato.blotato",
+            "position": [1560, 200],
+            "typeVersion": 2,
+            "credentials": {"blotatoApi": CRED_BLOTATO},
+            "onError": "continueRegularOutput",
+        })
+
+    # -- LinkedIn Blotato --
+    if _is_connected("linkedin"):
+        li = BLOTATO_ACCOUNTS["linkedin"]
+        nodes.append({
+            "parameters": {
+                "resource": "post",
+                "operation": "create",
+                "platform": "linkedin",
+                "accountId": {"__rl": True, "mode": "list", "value": li["accountId"]},
+                "postContentText": "={{ $json.captionLinkedin }}",
+                "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
+                "options": {},
+            },
+            "id": uid(),
+            "name": "LinkedIn",
+            "type": "@blotato/n8n-nodes-blotato.blotato",
+            "position": [1560, 400],
+            "typeVersion": 2,
+            "credentials": {"blotatoApi": CRED_BLOTATO},
+            "onError": "continueRegularOutput",
+        })
+
+    # -- YouTube Blotato --
+    if _is_connected("youtube"):
+        yt = BLOTATO_ACCOUNTS["youtube"]
+        nodes.append({
+            "parameters": {
+                "resource": "post",
+                "operation": "create",
+                "platform": "youtube",
+                "accountId": {"__rl": True, "mode": "list", "value": yt["accountId"]},
+                "postContentText": "={{ $json.captionYoutube }}",
+                "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
+                "postCreateYoutubeOptionTitle": "={{ $json.hook || 'AnyVision Media' }}",
+                "postCreateYoutubeOptionPrivacyStatus": "public",
+                "postCreateYoutubeOptionShouldNotifySubscribers": True,
+                "postCreateYoutubeOptionMadeForKids": False,
+                "postCreateYoutubeOptionContainsSyntheticMedia": True,
+                "options": {},
+            },
+            "id": uid(),
+            "name": "YouTube",
+            "type": "@blotato/n8n-nodes-blotato.blotato",
+            "position": [1560, 600],
+            "typeVersion": 2,
+            "credentials": {"blotatoApi": CRED_BLOTATO},
+            "onError": "continueRegularOutput",
+        })
 
     # -- Merge Results --
     nodes.append({
@@ -1972,8 +1984,18 @@ return [{
 
 
 def build_sc05_connections() -> dict:
-    """Build connections for SC-05."""
-    return {
+    """Build connections for SC-05 — dynamically includes only connected platforms."""
+    connected_platforms = [
+        ("instagram", "Instagram"),
+        ("linkedin", "LinkedIn"),
+        ("youtube", "YouTube"),
+    ]
+    platform_targets = []
+    for key, name in connected_platforms:
+        if BLOTATO_ACCOUNTS[key]["accountId"] != "NOT_CONNECTED":
+            platform_targets.append({"node": name, "type": "main", "index": 0})
+
+    base_connections = {
         "Daily 8AM SAST": {"main": [[{"node": "Read Rendered", "type": "main", "index": 0}]]},
         "Manual Trigger": {"main": [[{"node": "Read Rendered", "type": "main", "index": 0}]]},
         "Read Rendered": {"main": [[{"node": "Has Records?", "type": "main", "index": 0}]]},
@@ -1983,19 +2005,19 @@ def build_sc05_connections() -> dict:
         ]},
         "Format for Blotato": {"main": [[{"node": "Upload to Blotato", "type": "main", "index": 0}]]},
         "Upload to Blotato": {"main": [[{"node": "Merge Upload Result", "type": "main", "index": 0}]]},
-        "Merge Upload Result": {"main": [[
-            {"node": "Instagram", "type": "main", "index": 0},
-            {"node": "LinkedIn", "type": "main", "index": 0},
-            {"node": "YouTube", "type": "main", "index": 0},
-        ]]},
-        "Instagram": {"main": [[{"node": "Merge Results", "type": "main", "index": 0}]]},
-        "LinkedIn": {"main": [[{"node": "Merge Results", "type": "main", "index": 0}]]},
-        "YouTube": {"main": [[{"node": "Merge Results", "type": "main", "index": 0}]]},
+        "Merge Upload Result": {"main": [platform_targets]},
         "Merge Results": {"main": [[{"node": "Process Results", "type": "main", "index": 0}]]},
         "Process Results": {"main": [[{"node": "Update Published", "type": "main", "index": 0}]]},
         "Update Published": {"main": [[{"node": "Log Distribution", "type": "main", "index": 0}]]},
         "Log Distribution": {"main": [[]]},
     }
+
+    # Add connections from each connected platform to Merge Results
+    for key, name in connected_platforms:
+        if BLOTATO_ACCOUNTS[key]["accountId"] != "NOT_CONNECTED":
+            base_connections[name] = {"main": [[{"node": "Merge Results", "type": "main", "index": 0}]]}
+
+    return base_connections
 
 
 # ==================================================================

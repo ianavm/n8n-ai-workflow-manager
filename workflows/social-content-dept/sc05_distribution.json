@@ -11,7 +11,7 @@
           ]
         }
       },
-      "id": "d930ba93-6380-4f78-a1db-9b4ecd7b2464",
+      "id": "c7be7850-1065-4892-86f0-ce27a37d8239",
       "name": "Daily 8AM SAST",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
@@ -22,7 +22,7 @@
     },
     {
       "parameters": {},
-      "id": "846613eb-e238-4a78-98a1-fee4a4797a45",
+      "id": "0af1da71-e7f2-4e68-a759-44c38d062520",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "position": [
@@ -47,7 +47,7 @@
         "filterByFormula": "={Status}='Rendered'",
         "options": {}
       },
-      "id": "deb75551-c730-449f-bdfd-4723844d6ed2",
+      "id": "59809d4b-ab03-4bd9-883b-27b9070e7d38",
       "name": "Read Rendered",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -73,7 +73,7 @@
           },
           "conditions": [
             {
-              "id": "b101284a-2b88-40df-a37b-a2d7de9345ec",
+              "id": "d9db5294-6c8c-4533-aaa2-813581a31802",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
               "operator": {
@@ -86,7 +86,7 @@
           "combinator": "and"
         }
       },
-      "id": "d09572fd-fc7f-424d-a458-2ecc9031096f",
+      "id": "7845753c-2e84-430f-801c-c7c4c0b1ab3d",
       "name": "Has Records?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -99,7 +99,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const fields = i.json.fields || i.json;\n  const recordId = i.json.id || '';\n  return {\n    json: {\n      recordId,\n      videoUrl: fields['Video URL'] || '',\n      captionInstagram: fields['Caption Instagram'] || '',\n      captionLinkedin: fields['Caption LinkedIn'] || '',\n      captionYoutube: fields['Caption YouTube'] || '',\n      hashtags: fields.Hashtags || '',\n      scriptId: fields['Script ID'] || '',\n      hook: fields.Hook || 'AnyVision Media',\n    }\n  };\n});"
       },
-      "id": "f40448f2-a26e-4656-a153-eb453549ed75",
+      "id": "187e3558-badc-4d24-bfde-1101138becc8",
       "name": "Format for Blotato",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -115,7 +115,7 @@
         "useBinaryData": false,
         "mediaUrl": "={{ $json.videoUrl }}"
       },
-      "id": "90253e9c-652a-4cfc-91f2-3f7094e014de",
+      "id": "994154a3-8385-4cc8-b473-41b338b567f2",
       "name": "Upload to Blotato",
       "type": "@blotato/n8n-nodes-blotato.blotato",
       "position": [
@@ -135,7 +135,7 @@
       "parameters": {
         "jsCode": "const uploadResp = $input.first().json;\nconst source = $('Format for Blotato').first().json;\n\n// Blotato media upload response has the URL at top level\nconst blotatoUrl = uploadResp.url || uploadResp.mediaUrl || '';\n\nreturn [{\n  json: {\n    ...source,\n    blotatoMediaUrl: blotatoUrl,\n  }\n}];"
       },
-      "id": "59a967b2-6e64-4ef2-bc52-a20b7e377c9e",
+      "id": "68116d51-15e7-49a6-8e54-952ccf614ab3",
       "name": "Merge Upload Result",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -152,13 +152,13 @@
         "accountId": {
           "__rl": true,
           "mode": "list",
-          "value": "29194"
+          "value": "35463"
         },
         "postContentText": "={{ $json.captionInstagram }}",
         "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
         "options": {}
       },
-      "id": "d5b5be6a-1d18-4d55-883c-859dc16c7d3d",
+      "id": "31436734-d81a-4dea-ba8b-079d21bbd568",
       "name": "Instagram",
       "type": "@blotato/n8n-nodes-blotato.blotato",
       "position": [
@@ -182,13 +182,13 @@
         "accountId": {
           "__rl": true,
           "mode": "list",
-          "value": "4590"
+          "value": "15167"
         },
         "postContentText": "={{ $json.captionLinkedin }}",
         "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
         "options": {}
       },
-      "id": "278564d8-6543-452d-b998-ed940158fdce",
+      "id": "f139fad4-dcce-41cd-bf30-9ff8d1d80ba0",
       "name": "LinkedIn",
       "type": "@blotato/n8n-nodes-blotato.blotato",
       "position": [
@@ -206,45 +206,10 @@
     },
     {
       "parameters": {
-        "resource": "post",
-        "operation": "create",
-        "platform": "youtube",
-        "accountId": {
-          "__rl": true,
-          "mode": "list",
-          "value": "111"
-        },
-        "postContentText": "={{ $json.captionYoutube }}",
-        "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
-        "postCreateYoutubeOptionTitle": "={{ $json.hook || 'AnyVision Media' }}",
-        "postCreateYoutubeOptionPrivacyStatus": "public",
-        "postCreateYoutubeOptionShouldNotifySubscribers": true,
-        "postCreateYoutubeOptionMadeForKids": false,
-        "postCreateYoutubeOptionContainsSyntheticMedia": true,
-        "options": {}
-      },
-      "id": "41354697-e34f-408a-9f23-3d679de4ab2e",
-      "name": "YouTube",
-      "type": "@blotato/n8n-nodes-blotato.blotato",
-      "position": [
-        1560,
-        600
-      ],
-      "typeVersion": 2,
-      "credentials": {
-        "blotatoApi": {
-          "id": "hhRiqZrWNlqvmYZR",
-          "name": "Blotato AVM"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
         "mode": "append",
         "options": {}
       },
-      "id": "8f6edf21-5d21-4f1f-80e7-f7b8bfe07eb5",
+      "id": "ecf14cad-b735-4788-96af-256e02dd8856",
       "name": "Merge Results",
       "type": "n8n-nodes-base.merge",
       "position": [
@@ -257,7 +222,7 @@
       "parameters": {
         "jsCode": "const results = $input.all();\nconst source = $('Format for Blotato').first().json;\nconst platforms = results.map(r => {\n  const platform = r.json?.platform || 'Unknown';\n  const success = !r.json?.error;\n  return platform + ': ' + (success ? 'OK' : 'FAILED');\n}).join(', ');\n\nreturn [{\n  json: {\n    recordId: source.recordId,\n    scriptId: source.scriptId,\n    publishResults: platforms,\n  }\n}];"
       },
-      "id": "4c748fc9-3ae4-4d4a-9e03-6e7bf18f9ab2",
+      "id": "dd7a1b12-6e17-433b-864f-f0607c89d20e",
       "name": "Process Results",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -290,7 +255,7 @@
           "timeout": 15000
         }
       },
-      "id": "8a2c3cd5-29d5-41d7-bf43-c9442f94b8dc",
+      "id": "a55ab509-14db-4ce6-bf1d-834b73bff434",
       "name": "Update Published",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -325,7 +290,7 @@
         },
         "options": {}
       },
-      "id": "55475c84-5940-43d9-97f5-1d731bba3ac5",
+      "id": "9f2b0814-5b7f-4a2f-bbc3-d17e7dae967f",
       "name": "Log Distribution",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -421,44 +386,6 @@
             "node": "LinkedIn",
             "type": "main",
             "index": 0
-          },
-          {
-            "node": "YouTube",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Instagram": {
-      "main": [
-        [
-          {
-            "node": "Merge Results",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "LinkedIn": {
-      "main": [
-        [
-          {
-            "node": "Merge Results",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "YouTube": {
-      "main": [
-        [
-          {
-            "node": "Merge Results",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -499,6 +426,28 @@
     "Log Distribution": {
       "main": [
         []
+      ]
+    },
+    "Instagram": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },
