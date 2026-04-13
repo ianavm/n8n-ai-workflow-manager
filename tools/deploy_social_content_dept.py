@@ -69,8 +69,8 @@ BLOTATO_ACCOUNTS = {
     "tiktok": {"accountId": "33677", "name": "TikTok (anyvision.media)"},
     "facebook": {"accountId": "23022", "name": "Facebook (Ian Immelman)"},
     "twitter": {"accountId": "14195", "name": "Twitter (AnyVisionMedia)"},
+    "youtube": {"accountId": "33522", "name": "YouTube (Ian Immelman)"},
     # Not currently connected in Blotato — reconnect in Blotato dashboard to enable:
-    "youtube": {"accountId": "NOT_CONNECTED", "name": "YouTube"},
     "threads": {"accountId": "NOT_CONNECTED", "name": "Threads"},
     "bluesky": {"accountId": "NOT_CONNECTED", "name": "Bluesky"},
     "pinterest": {"accountId": "NOT_CONNECTED", "name": "Pinterest"},
