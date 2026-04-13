@@ -1734,21 +1734,23 @@ def build_sc05_nodes() -> list[dict]:
     # -- Format for Blotato --
     nodes.append({
         "parameters": {
-            "jsCode": """const fields = $input.first().json.fields || $input.first().json;
-const videoUrl = fields['Video URL'] || '';
-const recordId = $input.first().json.id || '';
-
-return [{
-  json: {
-    recordId,
-    videoUrl,
-    captionInstagram: fields['Caption Instagram'] || '',
-    captionLinkedin: fields['Caption LinkedIn'] || '',
-    captionYoutube: fields['Caption YouTube'] || '',
-    hashtags: fields.Hashtags || '',
-    scriptId: fields['Script ID'] || '',
-  }
-}];""",
+            "jsCode": """const items = $input.all();
+return items.map(i => {
+  const fields = i.json.fields || i.json;
+  const recordId = i.json.id || '';
+  return {
+    json: {
+      recordId,
+      videoUrl: fields['Video URL'] || '',
+      captionInstagram: fields['Caption Instagram'] || '',
+      captionLinkedin: fields['Caption LinkedIn'] || '',
+      captionYoutube: fields['Caption YouTube'] || '',
+      hashtags: fields.Hashtags || '',
+      scriptId: fields['Script ID'] || '',
+      hook: fields.Hook || 'AnyVision Media',
+    }
+  };
+});""",
         },
         "id": uid(),
         "name": "Format for Blotato",
@@ -1757,55 +1759,62 @@ return [{
         "typeVersion": 2,
     })
 
-    # -- Instagram Blotato --
+    # -- Instagram Blotato (v2 syntax) --
     ig = BLOTATO_ACCOUNTS["instagram"]
     nodes.append({
         "parameters": {
-            "accountId": ig["accountId"],
+            "platform": "instagram",
+            "accountId": {"__rl": True, "mode": "list", "value": ig["accountId"]},
             "postContentText": "={{ $json.captionInstagram }}",
             "postContentVideoUrl": "={{ $json.videoUrl }}",
+            "options": {},
         },
         "id": uid(),
         "name": "Instagram",
         "type": "@blotato/n8n-nodes-blotato.blotato",
         "position": [1480, 200],
-        "typeVersion": 1,
+        "typeVersion": 2,
         "credentials": {"blotatoApi": CRED_BLOTATO},
-        "continueOnFail": True,
+        "onError": "continueRegularOutput",
     })
 
-    # -- LinkedIn Blotato --
+    # -- LinkedIn Blotato (v2 syntax) --
     li = BLOTATO_ACCOUNTS["linkedin"]
     nodes.append({
         "parameters": {
-            "accountId": li["accountId"],
+            "platform": "linkedin",
+            "accountId": {"__rl": True, "mode": "list", "value": li["accountId"]},
             "postContentText": "={{ $json.captionLinkedin }}",
             "postContentVideoUrl": "={{ $json.videoUrl }}",
+            "options": {},
         },
         "id": uid(),
         "name": "LinkedIn",
         "type": "@blotato/n8n-nodes-blotato.blotato",
         "position": [1480, 400],
-        "typeVersion": 1,
+        "typeVersion": 2,
         "credentials": {"blotatoApi": CRED_BLOTATO},
-        "continueOnFail": True,
+        "onError": "continueRegularOutput",
     })
 
-    # -- YouTube Blotato --
+    # -- YouTube Blotato (v2 syntax — needs title) --
     yt = BLOTATO_ACCOUNTS["youtube"]
     nodes.append({
         "parameters": {
-            "accountId": yt["accountId"],
+            "platform": "youtube",
+            "accountId": {"__rl": True, "mode": "list", "value": yt["accountId"]},
             "postContentText": "={{ $json.captionYoutube }}",
             "postContentVideoUrl": "={{ $json.videoUrl }}",
+            "postCreateYoutubeOptionTitle": "={{ $json.hook || 'AnyVision Media' }}",
+            "options": {},
         },
         "id": uid(),
         "name": "YouTube",
         "type": "@blotato/n8n-nodes-blotato.blotato",
         "position": [1480, 600],
-        "typeVersion": 1,
+        "typeVersion": 2,
         "credentials": {"blotatoApi": CRED_BLOTATO},
-        "continueOnFail": True,
+        "onError": "continueRegularOutput",
     })
 
     # -- Merge Results --

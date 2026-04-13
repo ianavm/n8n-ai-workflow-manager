@@ -11,7 +11,7 @@
           ]
         }
       },
-      "id": "855baeac-bcbf-4eab-9139-195b99949897",
+      "id": "9717bf8c-bb53-494e-84bb-88212dcc2a10",
       "name": "Daily 7AM SAST",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
@@ -22,7 +22,7 @@
     },
     {
       "parameters": {},
-      "id": "da294815-43fb-4238-879b-e4a335571ef7",
+      "id": "aa6c3dbd-5e0c-43a2-9425-7dbec756c61c",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "position": [
@@ -47,7 +47,7 @@
         "filterByFormula": "={Status}='Adapted'",
         "options": {}
       },
-      "id": "06a853e3-d24a-4e20-9468-37257c2ad534",
+      "id": "250e837a-e81e-498d-870b-86c60e30cad7",
       "name": "Read Adapted",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -73,7 +73,7 @@
           },
           "conditions": [
             {
-              "id": "45b1135d-5fe1-4088-bb29-59dcd0c37464",
+              "id": "20c8d597-e39d-44a7-bfa7-36827927485d",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
               "operator": {
@@ -86,7 +86,7 @@
           "combinator": "and"
         }
       },
-      "id": "2050c0a7-85d3-45c4-8a94-26b8c20e998e",
+      "id": "ad99b082-b3b3-442d-9b62-e63c90ce7ec2",
       "name": "Has Records?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -119,7 +119,7 @@
           "timeout": 15000
         }
       },
-      "id": "3728bc40-7a51-4259-8153-af2dde4ae1df",
+      "id": "c691e8de-deb8-452c-b142-274eaff6db25",
       "name": "Status Rendering",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -132,13 +132,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://chilly-corners-sleep.loca.lt/render",
+        "url": "https://n8n-ai-workflow-manager-production.up.railway.app/render",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "dev-key"
+              "value": "avm-render-2026"
             },
             {
               "name": "Content-Type",
@@ -157,7 +157,7 @@
           "timeout": 120000
         }
       },
-      "id": "6c12bddf-7b96-4e1d-bbc9-d5f4abd9d322",
+      "id": "3acba12d-d5bc-4f5b-9ee8-62c0ee1fd71c",
       "name": "Render Video",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -169,10 +169,10 @@
     },
     {
       "parameters": {
-        "amount": 60,
+        "amount": 180,
         "unit": "seconds"
       },
-      "id": "0eeaf700-ac6b-4980-97b5-f4059b57e18e",
+      "id": "41de635f-a666-4c03-8382-de938feb3f51",
       "name": "Wait 30s",
       "type": "n8n-nodes-base.wait",
       "position": [
@@ -184,13 +184,13 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ 'https://chilly-corners-sleep.loca.lt/render/' + $('Render Video').first().json.jobId }}",
+        "url": "={{ 'https://n8n-ai-workflow-manager-production.up.railway.app/render/' + $('Render Video').first().json.jobId }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "dev-key"
+              "value": "avm-render-2026"
             },
             {
               "name": "bypass-tunnel-reminder",
@@ -202,7 +202,7 @@
           "timeout": 15000
         }
       },
-      "id": "be3f7072-0b4e-4977-9575-dfa2ce43aa68",
+      "id": "2463e80a-687b-40f9-9222-90e945962d45",
       "name": "Poll Render",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -223,7 +223,7 @@
           },
           "conditions": [
             {
-              "id": "0ccf040d-5d5c-4fe3-b917-24e91a351afc",
+              "id": "e161c054-badb-40f6-91ce-1d280f00daa7",
               "leftValue": "={{ $json.status }}",
               "rightValue": "complete",
               "operator": {
@@ -235,7 +235,7 @@
           "combinator": "and"
         }
       },
-      "id": "8f751a61-3025-49db-b95d-07d4c058b96d",
+      "id": "d2a61936-00a3-4af9-b878-be07721ef398",
       "name": "Render Complete?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -268,7 +268,7 @@
           "timeout": 15000
         }
       },
-      "id": "f4bb56e7-2a57-4de0-96b8-903356857629",
+      "id": "26286ab8-bc8d-4a2d-ac70-970fe6ab049a",
       "name": "Update Rendered",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -302,7 +302,7 @@
           "timeout": 15000
         }
       },
-      "id": "47d9309b-5a55-4af9-a930-cba0b1684603",
+      "id": "7b3e73f3-b4fd-443a-82af-d81ec82e01ad",
       "name": "Update Failed",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -336,7 +336,7 @@
         },
         "options": {}
       },
-      "id": "4a41897a-e9b2-4b00-82ec-543e235e61c0",
+      "id": "270691ff-d2a0-423f-9c24-61b7fade109d",
       "name": "Log Production",
       "type": "n8n-nodes-base.airtable",
       "position": [

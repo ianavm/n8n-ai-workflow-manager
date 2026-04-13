@@ -11,7 +11,7 @@
           ]
         }
       },
-      "id": "08ffcd9c-6b74-476b-9fd9-fd3fc31c334b",
+      "id": "cdc751f2-f750-4ac0-8f09-82d4e980de0e",
       "name": "Daily 8AM SAST",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
@@ -22,7 +22,7 @@
     },
     {
       "parameters": {},
-      "id": "9d30e384-a4da-4624-95cf-ac870209b8a5",
+      "id": "554fbeb7-1856-40ff-86d1-08c3c87c5547",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "position": [
@@ -47,7 +47,7 @@
         "filterByFormula": "={Status}='Rendered'",
         "options": {}
       },
-      "id": "28f83193-5b5a-4abb-8045-4eedf56f5e4e",
+      "id": "bf0303ae-8f86-4d0e-8912-21bdcada9726",
       "name": "Read Rendered",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -73,7 +73,7 @@
           },
           "conditions": [
             {
-              "id": "61a95bb2-ea4b-4836-b558-846e143736fd",
+              "id": "01e68a97-a26d-4ab9-a4c4-b556c735e0a6",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
               "operator": {
@@ -86,7 +86,7 @@
           "combinator": "and"
         }
       },
-      "id": "5ab38cc7-c97b-4f74-abb4-9485ef4d7059",
+      "id": "ebf48c53-28d5-463a-bca6-94c1de43cd44",
       "name": "Has Records?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -97,9 +97,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const fields = $input.first().json.fields || $input.first().json;\nconst videoUrl = fields['Video URL'] || '';\nconst recordId = $input.first().json.id || '';\n\nreturn [{\n  json: {\n    recordId,\n    videoUrl,\n    captionInstagram: fields['Caption Instagram'] || '',\n    captionLinkedin: fields['Caption LinkedIn'] || '',\n    captionYoutube: fields['Caption YouTube'] || '',\n    hashtags: fields.Hashtags || '',\n    scriptId: fields['Script ID'] || '',\n  }\n}];"
+        "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const fields = i.json.fields || i.json;\n  const recordId = i.json.id || '';\n  return {\n    json: {\n      recordId,\n      videoUrl: fields['Video URL'] || '',\n      captionInstagram: fields['Caption Instagram'] || '',\n      captionLinkedin: fields['Caption LinkedIn'] || '',\n      captionYoutube: fields['Caption YouTube'] || '',\n      hashtags: fields.Hashtags || '',\n      scriptId: fields['Script ID'] || '',\n      hook: fields.Hook || 'AnyVision Media',\n    }\n  };\n});"
       },
-      "id": "331d66e8-68e2-404a-a9c4-8ceb1db34f7a",
+      "id": "67518f2d-b891-4bc3-ab65-be5840b58634",
       "name": "Format for Blotato",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -110,76 +110,95 @@
     },
     {
       "parameters": {
-        "accountId": "29194",
+        "platform": "instagram",
+        "accountId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "29194"
+        },
         "postContentText": "={{ $json.captionInstagram }}",
-        "postContentVideoUrl": "={{ $json.videoUrl }}"
+        "postContentVideoUrl": "={{ $json.videoUrl }}",
+        "options": {}
       },
-      "id": "0eabb56b-d934-43f8-a3bf-2cdab1070864",
+      "id": "b3580e27-eaf1-4b1e-9f08-d18df9d1c7e9",
       "name": "Instagram",
       "type": "@blotato/n8n-nodes-blotato.blotato",
       "position": [
         1480,
         200
       ],
-      "typeVersion": 1,
+      "typeVersion": 2,
       "credentials": {
         "blotatoApi": {
           "id": "hhRiqZrWNlqvmYZR",
           "name": "Blotato AVM"
         }
       },
-      "continueOnFail": true
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "accountId": "4590",
+        "platform": "linkedin",
+        "accountId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "4590"
+        },
         "postContentText": "={{ $json.captionLinkedin }}",
-        "postContentVideoUrl": "={{ $json.videoUrl }}"
+        "postContentVideoUrl": "={{ $json.videoUrl }}",
+        "options": {}
       },
-      "id": "5dbd3a1d-23e3-4135-8fb8-2eb82efb37b5",
+      "id": "bc5198b3-4e24-478b-8498-c354871ec8e1",
       "name": "LinkedIn",
       "type": "@blotato/n8n-nodes-blotato.blotato",
       "position": [
         1480,
         400
       ],
-      "typeVersion": 1,
+      "typeVersion": 2,
       "credentials": {
         "blotatoApi": {
           "id": "hhRiqZrWNlqvmYZR",
           "name": "Blotato AVM"
         }
       },
-      "continueOnFail": true
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "accountId": "111",
+        "platform": "youtube",
+        "accountId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "111"
+        },
         "postContentText": "={{ $json.captionYoutube }}",
-        "postContentVideoUrl": "={{ $json.videoUrl }}"
+        "postContentVideoUrl": "={{ $json.videoUrl }}",
+        "postCreateYoutubeOptionTitle": "={{ $json.hook || 'AnyVision Media' }}",
+        "options": {}
       },
-      "id": "5ff844d5-724b-4420-a637-9a1af1bfebf7",
+      "id": "d1538809-9824-4bee-aaab-8ca273585324",
       "name": "YouTube",
       "type": "@blotato/n8n-nodes-blotato.blotato",
       "position": [
         1480,
         600
       ],
-      "typeVersion": 1,
+      "typeVersion": 2,
       "credentials": {
         "blotatoApi": {
           "id": "hhRiqZrWNlqvmYZR",
           "name": "Blotato AVM"
         }
       },
-      "continueOnFail": true
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "mode": "append",
         "options": {}
       },
-      "id": "8b243fab-c791-48bc-8241-0f860605a630",
+      "id": "d405d5fb-25d6-40bc-b8b2-1f73c2105809",
       "name": "Merge Results",
       "type": "n8n-nodes-base.merge",
       "position": [
@@ -192,7 +211,7 @@
       "parameters": {
         "jsCode": "const results = $input.all();\nconst source = $('Format for Blotato').first().json;\nconst platforms = results.map(r => {\n  const platform = r.json?.platform || 'Unknown';\n  const success = !r.json?.error;\n  return platform + ': ' + (success ? 'OK' : 'FAILED');\n}).join(', ');\n\nreturn [{\n  json: {\n    recordId: source.recordId,\n    scriptId: source.scriptId,\n    publishResults: platforms,\n  }\n}];"
       },
-      "id": "3d004f4e-0d97-48bf-aea6-03ab2c7af92c",
+      "id": "860b1354-a5d3-459e-9942-ea6d815c73f2",
       "name": "Process Results",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -225,7 +244,7 @@
           "timeout": 15000
         }
       },
-      "id": "25b9d80b-ef3b-4335-92e7-757dc95ba739",
+      "id": "2d38f63f-30cc-4129-9871-47c48ebccf49",
       "name": "Update Published",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -260,7 +279,7 @@
         },
         "options": {}
       },
-      "id": "2b3880ee-b045-4d13-b2cf-a1db008bae9c",
+      "id": "83ba8853-735f-419b-a31f-628dd955b8e1",
       "name": "Log Distribution",
       "type": "n8n-nodes-base.airtable",
       "position": [
