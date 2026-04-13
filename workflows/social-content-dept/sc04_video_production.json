@@ -11,7 +11,7 @@
           ]
         }
       },
-      "id": "5cff7fb9-8a51-4a8b-9d9d-710c675c21ee",
+      "id": "855baeac-bcbf-4eab-9139-195b99949897",
       "name": "Daily 7AM SAST",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
@@ -22,7 +22,7 @@
     },
     {
       "parameters": {},
-      "id": "3848dc02-0a0e-4c57-9afd-6606e4edd0be",
+      "id": "da294815-43fb-4238-879b-e4a335571ef7",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "position": [
@@ -47,7 +47,7 @@
         "filterByFormula": "={Status}='Adapted'",
         "options": {}
       },
-      "id": "653f7928-d8df-4f63-adab-3457621a7ec6",
+      "id": "06a853e3-d24a-4e20-9468-37257c2ad534",
       "name": "Read Adapted",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -73,7 +73,7 @@
           },
           "conditions": [
             {
-              "id": "d5599c97-ccf7-448c-9f61-34a41eb37e33",
+              "id": "45b1135d-5fe1-4088-bb29-59dcd0c37464",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
               "operator": {
@@ -86,7 +86,7 @@
           "combinator": "and"
         }
       },
-      "id": "0bb26bc4-cded-44ea-80b3-590c32e2a99f",
+      "id": "2050c0a7-85d3-45c4-8a94-26b8c20e998e",
       "name": "Has Records?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -97,56 +97,67 @@
     },
     {
       "parameters": {
-        "operation": "update",
-        "base": {
-          "__rl": true,
-          "mode": "id",
-          "value": "apptjjBx34z9340tK"
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/apptjjBx34z9340tK/tblXGCQ4LTymrU7a1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REDACTED_AIRTABLE_PAT"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
-        "table": {
-          "__rl": true,
-          "mode": "id",
-          "value": "tblXGCQ4LTymrU7a1"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "matchingColumns": [
-            "id"
-          ],
-          "value": {
-            "id": "={{ $json.id }}",
-            "Status": "Rendering"
-          }
-        },
-        "options": {}
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  performUpsert: { fieldsToMergeOn: ['Script ID'] },\n  records: [{\n    fields: {\n      'Script ID': $json['Script ID'],\n      'Status': 'Rendering'\n    }\n  }]\n}) }}",
+        "options": {
+          "timeout": 15000
+        }
       },
-      "id": "fd17b8ec-1003-4f15-a1ea-a7aaaf020d0b",
+      "id": "3728bc40-7a51-4259-8153-af2dde4ae1df",
       "name": "Status Rendering",
-      "type": "n8n-nodes-base.airtable",
+      "type": "n8n-nodes-base.httpRequest",
       "position": [
         1180,
         400
       ],
-      "typeVersion": 2.1,
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
-        }
-      }
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://social-render.up.railway.app/render",
+        "url": "https://chilly-corners-sleep.loca.lt/render",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "dev-key"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "bypass-tunnel-reminder",
+              "value": "1"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  compositionId: ($('Read Adapted').item.json.fields || {})['Remotion Composition'] || 'TextOnScreen',\n  props: JSON.parse(($('Read Adapted').item.json.fields || {})['Remotion Props JSON'] || '{}'),\n  outputFormat: 'mp4'\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  compositionId: $('Read Adapted').item.json['Remotion Composition'] || 'TextOnScreen',\n  props: JSON.parse($('Read Adapted').item.json['Remotion Props JSON'] || '{}'),\n  outputFormat: 'mp4'\n}) }}",
         "options": {
           "timeout": 120000
         }
       },
-      "id": "bf512c1a-2021-4e37-af4f-892f878cf99b",
+      "id": "6c12bddf-7b96-4e1d-bbc9-d5f4abd9d322",
       "name": "Render Video",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -158,10 +169,10 @@
     },
     {
       "parameters": {
-        "amount": 30,
+        "amount": 60,
         "unit": "seconds"
       },
-      "id": "a890e252-5610-4ac2-a148-359d7cba5c84",
+      "id": "0eeaf700-ac6b-4980-97b5-f4059b57e18e",
       "name": "Wait 30s",
       "type": "n8n-nodes-base.wait",
       "position": [
@@ -173,12 +184,25 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://social-render.up.railway.app/render/{{ $('Render Video').first().json.jobId || '' }}",
+        "url": "={{ 'https://chilly-corners-sleep.loca.lt/render/' + $('Render Video').first().json.jobId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "dev-key"
+            },
+            {
+              "name": "bypass-tunnel-reminder",
+              "value": "1"
+            }
+          ]
+        },
         "options": {
           "timeout": 15000
         }
       },
-      "id": "4367d72c-8263-46b0-a40f-99c9c1c98b7f",
+      "id": "be3f7072-0b4e-4977-9575-dfa2ce43aa68",
       "name": "Poll Render",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -199,7 +223,7 @@
           },
           "conditions": [
             {
-              "id": "b07cfe7a-df33-40c5-b817-5619305c116f",
+              "id": "0ccf040d-5d5c-4fe3-b917-24e91a351afc",
               "leftValue": "={{ $json.status }}",
               "rightValue": "complete",
               "operator": {
@@ -211,7 +235,7 @@
           "combinator": "and"
         }
       },
-      "id": "9553dd57-c509-40ad-89e8-e2f5e03932c5",
+      "id": "8f751a61-3025-49db-b95d-07d4c058b96d",
       "name": "Render Complete?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -222,86 +246,71 @@
     },
     {
       "parameters": {
-        "operation": "update",
-        "base": {
-          "__rl": true,
-          "mode": "id",
-          "value": "apptjjBx34z9340tK"
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/apptjjBx34z9340tK/tblXGCQ4LTymrU7a1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REDACTED_AIRTABLE_PAT"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
-        "table": {
-          "__rl": true,
-          "mode": "id",
-          "value": "tblXGCQ4LTymrU7a1"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "matchingColumns": [
-            "id"
-          ],
-          "value": {
-            "id": "={{ $('Read Adapted').item.json.id }}",
-            "Video URL": "={{ $json.videoUrl || '' }}",
-            "Thumbnail URL": "={{ $json.thumbnailUrl || '' }}",
-            "Status": "Rendered"
-          }
-        },
-        "options": {}
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  performUpsert: { fieldsToMergeOn: ['Script ID'] },\n  records: [{\n    fields: {\n      'Script ID': $('Read Adapted').item.json['Script ID'],\n      'Video URL': $json.videoUrl || '',\n      'Thumbnail URL': $json.thumbnailUrl || '',\n      'Status': 'Rendered'\n    }\n  }]\n}) }}",
+        "options": {
+          "timeout": 15000
+        }
       },
-      "id": "c584b8c5-eff6-4c57-bf74-0f73a5f8ff9b",
+      "id": "f4bb56e7-2a57-4de0-96b8-903356857629",
       "name": "Update Rendered",
-      "type": "n8n-nodes-base.airtable",
+      "type": "n8n-nodes-base.httpRequest",
       "position": [
         2380,
         300
       ],
-      "typeVersion": 2.1,
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
-        }
-      }
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "operation": "update",
-        "base": {
-          "__rl": true,
-          "mode": "id",
-          "value": "apptjjBx34z9340tK"
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/apptjjBx34z9340tK/tblXGCQ4LTymrU7a1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REDACTED_AIRTABLE_PAT"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
-        "table": {
-          "__rl": true,
-          "mode": "id",
-          "value": "tblXGCQ4LTymrU7a1"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "matchingColumns": [
-            "id"
-          ],
-          "value": {
-            "id": "={{ $('Read Adapted').item.json.id }}",
-            "Status": "Failed",
-            "Error Message": "={{ $json.error || 'Render did not complete' }}"
-          }
-        },
-        "options": {}
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  performUpsert: { fieldsToMergeOn: ['Script ID'] },\n  records: [{\n    fields: {\n      'Script ID': $('Read Adapted').item.json['Script ID'],\n      'Status': 'Failed',\n      'Error Message': $json.error || 'Render did not complete'\n    }\n  }]\n}) }}",
+        "options": {
+          "timeout": 15000
+        }
       },
-      "id": "87bae7ce-7f49-47c0-84e7-88b564749c30",
+      "id": "47d9309b-5a55-4af9-a930-cba0b1684603",
       "name": "Update Failed",
-      "type": "n8n-nodes-base.airtable",
+      "type": "n8n-nodes-base.httpRequest",
       "position": [
         2380,
         500
       ],
-      "typeVersion": 2.1,
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
-        }
-      }
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -320,14 +329,14 @@
           "mappingMode": "defineBelow",
           "value": {
             "Log ID": "={{ 'LOG-' + $now.toFormat('yyyyMMdd-HHmmss') + '-' + $runIndex }}",
-            "Script ID": "={{ ($('Read Adapted').item.json.fields || {})['Script ID'] || '' }}",
+            "Script ID": "={{ $('Read Adapted').item.json['Script ID'] || '' }}",
             "Action": "={{ $json.status === 'complete' ? 'Render_Complete' : 'Render_Failed' }}",
             "Created At": "={{ $now.toISO() }}"
           }
         },
         "options": {}
       },
-      "id": "beb4e678-bd76-41ad-82ff-78249dc46cfb",
+      "id": "4a41897a-e9b2-4b00-82ec-543e235e61c0",
       "name": "Log Production",
       "type": "n8n-nodes-base.airtable",
       "position": [

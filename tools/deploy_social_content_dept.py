@@ -53,6 +53,7 @@ TABLE_PRODUCTION_LOG = os.getenv("SC_TABLE_PRODUCTION_LOG", "REPLACE_WITH_TABLE_
 
 APIFY_API_TOKEN = os.getenv("APIFY_API_TOKEN", "REPLACE_WITH_TOKEN")
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", os.getenv("GOOGLE_PLACES_API_KEY", "REPLACE_WITH_KEY"))
+AIRTABLE_API_TOKEN = os.getenv("AIRTABLE_API_TOKEN", "REPLACE_WITH_TOKEN")
 REMOTION_RENDER_URL = os.getenv("REMOTION_RENDER_URL", "https://social-render.up.railway.app")
 
 # Sub-workflow IDs (set after first deploy, used by SC-01 orchestrator)
@@ -887,7 +888,7 @@ return items.map(i => {
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4', max_tokens: 1500, temperature: 0.3, messages: [{role: 'user', content: $json.prompt}] }) }}",
+            "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-haiku-4-5', max_tokens: 500, temperature: 0.3, messages: [{role: 'user', content: $json.prompt}] }) }}",
             "options": {"timeout": 30000},
         },
         "id": uid(),
@@ -957,31 +958,39 @@ return responses.map((resp, idx) => {
         "typeVersion": 2,
     })
 
-    # -- Update Airtable (Extracted) - upsert by Source URL --
+    # -- Update Airtable (Extracted) - HTTP Request + upsert by Source URL --
     nodes.append({
         "parameters": {
-            "operation": "upsert",
-            "base": {"__rl": True, "mode": "id", "value": AIRTABLE_BASE_ID},
-            "table": {"__rl": True, "mode": "id", "value": TABLE_TRENDING},
-            "columns": {
-                "mappingMode": "defineBelow",
-                "matchingColumns": ["Source URL"],
-                "value": {
-                    "Source URL": "={{ $json['Source URL'] }}",
-                    "Transcript": "={{ $json.Transcript }}",
-                    "Template Pattern": "={{ $json['Template Pattern'] }}",
-                    "Content Category": "={{ $json['Content Category'] }}",
-                    "Status": "Extracted",
-                },
+            "method": "PATCH",
+            "url": f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_TRENDING}",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "Authorization", "value": f"Bearer {AIRTABLE_API_TOKEN}"},
+                    {"name": "Content-Type", "value": "application/json"},
+                ],
             },
-            "options": {},
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": """={{ JSON.stringify({
+  performUpsert: { fieldsToMergeOn: ['Source URL'] },
+  records: [{
+    fields: {
+      'Source URL': $json['Source URL'],
+      'Transcript': $json.Transcript,
+      'Template Pattern': $json['Template Pattern'],
+      'Content Category': $json['Content Category'],
+      'Status': 'Extracted'
+    }
+  }]
+}) }}""",
+            "options": {"timeout": 15000},
         },
         "id": uid(),
         "name": "Update Extracted",
-        "type": "n8n-nodes-base.airtable",
+        "type": "n8n-nodes-base.httpRequest",
         "position": [2220, 400],
-        "typeVersion": 2.1,
-        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "typeVersion": 4.2,
         "onError": "continueRegularOutput",
     })
 
@@ -1099,7 +1108,7 @@ def build_sc03_nodes() -> list[dict]:
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4', max_tokens: 2000, temperature: 0.7, messages: [{role: 'user', content: $json.prompt}] }) }}",
+            "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-haiku-4-5', max_tokens: 800, temperature: 0.7, messages: [{role: 'user', content: $json.prompt}] }) }}",
             "options": {"timeout": 30000},
         },
         "id": uid(),
@@ -1177,7 +1186,7 @@ return responses.map((resp, idx) => {
             "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4', max_tokens: 1000, temperature: 0.5, messages: [{role: 'user', content: $json.capPrompt}] }) }}",
+            "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-haiku-4-5', max_tokens: 500, temperature: 0.5, messages: [{role: 'user', content: $json.capPrompt}] }) }}",
             "options": {"timeout": 30000},
         },
         "id": uid(),
@@ -1317,28 +1326,36 @@ return capItems.map((capItem, idx) => {
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
     })
 
-    # -- Update Trend Status (upsert by Source URL) --
+    # -- Update Trend Status - HTTP Request + upsert by Source URL --
     nodes.append({
         "parameters": {
-            "operation": "upsert",
-            "base": {"__rl": True, "mode": "id", "value": AIRTABLE_BASE_ID},
-            "table": {"__rl": True, "mode": "id", "value": TABLE_TRENDING},
-            "columns": {
-                "mappingMode": "defineBelow",
-                "matchingColumns": ["Source URL"],
-                "value": {
-                    "Source URL": "={{ $json.sourceUrl }}",
-                    "Status": "Adapted",
-                },
+            "method": "PATCH",
+            "url": f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_TRENDING}",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "Authorization", "value": f"Bearer {AIRTABLE_API_TOKEN}"},
+                    {"name": "Content-Type", "value": "application/json"},
+                ],
             },
-            "options": {},
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": """={{ JSON.stringify({
+  performUpsert: { fieldsToMergeOn: ['Source URL'] },
+  records: [{
+    fields: {
+      'Source URL': $json.sourceUrl,
+      'Status': 'Adapted'
+    }
+  }]
+}) }}""",
+            "options": {"timeout": 15000},
         },
         "id": uid(),
         "name": "Update Trend Adapted",
-        "type": "n8n-nodes-base.airtable",
+        "type": "n8n-nodes-base.httpRequest",
         "position": [1880, 400],
-        "typeVersion": 2.1,
-        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "typeVersion": 4.2,
         "onError": "continueRegularOutput",
     })
 
@@ -1421,28 +1438,37 @@ def build_sc04_nodes() -> list[dict]:
         "typeVersion": 2.2,
     })
 
-    # -- Update Status Rendering --
+    # -- Update Status Rendering (HTTP upsert by Script ID) --
     nodes.append({
         "parameters": {
-            "operation": "update",
-            "base": {"__rl": True, "mode": "id", "value": AIRTABLE_BASE_ID},
-            "table": {"__rl": True, "mode": "id", "value": TABLE_SCRIPTS},
-            "columns": {
-                "mappingMode": "defineBelow",
-                "matchingColumns": ["id"],
-                "value": {
-                    "id": "={{ $json.id }}",
-                    "Status": "Rendering",
-                },
+            "method": "PATCH",
+            "url": f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_SCRIPTS}",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "Authorization", "value": f"Bearer {AIRTABLE_API_TOKEN}"},
+                    {"name": "Content-Type", "value": "application/json"},
+                ],
             },
-            "options": {},
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": """={{ JSON.stringify({
+  performUpsert: { fieldsToMergeOn: ['Script ID'] },
+  records: [{
+    fields: {
+      'Script ID': $json['Script ID'],
+      'Status': 'Rendering'
+    }
+  }]
+}) }}""",
+            "options": {"timeout": 15000},
         },
         "id": uid(),
         "name": "Status Rendering",
-        "type": "n8n-nodes-base.airtable",
+        "type": "n8n-nodes-base.httpRequest",
         "position": [1180, 400],
-        "typeVersion": 2.1,
-        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
     })
 
     # -- Call Render Server --
@@ -1450,11 +1476,19 @@ def build_sc04_nodes() -> list[dict]:
         "parameters": {
             "method": "POST",
             "url": f"{REMOTION_RENDER_URL}/render",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "x-api-key", "value": os.getenv("RENDER_API_KEY", "dev-key")},
+                    {"name": "Content-Type", "value": "application/json"},
+                    {"name": "bypass-tunnel-reminder", "value": "1"},
+                ],
+            },
             "sendBody": True,
             "specifyBody": "json",
             "jsonBody": """={{ JSON.stringify({
-  compositionId: ($('Read Adapted').item.json.fields || {})['Remotion Composition'] || 'TextOnScreen',
-  props: JSON.parse(($('Read Adapted').item.json.fields || {})['Remotion Props JSON'] || '{}'),
+  compositionId: $('Read Adapted').item.json['Remotion Composition'] || 'TextOnScreen',
+  props: JSON.parse($('Read Adapted').item.json['Remotion Props JSON'] || '{}'),
   outputFormat: 'mp4'
 }) }}""",
             "options": {"timeout": 120000},
@@ -1469,7 +1503,7 @@ def build_sc04_nodes() -> list[dict]:
 
     # -- Wait for Render --
     nodes.append({
-        "parameters": {"amount": 30, "unit": "seconds"},
+        "parameters": {"amount": 60, "unit": "seconds"},
         "id": uid(),
         "name": "Wait 30s",
         "type": "n8n-nodes-base.wait",
@@ -1481,7 +1515,14 @@ def build_sc04_nodes() -> list[dict]:
     nodes.append({
         "parameters": {
             "method": "GET",
-            "url": f"={REMOTION_RENDER_URL}/render/{{{{ $('Render Video').first().json.jobId || '' }}}}",
+            "url": "={{ '" + REMOTION_RENDER_URL + "/render/' + $('Render Video').first().json.jobId }}",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "x-api-key", "value": os.getenv("RENDER_API_KEY", "dev-key")},
+                    {"name": "bypass-tunnel-reminder", "value": "1"},
+                ],
+            },
             "options": {"timeout": 15000},
         },
         "id": uid(),
@@ -1508,55 +1549,73 @@ def build_sc04_nodes() -> list[dict]:
         "typeVersion": 2.2,
     })
 
-    # -- Update Rendered --
+    # -- Update Rendered (HTTP upsert by Script ID) --
     nodes.append({
         "parameters": {
-            "operation": "update",
-            "base": {"__rl": True, "mode": "id", "value": AIRTABLE_BASE_ID},
-            "table": {"__rl": True, "mode": "id", "value": TABLE_SCRIPTS},
-            "columns": {
-                "mappingMode": "defineBelow",
-                "matchingColumns": ["id"],
-                "value": {
-                    "id": "={{ $('Read Adapted').item.json.id }}",
-                    "Video URL": "={{ $json.videoUrl || '' }}",
-                    "Thumbnail URL": "={{ $json.thumbnailUrl || '' }}",
-                    "Status": "Rendered",
-                },
+            "method": "PATCH",
+            "url": f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_SCRIPTS}",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "Authorization", "value": f"Bearer {AIRTABLE_API_TOKEN}"},
+                    {"name": "Content-Type", "value": "application/json"},
+                ],
             },
-            "options": {},
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": """={{ JSON.stringify({
+  performUpsert: { fieldsToMergeOn: ['Script ID'] },
+  records: [{
+    fields: {
+      'Script ID': $('Read Adapted').item.json['Script ID'],
+      'Video URL': $json.videoUrl || '',
+      'Thumbnail URL': $json.thumbnailUrl || '',
+      'Status': 'Rendered'
+    }
+  }]
+}) }}""",
+            "options": {"timeout": 15000},
         },
         "id": uid(),
         "name": "Update Rendered",
-        "type": "n8n-nodes-base.airtable",
+        "type": "n8n-nodes-base.httpRequest",
         "position": [2380, 300],
-        "typeVersion": 2.1,
-        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
     })
 
-    # -- Update Failed --
+    # -- Update Failed (HTTP upsert by Script ID) --
     nodes.append({
         "parameters": {
-            "operation": "update",
-            "base": {"__rl": True, "mode": "id", "value": AIRTABLE_BASE_ID},
-            "table": {"__rl": True, "mode": "id", "value": TABLE_SCRIPTS},
-            "columns": {
-                "mappingMode": "defineBelow",
-                "matchingColumns": ["id"],
-                "value": {
-                    "id": "={{ $('Read Adapted').item.json.id }}",
-                    "Status": "Failed",
-                    "Error Message": "={{ $json.error || 'Render did not complete' }}",
-                },
+            "method": "PATCH",
+            "url": f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_SCRIPTS}",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "Authorization", "value": f"Bearer {AIRTABLE_API_TOKEN}"},
+                    {"name": "Content-Type", "value": "application/json"},
+                ],
             },
-            "options": {},
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": """={{ JSON.stringify({
+  performUpsert: { fieldsToMergeOn: ['Script ID'] },
+  records: [{
+    fields: {
+      'Script ID': $('Read Adapted').item.json['Script ID'],
+      'Status': 'Failed',
+      'Error Message': $json.error || 'Render did not complete'
+    }
+  }]
+}) }}""",
+            "options": {"timeout": 15000},
         },
         "id": uid(),
         "name": "Update Failed",
-        "type": "n8n-nodes-base.airtable",
+        "type": "n8n-nodes-base.httpRequest",
         "position": [2380, 500],
-        "typeVersion": 2.1,
-        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
     })
 
     # -- Log Production --
@@ -1569,7 +1628,7 @@ def build_sc04_nodes() -> list[dict]:
                 "mappingMode": "defineBelow",
                 "value": {
                     "Log ID": "={{ 'LOG-' + $now.toFormat('yyyyMMdd-HHmmss') + '-' + $runIndex }}",
-                    "Script ID": "={{ ($('Read Adapted').item.json.fields || {})['Script ID'] || '' }}",
+                    "Script ID": "={{ $('Read Adapted').item.json['Script ID'] || '' }}",
                     "Action": "={{ $json.status === 'complete' ? 'Render_Complete' : 'Render_Failed' }}",
                     "Created At": "={{ $now.toISO() }}",
                 },
@@ -1785,29 +1844,38 @@ return [{
         "typeVersion": 2,
     })
 
-    # -- Update Published --
+    # -- Update Published (HTTP upsert by Script ID) --
     nodes.append({
         "parameters": {
-            "operation": "update",
-            "base": {"__rl": True, "mode": "id", "value": AIRTABLE_BASE_ID},
-            "table": {"__rl": True, "mode": "id", "value": TABLE_SCRIPTS},
-            "columns": {
-                "mappingMode": "defineBelow",
-                "matchingColumns": ["id"],
-                "value": {
-                    "id": "={{ $json.recordId }}",
-                    "Status": "Published",
-                    "Published At": "={{ $now.toISO() }}",
-                },
+            "method": "PATCH",
+            "url": f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_SCRIPTS}",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "Authorization", "value": f"Bearer {AIRTABLE_API_TOKEN}"},
+                    {"name": "Content-Type", "value": "application/json"},
+                ],
             },
-            "options": {},
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": """={{ JSON.stringify({
+  performUpsert: { fieldsToMergeOn: ['Script ID'] },
+  records: [{
+    fields: {
+      'Script ID': $json.scriptId,
+      'Status': 'Published',
+      'Published At': $now.toISO()
+    }
+  }]
+}) }}""",
+            "options": {"timeout": 15000},
         },
         "id": uid(),
         "name": "Update Published",
-        "type": "n8n-nodes-base.airtable",
+        "type": "n8n-nodes-base.httpRequest",
         "position": [2260, 400],
-        "typeVersion": 2.1,
-        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "typeVersion": 4.2,
+        "onError": "continueRegularOutput",
     })
 
     # -- Log Distribution --

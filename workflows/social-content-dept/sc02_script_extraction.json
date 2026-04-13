@@ -5,7 +5,7 @@
       "parameters": {
         "inputSource": "passthrough"
       },
-      "id": "037a3b1e-2d54-45e4-9d59-5aee3c6e644a",
+      "id": "24574722-b528-41ad-81a3-fb4317eac988",
       "name": "Execute Workflow Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "position": [
@@ -32,7 +32,7 @@
         "limit": 20,
         "options": {}
       },
-      "id": "f2d84705-826b-4edd-8259-44c602d09fa9",
+      "id": "885d9f29-7035-4d2f-b43a-4f050d3e7d24",
       "name": "Read Discovered",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -55,7 +55,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "id": "ded957bf-cc96-4895-a75a-846aace9d30a",
+                    "id": "57fc2ebb-2105-4438-b669-c69855f335ef",
                     "leftValue": "={{ $json.Platform || ($json.fields && $json.fields.Platform) }}",
                     "rightValue": "YouTube",
                     "operator": {
@@ -70,7 +70,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "id": "65a32957-f9ce-470d-bfed-93a7ccc5a1b3",
+                    "id": "502887fb-4e42-4a1d-b2e6-3c6680167659",
                     "leftValue": "={{ $json.Platform || ($json.fields && $json.fields.Platform) }}",
                     "rightValue": "Instagram",
                     "operator": {
@@ -85,7 +85,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "id": "78398b73-2b37-4b95-a105-9ad441ac0976",
+                    "id": "ee29e400-d897-444c-8a02-cc980c7cfe92",
                     "leftValue": "={{ $json.Platform || ($json.fields && $json.fields.Platform) }}",
                     "rightValue": "LinkedIn",
                     "operator": {
@@ -100,7 +100,7 @@
         },
         "options": {}
       },
-      "id": "37a1a07a-8cf3-4c10-a81f-913bf6c1d2ad",
+      "id": "d3fd59b5-e8a0-43dd-b51b-bf7c7d0b9dca",
       "name": "Platform Router",
       "type": "n8n-nodes-base.switch",
       "position": [
@@ -113,7 +113,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const item = i.json;\n  const fields = item.fields || item;\n  const recordId = item.id || '';\n  const sourceUrl = fields['Source URL'] || '';\n  const url = fields['Source URL'] || '';\n  const parts = url.split('/shorts/');\n  const videoId = parts.length > 1 ? parts[1].split('?')[0] : '';\n  return {\n    json: {\n      recordId,\n      sourceUrl,\n      platform: fields.Platform || 'YouTube',\n      title: fields.Title || '',\n      sourceCreator: fields['Source Creator'] || 'Unknown',\n      viewCount: fields['View Count'] || 0,\n      likeCount: fields['Like Count'] || 0,\n      commentCount: fields['Comment Count'] || 0,\n      transcript: fields.Title || 'No transcript available',\n      videoId,\n    }\n  };\n});"
       },
-      "id": "5dfc7a7c-396d-42a7-843a-fcb62e3d9da3",
+      "id": "67559f3b-3c1e-427d-bde4-0f6739b6ff9e",
       "name": "YouTube Captions",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -126,7 +126,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const item = i.json;\n  const fields = item.fields || item;\n  const recordId = item.id || '';\n  const sourceUrl = fields['Source URL'] || '';\n  const transcript = fields.Transcript || fields.Title || '';\n  return {\n    json: {\n      recordId,\n      sourceUrl,\n      platform: fields.Platform || 'Instagram',\n      title: fields.Title || '',\n      sourceCreator: fields['Source Creator'] || 'Unknown',\n      viewCount: fields['View Count'] || 0,\n      likeCount: fields['Like Count'] || 0,\n      commentCount: fields['Comment Count'] || 0,\n      transcript: transcript || 'No caption available',\n    }\n  };\n});"
       },
-      "id": "d88000cf-eef6-4ac7-a61c-aaa79df44fb5",
+      "id": "74995dd1-d6e3-47a0-9a68-93473065f243",
       "name": "Instagram Text",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -139,7 +139,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const item = i.json;\n  const fields = item.fields || item;\n  const recordId = item.id || '';\n  const sourceUrl = fields['Source URL'] || '';\n  const transcript = fields.Transcript || fields.Title || '';\n  return {\n    json: {\n      recordId,\n      sourceUrl,\n      platform: fields.Platform || 'LinkedIn',\n      title: fields.Title || '',\n      sourceCreator: fields['Source Creator'] || 'Unknown',\n      viewCount: fields['View Count'] || 0,\n      likeCount: fields['Like Count'] || 0,\n      commentCount: fields['Comment Count'] || 0,\n      transcript: transcript || 'No content available',\n    }\n  };\n});"
       },
-      "id": "3459fae5-c134-4bd8-ab53-b7a16a83a07e",
+      "id": "2b04145e-dd8f-41e9-9c41-0c8b06a02bb7",
       "name": "LinkedIn Text",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -153,7 +153,7 @@
         "mode": "append",
         "options": {}
       },
-      "id": "492a963c-9970-49cb-9582-37283206309d",
+      "id": "c0914dfa-8c1a-4efc-acdb-57db8088cae7",
       "name": "Merge Extraction",
       "type": "n8n-nodes-base.merge",
       "position": [
@@ -166,7 +166,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const d = i.json;\n  const platform = d.platform || 'Unknown';\n  const creator = d.sourceCreator || 'Unknown';\n  const title = d.title || '';\n  const views = d.viewCount || 0;\n  const likes = d.likeCount || 0;\n  const comments = d.commentCount || 0;\n  const transcript = (d.transcript || '').slice(0, 2000);\n  const recordId = d.recordId || '';\n  const sourceUrl = d.sourceUrl || d['Source URL'] || '';\n\n  const prompt = 'You are a viral content analyst. Analyze this trending social media content and extract the reusable template.\\n\\n' +\n    'Platform: ' + platform + '\\n' +\n    'Creator: ' + creator + '\\n' +\n    'Title: ' + title + '\\n' +\n    'Engagement: ' + views + ' views, ' + likes + ' likes, ' + comments + ' comments\\n' +\n    'Content: ' + transcript + '\\n\\n' +\n    'Extract the structural template. Identify the hook pattern, body structure, and CTA placement.\\n\\n' +\n    'Output JSON only (no markdown, no backticks):\\n' +\n    '{\"template_pattern\":\"Hook: [pattern] -> Body: [structure] -> CTA: [type]\",' +\n    '\"content_category\":\"How-to|Listicle|Quote|Stat-graphic|Reaction|Story|Tutorial\",' +\n    '\"virality_factors\":[\"factor1\",\"factor2\"],' +\n    '\"video_type_recommendation\":\"Text-on-screen|Quote-card|Stat-graphic|Talking-head-script\",' +\n    '\"adaptability_score\":85}';\n\n  return { json: { recordId, sourceUrl, platform, transcript, prompt } };\n});"
       },
-      "id": "dc1ee49b-68e8-4636-80df-a3a903102d46",
+      "id": "6b422e93-588a-4c97-be0b-f2801a46a9c0",
       "name": "Build Extraction Prompt",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -183,12 +183,12 @@
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4', max_tokens: 1500, temperature: 0.3, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-haiku-4-5', max_tokens: 500, temperature: 0.3, messages: [{role: 'user', content: $json.prompt}] }) }}",
         "options": {
           "timeout": 30000
         }
       },
-      "id": "d4d2496f-706d-435e-a165-1e80f6483cbd",
+      "id": "942e3e0e-15db-47c6-adec-b974a4731f9b",
       "name": "AI Template Analysis",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -207,7 +207,7 @@
       "parameters": {
         "jsCode": "const responses = $input.all();\nconst promptItems = $('Build Extraction Prompt').all();\n\nreturn responses.map((resp, idx) => {\n  const choices = resp.json.choices || [];\n  const msg = choices.length > 0 ? choices[0].message || {} : {};\n  const content = msg.content || '{}';\n\n  let analysis = {\n    template_pattern: 'Unknown',\n    content_category: 'How-to',\n    virality_factors: [],\n    video_type_recommendation: 'Text-on-screen',\n    adaptability_score: 50,\n  };\n  try {\n    analysis = JSON.parse(content);\n  } catch (e) {\n    try {\n      const jsonMatch = content.match(/\\{[\\s\\S]*?\\}/);\n      if (jsonMatch) analysis = JSON.parse(jsonMatch[0]);\n    } catch (e2) {\n      // Keep defaults\n    }\n  }\n\n  const promptData = promptItems[idx] ? promptItems[idx].json : {};\n  const recordId = promptData.recordId || '';\n  const sourceUrl = promptData.sourceUrl || '';\n\n  // Validate Content Category against allowed singleSelect values\n  const validCategories = ['How-to', 'Listicle', 'Quote', 'Stat-graphic', 'Reaction', 'Story', 'Tutorial'];\n  let category = analysis.content_category || 'How-to';\n  if (!validCategories.includes(category)) {\n    category = 'How-to';\n  }\n\n  return {\n    json: {\n      id: recordId,\n      'Source URL': sourceUrl,\n      Transcript: promptData.transcript || '',\n      'Template Pattern': analysis.template_pattern || '',\n      'Content Category': category,\n      Status: 'Extracted',\n    }\n  };\n});"
       },
-      "id": "73c5e274-a28a-4830-b66c-19cad92c17ca",
+      "id": "fa961933-e9d6-48f8-a2f0-7dce6c2acf27",
       "name": "Parse AI Response",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -218,46 +218,36 @@
     },
     {
       "parameters": {
-        "operation": "upsert",
-        "base": {
-          "__rl": true,
-          "mode": "id",
-          "value": "apptjjBx34z9340tK"
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/apptjjBx34z9340tK/tblm998Nvu519Ijvh",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REDACTED_AIRTABLE_PAT"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
         },
-        "table": {
-          "__rl": true,
-          "mode": "id",
-          "value": "tblm998Nvu519Ijvh"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "matchingColumns": [
-            "Source URL"
-          ],
-          "value": {
-            "Source URL": "={{ $json['Source URL'] }}",
-            "Transcript": "={{ $json.Transcript }}",
-            "Template Pattern": "={{ $json['Template Pattern'] }}",
-            "Content Category": "={{ $json['Content Category'] }}",
-            "Status": "Extracted"
-          }
-        },
-        "options": {}
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  performUpsert: { fieldsToMergeOn: ['Source URL'] },\n  records: [{\n    fields: {\n      'Source URL': $json['Source URL'],\n      'Transcript': $json.Transcript,\n      'Template Pattern': $json['Template Pattern'],\n      'Content Category': $json['Content Category'],\n      'Status': 'Extracted'\n    }\n  }]\n}) }}",
+        "options": {
+          "timeout": 15000
+        }
       },
-      "id": "e9ed8663-385c-4ccb-8edc-6707a340f165",
+      "id": "ac3fbe8c-9031-474b-96b4-1a600dac56f3",
       "name": "Update Extracted",
-      "type": "n8n-nodes-base.airtable",
+      "type": "n8n-nodes-base.httpRequest",
       "position": [
         2220,
         400
       ],
-      "typeVersion": 2.1,
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
-        }
-      },
+      "typeVersion": 4.2,
       "onError": "continueRegularOutput"
     }
   ],
