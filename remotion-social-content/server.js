@@ -20,6 +20,7 @@
  */
 
 // First line of output — proves the process started
+// Version: 2026-04-13.b — force restart to pick up env vars
 console.log("[boot] Node process starting, Node version:", process.version);
 
 // Catch-all error handlers BEFORE any imports
