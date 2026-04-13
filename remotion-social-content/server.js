@@ -126,6 +126,24 @@ function healthResponse(req, res) {
 app.get("/", healthResponse);
 app.get("/health", healthResponse);
 
+// Debug endpoint — returns safe metadata about env vars (no actual values)
+app.get("/debug-env", requireAuth, (req, res) => {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  const url = process.env.SUPABASE_URL || "";
+  res.json({
+    SUPABASE_URL_length: url.length,
+    SUPABASE_URL_starts: url.slice(0, 30),
+    SUPABASE_SERVICE_ROLE_KEY_length: key.length,
+    SUPABASE_SERVICE_ROLE_KEY_starts: key.slice(0, 20),
+    SUPABASE_SERVICE_ROLE_KEY_ends: key.slice(-20),
+    SUPABASE_SERVICE_ROLE_KEY_dots: (key.match(/\./g) || []).length,
+    SUPABASE_SERVICE_ROLE_KEY_has_whitespace: /\s/.test(key),
+    SUPABASE_SERVICE_ROLE_KEY_has_newline: /\n|\r/.test(key),
+    SUPABASE_BUCKET: process.env.SUPABASE_BUCKET || "(unset)",
+    NODE_VERSION: process.version,
+  });
+});
+
 /**
  * POST /render
  * Body: {compositionId: "TextOnScreen", props: {...}, outputFormat: "mp4"}
