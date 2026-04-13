@@ -52,11 +52,15 @@ console.log("[boot] All imports done.");
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Strip leading '=' that users sometimes paste from .env file format
+// and any surrounding whitespace
+const cleanEnv = (v) => (v || "").trim().replace(/^=/, "").trim();
+
 const PORT = parseInt(process.env.PORT || "3000", 10);
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "social-content";
-const RENDER_API_KEY = process.env.RENDER_API_KEY || "dev-key";
+const SUPABASE_URL = cleanEnv(process.env.SUPABASE_URL);
+const SUPABASE_KEY = cleanEnv(process.env.SUPABASE_SERVICE_ROLE_KEY);
+const SUPABASE_BUCKET = cleanEnv(process.env.SUPABASE_BUCKET) || "social-content";
+const RENDER_API_KEY = cleanEnv(process.env.RENDER_API_KEY) || "dev-key";
 
 console.log(`Starting AVM Render Server`);
 console.log(`  PORT: ${PORT}`);
