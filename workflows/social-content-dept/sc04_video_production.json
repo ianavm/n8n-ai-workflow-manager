@@ -1,0 +1,493 @@
+{
+  "name": "Social Content - Video Production (SC-04)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 5
+            }
+          ]
+        }
+      },
+      "id": "5cff7fb9-8a51-4a8b-9d9d-710c675c21ee",
+      "name": "Daily 7AM SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "3848dc02-0a0e-4c57-9afd-6606e4edd0be",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblXGCQ4LTymrU7a1"
+        },
+        "filterByFormula": "={Status}='Adapted'",
+        "options": {}
+      },
+      "id": "653f7928-d8df-4f63-adab-3457621a7ec6",
+      "name": "Read Adapted",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        460,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d5599c97-ccf7-448c-9f61-34a41eb37e33",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "0bb26bc4-cded-44ea-80b3-590c32e2a99f",
+      "name": "Has Records?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        700,
+        400
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblXGCQ4LTymrU7a1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ],
+          "value": {
+            "id": "={{ $json.id }}",
+            "Status": "Rendering"
+          }
+        },
+        "options": {}
+      },
+      "id": "fd17b8ec-1003-4f15-a1ea-a7aaaf020d0b",
+      "name": "Status Rendering",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1180,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://social-render.up.railway.app/render",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  compositionId: ($('Read Adapted').item.json.fields || {})['Remotion Composition'] || 'TextOnScreen',\n  props: JSON.parse(($('Read Adapted').item.json.fields || {})['Remotion Props JSON'] || '{}'),\n  outputFormat: 'mp4'\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "bf512c1a-2021-4e37-af4f-892f878cf99b",
+      "name": "Render Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1420,
+        400
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "a890e252-5610-4ac2-a148-359d7cba5c84",
+      "name": "Wait 30s",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        1660,
+        400
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://social-render.up.railway.app/render/{{ $('Render Video').first().json.jobId || '' }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "4367d72c-8263-46b0-a40f-99c9c1c98b7f",
+      "name": "Poll Render",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1900,
+        400
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b07cfe7a-df33-40c5-b817-5619305c116f",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "complete",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "9553dd57-c509-40ad-89e8-e2f5e03932c5",
+      "name": "Render Complete?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        2140,
+        400
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblXGCQ4LTymrU7a1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ],
+          "value": {
+            "id": "={{ $('Read Adapted').item.json.id }}",
+            "Video URL": "={{ $json.videoUrl || '' }}",
+            "Thumbnail URL": "={{ $json.thumbnailUrl || '' }}",
+            "Status": "Rendered"
+          }
+        },
+        "options": {}
+      },
+      "id": "c584b8c5-eff6-4c57-bf74-0f73a5f8ff9b",
+      "name": "Update Rendered",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2380,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblXGCQ4LTymrU7a1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ],
+          "value": {
+            "id": "={{ $('Read Adapted').item.json.id }}",
+            "Status": "Failed",
+            "Error Message": "={{ $json.error || 'Render did not complete' }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "87bae7ce-7f49-47c0-84e7-88b564749c30",
+      "name": "Update Failed",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2380,
+        500
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tbl07CZz5buxBPFdl"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Log ID": "={{ 'LOG-' + $now.toFormat('yyyyMMdd-HHmmss') + '-' + $runIndex }}",
+            "Script ID": "={{ ($('Read Adapted').item.json.fields || {})['Script ID'] || '' }}",
+            "Action": "={{ $json.status === 'complete' ? 'Render_Complete' : 'Render_Failed' }}",
+            "Created At": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "beb4e678-bd76-41ad-82ff-78249dc46cfb",
+      "name": "Log Production",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2620,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 7AM SAST": {
+      "main": [
+        [
+          {
+            "node": "Read Adapted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Adapted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Adapted": {
+      "main": [
+        [
+          {
+            "node": "Has Records?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Records?": {
+      "main": [
+        [
+          {
+            "node": "Status Rendering",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Status Rendering": {
+      "main": [
+        [
+          {
+            "node": "Render Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Video": {
+      "main": [
+        [
+          {
+            "node": "Wait 30s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 30s": {
+      "main": [
+        [
+          {
+            "node": "Poll Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll Render": {
+      "main": [
+        [
+          {
+            "node": "Render Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Complete?": {
+      "main": [
+        [
+          {
+            "node": "Update Rendered",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Rendered": {
+      "main": [
+        [
+          {
+            "node": "Log Production",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Failed": {
+      "main": [
+        [
+          {
+            "node": "Log Production",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Production": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

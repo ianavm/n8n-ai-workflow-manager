@@ -90,6 +90,16 @@ GitHub, Supabase, Airtable, Playwright, Context7 (live API docs), n8n (workflow 
 - Deploy: `python tools/deploy_seo_social_dept.py build|deploy|activate`
 - Setup: `python tools/setup_seo_social_airtable.py --seed`
 
+### Social Content Trend Replication (5 workflows)
+- Pipeline: trend discovery (daily 6AM) → script extraction → brand adaptation → video production (daily 7AM) → distribution (daily 8AM)
+- Discovery: YouTube Data API + Apify Instagram hashtag scraper + Tavily LinkedIn search
+- AI: Claude Sonnet via OpenRouter (script extraction, brand adaptation, caption generation)
+- Video: Remotion render server (TextOnScreen, QuoteCard, StatGraphic, TalkingHeadOverlay compositions)
+- Publishing: Blotato → Instagram, LinkedIn, YouTube (video + platform-specific captions)
+- Airtable: 3 tables in marketing base (SC_Trending_Content, SC_Adapted_Scripts, SC_Production_Log)
+- Deploy: `python tools/deploy_social_content_dept.py build|deploy|activate`
+- Setup: `python tools/setup_social_content_airtable.py --seed`
+
 ### Lead Scraper
 - Google Places API → Airtable (`app2ALQUP7CKEkHOz`) + Google Sheets
 - Targets: Fourways, Johannesburg businesses

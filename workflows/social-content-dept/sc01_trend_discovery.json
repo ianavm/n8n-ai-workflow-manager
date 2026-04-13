@@ -1,0 +1,692 @@
+{
+  "name": "Social Content - Trend Discovery (SC-01)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 4
+            }
+          ]
+        }
+      },
+      "id": "6eb12346-cf3e-4351-8a51-a390b021c0d3",
+      "name": "Daily 6AM SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {},
+      "id": "20043aba-032a-4d12-9824-db306e9407f6",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "position": [
+        200,
+        600
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "20ef10a6-c35f-41bc-9015-c83fbe6216ec",
+              "name": "todayDate",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            },
+            {
+              "id": "abcc29fa-778d-4e6c-8b0c-01d6a685a8e2",
+              "name": "searchQueries",
+              "value": "[\"digital marketing tips\", \"social media marketing 2026\", \"AI marketing automation\", \"content creation tips\", \"agency growth strategies\"]",
+              "type": "string"
+            },
+            {
+              "id": "5fef459e-1ef3-4fc8-b299-ffef3e71b632",
+              "name": "instagramHashtags",
+              "value": "[\"digitalmarketing\", \"marketingtips\", \"socialmediamarketing\", \"aimarketing\", \"contentcreation\"]",
+              "type": "string"
+            },
+            {
+              "id": "9d079203-07c3-4b60-9913-e7d446b94a62",
+              "name": "youtubeApiKey",
+              "value": "REDACTED_GOOGLE_PLACES_KEY",
+              "type": "string"
+            },
+            {
+              "id": "0e9ff306-faf7-417e-9388-da2b17b84f1b",
+              "name": "apifyToken",
+              "value": "apify_api_b1dpDIoWYBl48yQudiCdYQUVNQvvjI0CScR0",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "6cc9eb4f-787a-43d1-94ad-03a328db1579",
+      "name": "Search Config",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        460,
+        400
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/youtube/v3/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "snippet"
+            },
+            {
+              "name": "type",
+              "value": "video"
+            },
+            {
+              "name": "videoDuration",
+              "value": "short"
+            },
+            {
+              "name": "order",
+              "value": "viewCount"
+            },
+            {
+              "name": "maxResults",
+              "value": "10"
+            },
+            {
+              "name": "q",
+              "value": "={{ $json.searchQueries ? JSON.parse($json.searchQueries).join(' OR ') : 'digital marketing tips' }}"
+            },
+            {
+              "name": "key",
+              "value": "={{ $json.youtubeApiKey }}"
+            },
+            {
+              "name": "publishedAfter",
+              "value": "={{ $now.minus({days: 7}).toISO() }}"
+            },
+            {
+              "name": "relevanceLanguage",
+              "value": "en"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "142fdab5-b2cf-46ce-9a90-e2fdf3532bda",
+      "name": "YouTube Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        200
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/youtube/v3/videos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "statistics,snippet,contentDetails"
+            },
+            {
+              "name": "id",
+              "value": "={{ $json.items ? $json.items.map(i => i.id.videoId).join(',') : '' }}"
+            },
+            {
+              "name": "key",
+              "value": "={{ $('Search Config').first().json.youtubeApiKey }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "8410b682-e829-45ca-8b75-2879ed7e6619",
+      "name": "YouTube Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        960,
+        200
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.first().json.items || [];\nconst today = new Date().toISOString();\n\nconst results = items\n  .filter(item => {\n    // Filter for Shorts (under 60s)\n    const duration = (item.contentDetails && item.contentDetails.duration) || '';\n    const match = duration.match(/PT(?:(\\d+)M)?(?:(\\d+)S)?/);\n    if (!match) return false;\n    const totalSec = (parseInt(match[1] || '0') * 60) + parseInt(match[2] || '0');\n    return totalSec <= 60;\n  })\n  .map(item => {\n    const stats = item.statistics || {};\n    const views = parseInt(stats.viewCount || '0');\n    const likes = parseInt(stats.likeCount || '0');\n    const comments = parseInt(stats.commentCount || '0');\n    const engRate = views > 0 ? ((likes + comments * 2) / views * 100) : 0;\n\n    return {\n      platform: 'YouTube',\n      sourceUrl: 'https://youtube.com/shorts/' + item.id,\n      sourceCreator: (item.snippet && item.snippet.channelTitle) || 'Unknown',\n      title: (item.snippet && item.snippet.title) || '',\n      viewCount: views,\n      likeCount: likes,\n      commentCount: comments,\n      engagementRate: Math.round(engRate * 100) / 100,\n      discoveredAt: today,\n    };\n  })\n  .sort((a, b) => b.viewCount - a.viewCount)\n  .slice(0, 5);\n\nconst output = results.map(r => ({ json: r }));\nreturn output.length > 0 ? output : [{ json: { _empty: true, platform: 'YouTube', sourceUrl: '' } }];"
+      },
+      "id": "344d016d-ee04-43bd-965e-e2cfabff688b",
+      "name": "Parse YouTube",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        200
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~instagram-hashtag-scraper/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $('Search Config').first().json.apifyToken }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"hashtags\": JSON.parse($(\"Search Config\").first().json.instagramHashtags), \"resultsLimit\": 25, \"resultsType\": \"posts\" }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "c7805a85-cac1-4506-8767-70420753a359",
+      "name": "Instagram Apify",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        400
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = Array.isArray($input.first().json) ? $input.first().json : ($input.all() || []).map(i => i.json);\nconst today = new Date().toISOString();\n\nconst results = items\n  .filter(item => item.type === 'Video' || item.videoUrl)\n  .map(item => {\n    const views = item.videoViewCount || item.viewCount || 0;\n    const likes = item.likesCount || 0;\n    const comments = item.commentsCount || 0;\n    const engRate = views > 0 ? ((likes + comments * 2) / views * 100) : 0;\n\n    return {\n      platform: 'Instagram',\n      sourceUrl: item.url || item.shortCode ? ('https://instagram.com/reel/' + item.shortCode) : '',\n      sourceCreator: item.ownerUsername || 'Unknown',\n      title: (item.caption || '').slice(0, 200),\n      viewCount: views,\n      likeCount: likes,\n      commentCount: comments,\n      engagementRate: Math.round(engRate * 100) / 100,\n      transcript: item.caption || '',\n      discoveredAt: today,\n    };\n  })\n  .filter(r => r.sourceUrl)\n  .sort((a, b) => b.engagementRate - a.engagementRate)\n  .slice(0, 5);\n\nreturn results.length > 0 ? results.map(r => ({ json: r })) : [{ json: { platform: 'Instagram', _empty: true } }];"
+      },
+      "id": "e460e141-4774-455b-9235-bda8c9896f37",
+      "name": "Parse Instagram",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"api_key\": \"REDACTED_TAVILY_KEY\", \"query\": \"site:linkedin.com digital marketing tips OR AI automation OR agency growth 2026\", \"max_results\": 10, \"search_depth\": \"basic\", \"include_domains\": [\"linkedin.com\"], \"days\": 7}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "4a855701-5740-454e-bc5d-b8f9e93dab6f",
+      "name": "LinkedIn Tavily",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        720,
+        600
+      ],
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst results = (response.results || [])\n  .filter(r => r.url && r.url.includes('linkedin.com'))\n  .map(r => ({\n    platform: 'LinkedIn',\n    sourceUrl: r.url,\n    sourceCreator: r.title ? r.title.split(' - ')[0] || 'Unknown' : 'Unknown',\n    title: (r.title || '').slice(0, 200),\n    viewCount: 0,\n    likeCount: 0,\n    commentCount: 0,\n    engagementRate: r.score ? Math.round(r.score * 100) : 50,\n    transcript: r.content || '',\n    discoveredAt: new Date().toISOString(),\n  }))\n  .slice(0, 5);\n\nreturn results.length > 0 ? results.map(r => ({ json: r })) : [{ json: { platform: 'LinkedIn', _empty: true } }];"
+      },
+      "id": "5e4a6e16-71df-4bd0-8c58-c7e079580895",
+      "name": "Parse LinkedIn",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1200,
+        600
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "fbae2cb2-4c27-4551-9e3a-d377070c30c3",
+      "name": "Merge Platforms",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        1500,
+        300
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblm998Nvu519Ijvh"
+        },
+        "filterByFormula": "=AND(IS_AFTER({Discovered At}, DATEADD(TODAY(), -30, 'days')))",
+        "options": {
+          "fields": [
+            "Trend ID",
+            "Source URL"
+          ]
+        }
+      },
+      "id": "06be9d36-be66-4342-9e84-8c475bcbb6f5",
+      "name": "Read Existing Trends",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1500,
+        700
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "afdbd40e-348e-4780-a785-6d48a68c3492",
+      "name": "Wait for All",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        1740,
+        500
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get existing URLs for dedup — from input (merged data)\nconst allInputs = $input.all();\nconst existingUrls = new Set();\n// Items from Read Existing Trends have fields.Source URL pattern\nallInputs.forEach(item => {\n  const url = (item.json.fields && item.json.fields['Source URL']) || '';\n  if (url && !item.json.platform) existingUrls.add(url);\n});\n\n// Get all discovered items (items with a platform field are trending items)\nconst allItems = allInputs.filter(i => i.json.platform && !i.json.fields);\n\n// Filter out empties, dupes, and score\nconst newItems = allItems\n  .filter(item => {\n    const j = item.json;\n    if (j._empty) return false;\n    if (!j.sourceUrl) return false;\n    if (existingUrls.has(j.sourceUrl)) return false;\n    return true;\n  })\n  .map(item => {\n    const j = item.json;\n    const views = j.viewCount || 0;\n    const likes = j.likeCount || 0;\n    const comments = j.commentCount || 0;\n    // Virality score: weighted engagement normalized to 0-100\n    const rawScore = views > 0\n      ? ((likes + comments * 2) / views * 1000)\n      : j.engagementRate || 0;\n    const viralityScore = Math.min(100, Math.round(rawScore));\n\n    return {\n      json: {\n        ...j,\n        viralityScore,\n      }\n    };\n  })\n  .sort((a, b) => b.json.viralityScore - a.json.viralityScore)\n  .slice(0, 10);\n\nreturn newItems;"
+      },
+      "id": "76a922b5-6d7f-46a2-a44d-ff88cedf603a",
+      "name": "Dedup and Score",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1800,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblm998Nvu519Ijvh"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Trend ID": "={{ 'TR-' + $now.toFormat('yyyyMMdd-HHmmssSSS') + '-' + $json.platform.slice(0,2).toUpperCase() + '-' + $runIndex }}",
+            "Platform": "={{ $json.platform }}",
+            "Source URL": "={{ $json.sourceUrl }}",
+            "Source Creator": "={{ $json.sourceCreator }}",
+            "Title": "={{ $json.title }}",
+            "View Count": "={{ $json.viewCount }}",
+            "Like Count": "={{ $json.likeCount }}",
+            "Comment Count": "={{ $json.commentCount }}",
+            "Engagement Rate": "={{ $json.engagementRate }}",
+            "Virality Score": "={{ $json.viralityScore }}",
+            "Status": "Discovered",
+            "Discovered At": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "72ecc7ae-299d-47d0-bb08-618fa1a0d772",
+      "name": "Write Trending",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        2280,
+        300
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "7DMll5QEh15SHmIZ"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "d2859262-f88e-490c-8aff-d64eb3956107",
+      "name": "Call SC-02 Extract",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "position": [
+        2520,
+        300
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "Ef7QaynqCL65deWK"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "63fd4cc1-fc7a-4e42-9bc5-8f17b0fd2ba3",
+      "name": "Call SC-03 Adapt",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "position": [
+        2760,
+        300
+      ],
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "content": "No new trending content found today — all discovered URLs already in Airtable."
+      },
+      "id": "4a853e58-8ea7-4417-9aa6-b81912282b9a",
+      "name": "No Results Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        2280,
+        500
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {},
+      "id": "c6b3470f-6f4c-41b7-afbf-a8c6653ed393",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "position": [
+        200,
+        900
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "SC-01 Trend Discovery FAILED",
+        "message": "=SC-01 Trend Discovery failed at {{ $now.toFormat('yyyy-MM-dd HH:mm') }} SAST.\n\nError: {{ $json.execution.error.message }}\n\nWorkflow: {{ $json.execution.url }}",
+        "options": {}
+      },
+      "id": "aa76d1aa-600c-43a5-8c86-bfc98ef0db13",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        440,
+        900
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 6AM SAST": {
+      "main": [
+        [
+          {
+            "node": "Search Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Search Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Config": {
+      "main": [
+        [
+          {
+            "node": "YouTube Search",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instagram Apify",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "LinkedIn Tavily",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read Existing Trends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube Search": {
+      "main": [
+        [
+          {
+            "node": "YouTube Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube Stats": {
+      "main": [
+        [
+          {
+            "node": "Parse YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instagram Apify": {
+      "main": [
+        [
+          {
+            "node": "Parse Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn Tavily": {
+      "main": [
+        [
+          {
+            "node": "Parse LinkedIn",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse YouTube": {
+      "main": [
+        [
+          {
+            "node": "Merge Platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Instagram": {
+      "main": [
+        [
+          {
+            "node": "Merge Platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LinkedIn": {
+      "main": [
+        [
+          {
+            "node": "Merge Platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Platforms": {
+      "main": [
+        [
+          {
+            "node": "Wait for All",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Existing Trends": {
+      "main": [
+        [
+          {
+            "node": "Wait for All",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait for All": {
+      "main": [
+        [
+          {
+            "node": "Dedup and Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup and Score": {
+      "main": [
+        [
+          {
+            "node": "Write Trending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Trending": {
+      "main": [
+        [
+          {
+            "node": "Call SC-02 Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call SC-02 Extract": {
+      "main": [
+        [
+          {
+            "node": "Call SC-03 Adapt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

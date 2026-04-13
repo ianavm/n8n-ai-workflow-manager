@@ -1,0 +1,346 @@
+{
+  "name": "Social Content - Brand Adaptation (SC-03)",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "a8fd59c7-c524-4a37-8434-a69c1e786d97",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        200,
+        400
+      ],
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblm998Nvu519Ijvh"
+        },
+        "filterByFormula": "={Status}='Extracted'",
+        "returnAll": false,
+        "limit": 20,
+        "options": {}
+      },
+      "id": "63b5dfc5-c5ab-41ea-b76b-c0d6cc4f51f6",
+      "name": "Read Extracted",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        440,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  // Airtable node flattens fields to top level in some versions\n  const fields = i.json.fields || i.json;\n  const recordId = i.json.id || '';\n  const platform = fields.Platform || 'Unknown';\n  const template = fields['Template Pattern'] || 'Unknown';\n  const category = fields['Content Category'] || 'How-to';\n  const transcript = (fields.Transcript || '').slice(0, 1000);\n  const views = fields['View Count'] || 0;\n  const likes = fields['Like Count'] || 0;\n  const trendId = fields['Trend ID'] || '';\n  const sourceUrl = fields['Source URL'] || '';\n\n  const prompt = 'Adapt this trending content for AnyVision Media brand.\\n\\n' +\n    'Brand: AnyVision Media, South African digital marketing & AI automation agency. Voice: Professional, tech-savvy, innovation-focused. SA English. No emojis. Primary color: #FF6D5A.\\n' +\n    'Content pillars: Journey 40%, Value 35%, Aspiration 25%.\\n\\n' +\n    'Original platform: ' + platform + '\\n' +\n    'Template: ' + template + '\\n' +\n    'Category: ' + category + '\\n' +\n    'Views: ' + views + ', Likes: ' + likes + '\\n' +\n    'Transcript: ' + transcript + '\\n\\n' +\n    'Write for ~30s video. Keep the EXACT structural pattern that made it viral. Output JSON only:\\n' +\n    '{\"script_text\":\"full script\",\"hook\":\"under 100 chars\",\"cta\":\"call to action\",\"video_type\":\"Text-on-screen|Quote-card|Stat-graphic|Talking-head-script\",\"visual_notes\":\"scene directions\",\"content_pillar\":\"Journey|Value|Aspiration\",\"estimated_duration_sec\":30,\"quality_score\":85}';\n\n  return { json: { recordId, trendId, sourceUrl, platform, prompt } };\n});"
+      },
+      "id": "693b54fe-b686-4f88-a0fa-069bc3c0b483",
+      "name": "Build Adapt Prompt",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        680,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4', max_tokens: 2000, temperature: 0.7, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "8794ebe4-9dd7-419d-9ccf-f5db67f69010",
+      "name": "AI Adapt Script",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        920,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "87T4lIBmU8si87Ms",
+          "name": "OpenRouter Bearer"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const responses = $input.all();\nconst promptItems = $('Build Adapt Prompt').all();\n\nreturn responses.map((resp, idx) => {\n  const choices = resp.json.choices || [];\n  const content = choices.length > 0 ? (choices[0].message || {}).content || '{}' : '{}';\n  let adapted = {};\n  try { adapted = JSON.parse(content); }\n  catch (e) {\n    try {\n      const m = content.match(/\\{[\\s\\S]*?\\}/);\n      adapted = m ? JSON.parse(m[0]) : {};\n    } catch (e2) {\n      adapted = {};\n    }\n  }\n\n  const pi = promptItems[idx] ? promptItems[idx].json : {};\n  const recordId = pi.recordId || '';\n  const trendId = pi.trendId || '';\n  const sourceUrl = pi.sourceUrl || '';\n\n  const script = (adapted.script_text || '').slice(0, 500);\n  const videoType = adapted.video_type || 'Text-on-screen';\n  const hook = adapted.hook || '';\n\n  const capPrompt = 'Generate platform-specific captions for AnyVision Media (SA digital marketing agency).\\n\\n' +\n    'Script: ' + script + '\\n' +\n    'Video type: ' + videoType + '\\n' +\n    'Hook: ' + hook + '\\n\\n' +\n    'Output JSON only:\\n' +\n    '{\"caption_instagram\":\"max 2200 chars with line breaks, end with CTA, 3-5 hashtags inline\",' +\n    '\"caption_linkedin\":\"professional, max 1300 chars, end with engaging question\",' +\n    '\"caption_youtube\":\"SEO title + description, max 500 chars\",' +\n    '\"hashtags\":\"#digitalmarketing #aiautomation #southafrica\",' +\n    '\"thumbnail_prompt\":\"Gemini image prompt for bold thumbnail with #FF6D5A accent\"}';\n\n  return {\n    json: {\n      recordId,\n      trendId,\n      sourceUrl,\n      adapted,\n      capPrompt,\n    }\n  };\n});"
+      },
+      "id": "4d4862f5-1464-4998-8c8b-baf4c1d0cc16",
+      "name": "Build Caption Prompt",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1160,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4', max_tokens: 1000, temperature: 0.5, messages: [{role: 'user', content: $json.capPrompt}] }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "d214550d-c4e7-4e50-b82d-751bf76c1ae1",
+      "name": "AI Captions",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1400,
+        400
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "87T4lIBmU8si87Ms",
+          "name": "OpenRouter Bearer"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse caption response\nconst capItems = $input.all();\nconst buildItems = $('Build Caption Prompt').all();\n\nreturn capItems.map((capItem, idx) => {\n  const capResponse = capItem.json;\n  const capChoices = capResponse.choices || [];\n  const capContent = capChoices.length > 0 ? (capChoices[0].message || {}).content || '{}' : '{}';\n  let captions = {};\n  try { captions = JSON.parse(capContent); }\n  catch (e) {\n    try {\n      const m = capContent.match(/\\{[\\s\\S]*?\\}/);\n      captions = m ? JSON.parse(m[0]) : {};\n    } catch (e2) {\n      captions = {};\n    }\n  }\n\n  // Get the corresponding adapted data from Build Caption Prompt output\n  const buildData = buildItems[idx] ? buildItems[idx].json : {};\n  const adapted = buildData.adapted || {};\n  const trendId = buildData.trendId || 'UNKNOWN';\n  const trendRecordId = buildData.recordId || '';\n  const sourceUrl = buildData.sourceUrl || '';\n\n  // Determine composition\n  const COMP_MAP = {\n    'Text-on-screen': 'TextOnScreen',\n    'Quote-card': 'QuoteCard',\n    'Stat-graphic': 'StatGraphic',\n    'Talking-head-script': 'TalkingHeadOverlay',\n  };\n  const validVideoTypes = Object.keys(COMP_MAP);\n  let videoType = adapted.video_type || 'Text-on-screen';\n  if (!validVideoTypes.includes(videoType)) {\n    videoType = 'Text-on-screen';\n  }\n  const composition = COMP_MAP[videoType];\n  const isTalkingHead = videoType === 'Talking-head-script';\n\n  // Build Remotion props\n  const remotionProps = {\n    compositionId: composition,\n    title: adapted.hook || '',\n    script: (adapted.script_text || '').split('\\n').filter(Boolean),\n    brandColor: '#FF6D5A',\n    brandName: 'AnyVision Media',\n    cta: adapted.cta || '',\n    aspectRatio: '9:16',\n    fps: 30,\n    durationSec: adapted.estimated_duration_sec || 30,\n    visualNotes: adapted.visual_notes || '',\n  };\n\n  return {\n    json: {\n      id: trendRecordId,\n      trendId,\n      trendRecordId,\n      sourceUrl,\n      scriptText: adapted.script_text || '',\n      hook: adapted.hook || '',\n      cta: adapted.cta || '',\n      videoType,\n      visualNotes: adapted.visual_notes || '',\n      captionInstagram: captions.caption_instagram || '',\n      captionLinkedin: captions.caption_linkedin || '',\n      captionYoutube: captions.caption_youtube || '',\n      hashtags: captions.hashtags || '',\n      thumbnailPrompt: captions.thumbnail_prompt || '',\n      estimatedDuration: adapted.estimated_duration_sec || 30,\n      remotionComposition: composition,\n      remotionPropsJson: JSON.stringify(remotionProps),\n      qualityScore: adapted.quality_score || 70,\n      status: isTalkingHead ? 'Script_Ready' : 'Adapted',\n    }\n  };\n});"
+      },
+      "id": "965283d8-1c89-48e9-98a7-0ec8adc58372",
+      "name": "Build Adapted Record",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1400,
+        400
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblXGCQ4LTymrU7a1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Script ID": "={{ 'SCR-' + $now.toFormat('yyyyMMdd-HHmmss') + '-' + $runIndex }}",
+            "Source Trend ID": "={{ $json.trendId }}",
+            "Video Type": "={{ $json.videoType }}",
+            "Script Text": "={{ $json.scriptText }}",
+            "Hook": "={{ $json.hook }}",
+            "CTA": "={{ $json.cta }}",
+            "Visual Notes": "={{ $json.visualNotes }}",
+            "Caption Instagram": "={{ $json.captionInstagram }}",
+            "Caption LinkedIn": "={{ $json.captionLinkedin }}",
+            "Caption YouTube": "={{ $json.captionYoutube }}",
+            "Hashtags": "={{ $json.hashtags }}",
+            "Thumbnail Prompt": "={{ $json.thumbnailPrompt }}",
+            "Estimated Duration Sec": "={{ $json.estimatedDuration }}",
+            "Remotion Composition": "={{ $json.remotionComposition }}",
+            "Remotion Props JSON": "={{ $json.remotionPropsJson }}",
+            "Quality Score": "={{ $json.qualityScore }}",
+            "Status": "={{ $json.status }}",
+            "Created At": "={{ $now.toISO() }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "6152dda4-275f-4ce4-9ad7-226d5d8b48ae",
+      "name": "Write Adapted Script",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1640,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tblm998Nvu519Ijvh"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Source URL"
+          ],
+          "value": {
+            "Source URL": "={{ $json.sourceUrl }}",
+            "Status": "Adapted"
+          }
+        },
+        "options": {}
+      },
+      "id": "24633821-61bc-4a6d-9bd5-bf876730469b",
+      "name": "Update Trend Adapted",
+      "type": "n8n-nodes-base.airtable",
+      "position": [
+        1880,
+        400
+      ],
+      "typeVersion": 2.1,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Extracted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Extracted": {
+      "main": [
+        [
+          {
+            "node": "Build Adapt Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Adapt Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Adapt Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Adapt Script": {
+      "main": [
+        [
+          {
+            "node": "Build Caption Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Caption Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Captions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Captions": {
+      "main": [
+        [
+          {
+            "node": "Build Adapted Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Adapted Record": {
+      "main": [
+        [
+          {
+            "node": "Write Adapted Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Adapted Script": {
+      "main": [
+        [
+          {
+            "node": "Update Trend Adapted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Trend Adapted": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
