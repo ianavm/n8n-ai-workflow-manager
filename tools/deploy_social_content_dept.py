@@ -1759,59 +1759,114 @@ return items.map(i => {
         "typeVersion": 2,
     })
 
-    # -- Instagram Blotato (v2 syntax) --
+    # -- Upload Media to Blotato --
+    # Blotato requires media to be uploaded to its own CDN (database.blotato.com)
+    # before it can be referenced in Post Create. This 2-step flow is required
+    # for Instagram/TikTok/Pinterest/YouTube per Blotato docs.
+    nodes.append({
+        "parameters": {
+            "resource": "media",
+            "operation": "upload",
+            "useBinaryData": False,
+            "mediaUrl": "={{ $json.videoUrl }}",
+        },
+        "id": uid(),
+        "name": "Upload to Blotato",
+        "type": "@blotato/n8n-nodes-blotato.blotato",
+        "position": [1320, 400],
+        "typeVersion": 2,
+        "credentials": {"blotatoApi": CRED_BLOTATO},
+        "onError": "continueRegularOutput",
+    })
+
+    # -- Merge Upload Result with Source Data --
+    # Blotato upload returns {url: "https://database.blotato.com/..."}
+    # We need to combine this with the original captions from Format for Blotato
+    nodes.append({
+        "parameters": {
+            "jsCode": """const uploadResp = $input.first().json;
+const source = $('Format for Blotato').first().json;
+
+// Blotato media upload response has the URL at top level
+const blotatoUrl = uploadResp.url || uploadResp.mediaUrl || '';
+
+return [{
+  json: {
+    ...source,
+    blotatoMediaUrl: blotatoUrl,
+  }
+}];""",
+        },
+        "id": uid(),
+        "name": "Merge Upload Result",
+        "type": "n8n-nodes-base.code",
+        "position": [1400, 400],
+        "typeVersion": 2,
+    })
+
+    # -- Instagram Blotato (v2 syntax with mediaUrls) --
     ig = BLOTATO_ACCOUNTS["instagram"]
     nodes.append({
         "parameters": {
+            "resource": "post",
+            "operation": "create",
             "platform": "instagram",
             "accountId": {"__rl": True, "mode": "list", "value": ig["accountId"]},
             "postContentText": "={{ $json.captionInstagram }}",
-            "postContentVideoUrl": "={{ $json.videoUrl }}",
+            "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
             "options": {},
         },
         "id": uid(),
         "name": "Instagram",
         "type": "@blotato/n8n-nodes-blotato.blotato",
-        "position": [1480, 200],
+        "position": [1560, 200],
         "typeVersion": 2,
         "credentials": {"blotatoApi": CRED_BLOTATO},
         "onError": "continueRegularOutput",
     })
 
-    # -- LinkedIn Blotato (v2 syntax) --
+    # -- LinkedIn Blotato (v2 syntax with mediaUrls) --
     li = BLOTATO_ACCOUNTS["linkedin"]
     nodes.append({
         "parameters": {
+            "resource": "post",
+            "operation": "create",
             "platform": "linkedin",
             "accountId": {"__rl": True, "mode": "list", "value": li["accountId"]},
             "postContentText": "={{ $json.captionLinkedin }}",
-            "postContentVideoUrl": "={{ $json.videoUrl }}",
+            "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
             "options": {},
         },
         "id": uid(),
         "name": "LinkedIn",
         "type": "@blotato/n8n-nodes-blotato.blotato",
-        "position": [1480, 400],
+        "position": [1560, 400],
         "typeVersion": 2,
         "credentials": {"blotatoApi": CRED_BLOTATO},
         "onError": "continueRegularOutput",
     })
 
-    # -- YouTube Blotato (v2 syntax — needs title) --
+    # -- YouTube Blotato (v2 syntax — requires title, privacy, notify, kids, synthetic flags) --
     yt = BLOTATO_ACCOUNTS["youtube"]
     nodes.append({
         "parameters": {
+            "resource": "post",
+            "operation": "create",
             "platform": "youtube",
             "accountId": {"__rl": True, "mode": "list", "value": yt["accountId"]},
             "postContentText": "={{ $json.captionYoutube }}",
-            "postContentVideoUrl": "={{ $json.videoUrl }}",
+            "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
             "postCreateYoutubeOptionTitle": "={{ $json.hook || 'AnyVision Media' }}",
+            "postCreateYoutubeOptionPrivacyStatus": "public",
+            "postCreateYoutubeOptionShouldNotifySubscribers": True,
+            "postCreateYoutubeOptionMadeForKids": False,
+            "postCreateYoutubeOptionContainsSyntheticMedia": True,
             "options": {},
         },
         "id": uid(),
         "name": "YouTube",
         "type": "@blotato/n8n-nodes-blotato.blotato",
-        "position": [1480, 600],
+        "position": [1560, 600],
         "typeVersion": 2,
         "credentials": {"blotatoApi": CRED_BLOTATO},
         "onError": "continueRegularOutput",
@@ -1926,7 +1981,9 @@ def build_sc05_connections() -> dict:
             [{"node": "Format for Blotato", "type": "main", "index": 0}],
             [],
         ]},
-        "Format for Blotato": {"main": [[
+        "Format for Blotato": {"main": [[{"node": "Upload to Blotato", "type": "main", "index": 0}]]},
+        "Upload to Blotato": {"main": [[{"node": "Merge Upload Result", "type": "main", "index": 0}]]},
+        "Merge Upload Result": {"main": [[
             {"node": "Instagram", "type": "main", "index": 0},
             {"node": "LinkedIn", "type": "main", "index": 0},
             {"node": "YouTube", "type": "main", "index": 0},
