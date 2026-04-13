@@ -50,16 +50,25 @@ app.use(express.json({ limit: "10mb" }));
 // In-memory job store (reset on restart). For production, use Redis.
 const jobs = new Map();
 
-// Bundle the Remotion project once at startup
+// Bundle the Remotion project asynchronously (takes 20-40s)
+// Server must start listening immediately for Railway healthchecks
 let bundleLocation = null;
-async function initBundle() {
-  console.log("Bundling Remotion project...");
+let bundleError = null;
+function initBundle() {
+  console.log("Bundling Remotion project (async)...");
   const entryPoint = path.resolve(__dirname, "src/index.ts");
-  bundleLocation = await bundle({
+  bundle({
     entryPoint,
     webpackOverride: (config) => config,
-  });
-  console.log(`Bundle ready: ${bundleLocation}`);
+  })
+    .then((loc) => {
+      bundleLocation = loc;
+      console.log(`Bundle ready: ${bundleLocation}`);
+    })
+    .catch((err) => {
+      bundleError = err.message;
+      console.error("Bundle failed:", err);
+    });
 }
 
 // Auth middleware
@@ -72,7 +81,13 @@ function requireAuth(req, res, next) {
 }
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", bundleReady: bundleLocation !== null });
+  // Return ok even if bundle isn't ready yet — Railway healthcheck passes
+  // bundleReady flag tells clients if /render will actually work
+  res.json({
+    status: "ok",
+    bundleReady: bundleLocation !== null,
+    bundleError: bundleError,
+  });
 });
 
 /**
@@ -187,14 +202,9 @@ async function renderJob(jobId, compositionId, props, outputFormat) {
   console.log(`Job ${jobId} complete: ${videoUrl}`);
 }
 
-// Start
-initBundle()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Remotion render server listening on :${PORT}`);
-    });
-  })
-  .catch((err) => {
-    console.error("Failed to initialize bundle:", err);
-    process.exit(1);
-  });
+// Start listening IMMEDIATELY (Railway healthcheck needs this)
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Remotion render server listening on :${PORT}`);
+  // Kick off bundle in background — /health returns 200 even while bundling
+  initBundle();
+});
