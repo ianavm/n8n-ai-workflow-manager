@@ -19,15 +19,34 @@
  *   RENDER_API_KEY            - shared secret to auth n8n requests
  */
 
+// First line of output — proves the process started
+console.log("[boot] Node process starting, Node version:", process.version);
+
+// Catch-all error handlers BEFORE any imports
+process.on("uncaughtException", (err) => {
+  console.error("[boot] UNCAUGHT EXCEPTION:", err);
+  console.error(err.stack);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[boot] UNHANDLED REJECTION:", reason);
+});
+
+console.log("[boot] Importing dotenv...");
 import "dotenv/config";
+console.log("[boot] Importing express...");
 import express from "express";
+console.log("[boot] Importing @remotion/bundler...");
 import { bundle } from "@remotion/bundler";
+console.log("[boot] Importing @remotion/renderer...");
 import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
+console.log("[boot] Importing @supabase/supabase-js...");
 import { createClient } from "@supabase/supabase-js";
+console.log("[boot] Importing node built-ins...");
 import { randomUUID } from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs/promises";
+console.log("[boot] All imports done.");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
