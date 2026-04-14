@@ -1409,6 +1409,81 @@ def build_sc04_nodes() -> list[dict]:
         "typeVersion": 1,
     })
 
+    # -- Reset Stuck Rendering Records --
+    # Any record still in Rendering status at the start of a new SC-04 run
+    # is stuck (probably from a previous OOM kill or render timeout).
+    # Flip them back to Adapted so this run can retry them.
+    nodes.append({
+        "parameters": {
+            "method": "GET",
+            "url": f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_SCRIPTS}",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "Authorization", "value": f"Bearer {AIRTABLE_API_TOKEN}"},
+                ],
+            },
+            "sendQuery": True,
+            "queryParameters": {
+                "parameters": [
+                    {"name": "filterByFormula", "value": "{Status}='Rendering'"},
+                    {"name": "pageSize", "value": "100"},
+                ],
+            },
+            "options": {"timeout": 15000},
+        },
+        "id": uid(),
+        "name": "Find Stuck Rendering",
+        "type": "n8n-nodes-base.httpRequest",
+        "position": [330, 400],
+        "typeVersion": 4.2,
+        "executeOnce": True,
+        "onError": "continueRegularOutput",
+    })
+
+    nodes.append({
+        "parameters": {
+            "jsCode": """// Build PATCH payload to reset all stuck Rendering records to Adapted
+const records = ($input.first().json.records || []).map(r => ({
+  id: r.id,
+  fields: { Status: 'Adapted' }
+}));
+if (records.length === 0) return [{ json: { skipReset: true, count: 0 } }];
+return [{ json: { records, count: records.length } }];""",
+        },
+        "id": uid(),
+        "name": "Build Reset Payload",
+        "type": "n8n-nodes-base.code",
+        "position": [430, 400],
+        "typeVersion": 2,
+        "executeOnce": True,
+    })
+
+    nodes.append({
+        "parameters": {
+            "method": "PATCH",
+            "url": f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{TABLE_SCRIPTS}",
+            "sendHeaders": True,
+            "headerParameters": {
+                "parameters": [
+                    {"name": "Authorization", "value": f"Bearer {AIRTABLE_API_TOKEN}"},
+                    {"name": "Content-Type", "value": "application/json"},
+                ],
+            },
+            "sendBody": True,
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ records: $json.records || [] }) }}",
+            "options": {"timeout": 15000},
+        },
+        "id": uid(),
+        "name": "Reset Stuck Rendering",
+        "type": "n8n-nodes-base.httpRequest",
+        "position": [530, 400],
+        "typeVersion": 4.2,
+        "executeOnce": True,
+        "onError": "continueRegularOutput",
+    })
+
     # -- Read Adapted Scripts --
     # Cap batch size at 2 per run to match Railway render server concurrency
     # limit (MAX_CONCURRENT_RENDERS=2). Beyond 2, Chromium startup times out.
@@ -1658,8 +1733,11 @@ def build_sc04_nodes() -> list[dict]:
 def build_sc04_connections() -> dict:
     """Build connections for SC-04."""
     return {
-        "Daily 7AM SAST": {"main": [[{"node": "Read Adapted", "type": "main", "index": 0}]]},
-        "Manual Trigger": {"main": [[{"node": "Read Adapted", "type": "main", "index": 0}]]},
+        "Daily 7AM SAST": {"main": [[{"node": "Find Stuck Rendering", "type": "main", "index": 0}]]},
+        "Manual Trigger": {"main": [[{"node": "Find Stuck Rendering", "type": "main", "index": 0}]]},
+        "Find Stuck Rendering": {"main": [[{"node": "Build Reset Payload", "type": "main", "index": 0}]]},
+        "Build Reset Payload": {"main": [[{"node": "Reset Stuck Rendering", "type": "main", "index": 0}]]},
+        "Reset Stuck Rendering": {"main": [[{"node": "Read Adapted", "type": "main", "index": 0}]]},
         "Read Adapted": {"main": [[{"node": "Has Records?", "type": "main", "index": 0}]]},
         "Has Records?": {"main": [
             [{"node": "Status Rendering", "type": "main", "index": 0}],

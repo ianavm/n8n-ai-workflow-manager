@@ -11,7 +11,7 @@
           ]
         }
       },
-      "id": "ae272358-8e53-4792-895a-d6036c8bd728",
+      "id": "136f98e6-836e-440f-803e-81c31cea1ca8",
       "name": "Daily 7AM SAST",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
@@ -22,7 +22,7 @@
     },
     {
       "parameters": {},
-      "id": "2171eda6-cf11-41d5-a5ce-71f65d6ed89c",
+      "id": "a09d70c6-7209-4561-910a-c02ed77de841",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "position": [
@@ -30,6 +30,96 @@
         600
       ],
       "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.airtable.com/v0/apptjjBx34z9340tK/tblXGCQ4LTymrU7a1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REDACTED_AIRTABLE_PAT"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filterByFormula",
+              "value": "{Status}='Rendering'"
+            },
+            {
+              "name": "pageSize",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "94a59f0d-d7b1-4939-b68d-0ae9b873e1b1",
+      "name": "Find Stuck Rendering",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        330,
+        400
+      ],
+      "typeVersion": 4.2,
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build PATCH payload to reset all stuck Rendering records to Adapted\nconst records = ($input.first().json.records || []).map(r => ({\n  id: r.id,\n  fields: { Status: 'Adapted' }\n}));\nif (records.length === 0) return [{ json: { skipReset: true, count: 0 } }];\nreturn [{ json: { records, count: records.length } }];"
+      },
+      "id": "2443c301-8a78-4376-9108-59dd75d39e98",
+      "name": "Build Reset Payload",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        430,
+        400
+      ],
+      "typeVersion": 2,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://api.airtable.com/v0/apptjjBx34z9340tK/tblXGCQ4LTymrU7a1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer REDACTED_AIRTABLE_PAT"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ records: $json.records || [] }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "6511b519-3532-4c4a-b43d-d52e06fe900c",
+      "name": "Reset Stuck Rendering",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        530,
+        400
+      ],
+      "typeVersion": 4.2,
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -49,7 +139,7 @@
         "limit": 2,
         "options": {}
       },
-      "id": "cf90803f-a75a-42e1-bf23-9908d33b153f",
+      "id": "5cdcb4de-10f1-4034-91b0-70dac246d5cf",
       "name": "Read Adapted",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -76,7 +166,7 @@
           },
           "conditions": [
             {
-              "id": "d13a2ee9-fffa-45e7-ac89-a6421baeb0b8",
+              "id": "7473a486-60dc-42dd-aa61-466e5e15a751",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
               "operator": {
@@ -89,7 +179,7 @@
           "combinator": "and"
         }
       },
-      "id": "cdd51e28-be22-4b48-92bb-825c0cba68c3",
+      "id": "e24fd529-a249-49ed-b336-518f84431454",
       "name": "Has Records?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -122,7 +212,7 @@
           "timeout": 15000
         }
       },
-      "id": "fe94dde0-0405-4cec-9795-3a62278deca4",
+      "id": "bc4c21ec-3b3a-4dfd-a19d-15acaffeba73",
       "name": "Status Rendering",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -160,7 +250,7 @@
           "timeout": 120000
         }
       },
-      "id": "aad39deb-6ba8-40a9-b185-7ef39aab7fe6",
+      "id": "b8c72761-1cd3-43a8-bcd6-49976743031c",
       "name": "Render Video",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -175,7 +265,7 @@
         "amount": 180,
         "unit": "seconds"
       },
-      "id": "bc753af6-7ca8-44a0-b610-851835c2fd15",
+      "id": "f5bd3d05-523c-44b8-8e56-b21e2e588e3e",
       "name": "Wait 30s",
       "type": "n8n-nodes-base.wait",
       "position": [
@@ -205,7 +295,7 @@
           "timeout": 15000
         }
       },
-      "id": "9fe94247-a571-4823-8ce3-c25e05ab61eb",
+      "id": "47ae93cf-c5ac-4c95-bf88-51048c0bf575",
       "name": "Poll Render",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -226,7 +316,7 @@
           },
           "conditions": [
             {
-              "id": "b7003a7d-9ece-412e-b71c-0d67d5701be6",
+              "id": "6707d6b5-920d-4d53-9d2d-deb93d5f9cf6",
               "leftValue": "={{ $json.status }}",
               "rightValue": "complete",
               "operator": {
@@ -238,7 +328,7 @@
           "combinator": "and"
         }
       },
-      "id": "09314148-10b4-444b-b16a-011ce51d08fb",
+      "id": "88e9dfae-3b58-4df2-9ce3-1a1f1e32494f",
       "name": "Render Complete?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -271,7 +361,7 @@
           "timeout": 15000
         }
       },
-      "id": "79e075d0-3472-42ca-87e6-96efba64dfca",
+      "id": "517bcd35-54de-46f7-bd65-1d389e47b275",
       "name": "Update Rendered",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -305,7 +395,7 @@
           "timeout": 15000
         }
       },
-      "id": "71517db9-ecad-42ad-b957-d0a788b1ac53",
+      "id": "b49d2b86-aa95-44d8-9af7-f5f3294e473a",
       "name": "Update Failed",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -339,7 +429,7 @@
         },
         "options": {}
       },
-      "id": "6e16dbc5-6bbe-4c6b-b712-abdaef8ceece",
+      "id": "fe6c4688-1ff3-43d7-9cb4-6481655d3be6",
       "name": "Log Production",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -360,7 +450,7 @@
       "main": [
         [
           {
-            "node": "Read Adapted",
+            "node": "Find Stuck Rendering",
             "type": "main",
             "index": 0
           }
@@ -368,6 +458,39 @@
       ]
     },
     "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Find Stuck Rendering",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Stuck Rendering": {
+      "main": [
+        [
+          {
+            "node": "Build Reset Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reset Payload": {
+      "main": [
+        [
+          {
+            "node": "Reset Stuck Rendering",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Stuck Rendering": {
       "main": [
         [
           {
