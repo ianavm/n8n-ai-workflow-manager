@@ -110,6 +110,34 @@ async function jobGet(jobId) {
   return data;
 }
 
+// Render concurrency limiter.
+// Railway Hobby can only run ~2 Chromium instances in parallel without
+// hitting the 30-second browser startup timeout. Jobs beyond the limit
+// queue up and execute in FIFO order.
+const MAX_CONCURRENT_RENDERS = parseInt(process.env.MAX_CONCURRENT_RENDERS || "2", 10);
+let activeRenders = 0;
+const renderQueue = [];
+
+function acquireRenderSlot() {
+  return new Promise((resolve) => {
+    const tryAcquire = () => {
+      if (activeRenders < MAX_CONCURRENT_RENDERS) {
+        activeRenders += 1;
+        resolve();
+      } else {
+        renderQueue.push(tryAcquire);
+      }
+    };
+    tryAcquire();
+  });
+}
+
+function releaseRenderSlot() {
+  activeRenders = Math.max(0, activeRenders - 1);
+  const next = renderQueue.shift();
+  if (next) next();
+}
+
 // Bundle the Remotion project asynchronously (takes 20-40s)
 // Server must start listening immediately for Railway healthchecks
 let bundleLocation = null;
@@ -229,6 +257,15 @@ app.get("/render/:jobId", requireAuth, async (req, res) => {
 });
 
 async function renderJob(jobId, compositionId, props, outputFormat) {
+  await acquireRenderSlot();
+  try {
+    await _renderJobInner(jobId, compositionId, props, outputFormat);
+  } finally {
+    releaseRenderSlot();
+  }
+}
+
+async function _renderJobInner(jobId, compositionId, props, outputFormat) {
   await jobUpsert(jobId, {
     status: "rendering",
     started_at: new Date().toISOString(),

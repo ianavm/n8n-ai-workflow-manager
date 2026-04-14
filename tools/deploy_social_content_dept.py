@@ -1410,8 +1410,8 @@ def build_sc04_nodes() -> list[dict]:
     })
 
     # -- Read Adapted Scripts --
-    # Cap batch size at 5 per run to avoid overwhelming Railway render server
-    # (in-memory job store gets wiped on container restart)
+    # Cap batch size at 2 per run to match Railway render server concurrency
+    # limit (MAX_CONCURRENT_RENDERS=2). Beyond 2, Chromium startup times out.
     nodes.append({
         "parameters": {
             "operation": "search",
@@ -1419,7 +1419,7 @@ def build_sc04_nodes() -> list[dict]:
             "table": {"__rl": True, "mode": "id", "value": TABLE_SCRIPTS},
             "filterByFormula": "={Status}='Adapted'",
             "returnAll": False,
-            "limit": 5,
+            "limit": 2,
             "options": {},
         },
         "id": uid(),
