@@ -1085,26 +1085,13 @@ return { json: {
             "typeVersion": 2,
             "position": [440, 300],
         },
-        # 3. Look up booking by token via direct Airtable REST API
-        # (The Airtable native node silently fails to interpolate {{ }}
-        # in filterByFormula at runtime, so we bypass it.)
+        # 3. Look up booking by token (URL built entirely in Parse Token)
         {
             "parameters": {
                 "method": "GET",
-                "url": f"=https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{PF_BOOKINGS_TABLE_ID}",
+                "url": "={{ $json.airtable_url }}",
                 "authentication": "predefinedCredentialType",
                 "nodeCredentialType": "airtableTokenApi",
-                "sendQuery": True,
-                "specifyQuery": "keypair",
-                "queryParameters": {
-                    "parameters": [
-                        {
-                            "name": "filterByFormula",
-                            "value": "={\"{Verification Token} = '\" + $json.token + \"'\"}",
-                        },
-                        {"name": "maxRecords", "value": "1"},
-                    ]
-                },
                 "options": {"timeout": 15000},
             },
             "id": uid(),
