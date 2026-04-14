@@ -254,6 +254,8 @@
                             submitBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Request Sent!';
                             submitBtn.style.background = 'linear-gradient(135deg, #00D4AA, #6C63FF)';
 
+                            /* Generate dedupable event_id (same id used by client pixel + server CAPI so Meta deduplicates) */
+                            var _eventId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lead_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10));
                             /* Google Ads conversion tracking */
                             gtag('event', 'conversion', {
                                 send_to: 'AW-11359193832/qaz_CIfuooccEOiVvqgq',
@@ -265,13 +267,31 @@
                                 currency: 'ZAR',
                                 value: 5000
                             });
-                            /* Meta Pixel Lead conversion */
+                            /* Meta Pixel Lead conversion — with eventID for CAPI dedup */
                             if (typeof fbq === 'function') {
                                 fbq('track', 'Lead', {
                                     currency: 'ZAR',
                                     value: 5000
-                                });
+                                }, { eventID: _eventId });
                             }
+                            /* Server-side CAPI — backup for iOS14+/ad-blocker loss */
+                            fetch('https://ianimmelman89.app.n8n.cloud/webhook/meta-capi-lead', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    event_id: _eventId,
+                                    event_name: 'Lead',
+                                    email: formData.get('email'),
+                                    firstName: formData.get('firstName') || '',
+                                    lastName: formData.get('lastName') || '',
+                                    name: ((formData.get('firstName') || '') + ' ' + (formData.get('lastName') || '')).trim(),
+                                    phone: formData.get('phone') || '',
+                                    page_url: window.location.href,
+                                    client_user_agent: navigator.userAgent,
+                                    currency: 'ZAR',
+                                    value: 5000
+                                })
+                            }).catch(function(err) { console.warn('CAPI sync failed:', err && err.message || err); });
 
                             /* POST to n8n webhooks for lead capture pipeline */
                             var leadPayload = JSON.stringify({

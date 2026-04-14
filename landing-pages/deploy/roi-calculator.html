@@ -1527,10 +1527,14 @@
             nameInput.style.borderColor = '';
             emailInput.style.borderColor = '';
 
+            /* Generate dedupable event_id (same id used by client pixel + server CAPI) */
+            var _eventId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lead_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10));
+            var _savingsValue = parseInt(elHiddenSavings.value, 10) || 5000;
+
             /* Fire tracking pixels */
             try {
                 if (typeof fbq === 'function') {
-                    fbq('track', 'Lead', { content_name: 'ROI Calculator' });
+                    fbq('track', 'Lead', { content_name: 'ROI Calculator', currency: 'ZAR', value: _savingsValue }, { eventID: _eventId });
                 }
             } catch (err) { /* Silently handle pixel errors */ }
 
@@ -1539,10 +1543,31 @@
                     gtag('event', 'generate_lead', {
                         event_category: 'roi_calculator',
                         event_label: elHiddenIndustry.value,
-                        value: parseInt(elHiddenSavings.value, 10) || 0
+                        value: _savingsValue
                     });
                 }
             } catch (err) { /* Silently handle analytics errors */ }
+
+            /* Server-side CAPI — backup for iOS14+/ad-blocker loss */
+            try {
+                fetch('https://ianimmelman89.app.n8n.cloud/webhook/meta-capi-lead', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        event_id: _eventId,
+                        event_name: 'Lead',
+                        email: emailInput.value.trim(),
+                        name: nameInput.value.trim(),
+                        firstName: (nameInput.value.trim().split(' ')[0] || ''),
+                        lastName: (nameInput.value.trim().split(' ').slice(1).join(' ') || ''),
+                        page_url: window.location.href,
+                        client_user_agent: navigator.userAgent,
+                        currency: 'ZAR',
+                        value: _savingsValue,
+                        content_name: 'ROI Calculator'
+                    })
+                }).catch(function(err) { console.warn('CAPI sync failed:', err && err.message || err); });
+            } catch (err) { /* Silently handle CAPI errors */ }
 
             /* Show success state */
             reportForm.style.display = 'none';

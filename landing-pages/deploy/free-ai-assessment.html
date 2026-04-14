@@ -2033,6 +2033,8 @@
                         throw new Error('Server returned ' + response.status);
                     }
 
+                    /* Generate dedupable event_id (shared between client pixel + server CAPI) */
+                    var _eventId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lead_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10));
                     /* Google Ads conversion */
                     if (typeof gtag === 'function') {
                         gtag('event', 'conversion', {
@@ -2042,10 +2044,28 @@
                         });
                         gtag('event', 'generate_lead', { currency: 'ZAR', value: 5000 });
                     }
-                    /* Meta Pixel Lead event */
+                    /* Meta Pixel Lead event — with eventID for CAPI dedup */
                     if (typeof fbq === 'function') {
-                        fbq('track', 'Lead', { currency: 'ZAR', value: 5000 });
+                        fbq('track', 'Lead', { currency: 'ZAR', value: 5000 }, { eventID: _eventId });
                     }
+                    /* Server-side CAPI — backup for iOS14+/ad-blocker loss */
+                    fetch('https://ianimmelman89.app.n8n.cloud/webhook/meta-capi-lead', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            event_id: _eventId,
+                            event_name: 'Lead',
+                            email: fd.get('email'),
+                            name: fd.get('name') || '',
+                            firstName: (fd.get('name') || '').split(' ')[0] || '',
+                            lastName: (fd.get('name') || '').split(' ').slice(1).join(' ') || '',
+                            page_url: window.location.href,
+                            client_user_agent: navigator.userAgent,
+                            currency: 'ZAR',
+                            value: 5000,
+                            content_name: 'AI Audit & Readiness Assessment'
+                        })
+                    }).catch(function(err) { console.warn('CAPI sync failed:', err && err.message || err); });
 
                     /* Fire n8n webhook in background (fire-and-forget) */
                     var nameParts = (fd.get('name') || '').split(' ');

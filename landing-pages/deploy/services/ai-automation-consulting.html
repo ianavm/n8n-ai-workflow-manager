@@ -2629,6 +2629,38 @@
                         })
                     })
                     .then(function() {
+                        /* Lead tracking: generate dedupable event_id, fire Meta Pixel + GA4, post server-side CAPI */
+                        var _eventId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lead_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10));
+                        if (typeof fbq === 'function') {
+                            fbq('track', 'Lead', { currency: 'ZAR', value: 5000 }, { eventID: _eventId });
+                        }
+                        if (typeof gtag === 'function') {
+                            gtag('event', 'generate_lead', { currency: 'ZAR', value: 5000 });
+                            gtag('event', 'conversion', {
+                                send_to: 'AW-11359193832/qaz_CIfuooccEOiVvqgq',
+                                value: 1.0,
+                                currency: 'ZAR'
+                            });
+                        }
+                        /* Server-side CAPI — backup for iOS14+/ad-blocker loss (dedupes via event_id) */
+                        fetch('https://ianimmelman89.app.n8n.cloud/webhook/meta-capi-lead', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                event_id: _eventId,
+                                event_name: 'Lead',
+                                email: fd.get('email'),
+                                phone: fd.get('phone') || '',
+                                name: fd.get('name') || '',
+                                firstName: fd.get('firstName') || '',
+                                lastName: fd.get('lastName') || '',
+                                city: fd.get('city') || '',
+                                page_url: window.location.href,
+                                client_user_agent: navigator.userAgent,
+                                currency: 'ZAR',
+                                value: 5000
+                            })
+                        }).catch(function(err) { console.warn('CAPI sync failed:', err && err.message || err); });
                         btn.innerHTML = 'Sent! We will be in touch.';
                         btn.style.background = 'linear-gradient(135deg, #00D4AA, #6C63FF)';
                         qcForm.reset();
