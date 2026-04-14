@@ -35,6 +35,10 @@ CRED_GMAIL = {"id": "2IuycrTIgWJZEjBE", "name": "Gmail account AVM Tutorial"}
 LEADS_BASE_ID = "apptjjBx34z9340tK"
 LEADS_TABLE_ID = "tblwOPTPY85Tcj7NJ"
 
+# Suppression list lives in the Lead Scraper base (separate from Leads base).
+SUPPRESSION_BASE_ID = "app2ALQUP7CKEkHOz"
+SUPPRESSION_TABLE_ID = "tbl0LtepawDzFYg4I"
+
 # ── Config ──────────────────────────────────────────────────
 ALERT_EMAIL = "ian@anyvisionmedia.com"
 
@@ -102,8 +106,32 @@ def build_code_node(
 def build_airtable_create_node(
     name: str,
     position: List[int],
+    format_node_name: str,
+    columns: List[str],
 ) -> Dict[str, Any]:
-    """Build an Airtable CREATE node for the Leads table."""
+    """Build an Airtable CREATE node for the Leads table using defineBelow mapping.
+
+    Fields are sourced from the upstream Format node via $() reference so that
+    a suppression check (which replaces $json) can be inserted before this node
+    without losing the original lead payload.
+    """
+    schema = [
+        {
+            "id": col,
+            "type": "string",
+            "display": True,
+            "displayName": col,
+            "required": False,
+            "defaultMatch": False,
+            "canBeUsedToMatch": True,
+        }
+        for col in columns
+    ]
+    value_map = {
+        col: f"={{{{ $('{format_node_name}').first().json['{col}'] }}}}"
+        for col in columns
+    }
+
     return {
         "id": uid(),
         "name": name,
@@ -113,16 +141,119 @@ def build_airtable_create_node(
         "position": position,
         "parameters": {
             "operation": "create",
-            "application": LEADS_BASE_ID,
-            "table": LEADS_TABLE_ID,
+            "base": {
+                "__rl": True,
+                "mode": "list",
+                "value": LEADS_BASE_ID,
+                "cachedResultName": "AVM Marketing",
+            },
+            "table": {
+                "__rl": True,
+                "mode": "list",
+                "value": LEADS_TABLE_ID,
+                "cachedResultName": "Leads",
+            },
             "columns": {
-                "mappingMode": "autoMapInputData",
-                "value": None,
+                "mappingMode": "defineBelow",
+                "value": value_map,
+                "schema": schema,
             },
             "options": {},
         },
         "credentials": {
             "airtableTokenApi": CRED_AIRTABLE,
+        },
+    }
+
+
+def build_suppression_search_node(
+    name: str,
+    position: List[int],
+    format_node_name: str,
+) -> Dict[str, Any]:
+    """Build an Airtable SEARCH node against the Email Suppression table.
+
+    Looks up the normalized lookup email (lowercased + Gmail dot-stripped) from
+    the upstream Format node. alwaysOutputData=true ensures an empty item flows
+    through on 0 matches (so the downstream IF gate can evaluate). Errors fall
+    through as "not suppressed" (fail open — never block a legitimate lead due
+    to an Airtable outage).
+    """
+    formula = (
+        f"=LOWER({{Email}}) = "
+        f"LOWER('{{{{ $('{format_node_name}').first().json['_lookupEmail'] }}}}')"
+    )
+
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.airtable",
+        "typeVersion": 2.1,
+        "alwaysOutputData": True,
+        "onError": "continueRegularOutput",
+        "position": position,
+        "parameters": {
+            "operation": "search",
+            "base": {
+                "__rl": True,
+                "mode": "list",
+                "value": SUPPRESSION_BASE_ID,
+                "cachedResultName": "Lead Scraper - Johannesburg CRM",
+            },
+            "table": {
+                "__rl": True,
+                "mode": "list",
+                "value": SUPPRESSION_TABLE_ID,
+                "cachedResultName": "Email Suppression",
+            },
+            "filterByFormula": formula,
+            "options": {
+                "fields": ["Email"],
+            },
+        },
+        "credentials": {
+            "airtableTokenApi": CRED_AIRTABLE,
+        },
+    }
+
+
+def build_not_suppressed_if_node(
+    name: str,
+    position: List[int],
+) -> Dict[str, Any]:
+    """Build an IF v2.2 gate that passes when the upstream search found no row.
+
+    Output 0 (true) = no suppression row = clean lead (continue processing).
+    Output 1 (false) = suppression row found = silently drop.
+    """
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": position,
+        "parameters": {
+            "conditions": {
+                "options": {
+                    "version": 2,
+                    "caseSensitive": True,
+                    "typeValidation": "loose",
+                },
+                "combinator": "and",
+                "conditions": [
+                    {
+                        "id": uid(),
+                        "leftValue": "={{ $json.id || '' }}",
+                        "rightValue": "",
+                        "operator": {
+                            "type": "string",
+                            "operation": "empty",
+                            "singleValue": True,
+                        },
+                    }
+                ],
+            },
+            "options": {},
         },
     }
 
@@ -172,33 +303,75 @@ def build_respond_node(
     }
 
 
-def build_connections(node_names: List[str]) -> Dict[str, Any]:
-    """Build linear connections: node0 -> node1 -> node2 -> ...
+def build_lead_capture_connections(
+    webhook: str,
+    code: str,
+    search: str,
+    gate: str,
+    airtable: str,
+    gmail: str,
+    respond: str,
+) -> Dict[str, Any]:
+    """Wire the 7-node lead capture chain with inline suppression gating.
 
-    After the code node, split into two parallel paths:
-      code -> airtable -> respond
-      code -> gmail
-    This matches the 4-node chain: webhook -> code -> [airtable -> respond, gmail]
+    Flow:
+      webhook -> code -> search -> gate
+      gate output 0 (true, not suppressed) -> airtable + gmail
+      gate output 1 (false, suppressed)    -> respond (silent success)
+      airtable -> respond
+      gmail has no downstream (fire-and-forget)
     """
-    # For our 5-node chain: webhook -> code -> airtable -> respond
-    #                                     \-> gmail
-    # node_names = [webhook, code, airtable, gmail, respond]
-    webhook, code, airtable, gmail, respond = node_names
-
     return {
         webhook: {
             "main": [[{"node": code, "type": "main", "index": 0}]]
         },
         code: {
-            "main": [[
-                {"node": airtable, "type": "main", "index": 0},
-                {"node": gmail, "type": "main", "index": 0},
-            ]]
+            "main": [[{"node": search, "type": "main", "index": 0}]]
+        },
+        search: {
+            "main": [[{"node": gate, "type": "main", "index": 0}]]
+        },
+        gate: {
+            "main": [
+                [
+                    {"node": airtable, "type": "main", "index": 0},
+                    {"node": gmail, "type": "main", "index": 0},
+                ],
+                [
+                    {"node": respond, "type": "main", "index": 0},
+                ],
+            ]
         },
         airtable: {
             "main": [[{"node": respond, "type": "main", "index": 0}]]
         },
     }
+
+
+# Columns written to the Leads table, in order. Must match the real schema
+# in base apptjjBx34z9340tK / table tblwOPTPY85Tcj7NJ (reconstructed from
+# live execution data — see execution 20615 for reference shape).
+LEAD_COLUMNS: List[str] = [
+    "Lead ID",
+    "Contact Name",
+    "Email",
+    "Phone",
+    "Company",
+    "Source Channel",
+    "Source URL",
+    "UTM Source",
+    "UTM Medium",
+    "UTM Campaign",
+    "First Touch Content",
+    "Notes",
+    "Status",
+    "Source System",
+    "Grade",
+    "Created At",
+]
+
+WEBSITE_CONTACT_COLUMNS: List[str] = LEAD_COLUMNS
+SEO_LEAD_COLUMNS: List[str] = LEAD_COLUMNS
 
 
 def build_workflow_json(
@@ -224,80 +397,101 @@ def build_workflow_json(
 # CODE NODE SCRIPTS
 # ======================================================================
 
+NORMALIZE_EMAIL_JS = r"""
+function normalizeLookupEmail(raw) {
+  const lowered = String(raw || '').trim().toLowerCase();
+  const atIdx = lowered.indexOf('@');
+  if (atIdx <= 0) return lowered;
+  const local = lowered.slice(0, atIdx);
+  const domain = lowered.slice(atIdx + 1);
+  if (domain === 'gmail.com' || domain === 'googlemail.com') {
+    return local.replace(/\./g, '').replace(/\+.*$/, '') + '@gmail.com';
+  }
+  return lowered;
+}
+"""
+
+# Webhook node v2 wraps incoming POST under $json.body. Fall back to $json
+# for hand-crafted test payloads or legacy webhook versions.
+UNWRAP_BODY_JS = r"""
+const root = $input.first().json || {};
+const body = (root && typeof root.body === 'object' && root.body) ? root.body : root;
+"""
+
 FORMAT_WEBSITE_CONTACT_CODE = r"""
 // Format Website Contact Form submission for Airtable
-const item = $input.first().json;
+""" + NORMALIZE_EMAIL_JS + UNWRAP_BODY_JS + r"""
 const now = new Date();
 const leadId = 'WEB-' + now.getTime().toString(36).toUpperCase();
+const rawEmail = body.email || '';
+const contactName = body.name
+  || ((body.firstName || '') + ' ' + (body.lastName || '')).trim();
 
 return [{
   json: {
     'Lead ID': leadId,
-    'Email': item.email || '',
-    'First Name': item.firstName || '',
-    'Last Name': item.lastName || '',
-    'Name': item.name || ((item.firstName || '') + ' ' + (item.lastName || '')).trim(),
-    'Company': item.company || '',
-    'Phone': item.phone || '',
-    'Message': item.message || '',
-    'Interest': item.interest || '',
-    'Page URL': item.page_url || '',
-    'UTM Source': item.utm_source || '',
-    'UTM Medium': item.utm_medium || '',
-    'UTM Campaign': item.utm_campaign || '',
-    'UTM Term': item.utm_term || '',
-    'UTM Content': item.utm_content || '',
-    'Source': 'Website Contact Form',
+    'Contact Name': contactName,
+    'Email': rawEmail,
+    'Phone': body.phone || '',
+    'Company': body.company || '',
+    'Source Channel': 'Organic',
+    'Source URL': body.page_url || '',
+    'UTM Source': body.utm_source || '',
+    'UTM Medium': body.utm_medium || '',
+    'UTM Campaign': body.utm_campaign || '',
+    'First Touch Content': body.interest || '',
+    'Notes': body.message || '',
     'Status': 'New',
-    'Created At': now.toISOString(),
+    // NOTE: 'Source System' is a singleSelect. Keep value matching the
+    // existing choice set; old live workflow used 'SEO_Inbound' for both
+    // website + SEO forms, so preserve that to avoid Airtable rejection.
+    'Source System': 'SEO_Inbound',
+    'Grade': 'Warm',
+    'Created At': now.toISOString().slice(0, 10),
+    // Internal key used by the suppression search node. Not mapped to Airtable.
+    '_lookupEmail': normalizeLookupEmail(rawEmail),
   }
 }];
 """
 
 FORMAT_SEO_LEAD_CODE = r"""
 // Format SEO Lead Capture submission for Airtable
-const item = $input.first().json;
+""" + NORMALIZE_EMAIL_JS + UNWRAP_BODY_JS + r"""
 const now = new Date();
 const leadId = 'SEO-' + now.getTime().toString(36).toUpperCase();
+const rawEmail = body.email || '';
 
-// Determine source from utm_source
-const utmSource = (item.utm_source || '').toLowerCase();
-let source = 'Organic';
-if (utmSource.includes('google') && utmSource.includes('ad')) {
-  source = 'Google Ads';
-} else if (utmSource.includes('meta') || utmSource.includes('facebook') || utmSource.includes('instagram')) {
-  source = 'Meta Ads';
-} else if (utmSource.includes('tiktok')) {
-  source = 'TikTok Ads';
-} else if (utmSource.includes('linkedin')) {
-  source = 'LinkedIn Ads';
-} else if (utmSource.includes('google')) {
-  source = 'Google Organic';
-} else if (utmSource.includes('bing')) {
-  source = 'Bing Organic';
-} else if (utmSource.includes('twitter') || utmSource.includes('x.com')) {
-  source = 'Twitter/X';
+// Determine source channel from utm_source
+const utmSource = (body.utm_source || '').toLowerCase();
+let sourceChannel = 'Organic';
+if (utmSource.includes('ad') || utmSource.includes('cpc') || utmSource.includes('ppc')) {
+  sourceChannel = 'Paid';
 } else if (utmSource.includes('email') || utmSource.includes('newsletter')) {
-  source = 'Email';
-} else if (utmSource) {
-  source = item.utm_source;
+  sourceChannel = 'Email';
+} else if (utmSource.includes('referral')) {
+  sourceChannel = 'Referral';
 }
 
 return [{
   json: {
     'Lead ID': leadId,
-    'Email': item.email || '',
-    'Name': item.name || '',
-    'Company': item.company || '',
-    'Phone': item.phone || '',
-    'Message': item.message || '',
-    'Page URL': item.page_url || '',
-    'UTM Source': item.utm_source || '',
-    'UTM Medium': item.utm_medium || '',
-    'UTM Campaign': item.utm_campaign || '',
-    'Source': source,
+    'Contact Name': body.name || '',
+    'Email': rawEmail,
+    'Phone': body.phone || '',
+    'Company': body.company || '',
+    'Source Channel': sourceChannel,
+    'Source URL': body.page_url || '',
+    'UTM Source': body.utm_source || '',
+    'UTM Medium': body.utm_medium || '',
+    'UTM Campaign': body.utm_campaign || '',
+    'First Touch Content': body.interest || '',
+    'Notes': body.message || '',
     'Status': 'New',
-    'Created At': now.toISOString(),
+    'Source System': 'SEO_Inbound',
+    'Grade': 'Warm',
+    'Created At': now.toISOString().slice(0, 10),
+    // Internal key used by the suppression search node. Not mapped to Airtable.
+    '_lookupEmail': normalizeLookupEmail(rawEmail),
   }
 }];
 """
@@ -308,7 +502,7 @@ GMAIL_WEBSITE_CONTACT_HTML = """<div style="font-family: Arial, sans-serif; max-
   <h2 style="color: #FF6D5A;">New Website Lead</h2>
   <table style="width: 100%; border-collapse: collapse;">
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Name</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['Name'] }}</td></tr>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['Contact Name'] }}</td></tr>
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Email</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['Email'] }}</td></tr>
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Company</td>
@@ -316,16 +510,14 @@ GMAIL_WEBSITE_CONTACT_HTML = """<div style="font-family: Arial, sans-serif; max-
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Phone</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['Phone'] }}</td></tr>
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Interest</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['Interest'] }}</td></tr>
-    <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Page URL</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['Page URL'] }}</td></tr>
-    <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">UTM Source</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['UTM Source'] }}</td></tr>
-    <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">UTM Campaign</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['UTM Campaign'] }}</td></tr>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['First Touch Content'] }}</td></tr>
+    <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Source</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['UTM Source'] }} / {{ $('Format Lead Data').first().json['UTM Medium'] }}</td></tr>
+    <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Page</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format Lead Data').first().json['Source URL'] }}</td></tr>
   </table>
   <h3 style="color: #333; margin-top: 16px;">Message</h3>
-  <p style="background: #f5f5f5; padding: 12px; border-radius: 4px;">{{ $('Format Lead Data').first().json['Message'] }}</p>
+  <p style="background: #f5f5f5; padding: 12px; border-radius: 4px;">{{ $('Format Lead Data').first().json['Notes'] }}</p>
   <p style="color: #999; font-size: 12px; margin-top: 16px;">Lead ID: {{ $('Format Lead Data').first().json['Lead ID'] }} | {{ $('Format Lead Data').first().json['Created At'] }}</p>
 </div>"""
 
@@ -333,17 +525,17 @@ GMAIL_SEO_LEAD_HTML = """<div style="font-family: Arial, sans-serif; max-width: 
   <h2 style="color: #FF6D5A;">New SEO Lead</h2>
   <table style="width: 100%; border-collapse: collapse;">
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Name</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['Name'] }}</td></tr>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['Contact Name'] }}</td></tr>
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Email</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['Email'] }}</td></tr>
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Company</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['Company'] }}</td></tr>
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Phone</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['Phone'] }}</td></tr>
-    <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Source</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['Source'] }}</td></tr>
-    <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Page URL</td>
-        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['Page URL'] }}</td></tr>
+    <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Channel</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['Source Channel'] }}</td></tr>
+    <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">Page</td>
+        <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['Source URL'] }}</td></tr>
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">UTM Source</td>
         <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['UTM Source'] }}</td></tr>
     <tr><td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;">UTM Medium</td>
@@ -352,7 +544,7 @@ GMAIL_SEO_LEAD_HTML = """<div style="font-family: Arial, sans-serif; max-width: 
         <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ $('Format SEO Lead').first().json['UTM Campaign'] }}</td></tr>
   </table>
   <h3 style="color: #333; margin-top: 16px;">Message</h3>
-  <p style="background: #f5f5f5; padding: 12px; border-radius: 4px;">{{ $('Format SEO Lead').first().json['Message'] }}</p>
+  <p style="background: #f5f5f5; padding: 12px; border-radius: 4px;">{{ $('Format SEO Lead').first().json['Notes'] }}</p>
   <p style="color: #999; font-size: 12px; margin-top: 16px;">Lead ID: {{ $('Format SEO Lead').first().json['Lead ID'] }} | {{ $('Format SEO Lead').first().json['Created At'] }}</p>
 </div>"""
 
@@ -363,34 +555,57 @@ GMAIL_SEO_LEAD_HTML = """<div style="font-family: Arial, sans-serif; max-width: 
 
 def build_website_contact_form() -> Dict[str, Any]:
     """Build the Website Contact Form webhook workflow."""
+    format_name = "Format Lead Data"
+
     webhook = build_webhook_node(
         name="Webhook",
         path="website-contact-form",
         position=[250, 300],
     )
     code = build_code_node(
-        name="Format Lead Data",
+        name=format_name,
         js_code=FORMAT_WEBSITE_CONTACT_CODE,
         position=[470, 300],
     )
+    search = build_suppression_search_node(
+        name="Check Suppression",
+        position=[690, 300],
+        format_node_name=format_name,
+    )
+    gate = build_not_suppressed_if_node(
+        name="Not Suppressed?",
+        position=[910, 300],
+    )
     airtable = build_airtable_create_node(
         name="Save to Airtable",
-        position=[690, 250],
+        position=[1130, 250],
+        format_node_name=format_name,
+        columns=WEBSITE_CONTACT_COLUMNS,
     )
     gmail = build_gmail_send_node(
         name="Email Notification",
-        subject_expr="=NEW LEAD: {{ $json['Name'] }} from {{ $json['Company'] }}",
+        subject_expr=(
+            "=NEW LEAD: {{ $('Format Lead Data').first().json['Contact Name'] }} "
+            "from {{ $('Format Lead Data').first().json['Company'] }}"
+        ),
         html_body=GMAIL_WEBSITE_CONTACT_HTML,
-        position=[690, 450],
+        position=[1130, 450],
     )
     respond = build_respond_node(
         name="Respond Success",
-        position=[910, 250],
+        position=[1350, 250],
     )
 
-    nodes = [webhook, code, airtable, gmail, respond]
-    node_names = [n["name"] for n in nodes]
-    connections = build_connections(node_names)
+    nodes = [webhook, code, search, gate, airtable, gmail, respond]
+    connections = build_lead_capture_connections(
+        webhook=webhook["name"],
+        code=code["name"],
+        search=search["name"],
+        gate=gate["name"],
+        airtable=airtable["name"],
+        gmail=gmail["name"],
+        respond=respond["name"],
+    )
 
     return build_workflow_json(
         name="AVM: Website Contact Form",
@@ -401,34 +616,57 @@ def build_website_contact_form() -> Dict[str, Any]:
 
 def build_seo_lead_capture() -> Dict[str, Any]:
     """Build the SEO Lead Capture webhook workflow."""
+    format_name = "Format SEO Lead"
+
     webhook = build_webhook_node(
         name="Webhook",
         path="seo-social/lead-capture",
         position=[250, 300],
     )
     code = build_code_node(
-        name="Format SEO Lead",
+        name=format_name,
         js_code=FORMAT_SEO_LEAD_CODE,
         position=[470, 300],
     )
+    search = build_suppression_search_node(
+        name="Check Suppression",
+        position=[690, 300],
+        format_node_name=format_name,
+    )
+    gate = build_not_suppressed_if_node(
+        name="Not Suppressed?",
+        position=[910, 300],
+    )
     airtable = build_airtable_create_node(
         name="Save to Airtable",
-        position=[690, 250],
+        position=[1130, 250],
+        format_node_name=format_name,
+        columns=SEO_LEAD_COLUMNS,
     )
     gmail = build_gmail_send_node(
         name="Email Notification",
-        subject_expr="=NEW LEAD (SEO): {{ $json['Name'] }} from {{ $json['Company'] }}",
+        subject_expr=(
+            "=NEW LEAD (SEO): {{ $('Format SEO Lead').first().json['Contact Name'] }} "
+            "from {{ $('Format SEO Lead').first().json['Company'] }}"
+        ),
         html_body=GMAIL_SEO_LEAD_HTML,
-        position=[690, 450],
+        position=[1130, 450],
     )
     respond = build_respond_node(
         name="Respond Success",
-        position=[910, 250],
+        position=[1350, 250],
     )
 
-    nodes = [webhook, code, airtable, gmail, respond]
-    node_names = [n["name"] for n in nodes]
-    connections = build_connections(node_names)
+    nodes = [webhook, code, search, gate, airtable, gmail, respond]
+    connections = build_lead_capture_connections(
+        webhook=webhook["name"],
+        code=code["name"],
+        search=search["name"],
+        gate=gate["name"],
+        airtable=airtable["name"],
+        gmail=gmail["name"],
+        respond=respond["name"],
+    )
 
     return build_workflow_json(
         name="AVM: SEO Lead Capture",

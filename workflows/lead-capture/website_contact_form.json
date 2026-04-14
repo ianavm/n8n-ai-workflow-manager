@@ -2,7 +2,7 @@
   "name": "AVM: Website Contact Form",
   "nodes": [
     {
-      "id": "e2898725-4c91-4241-a12c-98b84501b5dd",
+      "id": "620729ce-34bc-4442-90e9-4a393e0e30f0",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -10,7 +10,7 @@
         250,
         300
       ],
-      "webhookId": "40d1e1b9-116d-4636-b75e-2bdf1ed19955",
+      "webhookId": "a55760e6-8cdd-467e-bc70-5a7795263460",
       "parameters": {
         "path": "website-contact-form",
         "httpMethod": "POST",
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "b7466c17-1f26-4116-80e2-8e9c7141c17c",
+      "id": "9a3f3b3e-b70b-4da9-b8ae-fb5460a91bb4",
       "name": "Format Lead Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -27,75 +27,295 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Format Website Contact Form submission for Airtable.\n// Includes server-side validation: strips placeholder echoes, flags suspicious leads.\nconst raw = $input.first().json;\nconst d = raw.body || raw;\nconst now = new Date().toISOString();\nconst id = 'WEB-' + Math.random().toString(36).substring(2,10).toUpperCase();\nconst sourceMap = {'google':'Paid','meta':'Paid','facebook':'Paid','tiktok':'Paid','linkedin':'Social_LinkedIn','twitter':'Social_Twitter','instagram':'Social_IG'};\nconst utmSrc = (d.utm_source || '').toLowerCase();\nconst sourceChannel = sourceMap[utmSrc] || (utmSrc === 'organic' ? 'Organic' : 'Direct');\n\n// --- Server-side validation guard ---\nconst PLACEHOLDERS = {\n  company: ['your company name', 'acme corp', 'company name'],\n  contactName: ['your full name', 'jane smith', 'your name', 'first name last name'],\n  email: ['you@company.com', 'jane@company.com', 'name@example.com'],\n  message: [\n    \"what's the most repetitive task you wish you could automate?\",\n    'what is the most repetitive task you wish you could automate?',\n    'briefly describe what you are looking to achieve with ai...'\n  ]\n};\nconst flags = [];\nfunction sanitize(val, fieldKey) {\n  if (!val) return '';\n  const clean = String(val).trim();\n  const lower = clean.toLowerCase();\n  const placeholders = PLACEHOLDERS[fieldKey] || [];\n  for (let i = 0; i < placeholders.length; i++) {\n    if (lower === placeholders[i]) {\n      flags.push(fieldKey + '=placeholder-echo');\n      return '';\n    }\n  }\n  if (fieldKey === 'message' && /^what(?:'?s|\\s+is)?\\s+the\\s+(?:most|msot)\\b/i.test(clean)) {\n    flags.push('message=question-echo');\n    return '';\n  }\n  return clean;\n}\n\nconst rawCompany = sanitize(d.company, 'company');\nconst rawEmail = sanitize(d.email, 'email');\nconst rawMessage = sanitize(d.message, 'message');\nconst rawContactName = sanitize(\n  ((d.firstName||'') + ' ' + (d.lastName||'')).trim() || d.name || '',\n  'contactName'\n);\n\nif (rawCompany && rawCompany.length < 2) flags.push('company=too-short');\nif (rawContactName && rawContactName.length < 2) flags.push('name=too-short');\nif (rawMessage && rawMessage.length > 0 && rawMessage.length < 10) flags.push('message=too-short');\nif (rawEmail && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(rawEmail)) flags.push('email=malformed');\n\nlet grade = 'Warm';\nif (flags.length >= 2) grade = 'Cold';\n\nlet notes = rawMessage || '';\nif (flags.length > 0) {\n  notes = (notes ? notes + ' | ' : '') + '[FLAGGED: ' + flags.join(', ') + ']';\n}\n\nreturn [{json: {\n  'Lead ID': id,\n  'Contact Name': rawContactName || 'Unknown',\n  'Email': rawEmail,\n  'Phone': sanitize(d.phone, 'phone') || '',\n  'Company': rawCompany,\n  'Source Channel': sourceChannel,\n  'Source URL': d.page_url || '',\n  'UTM Campaign': d.utm_campaign || '',\n  'UTM Medium': d.utm_medium || '',\n  'UTM Source': d.utm_source || '',\n  'First Touch Content': d.interest || '',\n  'Status': 'New',\n  'Source System': 'SEO_Inbound',\n  'Grade': grade,\n  'Notes': notes,\n  'Created At': now.split('T')[0],\n}}];\n"
+        "jsCode": "\n// Format Website Contact Form submission for Airtable\n\nfunction normalizeLookupEmail(raw) {\n  const lowered = String(raw || '').trim().toLowerCase();\n  const atIdx = lowered.indexOf('@');\n  if (atIdx <= 0) return lowered;\n  const local = lowered.slice(0, atIdx);\n  const domain = lowered.slice(atIdx + 1);\n  if (domain === 'gmail.com' || domain === 'googlemail.com') {\n    return local.replace(/\\./g, '').replace(/\\+.*$/, '') + '@gmail.com';\n  }\n  return lowered;\n}\n\nconst root = $input.first().json || {};\nconst body = (root && typeof root.body === 'object' && root.body) ? root.body : root;\n\nconst now = new Date();\nconst leadId = 'WEB-' + now.getTime().toString(36).toUpperCase();\nconst rawEmail = body.email || '';\nconst contactName = body.name\n  || ((body.firstName || '') + ' ' + (body.lastName || '')).trim();\n\nreturn [{\n  json: {\n    'Lead ID': leadId,\n    'Contact Name': contactName,\n    'Email': rawEmail,\n    'Phone': body.phone || '',\n    'Company': body.company || '',\n    'Source Channel': 'Organic',\n    'Source URL': body.page_url || '',\n    'UTM Source': body.utm_source || '',\n    'UTM Medium': body.utm_medium || '',\n    'UTM Campaign': body.utm_campaign || '',\n    'First Touch Content': body.interest || '',\n    'Notes': body.message || '',\n    'Status': 'New',\n    // NOTE: 'Source System' is a singleSelect. Keep value matching the\n    // existing choice set; old live workflow used 'SEO_Inbound' for both\n    // website + SEO forms, so preserve that to avoid Airtable rejection.\n    'Source System': 'SEO_Inbound',\n    'Grade': 'Warm',\n    'Created At': now.toISOString().slice(0, 10),\n    // Internal key used by the suppression search node. Not mapped to Airtable.\n    '_lookupEmail': normalizeLookupEmail(rawEmail),\n  }\n}];\n"
       }
     },
     {
-      "id": "8449931f-481e-49a9-a612-8b5e29daf8bf",
-      "name": "Save to Airtable",
+      "id": "0be4e5ba-63fd-4506-a2ea-c1efcd77cc05",
+      "name": "Check Suppression",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
       "position": [
         690,
-        250
+        300
       ],
       "parameters": {
-        "operation": "create",
-        "table": {
-          "__rl": true,
-          "mode": "id",
-          "value": "tblwOPTPY85Tcj7NJ"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Lead ID": "={{ $json[\"Lead ID\"] }}",
-            "Contact Name": "={{ $json[\"Contact Name\"] }}",
-            "Email": "={{ $json[\"Email\"] }}",
-            "Phone": "={{ $json[\"Phone\"] }}",
-            "Company": "={{ $json[\"Company\"] }}",
-            "Source Channel": "={{ $json[\"Source Channel\"] }}",
-            "Source URL": "={{ $json[\"Source URL\"] }}",
-            "UTM Campaign": "={{ $json[\"UTM Campaign\"] }}",
-            "UTM Medium": "={{ $json[\"UTM Medium\"] }}",
-            "UTM Source": "={{ $json[\"UTM Source\"] }}",
-            "First Touch Content": "={{ $json[\"First Touch Content\"] }}",
-            "Status": "={{ $json[\"Status\"] }}",
-            "Source System": "={{ $json[\"Source System\"] }}",
-            "Grade": "={{ $json[\"Grade\"] }}",
-            "Notes": "={{ $json[\"Notes\"] }}",
-            "Created At": "={{ $json[\"Created At\"] }}"
-          }
-        },
-        "options": {
-          "typecast": true
-        },
+        "operation": "search",
         "base": {
           "__rl": true,
-          "mode": "id",
-          "value": "apptjjBx34z9340tK"
+          "mode": "list",
+          "value": "app2ALQUP7CKEkHOz",
+          "cachedResultName": "Lead Scraper - Johannesburg CRM"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0LtepawDzFYg4I",
+          "cachedResultName": "Email Suppression"
+        },
+        "filterByFormula": "=LOWER({Email}) = LOWER('{{ $('Format Lead Data').first().json['_lookupEmail'] }}')",
+        "options": {
+          "fields": [
+            "Email"
+          ]
         }
       },
       "credentials": {
         "airtableTokenApi": {
           "id": "ZyBrcAO6fps7YB3u",
-          "name": "Whatsapp Multi Agent"
+          "name": "Airtable account"
         }
       }
     },
     {
-      "id": "187a96db-37d2-42e8-b563-c1dc42ec1101",
+      "id": "b55e81a8-1ee4-4902-8488-d17366c545e5",
+      "name": "Not Suppressed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        910,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "979b40ff-489f-470e-a7a5-52f0382ef939",
+              "leftValue": "={{ $json.id || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0b3a1687-0a6a-4fc3-a316-976bbc7c149c",
+      "name": "Save to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        1130,
+        250
+      ],
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK",
+          "cachedResultName": "AVM Marketing"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblwOPTPY85Tcj7NJ",
+          "cachedResultName": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Lead ID": "={{ $('Format Lead Data').first().json['Lead ID'] }}",
+            "Contact Name": "={{ $('Format Lead Data').first().json['Contact Name'] }}",
+            "Email": "={{ $('Format Lead Data').first().json['Email'] }}",
+            "Phone": "={{ $('Format Lead Data').first().json['Phone'] }}",
+            "Company": "={{ $('Format Lead Data').first().json['Company'] }}",
+            "Source Channel": "={{ $('Format Lead Data').first().json['Source Channel'] }}",
+            "Source URL": "={{ $('Format Lead Data').first().json['Source URL'] }}",
+            "UTM Source": "={{ $('Format Lead Data').first().json['UTM Source'] }}",
+            "UTM Medium": "={{ $('Format Lead Data').first().json['UTM Medium'] }}",
+            "UTM Campaign": "={{ $('Format Lead Data').first().json['UTM Campaign'] }}",
+            "First Touch Content": "={{ $('Format Lead Data').first().json['First Touch Content'] }}",
+            "Notes": "={{ $('Format Lead Data').first().json['Notes'] }}",
+            "Status": "={{ $('Format Lead Data').first().json['Status'] }}",
+            "Source System": "={{ $('Format Lead Data').first().json['Source System'] }}",
+            "Grade": "={{ $('Format Lead Data').first().json['Grade'] }}",
+            "Created At": "={{ $('Format Lead Data').first().json['Created At'] }}"
+          },
+          "schema": [
+            {
+              "id": "Lead ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Lead ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Contact Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Contact Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "type": "string",
+              "display": true,
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "type": "string",
+              "display": true,
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source Channel",
+              "type": "string",
+              "display": true,
+              "displayName": "Source Channel",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source URL",
+              "type": "string",
+              "display": true,
+              "displayName": "Source URL",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UTM Source",
+              "type": "string",
+              "display": true,
+              "displayName": "UTM Source",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UTM Medium",
+              "type": "string",
+              "display": true,
+              "displayName": "UTM Medium",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UTM Campaign",
+              "type": "string",
+              "display": true,
+              "displayName": "UTM Campaign",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "First Touch Content",
+              "type": "string",
+              "display": true,
+              "displayName": "First Touch Content",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "type": "string",
+              "display": true,
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source System",
+              "type": "string",
+              "display": true,
+              "displayName": "Source System",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Grade",
+              "type": "string",
+              "display": true,
+              "displayName": "Grade",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "id": "64b04028-4e62-4431-a334-bded81d3d821",
       "name": "Email Notification",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
       "position": [
-        690,
+        1130,
         450
       ],
       "parameters": {
         "sendTo": "ian@anyvisionmedia.com",
-        "subject": "=NEW LEAD: {{ $json[\"Contact Name\"] }} from {{ $json[\"Company\"] }}",
-        "message": "=<h2 style=\"color:#FF6D5A\">New Lead!</h2><table border=\"1\" cellpadding=\"8\" style=\"border-collapse:collapse\"><tr><td><b>Name</b></td><td>{{ $json[\"Contact Name\"] }}</td></tr><tr><td><b>Email</b></td><td>{{ $json[\"Email\"] }}</td></tr><tr><td><b>Company</b></td><td>{{ $json[\"Company\"] }}</td></tr><tr><td><b>Notes</b></td><td>{{ $json[\"Notes\"] }}</td></tr><tr><td><b>Source</b></td><td>{{ $json[\"UTM Source\"] }} / {{ $json[\"UTM Medium\"] }}</td></tr><tr><td><b>Page</b></td><td>{{ $json[\"Source URL\"] }}</td></tr></table>",
+        "subject": "=NEW LEAD: {{ $('Format Lead Data').first().json['Contact Name'] }} from {{ $('Format Lead Data').first().json['Company'] }}",
+        "message": "<div style=\"font-family: Arial, sans-serif; max-width: 600px;\">\n  <h2 style=\"color: #FF6D5A;\">New Website Lead</h2>\n  <table style=\"width: 100%; border-collapse: collapse;\">\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Name</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Contact Name'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Email</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Email'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Company</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Company'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Phone</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Phone'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Interest</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['First Touch Content'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Source</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['UTM Source'] }} / {{ $('Format Lead Data').first().json['UTM Medium'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Page</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format Lead Data').first().json['Source URL'] }}</td></tr>\n  </table>\n  <h3 style=\"color: #333; margin-top: 16px;\">Message</h3>\n  <p style=\"background: #f5f5f5; padding: 12px; border-radius: 4px;\">{{ $('Format Lead Data').first().json['Notes'] }}</p>\n  <p style=\"color: #999; font-size: 12px; margin-top: 16px;\">Lead ID: {{ $('Format Lead Data').first().json['Lead ID'] }} | {{ $('Format Lead Data').first().json['Created At'] }}</p>\n</div>",
         "options": {}
       },
       "credentials": {
@@ -106,12 +326,12 @@
       }
     },
     {
-      "id": "07219c5c-7a86-43d3-8aa7-28b7d851481f",
+      "id": "965a6ea1-6561-4e47-98fe-6fecb5baae53",
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        910,
+        1350,
         250
       ],
       "parameters": {
@@ -137,12 +357,41 @@
       "main": [
         [
           {
+            "node": "Check Suppression",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Suppression": {
+      "main": [
+        [
+          {
+            "node": "Not Suppressed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Suppressed?": {
+      "main": [
+        [
+          {
             "node": "Save to Airtable",
             "type": "main",
             "index": 0
           },
           {
             "node": "Email Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Success",
             "type": "main",
             "index": 0
           }
@@ -161,11 +410,10 @@
       ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "saveManualExecutions": true
   },
   "tags": [
     {
@@ -174,12 +422,5 @@
     {
       "name": "webhook"
     }
-  ],
-  "_meta": {
-    "workflowId": "4MLgoxXNESR2PUHG",
-    "webhookUrl": "https://ianimmelman89.app.n8n.cloud/webhook/website-contact-form",
-    "syncedFrom": "n8n cloud live version",
-    "syncedAt": "2026-04-10",
-    "activeVersionId": "faa2475e-697b-4354-879a-4f3b74287fe6"
-  }
+  ]
 }

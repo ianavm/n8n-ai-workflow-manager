@@ -2,7 +2,7 @@
   "name": "AVM: SEO Lead Capture",
   "nodes": [
     {
-      "id": "41cddf2b-38df-49b6-8147-46ed2c8252a5",
+      "id": "a0085820-5ee5-4a87-b4fc-a8f6d654c8b9",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -10,7 +10,7 @@
         250,
         300
       ],
-      "webhookId": "660f1303-6846-4096-b6af-cc695f8fd6cd",
+      "webhookId": "65cbe4e2-5489-40d2-b50f-dc359aaef4b2",
       "parameters": {
         "path": "seo-social/lead-capture",
         "httpMethod": "POST",
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "694f3261-28f6-4f7d-a4aa-dddce1f28d34",
+      "id": "868d2729-a782-4be5-886e-4a2d396db807",
       "name": "Format SEO Lead",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -27,25 +27,271 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Format SEO Lead Capture submission for Airtable\nconst item = $input.first().json;\nconst now = new Date();\nconst leadId = 'SEO-' + now.getTime().toString(36).toUpperCase();\n\n// Determine source from utm_source\nconst utmSource = (item.utm_source || '').toLowerCase();\nlet source = 'Organic';\nif (utmSource.includes('google') && utmSource.includes('ad')) {\n  source = 'Google Ads';\n} else if (utmSource.includes('meta') || utmSource.includes('facebook') || utmSource.includes('instagram')) {\n  source = 'Meta Ads';\n} else if (utmSource.includes('tiktok')) {\n  source = 'TikTok Ads';\n} else if (utmSource.includes('linkedin')) {\n  source = 'LinkedIn Ads';\n} else if (utmSource.includes('google')) {\n  source = 'Google Organic';\n} else if (utmSource.includes('bing')) {\n  source = 'Bing Organic';\n} else if (utmSource.includes('twitter') || utmSource.includes('x.com')) {\n  source = 'Twitter/X';\n} else if (utmSource.includes('email') || utmSource.includes('newsletter')) {\n  source = 'Email';\n} else if (utmSource) {\n  source = item.utm_source;\n}\n\nreturn [{\n  json: {\n    'Lead ID': leadId,\n    'Email': item.email || '',\n    'Name': item.name || '',\n    'Company': item.company || '',\n    'Phone': item.phone || '',\n    'Message': item.message || '',\n    'Page URL': item.page_url || '',\n    'UTM Source': item.utm_source || '',\n    'UTM Medium': item.utm_medium || '',\n    'UTM Campaign': item.utm_campaign || '',\n    'Source': source,\n    'Status': 'New',\n    'Created At': now.toISOString(),\n  }\n}];\n"
+        "jsCode": "\n// Format SEO Lead Capture submission for Airtable\n\nfunction normalizeLookupEmail(raw) {\n  const lowered = String(raw || '').trim().toLowerCase();\n  const atIdx = lowered.indexOf('@');\n  if (atIdx <= 0) return lowered;\n  const local = lowered.slice(0, atIdx);\n  const domain = lowered.slice(atIdx + 1);\n  if (domain === 'gmail.com' || domain === 'googlemail.com') {\n    return local.replace(/\\./g, '').replace(/\\+.*$/, '') + '@gmail.com';\n  }\n  return lowered;\n}\n\nconst root = $input.first().json || {};\nconst body = (root && typeof root.body === 'object' && root.body) ? root.body : root;\n\nconst now = new Date();\nconst leadId = 'SEO-' + now.getTime().toString(36).toUpperCase();\nconst rawEmail = body.email || '';\n\n// Determine source channel from utm_source\nconst utmSource = (body.utm_source || '').toLowerCase();\nlet sourceChannel = 'Organic';\nif (utmSource.includes('ad') || utmSource.includes('cpc') || utmSource.includes('ppc')) {\n  sourceChannel = 'Paid';\n} else if (utmSource.includes('email') || utmSource.includes('newsletter')) {\n  sourceChannel = 'Email';\n} else if (utmSource.includes('referral')) {\n  sourceChannel = 'Referral';\n}\n\nreturn [{\n  json: {\n    'Lead ID': leadId,\n    'Contact Name': body.name || '',\n    'Email': rawEmail,\n    'Phone': body.phone || '',\n    'Company': body.company || '',\n    'Source Channel': sourceChannel,\n    'Source URL': body.page_url || '',\n    'UTM Source': body.utm_source || '',\n    'UTM Medium': body.utm_medium || '',\n    'UTM Campaign': body.utm_campaign || '',\n    'First Touch Content': body.interest || '',\n    'Notes': body.message || '',\n    'Status': 'New',\n    'Source System': 'SEO_Inbound',\n    'Grade': 'Warm',\n    'Created At': now.toISOString().slice(0, 10),\n    // Internal key used by the suppression search node. Not mapped to Airtable.\n    '_lookupEmail': normalizeLookupEmail(rawEmail),\n  }\n}];\n"
       }
     },
     {
-      "id": "793b4f8b-ee74-438c-b761-4fda680bb753",
+      "id": "7d0c72a4-3530-4465-bedb-33564dc1d56c",
+      "name": "Check Suppression",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        690,
+        300
+      ],
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "app2ALQUP7CKEkHOz",
+          "cachedResultName": "Lead Scraper - Johannesburg CRM"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tbl0LtepawDzFYg4I",
+          "cachedResultName": "Email Suppression"
+        },
+        "filterByFormula": "=LOWER({Email}) = LOWER('{{ $('Format SEO Lead').first().json['_lookupEmail'] }}')",
+        "options": {
+          "fields": [
+            "Email"
+          ]
+        }
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "id": "3be2ada4-f2bb-4dc5-af90-30bbf2b788e2",
+      "name": "Not Suppressed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        910,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "7f8ec03d-48df-4575-9802-91a768071ace",
+              "leftValue": "={{ $json.id || '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "18135da1-cbc8-44fe-bbaa-063cd1087984",
       "name": "Save to Airtable",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
       "position": [
-        690,
+        1130,
         250
       ],
       "parameters": {
         "operation": "create",
-        "application": "apptjjBx34z9340tK",
-        "table": "tblwOPTPY85Tcj7NJ",
+        "base": {
+          "__rl": true,
+          "mode": "list",
+          "value": "apptjjBx34z9340tK",
+          "cachedResultName": "AVM Marketing"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "list",
+          "value": "tblwOPTPY85Tcj7NJ",
+          "cachedResultName": "Leads"
+        },
         "columns": {
-          "mappingMode": "autoMapInputData",
-          "value": null
+          "mappingMode": "defineBelow",
+          "value": {
+            "Lead ID": "={{ $('Format SEO Lead').first().json['Lead ID'] }}",
+            "Contact Name": "={{ $('Format SEO Lead').first().json['Contact Name'] }}",
+            "Email": "={{ $('Format SEO Lead').first().json['Email'] }}",
+            "Phone": "={{ $('Format SEO Lead').first().json['Phone'] }}",
+            "Company": "={{ $('Format SEO Lead').first().json['Company'] }}",
+            "Source Channel": "={{ $('Format SEO Lead').first().json['Source Channel'] }}",
+            "Source URL": "={{ $('Format SEO Lead').first().json['Source URL'] }}",
+            "UTM Source": "={{ $('Format SEO Lead').first().json['UTM Source'] }}",
+            "UTM Medium": "={{ $('Format SEO Lead').first().json['UTM Medium'] }}",
+            "UTM Campaign": "={{ $('Format SEO Lead').first().json['UTM Campaign'] }}",
+            "First Touch Content": "={{ $('Format SEO Lead').first().json['First Touch Content'] }}",
+            "Notes": "={{ $('Format SEO Lead').first().json['Notes'] }}",
+            "Status": "={{ $('Format SEO Lead').first().json['Status'] }}",
+            "Source System": "={{ $('Format SEO Lead').first().json['Source System'] }}",
+            "Grade": "={{ $('Format SEO Lead').first().json['Grade'] }}",
+            "Created At": "={{ $('Format SEO Lead').first().json['Created At'] }}"
+          },
+          "schema": [
+            {
+              "id": "Lead ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Lead ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Contact Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Contact Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "type": "string",
+              "display": true,
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "type": "string",
+              "display": true,
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source Channel",
+              "type": "string",
+              "display": true,
+              "displayName": "Source Channel",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source URL",
+              "type": "string",
+              "display": true,
+              "displayName": "Source URL",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UTM Source",
+              "type": "string",
+              "display": true,
+              "displayName": "UTM Source",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UTM Medium",
+              "type": "string",
+              "display": true,
+              "displayName": "UTM Medium",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UTM Campaign",
+              "type": "string",
+              "display": true,
+              "displayName": "UTM Campaign",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "First Touch Content",
+              "type": "string",
+              "display": true,
+              "displayName": "First Touch Content",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "type": "string",
+              "display": true,
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source System",
+              "type": "string",
+              "display": true,
+              "displayName": "Source System",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Grade",
+              "type": "string",
+              "display": true,
+              "displayName": "Grade",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       },
@@ -57,18 +303,19 @@
       }
     },
     {
-      "id": "f95b395e-577a-4e18-9f17-6b18ff137e6b",
+      "id": "ad175d88-9e19-44d1-8abc-93b608c71709",
       "name": "Email Notification",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
       "position": [
-        690,
+        1130,
         450
       ],
       "parameters": {
         "sendTo": "ian@anyvisionmedia.com",
-        "subject": "=NEW LEAD (SEO): {{ $json['Name'] }} from {{ $json['Company'] }}",
-        "message": "<div style=\"font-family: Arial, sans-serif; max-width: 600px;\">\n  <h2 style=\"color: #FF6D5A;\">New SEO Lead</h2>\n  <table style=\"width: 100%; border-collapse: collapse;\">\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Name</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Name'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Email</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Email'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Company</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Company'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Phone</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Phone'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Source</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Source'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Page URL</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Page URL'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Source</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['UTM Source'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Medium</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['UTM Medium'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Campaign</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['UTM Campaign'] }}</td></tr>\n  </table>\n  <h3 style=\"color: #333; margin-top: 16px;\">Message</h3>\n  <p style=\"background: #f5f5f5; padding: 12px; border-radius: 4px;\">{{ $('Format SEO Lead').first().json['Message'] }}</p>\n  <p style=\"color: #999; font-size: 12px; margin-top: 16px;\">Lead ID: {{ $('Format SEO Lead').first().json['Lead ID'] }} | {{ $('Format SEO Lead').first().json['Created At'] }}</p>\n</div>",
+        "subject": "=NEW LEAD (SEO): {{ $('Format SEO Lead').first().json['Contact Name'] }} from {{ $('Format SEO Lead').first().json['Company'] }}",
+        "message": "<div style=\"font-family: Arial, sans-serif; max-width: 600px;\">\n  <h2 style=\"color: #FF6D5A;\">New SEO Lead</h2>\n  <table style=\"width: 100%; border-collapse: collapse;\">\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Name</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Contact Name'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Email</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Email'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Company</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Company'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Phone</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Phone'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Channel</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Source Channel'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">Page</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['Source URL'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Source</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['UTM Source'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Medium</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['UTM Medium'] }}</td></tr>\n    <tr><td style=\"padding: 8px; font-weight: bold; border-bottom: 1px solid #eee;\">UTM Campaign</td>\n        <td style=\"padding: 8px; border-bottom: 1px solid #eee;\">{{ $('Format SEO Lead').first().json['UTM Campaign'] }}</td></tr>\n  </table>\n  <h3 style=\"color: #333; margin-top: 16px;\">Message</h3>\n  <p style=\"background: #f5f5f5; padding: 12px; border-radius: 4px;\">{{ $('Format SEO Lead').first().json['Notes'] }}</p>\n  <p style=\"color: #999; font-size: 12px; margin-top: 16px;\">Lead ID: {{ $('Format SEO Lead').first().json['Lead ID'] }} | {{ $('Format SEO Lead').first().json['Created At'] }}</p>\n</div>",
         "options": {}
       },
       "credentials": {
@@ -79,12 +326,12 @@
       }
     },
     {
-      "id": "2cbb2796-e088-4966-8322-72e6a2c92e18",
+      "id": "d0bf5f41-140c-4c4f-8c97-158e8f8c1f59",
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        910,
+        1350,
         250
       ],
       "parameters": {
@@ -110,12 +357,41 @@
       "main": [
         [
           {
+            "node": "Check Suppression",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Suppression": {
+      "main": [
+        [
+          {
+            "node": "Not Suppressed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not Suppressed?": {
+      "main": [
+        [
+          {
             "node": "Save to Airtable",
             "type": "main",
             "index": 0
           },
           {
             "node": "Email Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Success",
             "type": "main",
             "index": 0
           }
