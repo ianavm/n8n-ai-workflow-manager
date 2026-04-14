@@ -1,0 +1,503 @@
+{
+  "name": "PP-03 Evening Review",
+  "nodes": [
+    {
+      "id": "77d2f11e-5300-464f-b450-870bac4095d2",
+      "name": "Daily 20:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "837790af-45a4-4a50-a8e5-02b26a490e77",
+      "name": "Compute Dates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const SAST_OFFSET_HOURS = 2;\nconst now = new Date();\nconst sastNow = new Date(now.getTime() + SAST_OFFSET_HOURS * 3600 * 1000);\nconst yyyy = sastNow.getUTCFullYear();\nconst mm = String(sastNow.getUTCMonth() + 1).padStart(2, '0');\nconst dd = String(sastNow.getUTCDate()).padStart(2, '0');\nconst today = `${yyyy}-${mm}-${dd}`;\n\nconst launch = new Date('2026-04-22T00:00:00+02:00');\nconst todayMidnight = new Date(`${today}T00:00:00+02:00`);\nconst dayN = Math.floor((todayMidnight - launch) / (86400 * 1000)) + 1;\n\nconst weekdayNum = sastNow.getUTCDay();\nconst themeMap = {1:'Mon_Metrics',2:'Tue_Tutorial',3:'Wed_Win',4:'Thu_Thought',5:'Fri_Fails',6:'Sat_Strategy',0:'Sun_Story'};\nconst weekdayTheme = themeMap[weekdayNum];\nconst weekdayName = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][weekdayNum];\n\nreturn [{\n  json: {\n    today,\n    day_n: dayN,\n    weekday_theme: weekdayTheme,\n    weekday_name: weekdayName,\n    snapshot_id: `snap-${today.replace(/-/g, '')}`,\n  }\n}];"
+      }
+    },
+    {
+      "id": "3eeb5042-53c2-48ca-8884-38418f9e26bc",
+      "name": "Read Today Missions",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "position": [
+        720,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblD66W7bTOoMxczA",
+          "mode": "id"
+        },
+        "returnAll": false,
+        "limit": 30,
+        "options": {},
+        "filterByFormula": "IS_SAME({Date},TODAY(),'day')"
+      }
+    },
+    {
+      "id": "3b2dea63-f8b2-4048-acd9-e1427db4cb8f",
+      "name": "Read Player",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "position": [
+        980,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblSQ3DJ3o7gv2zli",
+          "mode": "id"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "options": {},
+        "filterByFormula": "{Player ID}='ian-immelman'"
+      }
+    },
+    {
+      "id": "1bf90264-0ec5-4cc2-8f4a-aee0580b1f06",
+      "name": "Read Today Snapshot",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "position": [
+        980,
+        480
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9OoFiM0kxGc48T",
+          "mode": "id"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "options": {},
+        "filterByFormula": "IS_SAME({Date},TODAY(),'day')"
+      }
+    },
+    {
+      "id": "d1bc12a7-8789-4279-9cb9-857efe8c0a74",
+      "name": "Read Today XP Log",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "position": [
+        980,
+        660
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbldpF8Q2rKuGmKOn",
+          "mode": "id"
+        },
+        "returnAll": false,
+        "limit": 50,
+        "options": {},
+        "filterByFormula": "AND(IS_SAME({Timestamp},TODAY(),'day'),{Event Type}='Mission_Complete')"
+      }
+    },
+    {
+      "id": "e53c7e52-517f-4299-8a4d-37245dd66ab6",
+      "name": "Compute Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const dates = $('Compute Dates').first().json;\nconst missionItems = $('Read Today Missions').all();\nconst missions = missionItems.map(i => i.json);\nconst playerItems = $('Read Player').all();\nconst player = playerItems.length > 0 ? playerItems[0].json : {\n  'Player ID': 'ian-immelman',\n  'Current XP': 0,\n  'Lifetime XP': 0,\n  'Level': 1,\n  'Current Streak Days': 0,\n  'Longest Streak': 0,\n  'Last Active Date': null,\n  'Current Difficulty': 'Normal',\n};\n\n// Count by status + category\nconst counts = {Pending: 0, In_Progress: 0, Complete: 0, Skipped: 0, Failed: 0};\nconst completedByCat = {Revenue: 0, Growth: 0, Build: 0, Learning: 0, Maintenance: 0};\nlet hardestTier = 'Optional';\nconst tierOrder = {'Optional': 0, 'High-Value': 1, 'Must-Complete': 2};\n\n// Sum XP from PP_XP_Log today (authoritative, includes streak multipliers).\n// Dedupe by Log ID: upstream Airtable reads fan out on multi-item input\n// (Read Today Missions emits 6 items → Read Player/Snapshot/XP Log each\n// run 6 times → 30 duplicated log rows reach this node). Without dedupe\n// we would inflate xpEarned 6x and corrupt the PP_Performance_Snapshot\n// write downstream. Confirmed in PP-02 live test on 2026-04-13.\nconst seenXpLogIds = new Set();\nconst xpLogItems = $('Read Today XP Log').all()\n  .map(i => i.json)\n  .filter(e => {\n    if (!e || !e['Log ID'] || e['Event Type'] !== 'Mission_Complete') return false;\n    if (seenXpLogIds.has(e['Log ID'])) return false;\n    seenXpLogIds.add(e['Log ID']);\n    return true;\n  });\nconst xpEarned = xpLogItems.reduce((s, e) => s + (e['XP Delta'] || 0), 0);\n\nfor (const m of missions) {\n  const status = m['Status'] || 'Pending';\n  counts[status] = (counts[status] || 0) + 1;\n  if (status === 'Complete') {\n    const cat = m['Category'] || 'Maintenance';\n    completedByCat[cat] = (completedByCat[cat] || 0) + 1;\n    const tier = m['Tier'] || 'Optional';\n    if ((tierOrder[tier] || 0) > (tierOrder[hardestTier] || 0)) {\n      hardestTier = tier;\n    }\n  }\n}\n\nconst assigned = missions.length;\nconst completed = counts.Complete || 0;\nconst rate = assigned > 0 ? (completed / assigned) : 0;\nconst avgXp = completed > 0 ? (xpEarned / completed) : 0;\n\n// Streak logic — idempotent via today's snapshot presence, not Last Active Date\n// (the skill updates Last Active Date on every mission complete, so we can't\n// rely on it to detect \"has PP-03 already run today\").\n// alwaysOutputData emits a synthetic empty item when Airtable returns nothing,\n// so check for real content via the Snapshot ID field, not just .length.\nconst previousStreak = player['Current Streak Days'] || 0;\nconst longestStreak = player['Longest Streak'] || 0;\nconst snapshotExists = $('Read Today Snapshot').all().some(i => i.json && i.json['Snapshot ID']);\n\nlet newStreak;\nlet streakAction;\nif (snapshotExists) {\n  newStreak = previousStreak;\n  streakAction = 'idempotent';\n} else if (completed >= 1) {\n  newStreak = previousStreak + 1;\n  streakAction = 'extended';\n} else {\n  newStreak = 0;\n  streakAction = 'broken';\n}\nconst newLongest = Math.max(newStreak, longestStreak);\n\n// Build AI input\nconst rateBand = rate >= 0.8 ? 'strong' : rate >= 0.5 ? 'mixed' : 'weak';\nconst pendingTitles = missions.filter(m => (m['Status'] || 'Pending') === 'Pending').map(m => m['Title']).slice(0, 5);\nconst skippedTitles = missions.filter(m => m['Status'] === 'Skipped').map(m => m['Title']).slice(0, 3);\n\nconst userMsg = `STATS FOR EVENING REVIEW\n\nToday: ${dates.today} (${dates.weekday_name}, Day ${dates.day_n} of 100)\nTheme: ${dates.weekday_theme}\nPlayer: Level ${player['Level']} · ${player['Lifetime XP']} lifetime XP · difficulty ${player['Current Difficulty']}\nPrevious streak: ${previousStreak} days\nNew streak: ${newStreak} days (${streakAction})\n\nMissions assigned: ${assigned}\nCompleted: ${completed} (${Math.round(rate * 100)}% rate — ${rateBand})\n  Revenue: ${completedByCat.Revenue}, Growth: ${completedByCat.Growth}, Build: ${completedByCat.Build}, Learning: ${completedByCat.Learning}, Maintenance: ${completedByCat.Maintenance}\nSkipped: ${counts.Skipped || 0}\nStill pending: ${counts.Pending || 0}\nXP earned today: ${xpEarned}\n\n${pendingTitles.length ? 'Pending titles: ' + pendingTitles.map(t => '\"' + t + '\"').join(', ') : ''}\n${skippedTitles.length ? 'Skipped titles: ' + skippedTitles.map(t => '\"' + t + '\"').join(', ') : ''}\n\nWrite the evening review per your system prompt rules.`;\n\nreturn [{\n  json: {\n    ...dates,\n    assigned,\n    completed,\n    rate,\n    rate_band: rateBand,\n    xp_earned: xpEarned,\n    avg_xp: Math.round(avgXp * 10) / 10,\n    revenue_completed: completedByCat.Revenue,\n    growth_completed: completedByCat.Growth,\n    build_completed: completedByCat.Build,\n    hardest_tier: hardestTier,\n    counts,\n    previous_streak: previousStreak,\n    new_streak: newStreak,\n    longest_streak: newLongest,\n    streak_action: streakAction,\n    player_id: player['Player ID'],\n    player_level: player['Level'] || 1,\n    lifetime_xp: player['Lifetime XP'] || 0,\n    difficulty: player['Current Difficulty'] || 'Normal',\n    pending_titles: pendingTitles,\n    skipped_titles: skippedTitles,\n    user_message: userMsg,\n  }\n}];"
+      }
+    },
+    {
+      "id": "e3653f53-1e25-4ce2-8b4e-c1164e1d7494",
+      "name": "Create Snapshot",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        1500,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl9OoFiM0kxGc48T",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Snapshot ID": "={{ $json.snapshot_id }}",
+            "Date": "={{ $json.today }}",
+            "Missions Assigned": "={{ $json.assigned }}",
+            "Missions Completed": "={{ $json.completed }}",
+            "Completion Rate": "={{ $json.rate }}",
+            "Total XP Earned": "={{ $json.xp_earned }}",
+            "Avg XP Per Mission": "={{ $json.avg_xp }}",
+            "Revenue Missions Completed": "={{ $json.revenue_completed }}",
+            "Growth Missions Completed": "={{ $json.growth_completed }}",
+            "Build Missions Completed": "={{ $json.build_completed }}",
+            "Hardest Tier Hit": "={{ $json.hardest_tier }}",
+            "Difficulty At Snapshot": "={{ $json.difficulty }}"
+          }
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a468dba5-6c39-4848-aa34-d8bef802aee8",
+      "name": "Update Player Streak",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblSQ3DJ3o7gv2zli",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Player ID"
+          ],
+          "value": {
+            "Player ID": "={{ $('Compute Stats').item.json.player_id }}",
+            "Current Streak Days": "={{ $('Compute Stats').item.json.new_streak }}",
+            "Longest Streak": "={{ $('Compute Stats').item.json.longest_streak }}",
+            "Last Active Date": "={{ $('Compute Stats').item.json.today }}"
+          }
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f9886558-d860-4c30-948a-f4750d582cfb",
+      "name": "AI Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        2020,
+        300
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "HTTP-Referer",
+              "value": "https://www.anyvisionmedia.com"
+            },
+            {
+              "name": "X-Title",
+              "value": "AVM Coach PP-03"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\": \"anthropic/claude-sonnet-4.5\", \"max_tokens\": 400, \"temperature\": 0.5, \"messages\": [{\"role\": \"system\", \"content\": \"You are Ian Immelman's AVM Coach writing the evening review for a 100 Day Challenge gamified daily workflow.\\n\\nIan is building AnyVision Media, a SA AI automation agency, with a R20-180K/month revenue ladder over 6 months. You get a short stats block about today's missions and player state. Your job: write a warm, direct, 3-5 line evening review.\\n\\nTone:\\n- First-person to Ian (you/your, not Ian/he)\\n- Coach, not cheerleader. Be specific about what was strong or weak.\\n- South African context (ZAR, UK English)\\n- Never patronising, never generic (\\\"great job!\\\", \\\"keep it up!\\\" are forbidden)\\n\\nStructure:\\nLine 1: One concrete observation about TODAY (what worked or what didn't)\\nLine 2: Connect today to the larger arc (100 Day challenge phase, streak, trend)\\nLine 3: One specific thing to carry into tomorrow OR one thing to stop doing\\n\\nMax 400 chars total. No emoji unless the stats block has a streak \\u22657. Plain text.\\nReturn ONLY the review text, no JSON, no markdown, no labels.\"}, {\"role\": \"user\", \"content\": \"{{ $('Compute Stats').item.json.user_message.replace(/\\\\/g, '\\\\\\\\').replace(/\"/g, '\\\\\"').replace(/\\n/g, '\\\\n') }}\"}]}",
+        "options": {
+          "timeout": 90000
+        }
+      }
+    },
+    {
+      "id": "4e0b4e4d-6634-439b-b04f-6d57699ee1de",
+      "name": "Render Review",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const stats = $('Compute Stats').first().json;\nconst aiResp = $input.item.json;\n\nlet review = '';\ntry {\n  review = aiResp.choices?.[0]?.message?.content || '';\n} catch (e) {\n  review = '(AI review unavailable)';\n}\n// Strip markdown fences if any\nreview = review.trim().replace(/^```[a-z]*\\s*\\n?/, '').replace(/\\n?```$/, '').trim();\n\nconst streakEmoji = stats.new_streak >= 7 ? '🔥 ' : '';\nconst rateBadge = stats.rate >= 0.8 ? '💪' : stats.rate >= 0.5 ? '🟡' : '🔴';\n\nconst missionPct = Math.round(stats.rate * 100);\n\nlet streakLine;\nif (stats.streak_action === 'extended') {\n  streakLine = `${streakEmoji}Streak: ${stats.previous_streak} → ${stats.new_streak} day(s)`;\n} else if (stats.streak_action === 'broken') {\n  streakLine = `💔 Streak broken (was ${stats.previous_streak})`;\n} else {\n  streakLine = `Streak: ${stats.new_streak} day(s) (no change)`;\n}\n\nconst body = `📊 *EVENING REVIEW* — ${stats.weekday_name} ${stats.today}\nDay ${stats.day_n} of 100\n\n${rateBadge} ${stats.completed}/${stats.assigned} missions complete (${missionPct}%)\nXP earned: ${stats.xp_earned} · Lifetime: ${stats.lifetime_xp}\n${streakLine}\n\n${review}\n${stats.counts.Pending > 0 ? '\\n⚠️ ' + stats.counts.Pending + ' still pending — mark or carry to tomorrow' : ''}`;\n\nreturn [{\n  json: {\n    telegram_text: body,\n  }\n}];"
+      }
+    },
+    {
+      "id": "70c793e5-1474-419d-8295-f7702604efa9",
+      "name": "Send Review Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        2540,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "Ha3Ewmk9ofbvWyZ9",
+          "name": "Telegram AVMCRMBot"
+        }
+      },
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "6311361442",
+        "text": "={{ $json.telegram_text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "disable_notification": false
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 20:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Compute Dates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Dates": {
+      "main": [
+        [
+          {
+            "node": "Read Today Missions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Today Missions": {
+      "main": [
+        [
+          {
+            "node": "Read Player",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Player": {
+      "main": [
+        [
+          {
+            "node": "Read Today Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Today Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Read Today XP Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Today XP Log": {
+      "main": [
+        [
+          {
+            "node": "Compute Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Stats": {
+      "main": [
+        [
+          {
+            "node": "Create Snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Snapshot": {
+      "main": [
+        [
+          {
+            "node": "Update Player Streak",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Player Streak": {
+      "main": [
+        [
+          {
+            "node": "AI Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Review": {
+      "main": [
+        [
+          {
+            "node": "Render Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Review": {
+      "main": [
+        [
+          {
+            "node": "Send Review Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "UTC",
+    "availableInMCP": true
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
