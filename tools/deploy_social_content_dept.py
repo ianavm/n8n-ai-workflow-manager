@@ -69,7 +69,7 @@ BLOTATO_ACCOUNTS = {
     "tiktok": {"accountId": "33677", "name": "TikTok (anyvision.media)"},
     "facebook": {"accountId": "23022", "name": "Facebook (Ian Immelman)"},
     "twitter": {"accountId": "14195", "name": "Twitter (AnyVisionMedia)"},
-    "youtube": {"accountId": "33522", "name": "YouTube (Ian Immelman)"},
+    "youtube": {"accountId": "33524", "name": "YouTube (AnyVision Media Brand Account)"},
     # Not currently connected in Blotato — reconnect in Blotato dashboard to enable:
     "threads": {"accountId": "NOT_CONNECTED", "name": "Threads"},
     "bluesky": {"accountId": "NOT_CONNECTED", "name": "Bluesky"},
@@ -711,6 +711,7 @@ def build_sc02_nodes() -> list[dict]:
         "position": [440, 400],
         "typeVersion": 2.1,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "executeOnce": True,
     })
 
     # -- Platform Router --
@@ -1059,6 +1060,7 @@ def build_sc03_nodes() -> list[dict]:
         "position": [440, 400],
         "typeVersion": 2.1,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "executeOnce": True,
     })
 
     # -- Build Adapt Prompt (Code node) --
@@ -1298,7 +1300,7 @@ return capItems.map((capItem, idx) => {
             "columns": {
                 "mappingMode": "defineBelow",
                 "value": {
-                    "Script ID": "={{ 'SCR-' + $now.toFormat('yyyyMMdd-HHmmss') + '-' + $runIndex }}",
+                    "Script ID": "={{ 'SCR-' + $now.toFormat('yyyyMMdd-HHmmssSSS') + '-' + $runIndex + '-' + $itemIndex }}",
                     "Source Trend ID": "={{ $json.trendId }}",
                     "Video Type": "={{ $json.videoType }}",
                     "Script Text": "={{ $json.scriptText }}",
@@ -1408,12 +1410,16 @@ def build_sc04_nodes() -> list[dict]:
     })
 
     # -- Read Adapted Scripts --
+    # Cap batch size at 5 per run to avoid overwhelming Railway render server
+    # (in-memory job store gets wiped on container restart)
     nodes.append({
         "parameters": {
             "operation": "search",
             "base": {"__rl": True, "mode": "id", "value": AIRTABLE_BASE_ID},
             "table": {"__rl": True, "mode": "id", "value": TABLE_SCRIPTS},
             "filterByFormula": "={Status}='Adapted'",
+            "returnAll": False,
+            "limit": 5,
             "options": {},
         },
         "id": uid(),
@@ -1422,6 +1428,7 @@ def build_sc04_nodes() -> list[dict]:
         "position": [460, 400],
         "typeVersion": 2.1,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "executeOnce": True,
     })
 
     # -- Has Records? --
@@ -1606,7 +1613,7 @@ def build_sc04_nodes() -> list[dict]:
     fields: {
       'Script ID': $('Read Adapted').item.json['Script ID'],
       'Status': 'Failed',
-      'Error Message': $json.error || 'Render did not complete'
+      'Error Message': (typeof $json.error === 'string' ? $json.error : (($json.error && $json.error.message) || JSON.stringify($json.error || {}))).slice(0, 500) || 'Render did not complete'
     }
   }]
 }) }}""",
@@ -1707,6 +1714,8 @@ def build_sc05_nodes() -> list[dict]:
             "base": {"__rl": True, "mode": "id", "value": AIRTABLE_BASE_ID},
             "table": {"__rl": True, "mode": "id", "value": TABLE_SCRIPTS},
             "filterByFormula": "={Status}='Rendered'",
+            "returnAll": False,
+            "limit": 3,
             "options": {},
         },
         "id": uid(),
@@ -1715,6 +1724,7 @@ def build_sc05_nodes() -> list[dict]:
         "position": [460, 400],
         "typeVersion": 2.1,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "executeOnce": True,
     })
 
     # -- Has Records? --
@@ -1918,6 +1928,7 @@ return [{
         "type": "n8n-nodes-base.code",
         "position": [2020, 400],
         "typeVersion": 2,
+        "executeOnce": True,
     })
 
     # -- Update Published (HTTP upsert by Script ID) --
@@ -1952,6 +1963,7 @@ return [{
         "position": [2260, 400],
         "typeVersion": 4.2,
         "onError": "continueRegularOutput",
+        "executeOnce": True,
     })
 
     # -- Log Distribution --
@@ -1978,6 +1990,7 @@ return [{
         "position": [2500, 400],
         "typeVersion": 2.1,
         "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "executeOnce": True,
     })
 
     return nodes

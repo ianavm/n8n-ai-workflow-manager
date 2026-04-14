@@ -11,7 +11,7 @@
           ]
         }
       },
-      "id": "28952f4a-50ed-46e4-8ff0-ef4c8813efbd",
+      "id": "308624b7-3ea3-4127-be9e-e635b0660def",
       "name": "Daily 8AM SAST",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
@@ -22,7 +22,7 @@
     },
     {
       "parameters": {},
-      "id": "46bacd70-8b85-4be2-869f-387ebea8e959",
+      "id": "1dc44186-6139-4a65-abd8-0ff6b7e30e32",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "position": [
@@ -45,9 +45,11 @@
           "value": "tblXGCQ4LTymrU7a1"
         },
         "filterByFormula": "={Status}='Rendered'",
+        "returnAll": false,
+        "limit": 3,
         "options": {}
       },
-      "id": "a63d5210-81e0-4897-91e8-b78ba9b224cb",
+      "id": "de4b00c3-31de-4fb1-93b6-87b7e2ac4ab6",
       "name": "Read Rendered",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -60,7 +62,8 @@
           "id": "ZyBrcAO6fps7YB3u",
           "name": "Airtable account"
         }
-      }
+      },
+      "executeOnce": true
     },
     {
       "parameters": {
@@ -73,7 +76,7 @@
           },
           "conditions": [
             {
-              "id": "e70fd967-3b91-49b8-a32f-d25bc5a26c74",
+              "id": "80007444-ce34-41df-b058-8a454b1a76fb",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
               "operator": {
@@ -86,7 +89,7 @@
           "combinator": "and"
         }
       },
-      "id": "4acff101-0ce1-4efb-b647-56363c23f0ae",
+      "id": "40cd35b8-2341-47b5-9e7b-2f160bcd323e",
       "name": "Has Records?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -99,7 +102,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const fields = i.json.fields || i.json;\n  const recordId = i.json.id || '';\n  return {\n    json: {\n      recordId,\n      videoUrl: fields['Video URL'] || '',\n      captionInstagram: fields['Caption Instagram'] || '',\n      captionLinkedin: fields['Caption LinkedIn'] || '',\n      captionYoutube: fields['Caption YouTube'] || '',\n      hashtags: fields.Hashtags || '',\n      scriptId: fields['Script ID'] || '',\n      hook: fields.Hook || 'AnyVision Media',\n    }\n  };\n});"
       },
-      "id": "11c9a63d-e6f6-4848-9a8d-5865dc355205",
+      "id": "668f8fa8-e5d2-491d-8912-34380ea6ec7f",
       "name": "Format for Blotato",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -115,7 +118,7 @@
         "useBinaryData": false,
         "mediaUrl": "={{ $json.videoUrl }}"
       },
-      "id": "fde97d48-2edf-402c-8402-47f98ddd5c75",
+      "id": "36de72ca-cd76-4fac-b4b3-8cdce48a99e2",
       "name": "Upload to Blotato",
       "type": "@blotato/n8n-nodes-blotato.blotato",
       "position": [
@@ -135,7 +138,7 @@
       "parameters": {
         "jsCode": "const uploadResp = $input.first().json;\nconst source = $('Format for Blotato').first().json;\n\n// Blotato media upload response has the URL at top level\nconst blotatoUrl = uploadResp.url || uploadResp.mediaUrl || '';\n\nreturn [{\n  json: {\n    ...source,\n    blotatoMediaUrl: blotatoUrl,\n  }\n}];"
       },
-      "id": "4be1da15-9a68-48d1-a3ff-4268da7e197e",
+      "id": "6dd3126b-e3e6-4b6e-a41c-6550afe12f1c",
       "name": "Merge Upload Result",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -158,7 +161,7 @@
         "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
         "options": {}
       },
-      "id": "0c045cc4-de10-4f8c-bb0b-71e3a73efdbb",
+      "id": "26d5971c-e1fa-410f-bbb5-81d130105c70",
       "name": "Instagram",
       "type": "@blotato/n8n-nodes-blotato.blotato",
       "position": [
@@ -188,7 +191,7 @@
         "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
         "options": {}
       },
-      "id": "8dde76f1-aa1b-441b-ba65-2527344fdf20",
+      "id": "2a5c7db8-c7eb-4e73-ae2c-823d50c34846",
       "name": "LinkedIn",
       "type": "@blotato/n8n-nodes-blotato.blotato",
       "position": [
@@ -212,7 +215,7 @@
         "accountId": {
           "__rl": true,
           "mode": "list",
-          "value": "33522"
+          "value": "33524"
         },
         "postContentText": "={{ $json.captionYoutube }}",
         "postContentMediaUrls": "={{ $json.blotatoMediaUrl }}",
@@ -223,7 +226,7 @@
         "postCreateYoutubeOptionContainsSyntheticMedia": true,
         "options": {}
       },
-      "id": "596196ae-015b-46a2-a9c2-fd8f19256958",
+      "id": "36fb8962-3c09-4680-af56-9a9acb819961",
       "name": "YouTube",
       "type": "@blotato/n8n-nodes-blotato.blotato",
       "position": [
@@ -244,7 +247,7 @@
         "mode": "append",
         "options": {}
       },
-      "id": "70c23092-6269-4b6c-84a3-ed78c6313a2f",
+      "id": "f6d57819-a483-4aa9-9125-13887c5d9964",
       "name": "Merge Results",
       "type": "n8n-nodes-base.merge",
       "position": [
@@ -257,14 +260,15 @@
       "parameters": {
         "jsCode": "const results = $input.all();\nconst source = $('Format for Blotato').first().json;\nconst platforms = results.map(r => {\n  const platform = r.json?.platform || 'Unknown';\n  const success = !r.json?.error;\n  return platform + ': ' + (success ? 'OK' : 'FAILED');\n}).join(', ');\n\nreturn [{\n  json: {\n    recordId: source.recordId,\n    scriptId: source.scriptId,\n    publishResults: platforms,\n  }\n}];"
       },
-      "id": "1d617f9a-aca9-421f-8994-c4a7546443d7",
+      "id": "bf5d9115-0609-4511-b148-e663c08ce914",
       "name": "Process Results",
       "type": "n8n-nodes-base.code",
       "position": [
         2020,
         400
       ],
-      "typeVersion": 2
+      "typeVersion": 2,
+      "executeOnce": true
     },
     {
       "parameters": {
@@ -290,7 +294,7 @@
           "timeout": 15000
         }
       },
-      "id": "58ee9478-580a-491d-b858-91c8a6050a71",
+      "id": "07e89555-c05c-4b02-b137-52439e7a54a9",
       "name": "Update Published",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -298,7 +302,8 @@
         400
       ],
       "typeVersion": 4.2,
-      "onError": "continueRegularOutput"
+      "onError": "continueRegularOutput",
+      "executeOnce": true
     },
     {
       "parameters": {
@@ -325,7 +330,7 @@
         },
         "options": {}
       },
-      "id": "ea949c09-efb0-4176-8279-e15c1b93b813",
+      "id": "b53a1928-fa73-4b62-b2d2-d2775d1a203f",
       "name": "Log Distribution",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -338,7 +343,8 @@
           "id": "ZyBrcAO6fps7YB3u",
           "name": "Airtable account"
         }
-      }
+      },
+      "executeOnce": true
     }
   ],
   "connections": {

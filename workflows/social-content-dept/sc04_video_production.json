@@ -11,7 +11,7 @@
           ]
         }
       },
-      "id": "9717bf8c-bb53-494e-84bb-88212dcc2a10",
+      "id": "f4c74a18-c6f2-4c40-aadc-589f42e4f30e",
       "name": "Daily 7AM SAST",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
@@ -22,7 +22,7 @@
     },
     {
       "parameters": {},
-      "id": "aa6c3dbd-5e0c-43a2-9425-7dbec756c61c",
+      "id": "cfd3ee84-ce76-4549-bb0e-8184d650340f",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "position": [
@@ -45,9 +45,11 @@
           "value": "tblXGCQ4LTymrU7a1"
         },
         "filterByFormula": "={Status}='Adapted'",
+        "returnAll": false,
+        "limit": 5,
         "options": {}
       },
-      "id": "250e837a-e81e-498d-870b-86c60e30cad7",
+      "id": "339160bd-2add-4788-b9c6-aaabd7a7a41b",
       "name": "Read Adapted",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -60,7 +62,8 @@
           "id": "ZyBrcAO6fps7YB3u",
           "name": "Airtable account"
         }
-      }
+      },
+      "executeOnce": true
     },
     {
       "parameters": {
@@ -73,7 +76,7 @@
           },
           "conditions": [
             {
-              "id": "20c8d597-e39d-44a7-bfa7-36827927485d",
+              "id": "b9d34340-ba17-433e-bca6-f4dac1d2eb3f",
               "leftValue": "={{ $json.id }}",
               "rightValue": "",
               "operator": {
@@ -86,7 +89,7 @@
           "combinator": "and"
         }
       },
-      "id": "ad99b082-b3b3-442d-9b62-e63c90ce7ec2",
+      "id": "ac21bd39-e557-40c0-ba27-0f556971fbde",
       "name": "Has Records?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -119,7 +122,7 @@
           "timeout": 15000
         }
       },
-      "id": "c691e8de-deb8-452c-b142-274eaff6db25",
+      "id": "c6131fd3-a597-428f-b802-032c8b333e35",
       "name": "Status Rendering",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -157,7 +160,7 @@
           "timeout": 120000
         }
       },
-      "id": "3acba12d-d5bc-4f5b-9ee8-62c0ee1fd71c",
+      "id": "d2eba8a7-6881-45bf-988d-fd28f74f4e02",
       "name": "Render Video",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -172,7 +175,7 @@
         "amount": 180,
         "unit": "seconds"
       },
-      "id": "41de635f-a666-4c03-8382-de938feb3f51",
+      "id": "8c2f4937-d0c7-413b-900b-1d276818c353",
       "name": "Wait 30s",
       "type": "n8n-nodes-base.wait",
       "position": [
@@ -202,7 +205,7 @@
           "timeout": 15000
         }
       },
-      "id": "2463e80a-687b-40f9-9222-90e945962d45",
+      "id": "6e5960f3-935b-4fb8-9312-a9238168a257",
       "name": "Poll Render",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -223,7 +226,7 @@
           },
           "conditions": [
             {
-              "id": "e161c054-badb-40f6-91ce-1d280f00daa7",
+              "id": "f1c5e61c-afd3-4964-8d75-e278e3464784",
               "leftValue": "={{ $json.status }}",
               "rightValue": "complete",
               "operator": {
@@ -235,7 +238,7 @@
           "combinator": "and"
         }
       },
-      "id": "d2a61936-00a3-4af9-b878-be07721ef398",
+      "id": "6a835827-9d18-458b-ba9b-503ee36b8283",
       "name": "Render Complete?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -268,7 +271,7 @@
           "timeout": 15000
         }
       },
-      "id": "26286ab8-bc8d-4a2d-ac70-970fe6ab049a",
+      "id": "2e94af1d-38e9-405f-ba2a-bc123bda74e3",
       "name": "Update Rendered",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -297,12 +300,12 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  performUpsert: { fieldsToMergeOn: ['Script ID'] },\n  records: [{\n    fields: {\n      'Script ID': $('Read Adapted').item.json['Script ID'],\n      'Status': 'Failed',\n      'Error Message': $json.error || 'Render did not complete'\n    }\n  }]\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  performUpsert: { fieldsToMergeOn: ['Script ID'] },\n  records: [{\n    fields: {\n      'Script ID': $('Read Adapted').item.json['Script ID'],\n      'Status': 'Failed',\n      'Error Message': (typeof $json.error === 'string' ? $json.error : (($json.error && $json.error.message) || JSON.stringify($json.error || {}))).slice(0, 500) || 'Render did not complete'\n    }\n  }]\n}) }}",
         "options": {
           "timeout": 15000
         }
       },
-      "id": "7b3e73f3-b4fd-443a-82af-d81ec82e01ad",
+      "id": "af6d3ac5-7eb9-42a1-a986-2478b9841cc2",
       "name": "Update Failed",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -336,7 +339,7 @@
         },
         "options": {}
       },
-      "id": "270691ff-d2a0-423f-9c24-61b7fade109d",
+      "id": "dd9f0b39-b863-4935-ac29-66563e9667a9",
       "name": "Log Production",
       "type": "n8n-nodes-base.airtable",
       "position": [

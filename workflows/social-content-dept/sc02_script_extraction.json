@@ -5,7 +5,7 @@
       "parameters": {
         "inputSource": "passthrough"
       },
-      "id": "24574722-b528-41ad-81a3-fb4317eac988",
+      "id": "44b3fcaa-da12-4b76-9b9d-4551907104bd",
       "name": "Execute Workflow Trigger",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "position": [
@@ -32,7 +32,7 @@
         "limit": 20,
         "options": {}
       },
-      "id": "885d9f29-7035-4d2f-b43a-4f050d3e7d24",
+      "id": "847a52cc-7507-4013-a281-fa876d2afc8b",
       "name": "Read Discovered",
       "type": "n8n-nodes-base.airtable",
       "position": [
@@ -45,7 +45,8 @@
           "id": "ZyBrcAO6fps7YB3u",
           "name": "Airtable account"
         }
-      }
+      },
+      "executeOnce": true
     },
     {
       "parameters": {
@@ -55,7 +56,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "id": "57fc2ebb-2105-4438-b669-c69855f335ef",
+                    "id": "2f78c1aa-2b67-4b0e-b4fe-97dc88e9c9bf",
                     "leftValue": "={{ $json.Platform || ($json.fields && $json.fields.Platform) }}",
                     "rightValue": "YouTube",
                     "operator": {
@@ -70,7 +71,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "id": "502887fb-4e42-4a1d-b2e6-3c6680167659",
+                    "id": "a1c0bad4-bfc7-4814-afec-ba3036575008",
                     "leftValue": "={{ $json.Platform || ($json.fields && $json.fields.Platform) }}",
                     "rightValue": "Instagram",
                     "operator": {
@@ -85,7 +86,7 @@
               "conditions": {
                 "conditions": [
                   {
-                    "id": "ee29e400-d897-444c-8a02-cc980c7cfe92",
+                    "id": "da0c0ebb-c9f5-44a1-bf69-0480824a24ed",
                     "leftValue": "={{ $json.Platform || ($json.fields && $json.fields.Platform) }}",
                     "rightValue": "LinkedIn",
                     "operator": {
@@ -100,7 +101,7 @@
         },
         "options": {}
       },
-      "id": "d3fd59b5-e8a0-43dd-b51b-bf7c7d0b9dca",
+      "id": "2ef39776-9662-4003-a822-859262da4e6e",
       "name": "Platform Router",
       "type": "n8n-nodes-base.switch",
       "position": [
@@ -113,7 +114,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const item = i.json;\n  const fields = item.fields || item;\n  const recordId = item.id || '';\n  const sourceUrl = fields['Source URL'] || '';\n  const url = fields['Source URL'] || '';\n  const parts = url.split('/shorts/');\n  const videoId = parts.length > 1 ? parts[1].split('?')[0] : '';\n  return {\n    json: {\n      recordId,\n      sourceUrl,\n      platform: fields.Platform || 'YouTube',\n      title: fields.Title || '',\n      sourceCreator: fields['Source Creator'] || 'Unknown',\n      viewCount: fields['View Count'] || 0,\n      likeCount: fields['Like Count'] || 0,\n      commentCount: fields['Comment Count'] || 0,\n      transcript: fields.Title || 'No transcript available',\n      videoId,\n    }\n  };\n});"
       },
-      "id": "67559f3b-3c1e-427d-bde4-0f6739b6ff9e",
+      "id": "400d3edd-7bc0-4e2e-911d-a4e68b9db126",
       "name": "YouTube Captions",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -126,7 +127,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const item = i.json;\n  const fields = item.fields || item;\n  const recordId = item.id || '';\n  const sourceUrl = fields['Source URL'] || '';\n  const transcript = fields.Transcript || fields.Title || '';\n  return {\n    json: {\n      recordId,\n      sourceUrl,\n      platform: fields.Platform || 'Instagram',\n      title: fields.Title || '',\n      sourceCreator: fields['Source Creator'] || 'Unknown',\n      viewCount: fields['View Count'] || 0,\n      likeCount: fields['Like Count'] || 0,\n      commentCount: fields['Comment Count'] || 0,\n      transcript: transcript || 'No caption available',\n    }\n  };\n});"
       },
-      "id": "74995dd1-d6e3-47a0-9a68-93473065f243",
+      "id": "e4383a36-397c-48d9-8ceb-6d9cd09bff77",
       "name": "Instagram Text",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -139,7 +140,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const item = i.json;\n  const fields = item.fields || item;\n  const recordId = item.id || '';\n  const sourceUrl = fields['Source URL'] || '';\n  const transcript = fields.Transcript || fields.Title || '';\n  return {\n    json: {\n      recordId,\n      sourceUrl,\n      platform: fields.Platform || 'LinkedIn',\n      title: fields.Title || '',\n      sourceCreator: fields['Source Creator'] || 'Unknown',\n      viewCount: fields['View Count'] || 0,\n      likeCount: fields['Like Count'] || 0,\n      commentCount: fields['Comment Count'] || 0,\n      transcript: transcript || 'No content available',\n    }\n  };\n});"
       },
-      "id": "2b04145e-dd8f-41e9-9c41-0c8b06a02bb7",
+      "id": "bc208f08-9011-4c8a-a7ba-ed4f02059184",
       "name": "LinkedIn Text",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -153,7 +154,7 @@
         "mode": "append",
         "options": {}
       },
-      "id": "c0914dfa-8c1a-4efc-acdb-57db8088cae7",
+      "id": "1ac25126-f85f-4a54-88c5-aa4c47f7c7ac",
       "name": "Merge Extraction",
       "type": "n8n-nodes-base.merge",
       "position": [
@@ -166,7 +167,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nreturn items.map(i => {\n  const d = i.json;\n  const platform = d.platform || 'Unknown';\n  const creator = d.sourceCreator || 'Unknown';\n  const title = d.title || '';\n  const views = d.viewCount || 0;\n  const likes = d.likeCount || 0;\n  const comments = d.commentCount || 0;\n  const transcript = (d.transcript || '').slice(0, 2000);\n  const recordId = d.recordId || '';\n  const sourceUrl = d.sourceUrl || d['Source URL'] || '';\n\n  const prompt = 'You are a viral content analyst. Analyze this trending social media content and extract the reusable template.\\n\\n' +\n    'Platform: ' + platform + '\\n' +\n    'Creator: ' + creator + '\\n' +\n    'Title: ' + title + '\\n' +\n    'Engagement: ' + views + ' views, ' + likes + ' likes, ' + comments + ' comments\\n' +\n    'Content: ' + transcript + '\\n\\n' +\n    'Extract the structural template. Identify the hook pattern, body structure, and CTA placement.\\n\\n' +\n    'Output JSON only (no markdown, no backticks):\\n' +\n    '{\"template_pattern\":\"Hook: [pattern] -> Body: [structure] -> CTA: [type]\",' +\n    '\"content_category\":\"How-to|Listicle|Quote|Stat-graphic|Reaction|Story|Tutorial\",' +\n    '\"virality_factors\":[\"factor1\",\"factor2\"],' +\n    '\"video_type_recommendation\":\"Text-on-screen|Quote-card|Stat-graphic|Talking-head-script\",' +\n    '\"adaptability_score\":85}';\n\n  return { json: { recordId, sourceUrl, platform, transcript, prompt } };\n});"
       },
-      "id": "6b422e93-588a-4c97-be0b-f2801a46a9c0",
+      "id": "d059ff26-0ee6-4c83-ab9b-2a64a9450948",
       "name": "Build Extraction Prompt",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -188,7 +189,7 @@
           "timeout": 30000
         }
       },
-      "id": "942e3e0e-15db-47c6-adec-b974a4731f9b",
+      "id": "458c82b7-d5fe-40ac-bd2f-d181f0587d45",
       "name": "AI Template Analysis",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -207,7 +208,7 @@
       "parameters": {
         "jsCode": "const responses = $input.all();\nconst promptItems = $('Build Extraction Prompt').all();\n\nreturn responses.map((resp, idx) => {\n  const choices = resp.json.choices || [];\n  const msg = choices.length > 0 ? choices[0].message || {} : {};\n  const content = msg.content || '{}';\n\n  let analysis = {\n    template_pattern: 'Unknown',\n    content_category: 'How-to',\n    virality_factors: [],\n    video_type_recommendation: 'Text-on-screen',\n    adaptability_score: 50,\n  };\n  try {\n    analysis = JSON.parse(content);\n  } catch (e) {\n    try {\n      const jsonMatch = content.match(/\\{[\\s\\S]*?\\}/);\n      if (jsonMatch) analysis = JSON.parse(jsonMatch[0]);\n    } catch (e2) {\n      // Keep defaults\n    }\n  }\n\n  const promptData = promptItems[idx] ? promptItems[idx].json : {};\n  const recordId = promptData.recordId || '';\n  const sourceUrl = promptData.sourceUrl || '';\n\n  // Validate Content Category against allowed singleSelect values\n  const validCategories = ['How-to', 'Listicle', 'Quote', 'Stat-graphic', 'Reaction', 'Story', 'Tutorial'];\n  let category = analysis.content_category || 'How-to';\n  if (!validCategories.includes(category)) {\n    category = 'How-to';\n  }\n\n  return {\n    json: {\n      id: recordId,\n      'Source URL': sourceUrl,\n      Transcript: promptData.transcript || '',\n      'Template Pattern': analysis.template_pattern || '',\n      'Content Category': category,\n      Status: 'Extracted',\n    }\n  };\n});"
       },
-      "id": "fa961933-e9d6-48f8-a2f0-7dce6c2acf27",
+      "id": "1eb39040-da43-4320-a158-a536655a58ff",
       "name": "Parse AI Response",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -240,7 +241,7 @@
           "timeout": 15000
         }
       },
-      "id": "ac3fbe8c-9031-474b-96b4-1a600dac56f3",
+      "id": "76b39e31-bfec-44a6-828a-45bb13049218",
       "name": "Update Extracted",
       "type": "n8n-nodes-base.httpRequest",
       "position": [

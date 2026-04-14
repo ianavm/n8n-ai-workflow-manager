@@ -84,8 +84,31 @@ app.use(express.json({ limit: "10mb" }));
 // Trust Railway's proxy (for correct req.ip, etc.)
 app.set("trust proxy", true);
 
-// In-memory job store (reset on restart). For production, use Redis.
-const jobs = new Map();
+// Job state is persisted to the Supabase `render_jobs` table so that
+// jobs survive container restarts (Railway restarts the container under
+// memory pressure, which previously wiped an in-memory Map).
+const JOBS_TABLE = "render_jobs";
+
+async function jobUpsert(jobId, patch) {
+  if (!supabase) throw new Error("Supabase client not initialized");
+  const row = { id: jobId, ...patch };
+  const { error } = await supabase.from(JOBS_TABLE).upsert(row, { onConflict: "id" });
+  if (error) console.error(`jobUpsert ${jobId} failed:`, error.message);
+}
+
+async function jobGet(jobId) {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from(JOBS_TABLE)
+    .select("status,video_url,thumbnail_url,error,created_at,started_at,completed_at")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (error) {
+    console.error(`jobGet ${jobId} failed:`, error.message);
+    return null;
+  }
+  return data;
+}
 
 // Bundle the Remotion project asynchronously (takes 20-40s)
 // Server must start listening immediately for Railway healthchecks
@@ -169,14 +192,22 @@ app.post("/render", requireAuth, async (req, res) => {
   }
 
   const jobId = randomUUID();
-  jobs.set(jobId, { status: "queued", startedAt: Date.now() });
+  await jobUpsert(jobId, {
+    status: "queued",
+    composition_id: compositionId,
+    created_at: new Date().toISOString(),
+  });
 
   res.json({ jobId, status: "queued" });
 
   // Fire and forget — render asynchronously
-  renderJob(jobId, compositionId, props, outputFormat).catch((err) => {
+  renderJob(jobId, compositionId, props, outputFormat).catch(async (err) => {
     console.error(`Job ${jobId} failed:`, err);
-    jobs.set(jobId, { status: "error", error: err.message });
+    await jobUpsert(jobId, {
+      status: "error",
+      error: err.message,
+      completed_at: new Date().toISOString(),
+    });
   });
 });
 
@@ -184,25 +215,31 @@ app.post("/render", requireAuth, async (req, res) => {
  * GET /render/:jobId
  * Returns: {status, videoUrl?, thumbnailUrl?, error?}
  */
-app.get("/render/:jobId", requireAuth, (req, res) => {
-  const job = jobs.get(req.params.jobId);
+app.get("/render/:jobId", requireAuth, async (req, res) => {
+  const job = await jobGet(req.params.jobId);
   if (!job) {
     return res.status(404).json({ error: "Job not found" });
   }
-  res.json(job);
+  res.json({
+    status: job.status,
+    videoUrl: job.video_url || undefined,
+    thumbnailUrl: job.thumbnail_url || undefined,
+    error: job.error || undefined,
+  });
 });
 
 async function renderJob(jobId, compositionId, props, outputFormat) {
-  jobs.set(jobId, { status: "rendering" });
+  await jobUpsert(jobId, {
+    status: "rendering",
+    started_at: new Date().toISOString(),
+  });
 
-  // Select the composition
   const composition = await selectComposition({
     serveUrl: bundleLocation,
     id: compositionId,
     inputProps: props,
   });
 
-  // Render video
   const videoPath = path.join("/tmp", `${jobId}.${outputFormat}`);
   const codec = outputFormat === "webm" ? "vp8" : "h264";
 
@@ -214,7 +251,6 @@ async function renderJob(jobId, compositionId, props, outputFormat) {
     inputProps: props,
   });
 
-  // Render still (frame 0) as thumbnail
   const thumbPath = path.join("/tmp", `${jobId}-thumb.png`);
   await renderStill({
     composition,
@@ -224,7 +260,6 @@ async function renderJob(jobId, compositionId, props, outputFormat) {
     frame: 0,
   });
 
-  // Upload both to Supabase
   const videoBuffer = await fs.readFile(videoPath);
   const thumbBuffer = await fs.readFile(thumbPath);
 
@@ -248,17 +283,16 @@ async function renderJob(jobId, compositionId, props, outputFormat) {
   const videoUrl = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(videoKey).data.publicUrl;
   const thumbnailUrl = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(thumbKey).data.publicUrl;
 
-  // Cleanup temp files
   await Promise.all([
     fs.unlink(videoPath).catch(() => {}),
     fs.unlink(thumbPath).catch(() => {}),
   ]);
 
-  jobs.set(jobId, {
+  await jobUpsert(jobId, {
     status: "complete",
-    videoUrl,
-    thumbnailUrl,
-    completedAt: Date.now(),
+    video_url: videoUrl,
+    thumbnail_url: thumbnailUrl,
+    completed_at: new Date().toISOString(),
   });
 
   console.log(`Job ${jobId} complete: ${videoUrl}`);
