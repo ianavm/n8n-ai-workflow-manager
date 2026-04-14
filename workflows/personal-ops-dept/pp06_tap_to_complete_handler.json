@@ -1,0 +1,472 @@
+{
+  "name": "PP-06 Tap-to-Complete Callback Handler",
+  "nodes": [
+    {
+      "id": "621f8c87-f2cd-4671-95ac-661ffbe6ac33",
+      "name": "Callback Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "Ha3Ewmk9ofbvWyZ9",
+          "name": "Telegram AVMCRMBot"
+        }
+      },
+      "parameters": {
+        "updates": [
+          "callback_query"
+        ],
+        "additionalFields": {}
+      }
+    },
+    {
+      "id": "a2150144-8d47-4f7e-8ed6-57acb6fc72f8",
+      "name": "Parse Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.item.json;\nconst cq = raw.callback_query || raw.body?.callback_query || null;\n\nconst defaultOut = {\n  valid: false,\n  airtable_record_id: '',\n  callback_id: '',\n  chat_id: '',\n  message_id: '',\n  from_id: 0,\n  reason: '',\n  response_text: 'Invalid callback',\n};\n\nif (!cq) {\n  return [{ json: { ...defaultOut, reason: 'No callback_query in payload' } }];\n}\n\nconst fromId = cq.from && cq.from.id;\nconst callbackId = cq.id || '';\nconst data = cq.data || '';\nconst msg = cq.message || {};\n\n// Authorisation: only Ian's Telegram user id can mark missions complete.\nconst IAN_USER_ID = 6311361442;\nif (fromId !== IAN_USER_ID) {\n  return [{\n    json: {\n      ...defaultOut,\n      callback_id: callbackId,\n      reason: 'Unauthorized user ' + fromId,\n      response_text: 'Not authorised.',\n    },\n  }];\n}\n\nif (!data.startsWith('cmpl:')) {\n  return [{\n    json: {\n      ...defaultOut,\n      callback_id: callbackId,\n      reason: 'Unknown callback data: ' + data,\n      response_text: 'Unknown action.',\n    },\n  }];\n}\n\nconst recordId = data.substring(5);\nif (!recordId.startsWith('rec')) {\n  return [{\n    json: {\n      ...defaultOut,\n      callback_id: callbackId,\n      reason: 'Invalid record id: ' + recordId,\n      response_text: 'Invalid mission reference.',\n    },\n  }];\n}\n\nreturn [{\n  json: {\n    valid: true,\n    airtable_record_id: recordId,\n    callback_id: callbackId,\n    chat_id: (msg.chat && msg.chat.id) || '',\n    message_id: msg.message_id || '',\n    from_id: fromId,\n    reason: '',\n    response_text: '',\n  },\n}];"
+      }
+    },
+    {
+      "id": "4891646a-0437-4b36-97ea-69b83136f816",
+      "name": "Read Mission",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "position": [
+        720,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "get",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblD66W7bTOoMxczA",
+          "mode": "id"
+        },
+        "id": "={{ $json.airtable_record_id }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "d2f831db-1c70-49a1-bee3-576c551b5670",
+      "name": "Read Player",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true,
+      "position": [
+        980,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblSQ3DJ3o7gv2zli",
+          "mode": "id"
+        },
+        "returnAll": false,
+        "limit": 1,
+        "options": {},
+        "filterByFormula": "{Player ID}='ian-immelman'"
+      }
+    },
+    {
+      "id": "6b826a48-45a4-4d34-ae6b-47d6f36295e3",
+      "name": "Compute Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const parsed = $('Parse Callback').first().json;\nconst missionItems = $('Read Mission').all();\nconst missionRaw = missionItems.length > 0 ? missionItems[0].json : null;\nconst playerItems = $('Read Player').all();\nconst player = playerItems.length > 0 ? playerItems[0].json : null;\n\n// Short-circuit: auth/shape validation failed upstream\nif (!parsed.valid) {\n  return [{\n    json: {\n      ...parsed,\n      mission_record_id: '',\n      calendar_event_id: '',\n      updated_summary: '',\n      already_complete: false,\n      skip_writes: true,\n      xp_delta: 0,\n      multiplier: 1.0,\n      new_current_xp: 0,\n      new_lifetime_xp: 0,\n      new_level: 1,\n      level_up: false,\n      log_id: '',\n      timestamp_iso: '',\n      today: '',\n    },\n  }];\n}\n\n// Flatten Airtable v2 output (nested .fields or flat both supported)\nconst m = missionRaw ? (missionRaw.fields || missionRaw) : {};\nconst missionId = missionRaw && (missionRaw.id || '');\nconst hasMission = missionId && (m['Mission ID'] || m['Title']);\n\nif (!hasMission) {\n  return [{\n    json: {\n      ...parsed,\n      mission_record_id: '',\n      calendar_event_id: '',\n      updated_summary: '',\n      already_complete: false,\n      skip_writes: true,\n      xp_delta: 0,\n      multiplier: 1.0,\n      new_current_xp: 0,\n      new_lifetime_xp: 0,\n      new_level: 1,\n      level_up: false,\n      log_id: '',\n      timestamp_iso: '',\n      today: '',\n      response_text: 'Mission not found — it may have been cleaned up.',\n    },\n  }];\n}\n\nconst status = m['Status'] || '';\nconst title = m['Title'] || '';\nconst category = m['Category'] || '';\nconst xpValue = Number(m['XP Value'] || 0);\nconst calEventId = m['Calendar Event ID'] || '';\n\n// Idempotent: already complete → emit \"Already logged\" toast, skip writes\nif (status === 'Complete') {\n  return [{\n    json: {\n      ...parsed,\n      mission_record_id: missionId,\n      calendar_event_id: calEventId,\n      updated_summary: '',\n      already_complete: true,\n      skip_writes: true,\n      xp_delta: 0,\n      multiplier: 1.0,\n      new_current_xp: Number((player && player['Current XP']) || 0),\n      new_lifetime_xp: Number((player && player['Lifetime XP']) || 0),\n      new_level: Number((player && player['Level']) || 1),\n      level_up: false,\n      log_id: '',\n      timestamp_iso: '',\n      today: '',\n      response_text: 'Already logged ✅ \"' + title.substring(0, 40) + '\"',\n    },\n  }];\n}\n\n// Player state\nconst currentStreak = Number((player && player['Current Streak Days']) || 0);\nconst currentXp = Number((player && player['Current XP']) || 0);\nconst lifetimeXp = Number((player && player['Lifetime XP']) || 0);\n\n// Streak multiplier: 3d→1.1×, 7d→1.25×, 14d+→1.5× (streak BEFORE today's bump)\nlet multiplier = 1.0;\nif (currentStreak >= 14) multiplier = 1.5;\nelse if (currentStreak >= 7) multiplier = 1.25;\nelse if (currentStreak >= 3) multiplier = 1.1;\n\nconst xpDelta = Math.round(xpValue * multiplier);\nconst newCurrentXp = currentXp + xpDelta;\nconst newLifetime = lifetimeXp + xpDelta;\nconst newLevel = Math.floor(newLifetime / 500) + 1;\nconst levelUp = Math.floor(lifetimeXp / 500) < Math.floor(newLifetime / 500);\n\n// SAST timestamp\nconst SAST_OFFSET_HOURS = 2;\nconst now = new Date();\nconst sastNow = new Date(now.getTime() + SAST_OFFSET_HOURS * 3600 * 1000);\nconst pad = n => String(n).padStart(2, '0');\nconst today = `${sastNow.getUTCFullYear()}-${pad(sastNow.getUTCMonth()+1)}-${pad(sastNow.getUTCDate())}`;\nconst ts = `${today}T${pad(sastNow.getUTCHours())}:${pad(sastNow.getUTCMinutes())}:${pad(sastNow.getUTCSeconds())}+02:00`;\n\n// Log ID: xp-YYYYMMDD-HHMMSS-cb (cb = callback-driven, unique per second)\nconst logId = `xp-${today.replace(/-/g, '')}-${pad(sastNow.getUTCHours())}${pad(sastNow.getUTCMinutes())}${pad(sastNow.getUTCSeconds())}-cb`;\n\n// Rebuild the calendar event title and prepend ✅\nconst originalSummary = `[${category}] ${title} - ${xpValue}XP`;\nconst updatedSummary = originalSummary.startsWith('✅ ') ? originalSummary : `✅ ${originalSummary}`;\n\nconst bonusLine = levelUp ? ` · 🎉 LEVEL ${newLevel}!` : '';\nconst responseText = `Logged ✅ +${xpDelta} XP · ${newCurrentXp}/500${bonusLine}`;\n\nreturn [{\n  json: {\n    ...parsed,\n    mission_record_id: missionId,\n    mission_title: title,\n    mission_category: category,\n    mission_xp_value: xpValue,\n    calendar_event_id: calEventId,\n    has_calendar_event: calEventId !== '',\n    already_complete: false,\n    skip_writes: false,\n    xp_delta: xpDelta,\n    multiplier,\n    new_current_xp: newCurrentXp,\n    new_lifetime_xp: newLifetime,\n    new_level: newLevel,\n    level_up: levelUp,\n    log_id: logId,\n    timestamp_iso: ts,\n    today,\n    updated_summary: updatedSummary,\n    response_text: responseText,\n  },\n}];"
+      }
+    },
+    {
+      "id": "bfd1ffcc-a552-41f7-9a0c-f9892679151a",
+      "name": "If Skip Writes",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "ef3eb3ad-a1f1-4ff7-a81a-30feb23ef5e3",
+              "leftValue": "={{ $json.skip_writes }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "8ab282d4-e84a-40ec-bdf5-e6e892b8f285",
+      "name": "Update Mission Status",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblD66W7bTOoMxczA",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "id"
+          ],
+          "value": {
+            "id": "={{ $('Compute Response').item.json.mission_record_id }}",
+            "Status": "Complete",
+            "Completed At": "={{ $('Compute Response').item.json.timestamp_iso }}"
+          }
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a58cff96-f36f-47cf-9ff5-dac4a5743d50",
+      "name": "Log XP",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        2020,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbldpF8Q2rKuGmKOn",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Log ID": "={{ $('Compute Response').item.json.log_id }}",
+            "Timestamp": "={{ $('Compute Response').item.json.timestamp_iso }}",
+            "Mission Ref": "={{ $('Compute Response').item.json.mission_record_id }}",
+            "Event Type": "Mission_Complete",
+            "XP Delta": "={{ $('Compute Response').item.json.xp_delta }}",
+            "Multiplier Applied": "={{ $('Compute Response').item.json.multiplier }}",
+            "Running XP After": "={{ $('Compute Response').item.json.new_current_xp }}"
+          }
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "42db45d2-80a8-4f64-977f-bde7d33c761d",
+      "name": "Update Player",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        2280,
+        300
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "apptjjBx34z9340tK",
+          "mode": "id"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblSQ3DJ3o7gv2zli",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "Player ID"
+          ],
+          "value": {
+            "Player ID": "ian-immelman",
+            "Current XP": "={{ $('Compute Response').item.json.new_current_xp }}",
+            "Lifetime XP": "={{ $('Compute Response').item.json.new_lifetime_xp }}",
+            "Level": "={{ $('Compute Response').item.json.new_level }}",
+            "Last Active Date": "={{ $('Compute Response').item.json.today }}"
+          }
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "72a34c56-e3f5-4678-971e-aaf3c32bf572",
+      "name": "Update Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "onError": "continueRegularOutput",
+      "position": [
+        2540,
+        300
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "I5zIYf0UxlkUt3KG",
+          "name": "Google Calendar AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list"
+        },
+        "eventId": "={{ $('Compute Response').item.json.calendar_event_id }}",
+        "useDefaultReminders": true,
+        "updateFields": {
+          "summary": "={{ $('Compute Response').item.json.updated_summary }}",
+          "color": "10"
+        }
+      }
+    },
+    {
+      "id": "82ea7e75-9d55-4679-a0fa-6d5dc69b9258",
+      "name": "Answer Callback",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        2800,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "Ha3Ewmk9ofbvWyZ9",
+          "name": "Telegram AVMCRMBot"
+        }
+      },
+      "parameters": {
+        "resource": "callback",
+        "operation": "answerQuery",
+        "queryId": "={{ $('Compute Response').item.json.callback_id }}",
+        "additionalFields": {
+          "text": "={{ $('Compute Response').item.json.response_text }}",
+          "show_alert": false
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Callback Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Callback": {
+      "main": [
+        [
+          {
+            "node": "Read Mission",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Mission": {
+      "main": [
+        [
+          {
+            "node": "Read Player",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Player": {
+      "main": [
+        [
+          {
+            "node": "Compute Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Response": {
+      "main": [
+        [
+          {
+            "node": "If Skip Writes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Skip Writes": {
+      "main": [
+        [
+          {
+            "node": "Answer Callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Mission Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Mission Status": {
+      "main": [
+        [
+          {
+            "node": "Log XP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log XP": {
+      "main": [
+        [
+          {
+            "node": "Update Player",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Player": {
+      "main": [
+        [
+          {
+            "node": "Update Calendar Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Calendar Event": {
+      "main": [
+        [
+          {
+            "node": "Answer Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "UTC",
+    "availableInMCP": true
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

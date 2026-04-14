@@ -367,7 +367,23 @@ def node_gcal_create(name: str, position: list, calendar_id: str = "primary") ->
     }
 
 
-def node_telegram_send(name: str, chat_id: str, text_expr: str, position: list) -> dict:
+def node_telegram_send(
+    name: str,
+    chat_id: str,
+    text_expr: str,
+    position: list,
+    reply_markup_expr: str | None = None,
+) -> dict:
+    additional_fields: dict = {
+        "parse_mode": "Markdown",
+        "disable_notification": False,
+    }
+    # Native telegram v1.2 node forwards additionalFields.reply_markup verbatim
+    # to the Bot API sendMessage endpoint. Pass a JSON string expression like
+    # '={{ $json.reply_markup }}' where $json.reply_markup is already
+    # JSON.stringify({inline_keyboard: [[{text, callback_data}, ...]]}).
+    if reply_markup_expr:
+        additional_fields["reply_markup"] = reply_markup_expr
     return {
         "id": uid(),
         "name": name,
@@ -380,10 +396,148 @@ def node_telegram_send(name: str, chat_id: str, text_expr: str, position: list) 
             "operation": "sendMessage",
             "chatId": chat_id,
             "text": text_expr,
+            "additionalFields": additional_fields,
+        },
+    }
+
+
+def node_telegram_trigger(name: str, updates: list[str], position: list) -> dict:
+    """Telegram Trigger listening to specific update types (e.g. ['callback_query'])."""
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.telegramTrigger",
+        "typeVersion": 1.2,
+        "position": position,
+        "credentials": {"telegramApi": CRED_TELEGRAM_AVM_CRM},
+        "parameters": {
+            "updates": updates,
+            "additionalFields": {},
+        },
+    }
+
+
+def node_telegram_answer_query(
+    name: str,
+    position: list,
+    query_id_expr: str,
+    text_expr: str,
+) -> dict:
+    """Telegram Bot API answerCallbackQuery — dismisses the button spinner
+    and (optionally) shows a toast to the tapping user."""
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "onError": "continueRegularOutput",
+        "position": position,
+        "credentials": {"telegramApi": CRED_TELEGRAM_AVM_CRM},
+        "parameters": {
+            "resource": "callback",
+            "operation": "answerQuery",
+            "queryId": query_id_expr,
             "additionalFields": {
-                "parse_mode": "Markdown",
-                "disable_notification": False,
+                "text": text_expr,
+                "show_alert": False,
             },
+        },
+    }
+
+
+def node_airtable_get(
+    name: str,
+    base_id: str,
+    table_id: str,
+    position: list,
+    record_id_expr: str,
+) -> dict:
+    """Airtable v2 'get' operation — direct fetch by record id (rec...)."""
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.airtable",
+        "typeVersion": 2.1,
+        "onError": "continueRegularOutput",
+        "alwaysOutputData": True,
+        "position": position,
+        "credentials": {"airtableTokenApi": CRED_AIRTABLE},
+        "parameters": {
+            "operation": "get",
+            **airtable_ref(base_id, table_id),
+            "id": record_id_expr,
+            "options": {},
+        },
+    }
+
+
+def node_gcal_update(
+    name: str,
+    position: list,
+    calendar_id: str,
+    event_id_expr: str,
+    summary_expr: str,
+    color_id: str,
+) -> dict:
+    """Native Google Calendar 'update' operation. `color` in updateFields
+    maps to Google's colorId (1-11) — see GoogleCalendar.node.ts:682.
+
+    `calendar` is declared as a resourceLocator in EventDescription.ts:57.
+    Pass it in RL shape (not a plain string) so n8n validators accept the
+    node on deploy — runtime is lenient but static validators are strict.
+    """
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.googleCalendar",
+        "typeVersion": 1,
+        "onError": "continueRegularOutput",
+        "position": position,
+        "credentials": {"googleCalendarOAuth2Api": CRED_GOOGLE_CALENDAR},
+        "parameters": {
+            "operation": "update",
+            "calendar": {"__rl": True, "value": calendar_id, "mode": "list"},
+            "eventId": event_id_expr,
+            "useDefaultReminders": True,
+            "updateFields": {
+                "summary": summary_expr,
+                "color": color_id,
+            },
+        },
+    }
+
+
+def node_if_truthy(name: str, position: list, value_expr: str) -> dict:
+    """n8n If v2 node checking whether `value_expr` is truthy.
+    Output 0 = TRUE branch, output 1 = FALSE branch."""
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": position,
+        "parameters": {
+            "conditions": {
+                "options": {
+                    "caseSensitive": True,
+                    "leftValue": "",
+                    "typeValidation": "loose",
+                },
+                "conditions": [
+                    {
+                        "id": uid(),
+                        "leftValue": value_expr,
+                        "rightValue": "",
+                        "operator": {
+                            "type": "boolean",
+                            "operation": "true",
+                            "singleValue": True,
+                        },
+                    },
+                ],
+                "combinator": "and",
+            },
+            "options": {},
         },
     }
 
@@ -967,10 +1121,29 @@ return [{
     ))
 
     # ── 13. After loop: render mission board → Telegram ───────
+    # Sources from Create PP_Missions so every rendered mission carries its
+    # Airtable record id — needed for the tap-to-complete inline buttons
+    # that PP-06 resolves via callback_data=`cmpl:<record_id>`.
     render_code = """
-// Render mission board markdown for Telegram
+// Render mission board markdown for Telegram + build inline keyboard
 const ctx = $('Compute Free Slots').first().json;
-const missions = $('Parse & Schedule').all().map(i => i.json);
+const createRows = $('Create PP_Missions').all().map(i => i.json);
+
+// Airtable v2 output may come as {id, fields:{...}} or flat {id, ...fields}.
+// Mirror the Prepare Event pattern so both shapes work.
+const missions = createRows.map(raw => {
+  const f = raw.fields || raw || {};
+  return {
+    airtable_record_id: raw.id || '',
+    title: f['Title'] || raw.title || '',
+    category: f['Category'] || raw.category || 'Maintenance',
+    tier: f['Tier'] || raw.tier || 'Optional',
+    xp_value: f['XP Value'] || raw.xp_value || 0,
+    scheduled_start_iso: f['Scheduled Start'] || raw.scheduled_start_iso || '',
+    est_minutes: f['Est. Minutes'] || raw.est_minutes || 0,
+    linked_100day_theme: f['Linked 100Day Theme'] || raw.linked_100day_theme || null,
+  };
+});
 
 const TIER_EMOJI = {'Must-Complete':'🔴','High-Value':'🟠','Optional':'🔵'};
 const byTier = {'Must-Complete':[],'High-Value':[],'Optional':[]};
@@ -989,27 +1162,46 @@ Player: Level ${ctx.level} · ${ctx.current_xp}/500 XP · 🔥 ${ctx.streak}-day
 `;
 
 let body = '';
+// Collect missions in render order for the inline-keyboard button layout.
+const orderedMissions = [];
 for (const tier of ['Must-Complete', 'High-Value', 'Optional']) {
   const list = byTier[tier] || [];
   if (list.length === 0) continue;
   body += `\\n${TIER_EMOJI[tier]} *${tier.toUpperCase()}* (${list.length})\\n`;
   for (const m of list) {
-    const t = m.scheduled_start_iso.substring(11, 16);
+    const t = (m.scheduled_start_iso || '').substring(11, 16);
     const themeTag = m.linked_100day_theme ? ` [${m.linked_100day_theme}]` : '';
     body += `  ${m.idx}. [${m.category}] ${m.title} — *${m.xp_value} XP*${themeTag}\\n     ${t} · ${m.est_minutes} min\\n`;
+    orderedMissions.push(m);
   }
 }
 
 const totalXp = missions.reduce((s, m) => s + (m.xp_value || 0), 0);
 const totalMin = missions.reduce((s, m) => s + (m.est_minutes || 0), 0);
 const footer = `\\n📊 Total board: ${totalXp} XP · ${totalMin} min focus
+Tap ✅ below to mark a mission complete.
 🎯 Go.`;
+
+// Inline keyboard: 3 buttons per row, text "✅ #N", callback "cmpl:<recId>".
+// Filter out missions with no Airtable id (shouldn't happen, defensive).
+const buttons = orderedMissions
+  .filter(m => m.airtable_record_id)
+  .map(m => ({
+    text: `✅ #${m.idx}`,
+    callback_data: `cmpl:${m.airtable_record_id}`,
+  }));
+const rows = [];
+for (let i = 0; i < buttons.length; i += 3) {
+  rows.push(buttons.slice(i, i + 3));
+}
+const replyMarkup = JSON.stringify({ inline_keyboard: rows });
 
 return [{
   json: {
     telegram_text: header + body + footer,
     mission_count: missions.length,
     total_xp: totalXp,
+    reply_markup: replyMarkup,
   }
 }];
 """.strip()
@@ -1022,6 +1214,7 @@ return [{
         PP_TELEGRAM_CHAT_ID,
         "={{ $json.telegram_text }}",
         pos(13, 1),
+        reply_markup_expr="={{ $json.reply_markup }}",
     ))
 
     return nodes
@@ -1868,6 +2061,399 @@ def pp05_connections() -> dict:
 
 
 # ============================================================
+# PP-06: Tap-to-Complete Callback Handler
+# ============================================================
+#
+# Webhook-style workflow triggered by Telegram inline-button taps on the
+# PP-01 mission board. Single authorised user (Ian, chat 6311361442),
+# callback_data format `cmpl:<airtable_record_id>`.
+#
+# Idempotent: re-tapping a completed mission fires a short-circuit
+# "Already logged" toast without writing anything.
+#
+# Latency budget ~3-5s (well under Telegram's ~15s answerCallbackQuery
+# deadline). If Read Mission / Calendar Update stall, the workflow still
+# reaches Answer Callback via continueRegularOutput.
+
+
+def pp06_nodes() -> list[dict]:
+    nodes: list[dict] = []
+    ian_user_id = int(PP_TELEGRAM_CHAT_ID)  # 6311361442
+
+    # ── 1. Telegram Trigger (callback_query) ─────────────────
+    nodes.append(node_telegram_trigger(
+        "Callback Trigger",
+        ["callback_query"],
+        pos(0, 0),
+    ))
+
+    # ── 2. Parse Callback ────────────────────────────────────
+    # Validates auth + callback shape. Always emits airtable_record_id
+    # (empty string on failure) so downstream nodes don't NPE — the
+    # Compute Response node is the single place that routes invalid /
+    # missing missions to the short-circuit path.
+    parse_code = (
+        """
+const raw = $input.item.json;
+const cq = raw.callback_query || raw.body?.callback_query || null;
+
+const defaultOut = {
+  valid: false,
+  airtable_record_id: '',
+  callback_id: '',
+  chat_id: '',
+  message_id: '',
+  from_id: 0,
+  reason: '',
+  response_text: 'Invalid callback',
+};
+
+if (!cq) {
+  return [{ json: { ...defaultOut, reason: 'No callback_query in payload' } }];
+}
+
+const fromId = cq.from && cq.from.id;
+const callbackId = cq.id || '';
+const data = cq.data || '';
+const msg = cq.message || {};
+
+// Authorisation: only Ian's Telegram user id can mark missions complete.
+"""
+        f"const IAN_USER_ID = {ian_user_id};"
+        """
+if (fromId !== IAN_USER_ID) {
+  return [{
+    json: {
+      ...defaultOut,
+      callback_id: callbackId,
+      reason: 'Unauthorized user ' + fromId,
+      response_text: 'Not authorised.',
+    },
+  }];
+}
+
+if (!data.startsWith('cmpl:')) {
+  return [{
+    json: {
+      ...defaultOut,
+      callback_id: callbackId,
+      reason: 'Unknown callback data: ' + data,
+      response_text: 'Unknown action.',
+    },
+  }];
+}
+
+const recordId = data.substring(5);
+if (!recordId.startsWith('rec')) {
+  return [{
+    json: {
+      ...defaultOut,
+      callback_id: callbackId,
+      reason: 'Invalid record id: ' + recordId,
+      response_text: 'Invalid mission reference.',
+    },
+  }];
+}
+
+return [{
+  json: {
+    valid: true,
+    airtable_record_id: recordId,
+    callback_id: callbackId,
+    chat_id: (msg.chat && msg.chat.id) || '',
+    message_id: msg.message_id || '',
+    from_id: fromId,
+    reason: '',
+    response_text: '',
+  },
+}];
+""".strip()
+    )
+    nodes.append(node_code("Parse Callback", parse_code, pos(1, 0)))
+
+    # ── 3. Read Mission by record id ─────────────────────────
+    nodes.append(node_airtable_get(
+        "Read Mission",
+        MARKETING_BASE_ID,
+        PP_TABLE_MISSIONS,
+        pos(2, 0),
+        record_id_expr="={{ $json.airtable_record_id }}",
+    ))
+
+    # ── 4. Read Player (always) ──────────────────────────────
+    nodes.append(node_airtable_search(
+        "Read Player",
+        MARKETING_BASE_ID,
+        PP_TABLE_PLAYER,
+        pos(3, 0),
+        filter_formula="{Player ID}='ian-immelman'",
+        limit=1,
+    ))
+
+    # ── 5. Compute Response ──────────────────────────────────
+    # Single source of truth for: XP math, idempotency check,
+    # response_text, skip_writes flag, and the updated calendar summary.
+    compute_code = """
+const parsed = $('Parse Callback').first().json;
+const missionItems = $('Read Mission').all();
+const missionRaw = missionItems.length > 0 ? missionItems[0].json : null;
+const playerItems = $('Read Player').all();
+const player = playerItems.length > 0 ? playerItems[0].json : null;
+
+// Short-circuit: auth/shape validation failed upstream
+if (!parsed.valid) {
+  return [{
+    json: {
+      ...parsed,
+      mission_record_id: '',
+      calendar_event_id: '',
+      updated_summary: '',
+      already_complete: false,
+      skip_writes: true,
+      xp_delta: 0,
+      multiplier: 1.0,
+      new_current_xp: 0,
+      new_lifetime_xp: 0,
+      new_level: 1,
+      level_up: false,
+      log_id: '',
+      timestamp_iso: '',
+      today: '',
+    },
+  }];
+}
+
+// Flatten Airtable v2 output (nested .fields or flat both supported)
+const m = missionRaw ? (missionRaw.fields || missionRaw) : {};
+const missionId = missionRaw && (missionRaw.id || '');
+const hasMission = missionId && (m['Mission ID'] || m['Title']);
+
+if (!hasMission) {
+  return [{
+    json: {
+      ...parsed,
+      mission_record_id: '',
+      calendar_event_id: '',
+      updated_summary: '',
+      already_complete: false,
+      skip_writes: true,
+      xp_delta: 0,
+      multiplier: 1.0,
+      new_current_xp: 0,
+      new_lifetime_xp: 0,
+      new_level: 1,
+      level_up: false,
+      log_id: '',
+      timestamp_iso: '',
+      today: '',
+      response_text: 'Mission not found — it may have been cleaned up.',
+    },
+  }];
+}
+
+const status = m['Status'] || '';
+const title = m['Title'] || '';
+const category = m['Category'] || '';
+const xpValue = Number(m['XP Value'] || 0);
+const calEventId = m['Calendar Event ID'] || '';
+
+// Idempotent: already complete → emit "Already logged" toast, skip writes
+if (status === 'Complete') {
+  return [{
+    json: {
+      ...parsed,
+      mission_record_id: missionId,
+      calendar_event_id: calEventId,
+      updated_summary: '',
+      already_complete: true,
+      skip_writes: true,
+      xp_delta: 0,
+      multiplier: 1.0,
+      new_current_xp: Number((player && player['Current XP']) || 0),
+      new_lifetime_xp: Number((player && player['Lifetime XP']) || 0),
+      new_level: Number((player && player['Level']) || 1),
+      level_up: false,
+      log_id: '',
+      timestamp_iso: '',
+      today: '',
+      response_text: 'Already logged ✅ "' + title.substring(0, 40) + '"',
+    },
+  }];
+}
+
+// Player state
+const currentStreak = Number((player && player['Current Streak Days']) || 0);
+const currentXp = Number((player && player['Current XP']) || 0);
+const lifetimeXp = Number((player && player['Lifetime XP']) || 0);
+
+// Streak multiplier: 3d→1.1×, 7d→1.25×, 14d+→1.5× (streak BEFORE today's bump)
+let multiplier = 1.0;
+if (currentStreak >= 14) multiplier = 1.5;
+else if (currentStreak >= 7) multiplier = 1.25;
+else if (currentStreak >= 3) multiplier = 1.1;
+
+const xpDelta = Math.round(xpValue * multiplier);
+const newCurrentXp = currentXp + xpDelta;
+const newLifetime = lifetimeXp + xpDelta;
+const newLevel = Math.floor(newLifetime / 500) + 1;
+const levelUp = Math.floor(lifetimeXp / 500) < Math.floor(newLifetime / 500);
+
+// SAST timestamp
+const SAST_OFFSET_HOURS = 2;
+const now = new Date();
+const sastNow = new Date(now.getTime() + SAST_OFFSET_HOURS * 3600 * 1000);
+const pad = n => String(n).padStart(2, '0');
+const today = `${sastNow.getUTCFullYear()}-${pad(sastNow.getUTCMonth()+1)}-${pad(sastNow.getUTCDate())}`;
+const ts = `${today}T${pad(sastNow.getUTCHours())}:${pad(sastNow.getUTCMinutes())}:${pad(sastNow.getUTCSeconds())}+02:00`;
+
+// Log ID: xp-YYYYMMDD-HHMMSS-cb (cb = callback-driven, unique per second)
+const logId = `xp-${today.replace(/-/g, '')}-${pad(sastNow.getUTCHours())}${pad(sastNow.getUTCMinutes())}${pad(sastNow.getUTCSeconds())}-cb`;
+
+// Rebuild the calendar event title and prepend ✅
+const originalSummary = `[${category}] ${title} - ${xpValue}XP`;
+const updatedSummary = originalSummary.startsWith('✅ ') ? originalSummary : `✅ ${originalSummary}`;
+
+const bonusLine = levelUp ? ` · 🎉 LEVEL ${newLevel}!` : '';
+const responseText = `Logged ✅ +${xpDelta} XP · ${newCurrentXp}/500${bonusLine}`;
+
+return [{
+  json: {
+    ...parsed,
+    mission_record_id: missionId,
+    mission_title: title,
+    mission_category: category,
+    mission_xp_value: xpValue,
+    calendar_event_id: calEventId,
+    has_calendar_event: calEventId !== '',
+    already_complete: false,
+    skip_writes: false,
+    xp_delta: xpDelta,
+    multiplier,
+    new_current_xp: newCurrentXp,
+    new_lifetime_xp: newLifetime,
+    new_level: newLevel,
+    level_up: levelUp,
+    log_id: logId,
+    timestamp_iso: ts,
+    today,
+    updated_summary: updatedSummary,
+    response_text: responseText,
+  },
+}];
+""".strip()
+    nodes.append(node_code("Compute Response", compute_code, pos(4, 0)))
+
+    # ── 6. If Already Complete / Invalid ─────────────────────
+    # TRUE (skip_writes) → straight to Answer Callback
+    # FALSE → proceed through the write chain
+    nodes.append(node_if_truthy(
+        "If Skip Writes",
+        pos(5, 0),
+        value_expr="={{ $json.skip_writes }}",
+    ))
+
+    # ── 7. Update Mission Status ─────────────────────────────
+    nodes.append(node_airtable_update(
+        "Update Mission Status",
+        MARKETING_BASE_ID,
+        PP_TABLE_MISSIONS,
+        pos(6, 0),
+        matching_columns=["id"],
+        column_values={
+            "id": "={{ $('Compute Response').item.json.mission_record_id }}",
+            "Status": "Complete",
+            "Completed At": "={{ $('Compute Response').item.json.timestamp_iso }}",
+        },
+    ))
+
+    # ── 8. Log XP ────────────────────────────────────────────
+    nodes.append(node_airtable_create(
+        "Log XP",
+        MARKETING_BASE_ID,
+        PP_TABLE_XP_LOG,
+        pos(7, 0),
+        column_values={
+            "Log ID": "={{ $('Compute Response').item.json.log_id }}",
+            "Timestamp": "={{ $('Compute Response').item.json.timestamp_iso }}",
+            "Mission Ref": "={{ $('Compute Response').item.json.mission_record_id }}",
+            "Event Type": "Mission_Complete",
+            "XP Delta": "={{ $('Compute Response').item.json.xp_delta }}",
+            "Multiplier Applied": "={{ $('Compute Response').item.json.multiplier }}",
+            "Running XP After": "={{ $('Compute Response').item.json.new_current_xp }}",
+        },
+    ))
+
+    # ── 9. Update Player ─────────────────────────────────────
+    nodes.append(node_airtable_update(
+        "Update Player",
+        MARKETING_BASE_ID,
+        PP_TABLE_PLAYER,
+        pos(8, 0),
+        matching_columns=["Player ID"],
+        column_values={
+            "Player ID": "ian-immelman",
+            "Current XP": "={{ $('Compute Response').item.json.new_current_xp }}",
+            "Lifetime XP": "={{ $('Compute Response').item.json.new_lifetime_xp }}",
+            "Level": "={{ $('Compute Response').item.json.new_level }}",
+            "Last Active Date": "={{ $('Compute Response').item.json.today }}",
+        },
+    ))
+
+    # ── 10. Update Calendar Event (best-effort) ──────────────
+    # continueRegularOutput = if Calendar Event ID is empty or Google
+    # returns 404, downstream Answer Callback still fires.
+    nodes.append(node_gcal_update(
+        "Update Calendar Event",
+        pos(9, 0),
+        calendar_id=PP_GCAL_ID,
+        event_id_expr="={{ $('Compute Response').item.json.calendar_event_id }}",
+        summary_expr="={{ $('Compute Response').item.json.updated_summary }}",
+        color_id="10",
+    ))
+
+    # ── 11. Answer Callback ──────────────────────────────────
+    # Reads queryId + text from Compute Response (authoritative, survives
+    # both the short-circuit and write-chain branches).
+    nodes.append(node_telegram_answer_query(
+        "Answer Callback",
+        pos(10, 0),
+        query_id_expr="={{ $('Compute Response').item.json.callback_id }}",
+        text_expr="={{ $('Compute Response').item.json.response_text }}",
+    ))
+
+    return nodes
+
+
+def pp06_connections() -> dict:
+    """
+    Parse → Read Mission → Read Player → Compute Response → If Skip Writes
+      TRUE  → Answer Callback                               (short-circuit)
+      FALSE → Update Mission → Log XP → Update Player
+              → Update Calendar Event → Answer Callback
+    Answer Callback has two inbound connections (branches converge).
+    """
+    return {
+        "Callback Trigger": {"main": [[{"node": "Parse Callback", "type": "main", "index": 0}]]},
+        "Parse Callback": {"main": [[{"node": "Read Mission", "type": "main", "index": 0}]]},
+        "Read Mission": {"main": [[{"node": "Read Player", "type": "main", "index": 0}]]},
+        "Read Player": {"main": [[{"node": "Compute Response", "type": "main", "index": 0}]]},
+        "Compute Response": {"main": [[{"node": "If Skip Writes", "type": "main", "index": 0}]]},
+        "If Skip Writes": {
+            "main": [
+                # output 0 = TRUE branch → short-circuit
+                [{"node": "Answer Callback", "type": "main", "index": 0}],
+                # output 1 = FALSE branch → do the writes
+                [{"node": "Update Mission Status", "type": "main", "index": 0}],
+            ],
+        },
+        "Update Mission Status": {"main": [[{"node": "Log XP", "type": "main", "index": 0}]]},
+        "Log XP": {"main": [[{"node": "Update Player", "type": "main", "index": 0}]]},
+        "Update Player": {"main": [[{"node": "Update Calendar Event", "type": "main", "index": 0}]]},
+        "Update Calendar Event": {"main": [[{"node": "Answer Callback", "type": "main", "index": 0}]]},
+    }
+
+
+# ============================================================
 # WORKFLOW REGISTRY
 # ============================================================
 
@@ -1899,6 +2485,13 @@ WORKFLOW_DEFS: dict[str, dict] = {
         "build_connections": pp05_connections,
         "filename": "pp05_adaptive_tuner.json",
         "env_key": "PP05_WORKFLOW_ID",
+    },
+    "pp06": {
+        "name": "PP-06 Tap-to-Complete Callback Handler",
+        "build_nodes": pp06_nodes,
+        "build_connections": pp06_connections,
+        "filename": "pp06_tap_to_complete_handler.json",
+        "env_key": "PP06_WORKFLOW_ID",
     },
 }
 
