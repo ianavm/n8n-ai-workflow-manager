@@ -2,7 +2,7 @@
   "name": "AVM Ads: Performance Monitor",
   "nodes": [
     {
-      "id": "36dbd66f-9d18-496f-b081-17410de34373",
+      "id": "02652e9a-e6af-433e-892b-417cb8cc7f05",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "f85eef8d-4d94-415e-a6dc-bb2529bc05b7",
+      "id": "937dec0c-26b2-4b26-8710-c79c564b76f4",
       "name": "Read Active Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "d8e62ca1-3849-4c71-842a-641abb6a68d9",
+      "id": "8edc29ba-c9b6-4406-a003-47a71ab9fe71",
       "name": "Google Ads Get Campaigns",
       "type": "n8n-nodes-base.googleAds",
       "typeVersion": 1,
@@ -79,7 +79,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "ff8a380b-2b52-4d08-8523-b7dec4077cad",
+      "id": "0b3524c8-adce-437a-b950-18cfa03e80e2",
       "name": "Transform Google Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -88,11 +88,11 @@
         100
       ],
       "parameters": {
-        "jsCode": "\n// Transform Google Ads API response to common schema\nconst items = $input.all();\n\n// Handle upstream error / empty data (continueOnFail produces error item)\nif (!items.length || items[0].json?.error || items[0].json?.message?.includes?.('403')) {\n  return [{json: {skip: true, reason: 'Google Ads API unavailable'}}];\n}\n\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\nconst hour = new Date().toISOString().split('T')[1].substring(0, 5);\n\nfor (const item of items) {\n  const d = item.json;\n  const metrics = d.metrics || d;\n  const campaign = d.campaign || {};\n\n  const impressions = parseInt(metrics.impressions || 0);\n  // Google Ads API returns 'interactions' (superset of clicks); fall back to clicks if present\n  const clicks = parseInt(metrics.clicks || metrics.interactions || 0);\n  const costMicros = parseInt(metrics.costMicros || metrics.cost_micros || 0);\n  const conversions = parseFloat(metrics.conversions || 0);\n  const videoViews = parseInt(metrics.videoViews || metrics.video_views || 0);\n\n  const spendZAR = costMicros / 1000000;\n  const ctr = impressions > 0 ? clicks / impressions : 0;\n  const cpc = clicks > 0 ? spendZAR / clicks : 0;\n  const cpm = impressions > 0 ? (spendZAR / impressions) * 1000 : 0;\n  const cpa = conversions > 0 ? spendZAR / conversions : 0;\n  const roas = spendZAR > 0 ? (conversions * 100) / spendZAR : 0;\n\n  // n8n Google Ads node returns flat structure: d.name, d.id (not nested under campaign)\n  const campaignName = campaign.name || d.name || d.campaignName || 'Unknown';\n  const campaignId = campaign.id || d.id || 'unknown';\n\n  results.push({\n    json: {\n      'Performance ID': `gads_${campaignId}_${now}_${hour}`,\n      'Campaign Name': campaignName,\n      'Platform': 'google_ads',\n      'Date': now,\n      'Impressions': impressions,\n      'Clicks': clicks,\n      'CTR': parseFloat(ctr.toFixed(4)),\n      'Spend ZAR': parseFloat(spendZAR.toFixed(2)),\n      'Conversions': Math.round(conversions),\n      'CPA ZAR': parseFloat(cpa.toFixed(2)),\n      'ROAS': parseFloat(roas.toFixed(2)),\n      'CPM ZAR': parseFloat(cpm.toFixed(2)),\n      'CPC ZAR': parseFloat(cpc.toFixed(2)),\n      'Video Views': videoViews,\n      'Engagement Rate': 0,\n      'Snapshot Hour': hour,\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No Google Ads data'}}];\n"
+        "jsCode": "\n// Transform Google Ads API response to common schema.\n// IMPORTANT: Google Ads API returns LIFETIME CUMULATIVE metrics — each value\n// is the running total since campaign launch. Performance ID is keyed by\n// (campaign_id, date) only (no hour) so subsequent same-day runs UPSERT and\n// overwrite with the latest cumulative figure. Aggregation logic in readers\n// must take the LATEST snapshot per campaign to get totals.\nconst items = $input.all();\n\n// Handle upstream error / empty data (continueOnFail produces error item)\nif (!items.length || items[0].json?.error || items[0].json?.message?.includes?.('403')) {\n  return [{json: {skip: true, reason: 'Google Ads API unavailable'}}];\n}\n\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\nconst hour = new Date().toISOString().split('T')[1].substring(0, 5);\n\nfor (const item of items) {\n  const d = item.json;\n  const metrics = d.metrics || d;\n  const campaign = d.campaign || {};\n\n  const impressions = parseInt(metrics.impressions || 0);\n  // Google Ads API returns 'interactions' (superset of clicks); fall back to clicks if present\n  const clicks = parseInt(metrics.clicks || metrics.interactions || 0);\n  const costMicros = parseInt(metrics.costMicros || metrics.cost_micros || 0);\n  const conversions = parseFloat(metrics.conversions || 0);\n  const videoViews = parseInt(metrics.videoViews || metrics.video_views || 0);\n\n  const spendZAR = costMicros / 1000000;\n  const ctr = impressions > 0 ? clicks / impressions : 0;\n  const cpc = clicks > 0 ? spendZAR / clicks : 0;\n  const cpm = impressions > 0 ? (spendZAR / impressions) * 1000 : 0;\n  const cpa = conversions > 0 ? spendZAR / conversions : 0;\n  const roas = spendZAR > 0 ? (conversions * 100) / spendZAR : 0;\n\n  // n8n Google Ads node returns flat structure: d.name, d.id (not nested under campaign)\n  const campaignName = campaign.name || d.name || d.campaignName || 'Unknown';\n  const campaignId = campaign.id || d.id || 'unknown';\n\n  results.push({\n    json: {\n      // Performance ID = (platform, campaign, date) — no hour, enables upsert\n      'Performance ID': `gads_${campaignId}_${now}`,\n      'Campaign Name': campaignName,\n      'Platform': 'google_ads',\n      'Date': now,\n      'Impressions': impressions,\n      'Clicks': clicks,\n      'CTR': parseFloat(ctr.toFixed(4)),\n      'Spend ZAR': parseFloat(spendZAR.toFixed(2)),  // lifetime cumulative\n      'Conversions': Math.round(conversions),\n      'CPA ZAR': parseFloat(cpa.toFixed(2)),\n      'ROAS': parseFloat(roas.toFixed(2)),\n      'CPM ZAR': parseFloat(cpm.toFixed(2)),\n      'CPC ZAR': parseFloat(cpc.toFixed(2)),\n      'Video Views': videoViews,\n      'Engagement Rate': 0,\n      'Snapshot Hour': hour,  // kept for debugging; not part of upsert key\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No Google Ads data'}}];\n"
       }
     },
     {
-      "id": "8582b156-0110-497b-b430-03232ebb6274",
+      "id": "51ab4af8-7d05-4a51-9fdc-f9f4e7383aba",
       "name": "Meta Ads Get Insights",
       "type": "n8n-nodes-base.facebookGraphApi",
       "typeVersion": 1,
@@ -133,7 +133,48 @@
       "alwaysOutputData": true
     },
     {
-      "id": "13ee7f57-448a-4a77-9a87-d1e1fd813e30",
+      "id": "8c8596e2-4ce3-4e72-a936-d69533771a01",
+      "name": "Meta List Campaigns",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        875,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "4UZH1VRXvVufgvrI",
+          "name": "Meta Ads Graph API"
+        }
+      },
+      "parameters": {
+        "httpRequestMethod": "GET",
+        "graphApiVersion": "v25.0",
+        "node": "=act_26395704183451218/campaigns",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "fields",
+                "value": "id,name,status,effective_status"
+              },
+              {
+                "name": "effective_status",
+                "value": "[\"ACTIVE\",\"PAUSED\",\"PENDING_REVIEW\",\"PENDING_BILLING_INFO\",\"CAMPAIGN_PAUSED\",\"ADSET_PAUSED\",\"WITH_ISSUES\",\"IN_PROCESS\"]"
+              },
+              {
+                "name": "limit",
+                "value": "500"
+              }
+            ]
+          }
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "2902f458-3895-48cd-b7a1-8da998ab25dd",
       "name": "Transform Meta Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -142,11 +183,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Transform Meta Ads insights to common schema\nconst items = $input.all();\n\n// Meta Graph API wraps insights in a data[] array\n// Response: { data: [ {campaign_id, impressions, ...}, ... ], paging: {...} }\nconst firstItem = items[0]?.json;\nif (!firstItem || firstItem.error || (!firstItem.data && !firstItem.impressions)) {\n  return [{json: {skip: true, reason: 'Meta Ads API unavailable'}}];\n}\n\n// Unwrap: if data[] array exists, iterate campaigns inside it; otherwise treat items as flat\nconst campaigns = firstItem.data || [firstItem];\n\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\nconst hour = new Date().toISOString().split('T')[1].substring(0, 5);\n\nfor (const d of campaigns) {\n  const impressions = parseInt(d.impressions || 0);\n  const clicks = parseInt(d.clicks || 0);\n  const spend = parseFloat(d.spend || 0);\n  const reach = parseInt(d.reach || 0);\n\n  // Extract conversions from actions array\n  let conversions = 0;\n  if (d.actions) {\n    for (const action of d.actions) {\n      if (action.action_type === 'lead' || action.action_type === 'complete_registration' || action.action_type === 'purchase') {\n        conversions += parseInt(action.value || 0);\n      }\n    }\n  }\n\n  const ctr = impressions > 0 ? clicks / impressions : 0;\n  const cpc = clicks > 0 ? spend / clicks : 0;\n  const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;\n  const cpa = conversions > 0 ? spend / conversions : 0;\n  const roas = spend > 0 ? (conversions * 100) / spend : 0;\n  const engRate = reach > 0 ? clicks / reach : 0;\n\n  results.push({\n    json: {\n      'Performance ID': `meta_${d.campaign_id || 'unknown'}_${now}_${hour}`,\n      'Campaign Name': d.campaign_name || 'Unknown',\n      'Platform': 'meta_ads',\n      'Date': now,\n      'Impressions': impressions,\n      'Clicks': clicks,\n      'CTR': parseFloat(ctr.toFixed(4)),\n      'Spend ZAR': parseFloat(spend.toFixed(2)),\n      'Conversions': conversions,\n      'CPA ZAR': parseFloat(cpa.toFixed(2)),\n      'ROAS': parseFloat(roas.toFixed(2)),\n      'CPM ZAR': parseFloat(cpm.toFixed(2)),\n      'CPC ZAR': parseFloat(cpc.toFixed(2)),\n      'Video Views': parseInt(d.video_views || 0),\n      'Engagement Rate': parseFloat(engRate.toFixed(4)),\n      'Snapshot Hour': hour,\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No Meta Ads data'}}];\n"
+        "jsCode": "\n// Transform Meta Ads insights to common schema, LEFT-JOINED with the canonical\n// campaign list so every ACTIVE/PAUSED campaign gets an Ad_Performance row\n// even when it has zero delivery today. Reads two upstream nodes:\n//   - 'Meta List Campaigns' : canonical list with id, name, status, effective_status\n//   - 'Meta Ads Get Insights' : today's insights (campaigns with zero delivery are absent)\nconst now = new Date().toISOString().split('T')[0];\nconst hour = new Date().toISOString().split('T')[1].substring(0, 5);\n\n// 1. Pull campaign list — this is the canonical set we emit rows for\nlet campaignList = [];\ntry {\n  const listResp = $('Meta List Campaigns').first()?.json || {};\n  campaignList = listResp.data || [];\n} catch (e) {\n  // Meta List Campaigns node didn't run (e.g. credential missing). Fall back\n  // to whatever insights we have so behaviour degrades to the old code path.\n  campaignList = [];\n}\n\n// 2. Pull insights and index by campaign_id\nlet insightsById = {};\ntry {\n  const insResp = $('Meta Ads Get Insights').first()?.json || {};\n  const arr = insResp.data || (insResp.impressions !== undefined ? [insResp] : []);\n  for (const d of arr) {\n    if (d.campaign_id) insightsById[d.campaign_id] = d;\n  }\n} catch (e) {\n  insightsById = {};\n}\n\n// If we have neither list nor insights, the Meta side is effectively unavailable\nif (campaignList.length === 0 && Object.keys(insightsById).length === 0) {\n  return [{json: {skip: true, reason: 'Meta Ads API unavailable'}}];\n}\n\n// 3. Build emission set: start from campaignList when present, otherwise from insights\nconst baseSet = campaignList.length > 0\n  ? campaignList.map(c => ({\n      id: c.id,\n      name: c.name,\n      status: c.status,\n      effective_status: c.effective_status,\n    }))\n  : Object.values(insightsById).map(d => ({\n      id: d.campaign_id,\n      name: d.campaign_name,\n      status: '',\n      effective_status: '',\n    }));\n\nconst results = [];\nfor (const c of baseSet) {\n  const d = insightsById[c.id] || {};\n  const impressions = parseInt(d.impressions || 0);\n  const clicks = parseInt(d.clicks || 0);\n  const spend = parseFloat(d.spend || 0);\n  const reach = parseInt(d.reach || 0);\n\n  let conversions = 0;\n  if (d.actions) {\n    for (const action of d.actions) {\n      if (action.action_type === 'lead' || action.action_type === 'complete_registration' || action.action_type === 'purchase') {\n        conversions += parseInt(action.value || 0);\n      }\n    }\n  }\n\n  const ctr = impressions > 0 ? clicks / impressions : 0;\n  const cpc = clicks > 0 ? spend / clicks : 0;\n  const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;\n  const cpa = conversions > 0 ? spend / conversions : 0;\n  const roas = spend > 0 ? (conversions * 100) / spend : 0;\n  const engRate = reach > 0 ? clicks / reach : 0;\n\n  results.push({\n    json: {\n      // Performance ID = (platform, campaign, date) — enables upsert.\n      'Performance ID': `meta_${c.id || 'unknown'}_${now}`,\n      'Campaign Name': c.name || d.campaign_name || 'Unknown',\n      'Platform': 'meta_ads',\n      'Date': now,\n      'Impressions': impressions,\n      'Clicks': clicks,\n      'CTR': parseFloat(ctr.toFixed(4)),\n      'Spend ZAR': parseFloat(spend.toFixed(2)),\n      'Conversions': conversions,\n      'CPA ZAR': parseFloat(cpa.toFixed(2)),\n      'ROAS': parseFloat(roas.toFixed(2)),\n      'CPM ZAR': parseFloat(cpm.toFixed(2)),\n      'CPC ZAR': parseFloat(cpc.toFixed(2)),\n      'Video Views': parseInt(d.video_views || 0),\n      'Engagement Rate': parseFloat(engRate.toFixed(4)),\n      'Snapshot Hour': hour,\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No Meta Ads data'}}];\n"
       }
     },
     {
-      "id": "92def560-3abc-42d1-845b-90ec006de1a7",
+      "id": "8c4f5636-d99e-403f-8315-f45204fa8330",
       "name": "Merge All Metrics",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -159,7 +200,7 @@
       }
     },
     {
-      "id": "6827dcf8-5e40-45b0-be76-14f130488300",
+      "id": "62d4c0a8-922f-4f55-8657-d6136d5a5f9c",
       "name": "Filter Valid Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -172,7 +213,7 @@
       }
     },
     {
-      "id": "2e5bab68-28ad-48b0-bda9-5825b9ca0f1c",
+      "id": "8b3cc440-871e-4fa2-91e7-3c614699f474",
       "name": "Write Ad Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -187,7 +228,7 @@
         }
       },
       "parameters": {
-        "operation": "create",
+        "operation": "upsert",
         "base": {
           "__rl": true,
           "mode": "id",
@@ -200,7 +241,10 @@
         },
         "columns": {
           "mappingMode": "autoMapInputData",
-          "value": null
+          "value": null,
+          "matchingColumns": [
+            "Performance ID"
+          ]
         },
         "options": {}
       },
@@ -211,7 +255,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "71cb8825-a23a-49be-8c92-bfcdabe08da8",
+      "id": "f77d802f-c19d-4c9e-979f-e280a0347a6d",
       "name": "Anomaly Detection",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -220,11 +264,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Detect anomalies: spend > 2x daily budget, CTR drop > 50% vs 7-day avg\nconst items = $input.all();\nconst anomalies = [];\nconst DAILY_CAP = 400;\n\nfor (const item of items) {\n  const d = item.json;\n  if (d.skip) continue;\n\n  const issues = [];\n\n  // Check spend against daily cap\n  if (d['Spend ZAR'] > DAILY_CAP) {\n    issues.push(`Spend R${d['Spend ZAR']} exceeds daily cap R${DAILY_CAP}`);\n  }\n\n  // Flag very low CTR (potential issue)\n  if (d.Impressions > 1000 && d.CTR < 0.001) {\n    issues.push(`CTR ${(d.CTR * 100).toFixed(2)}% critically low with ${d.Impressions} impressions`);\n  }\n\n  // Flag high CPA\n  if (d['CPA ZAR'] > 500 && d.Conversions > 0) {\n    issues.push(`CPA R${d['CPA ZAR']} exceeds R500 threshold`);\n  }\n\n  if (issues.length > 0) {\n    anomalies.push({\n      json: {\n        campaign: d['Campaign Name'],\n        platform: d.Platform,\n        date: d.Date,\n        issues: issues,\n        spendZAR: d['Spend ZAR'],\n        ctr: d.CTR,\n        cpa: d['CPA ZAR'],\n        severity: d['Spend ZAR'] > DAILY_CAP ? 'CRITICAL' : 'WARNING',\n      }\n    });\n  }\n}\n\nif (anomalies.length > 0) {\n  return anomalies;\n} else {\n  return [{json: {noAnomalies: true}}];\n}\n"
+        "jsCode": "\n// Detect anomalies: spend > 2x daily budget, CTR drop > 50% vs 7-day avg\nconst items = $input.all();\nconst anomalies = [];\nconst DAILY_CAP = 666;\n\nfor (const item of items) {\n  const d = item.json;\n  if (d.skip) continue;\n\n  const issues = [];\n\n  // Check spend against daily cap\n  if (d['Spend ZAR'] > DAILY_CAP) {\n    issues.push(`Spend R${d['Spend ZAR']} exceeds daily cap R${DAILY_CAP}`);\n  }\n\n  // Flag very low CTR (potential issue)\n  if (d.Impressions > 1000 && d.CTR < 0.001) {\n    issues.push(`CTR ${(d.CTR * 100).toFixed(2)}% critically low with ${d.Impressions} impressions`);\n  }\n\n  // Flag high CPA\n  if (d['CPA ZAR'] > 800 && d.Conversions > 0) {\n    issues.push(`CPA R${d['CPA ZAR']} exceeds R800 threshold`);\n  }\n\n  if (issues.length > 0) {\n    anomalies.push({\n      json: {\n        campaign: d['Campaign Name'],\n        platform: d.Platform,\n        date: d.Date,\n        issues: issues,\n        spendZAR: d['Spend ZAR'],\n        ctr: d.CTR,\n        cpa: d['CPA ZAR'],\n        severity: d['Spend ZAR'] > DAILY_CAP ? 'CRITICAL' : 'WARNING',\n      }\n    });\n  }\n}\n\nif (anomalies.length > 0) {\n  return anomalies;\n} else {\n  return [{json: {noAnomalies: true}}];\n}\n"
       }
     },
     {
-      "id": "e5cae1bd-4af7-44e0-9c8a-b693d361605c",
+      "id": "52138ffb-26a8-4dbb-aaab-08903ce6a61b",
       "name": "Has Anomalies",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -255,7 +299,7 @@
       }
     },
     {
-      "id": "087d56b6-7989-47c8-9aa4-b114ea9b896a",
+      "id": "5b5ed3bc-1203-4c49-b1d2-6fef8dec528d",
       "name": "Send Anomaly Alert",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -279,7 +323,7 @@
       }
     },
     {
-      "id": "e36cd915-b293-4657-9a3a-3c9240620bc2",
+      "id": "7b5ac75a-60ae-4dfe-b354-464d5b16b472",
       "name": "No Anomalies",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -341,6 +385,17 @@
       ]
     },
     "Meta Ads Get Insights": {
+      "main": [
+        [
+          {
+            "node": "Meta List Campaigns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta List Campaigns": {
       "main": [
         [
           {

@@ -2,7 +2,7 @@
   "name": "AVM Ads: Campaign Builder",
   "nodes": [
     {
-      "id": "aab9a413-f702-44d3-be93-6c9c23882eda",
+      "id": "fdeccc1e-1a9b-40f8-b770-5f63e345b7cf",
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -10,7 +10,7 @@
         250,
         300
       ],
-      "webhookId": "14888d5b-6ccf-4e89-bef5-e07a1b672769",
+      "webhookId": "68fd114c-7f6d-4521-9214-bef29ce0a80f",
       "parameters": {
         "path": "ads-build-campaign",
         "httpMethod": "POST",
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "d691030c-127f-47c1-a757-dfb9dce0ca58",
+      "id": "403dc4dd-7131-479d-9a66-5e0e8e026bd0",
       "name": "Read Approved Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -49,38 +49,7 @@
       }
     },
     {
-      "id": "b3aba60c-f0ff-4567-be86-56bb0805febc",
-      "name": "Read Creatives",
-      "type": "n8n-nodes-base.airtable",
-      "typeVersion": 2.1,
-      "position": [
-        500,
-        500
-      ],
-      "credentials": {
-        "airtableTokenApi": {
-          "id": "ZyBrcAO6fps7YB3u",
-          "name": "Airtable account"
-        }
-      },
-      "parameters": {
-        "operation": "search",
-        "base": {
-          "__rl": true,
-          "mode": "id",
-          "value": "apptjjBx34z9340tK"
-        },
-        "table": {
-          "__rl": true,
-          "mode": "id",
-          "value": "tblF1FwoZEQlMG6X9"
-        },
-        "filterByFormula": "={Status}='Approved'",
-        "options": {}
-      }
-    },
-    {
-      "id": "e6b53dea-c746-472e-a67d-6feeec84c8bc",
+      "id": "8529969b-f1b0-44dd-b445-743642aeb1d4",
       "name": "Budget Safety Check",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -89,11 +58,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Budget safety check - enforce all caps before campaign creation\nconst items = $input.all();\nconst DAILY_CAP = 400;\nconst WEEKLY_CAP = 2000;\nconst MONTHLY_CAP = 8700;\n\nconst results = [];\n\nfor (const item of items) {\n  const d = item.json;\n  const dailyBudget = d['Daily Budget ZAR'] || 0;\n  const errors = [];\n\n  if (dailyBudget > DAILY_CAP) {\n    errors.push(`Daily R${dailyBudget} exceeds cap R${DAILY_CAP}`);\n  }\n  if (dailyBudget * 7 > WEEKLY_CAP) {\n    errors.push(`Weekly projection R${dailyBudget * 7} exceeds cap R${WEEKLY_CAP}`);\n  }\n  if (dailyBudget * 30 > MONTHLY_CAP) {\n    errors.push(`Monthly projection R${dailyBudget * 30} exceeds cap R${MONTHLY_CAP}`);\n  }\n\n  if (errors.length > 0) {\n    results.push({json: {\n      ...d,\n      _budgetSafe: false,\n      _budgetErrors: errors,\n    }});\n  } else {\n    results.push({json: {\n      ...d,\n      _budgetSafe: true,\n      _budgetErrors: [],\n    }});\n  }\n}\n\nreturn results;\n"
+        "jsCode": "\n// Budget safety check - enforce all caps before campaign creation\nconst items = $input.all();\nconst DAILY_CAP = 666;\nconst WEEKLY_CAP = 5000;\nconst MONTHLY_CAP = 20000;\n\nconst results = [];\n\nfor (const item of items) {\n  const d = item.json;\n  const dailyBudget = d['Daily Budget ZAR'] || 0;\n  const errors = [];\n\n  if (dailyBudget > DAILY_CAP) {\n    errors.push(`Daily R${dailyBudget} exceeds cap R${DAILY_CAP}`);\n  }\n  if (dailyBudget * 7 > WEEKLY_CAP) {\n    errors.push(`Weekly projection R${dailyBudget * 7} exceeds cap R${WEEKLY_CAP}`);\n  }\n  if (dailyBudget * 30 > MONTHLY_CAP) {\n    errors.push(`Monthly projection R${dailyBudget * 30} exceeds cap R${MONTHLY_CAP}`);\n  }\n\n  if (errors.length > 0) {\n    results.push({json: {\n      ...d,\n      _budgetSafe: false,\n      _budgetErrors: errors,\n    }});\n  } else {\n    results.push({json: {\n      ...d,\n      _budgetSafe: true,\n      _budgetErrors: [],\n    }});\n  }\n}\n\nreturn results;\n"
       }
     },
     {
-      "id": "080bb359-918f-4524-8b3e-6aff7f778601",
+      "id": "2e3c5ff7-a247-40de-9d8a-e688d41432b8",
       "name": "Budget Safe?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -124,7 +93,7 @@
       }
     },
     {
-      "id": "41b2712b-3540-4b1d-89cf-da6a12d7eb82",
+      "id": "98d24988-3722-410d-8d30-0b25c72506fa",
       "name": "Build Google Campaign",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -133,11 +102,11 @@
         100
       ],
       "parameters": {
-        "jsCode": "\n// Build Google Ads campaign creation payload\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const d = item.json;\n  if (!d._budgetSafe) continue;\n\n  const dailyBudgetMicros = Math.round((d['Daily Budget ZAR'] || 100) * 1000000);\n\n  results.push({json: {\n    _platform: 'google_ads',\n    _campaignName: d['Campaign Name'],\n    operations: [\n      {\n        create: {\n          name: d['Campaign Name'],\n          advertisingChannelType: d.Objective === 'Video_Views' ? 'VIDEO' : 'SEARCH',\n          status: 'PAUSED',\n          containsEuPoliticalAdvertising: false,\n          campaignBudget: {\n            amountMicros: dailyBudgetMicros,\n            deliveryMethod: 'STANDARD',\n          },\n          startDate: new Date().toISOString().split('T')[0].replace(/-/g, ''),\n          endDate: new Date(Date.now() + (d.duration_days || 14) * 86400000).toISOString().split('T')[0].replace(/-/g, ''),\n        }\n      }\n    ],\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
+        "jsCode": "\n// Build Google Ads campaign creation payload — dedupes by Campaign Name so any\n// upstream fan-out can't create duplicate campaigns.\nconst items = $input.all();\nconst results = [];\nconst seen = new Set();\n\nfor (const item of items) {\n  const d = item.json;\n  if (!d._budgetSafe) continue;\n  const name = d['Campaign Name'];\n  if (!name || seen.has(name)) continue;\n  seen.add(name);\n\n  const dailyBudgetMicros = Math.round((d['Daily Budget ZAR'] || 100) * 1000000);\n\n  results.push({json: {\n    _platform: 'google_ads',\n    _campaignName: name,\n    operations: [\n      {\n        create: {\n          name: name,\n          advertisingChannelType: d.Objective === 'Video_Views' ? 'VIDEO' : 'SEARCH',\n          status: 'PAUSED',\n          containsEuPoliticalAdvertising: false,\n          campaignBudget: {\n            amountMicros: dailyBudgetMicros,\n            deliveryMethod: 'STANDARD',\n          },\n          startDate: new Date().toISOString().split('T')[0].replace(/-/g, ''),\n          endDate: new Date(Date.now() + (d.duration_days || 14) * 86400000).toISOString().split('T')[0].replace(/-/g, ''),\n        }\n      }\n    ],\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
       }
     },
     {
-      "id": "ce5689ab-8b75-468c-b628-f4b3570eb874",
+      "id": "9e2e6901-0faf-4766-9f63-111a1cf4b3ff",
       "name": "Build Meta Campaign",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -146,11 +115,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Build Meta Ads campaign creation payload\nconst items = $input.all();\nconst results = [];\n\nconst objectiveMap = {\n  'Traffic': 'OUTCOME_TRAFFIC',\n  'Conversions': 'OUTCOME_SALES',\n  'Lead_Gen': 'OUTCOME_LEADS',\n  'Awareness': 'OUTCOME_AWARENESS',\n  'Video_Views': 'OUTCOME_ENGAGEMENT',\n};\n\nfor (const item of items) {\n  const d = item.json;\n  if (!d._budgetSafe) continue;\n\n  results.push({json: {\n    _platform: 'meta_ads',\n    _campaignName: d['Campaign Name'],\n    name: d['Campaign Name'],\n    objective: objectiveMap[d.Objective] || 'OUTCOME_LEADS',\n    status: 'PAUSED',\n    daily_budget: Math.round((d['Daily Budget ZAR'] || 100) * 100),\n    special_ad_categories: [],\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
+        "jsCode": "\n// Build Meta Ads campaign creation payload — dedupes by Campaign Name so any\n// upstream fan-out can't create duplicate campaigns.\nconst items = $input.all();\nconst results = [];\nconst seen = new Set();\n\nconst objectiveMap = {\n  'Traffic': 'OUTCOME_TRAFFIC',\n  'Conversions': 'OUTCOME_SALES',\n  'Lead_Gen': 'OUTCOME_LEADS',\n  'Awareness': 'OUTCOME_AWARENESS',\n  'Video_Views': 'OUTCOME_ENGAGEMENT',\n};\n\nfor (const item of items) {\n  const d = item.json;\n  if (!d._budgetSafe) continue;\n  const name = d['Campaign Name'];\n  if (!name || seen.has(name)) continue;\n  seen.add(name);\n\n  results.push({json: {\n    _platform: 'meta_ads',\n    _campaignName: name,\n    name: name,\n    objective: objectiveMap[d.Objective] || 'OUTCOME_LEADS',\n    status: 'PAUSED',\n    daily_budget: Math.round((d['Daily Budget ZAR'] || 100) * 100),\n    special_ad_categories: [],\n  }});\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true}}];\n"
       }
     },
     {
-      "id": "2f6db154-23e3-4104-995a-e31eaca6700c",
+      "id": "9ef57bb3-c672-42e7-85c6-5262cca0b5d8",
       "name": "Create Google Campaign",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -174,7 +143,7 @@
       "continueOnFail": true
     },
     {
-      "id": "3cf310fb-58e7-41e1-942d-08f084c46880",
+      "id": "f4d24356-8cdc-4ecf-9214-bb537e4ebac3",
       "name": "Create Meta Campaign",
       "type": "n8n-nodes-base.facebookGraphApi",
       "typeVersion": 1,
@@ -222,7 +191,7 @@
       "continueOnFail": true
     },
     {
-      "id": "9e7aca71-52fe-42cd-bdeb-ee689b5cb6bb",
+      "id": "93b690b3-b0ed-4f96-8f08-09102a2ee928",
       "name": "Merge Results",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -235,7 +204,7 @@
       }
     },
     {
-      "id": "9ea7b48c-3987-4e4f-9a3b-efdaee819c61",
+      "id": "2f5d8430-2c43-4bb9-b699-729c2bc90862",
       "name": "Update Status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -248,7 +217,7 @@
       }
     },
     {
-      "id": "e60f28fd-0a2f-4cdd-b42e-f2767d1c92f7",
+      "id": "7df06d9f-7034-494e-bc18-73cc6690c692",
       "name": "Budget Rejected Alert",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -285,17 +254,6 @@
       ]
     },
     "Read Approved Campaigns": {
-      "main": [
-        [
-          {
-            "node": "Read Creatives",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Read Creatives": {
       "main": [
         [
           {
@@ -399,6 +357,7 @@
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "L915QaaJuo6au7Oe"
   }
 }

@@ -2,7 +2,7 @@
   "name": "AVM Ads: Strategy Generator",
   "nodes": [
     {
-      "id": "38b4c5ec-f033-43bd-87c5-fbe2d6a78972",
+      "id": "32adfb19-1586-49d5-8b91-7e847fc8a34b",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "15bf8a59-3579-4e7c-82c1-ccac4eb19683",
+      "id": "d6b57771-86e3-40d4-b870-bc5f835addcc",
       "name": "Read Research Insights",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "04ee4180-9fb2-4851-98b3-728665a524ef",
+      "id": "4e0a57e6-4bcb-4b00-b6c0-72dba336b4a5",
       "name": "Read Current Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -84,7 +84,7 @@
       }
     },
     {
-      "id": "b4f8f488-a438-4e55-bc9d-5273d0f82f09",
+      "id": "fb3b01c7-2f0a-42c0-9d29-ffdefcfc450e",
       "name": "Read Budget Data",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "81e19fc9-f0b3-43dd-af63-078877a06888",
+      "id": "637788be-ee0b-4d71-a76d-653f9d9e6492",
       "name": "Merge Context",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -128,7 +128,7 @@
       }
     },
     {
-      "id": "cfbe98d4-86da-41a8-b5c3-c0be24096ef7",
+      "id": "0911c4aa-8f5e-48f2-8e85-fd3d8f877ef9",
       "name": "Aggregate Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -141,7 +141,7 @@
       }
     },
     {
-      "id": "3f8ddb5b-63ce-42a1-ba47-48884554de21",
+      "id": "90433085-c894-4650-97ce-009426fe1217",
       "name": "AI Strategy Generator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -171,7 +171,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Campaign Strategist for AnyVision Media, a South African SaaS/AI automation company.\\n\\nBUSINESS CONTEXT:\\n- Company: AnyVision Media (www.anyvisionmedia.com)\\n- Services: AI consulting, workflow automation, web development, social media management\\n- Target: SMBs in South Africa looking to automate and scale\\n- Brand color: #FF6D5A\\n- Currency: ZAR (South African Rand)\\n- Key CTA: \\\"Book a Free AI Strategy Call\\\"\\n\\nORGANIC CONTENT PERFORMANCE (last 7 days):\\n{{JSON.stringify($json)}}\\n\\nCURRENT PAID CAMPAIGNS:\\n{{JSON.stringify($json)}}\\n\\nBUDGET ALLOCATION:\\n{{JSON.stringify($json)}}\\n\\nBUDGET CONSTRAINTS (MANDATORY):\\n- Daily budget per campaign: max R500 (HARD LIMIT \\u2014 never suggest higher)\\n- Weekly total across ALL campaigns: max R2600\\n- Monthly total: max R11000\\n- AVM ONLY runs Google Ads and Meta Ads. Do NOT suggest TikTok, LinkedIn, or other platforms.\\n\\nGenerate 2-3 campaign recommendations as a JSON array. Each item must have:\\n- campaign_name: descriptive name\\n- platform: one of \\\"google_ads\\\", \\\"meta_ads\\\"\\n- objective: one of \\\"Traffic\\\", \\\"Conversions\\\", \\\"Lead_Gen\\\", \\\"Awareness\\\"\\n- target_audience: description of who to target\\n- suggested_daily_budget_zar: number (MUST NOT exceed R500)\\n- ad_format: one of \\\"RSA\\\", \\\"Image\\\", \\\"Video\\\", \\\"Carousel\\\"\\n- key_messages: array of 2-3 messaging angles\\n- duration_days: 7, 14, or 30\\n- priority: \\\"High\\\", \\\"Medium\\\", or \\\"Low\\\"\\n- reasoning: why this campaign should run\\n\\nFocus on SaaS lead generation and client acquisition. Prioritize campaigns with highest expected ROAS.\\n\\nOutput ONLY valid JSON array, no markdown or extra text.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Campaign Strategist for AnyVision Media, a South African SaaS/AI automation company.\\n\\nCRITICAL RULES \\u2014 ABSOLUTELY NON-NEGOTIABLE:\\n1. platform MUST be EXACTLY \\\"google_ads\\\" OR \\\"meta_ads\\\". NEVER \\\"tiktok_ads\\\", \\\"linkedin_ads\\\", \\\"youtube_ads\\\", \\\"twitter_ads\\\", or anything else. AVM does NOT run on any other platform. Any campaign with a different platform value will be automatically rejected and discarded.\\n2. suggested_daily_budget_zar MUST be \\u2264 R666. Hard limit.\\n3. Output ONLY a valid JSON array. No markdown, no commentary, no code fences.\\n4. Every campaign in the output must have all required fields below \\u2014 omit nothing.\\n\\nBUSINESS CONTEXT:\\n- Company: AnyVision Media (www.anyvisionmedia.com)\\n- Services: AI consulting, workflow automation, web development, social media management\\n- Target: SMBs in South Africa looking to automate and scale\\n- Brand color: #FF6D5A\\n- Currency: ZAR (South African Rand)\\n- Key CTA: \\\"Book a Free AI Strategy Call\\\"\\n\\nORGANIC CONTENT PERFORMANCE (last 7 days):\\n{{JSON.stringify($json)}}\\n\\nCURRENT PAID CAMPAIGNS:\\n{{JSON.stringify($json)}}\\n\\nBUDGET ALLOCATION:\\n{{JSON.stringify($json)}}\\n\\nBUDGET CONSTRAINTS (MANDATORY):\\n- Daily budget per campaign: max R666 (HARD LIMIT \\u2014 never suggest higher)\\n- Weekly total across ALL campaigns: max R5000\\n- Monthly total: max R20000\\n\\nGenerate 2-3 campaign recommendations as a JSON array. Each item must have:\\n- campaign_name: descriptive name (DO NOT include platform names like \\\"TikTok\\\" or \\\"LinkedIn\\\" \\u2014 AVM doesn't run those)\\n- platform: MUST be one of [\\\"google_ads\\\", \\\"meta_ads\\\"] \\u2014 any other value causes rejection\\n- objective: one of \\\"Traffic\\\", \\\"Conversions\\\", \\\"Lead_Gen\\\", \\\"Awareness\\\"\\n- target_audience: description of who to target\\n- suggested_daily_budget_zar: number (MUST NOT exceed R666)\\n- ad_format: one of \\\"RSA\\\", \\\"Image\\\", \\\"Video\\\", \\\"Carousel\\\"\\n- key_messages: array of 2-3 messaging angles\\n- duration_days: 7, 14, or 30\\n- priority: \\\"High\\\", \\\"Medium\\\", or \\\"Low\\\"\\n- reasoning: why this campaign should run\\n\\nFocus on SaaS lead generation and client acquisition. Prioritize campaigns with highest expected ROAS.\\n\\nOutput ONLY valid JSON array, no markdown or extra text.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
         "options": {
           "timeout": 60000
         }
@@ -183,7 +183,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "81d245ba-b6cf-472a-8443-5d022c5453f7",
+      "id": "1c165d82-5d99-4dec-876c-f678fd3bc8d7",
       "name": "Parse Strategy",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -192,11 +192,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Parse AI strategy response into individual campaign records\nconst aiResp = $('AI Strategy Generator').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\n\nlet campaigns;\ntry {\n  // Strip markdown code fences if present\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  campaigns = JSON.parse(cleaned);\n} catch (e) {\n  return [{json: {error: 'Failed to parse AI response', raw: content}}];\n}\n\nif (!Array.isArray(campaigns)) campaigns = [campaigns];\n\nconst now = new Date().toISOString().split('T')[0];\nconst results = [];\n\nfor (const c of campaigns) {\n  results.push({\n    json: {\n      'Campaign Name': c.campaign_name || 'Untitled Campaign',\n      'Platform': c.platform || 'google_ads',\n      'Objective': c.objective || 'Conversions',\n      'Status': 'Planned',\n      'Target Audience': c.target_audience || '',\n      'Daily Budget ZAR': c.suggested_daily_budget_zar || 100,\n      'Lifetime Budget ZAR': (c.suggested_daily_budget_zar || 100) * (c.duration_days || 14),\n      'Key Messages': JSON.stringify(c.key_messages || []),\n      'Priority': c.priority || 'Medium',\n      'Created At': now,\n      'Created By': 'ADS-01',\n    }\n  });\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No campaigns generated'}}];\n"
+        "jsCode": "\n// Parse AI strategy response into individual campaign records.\n// Enforces a hard allowlist: AVM only runs google_ads and meta_ads. Any other\n// platform (tiktok_ads, linkedin_ads, etc.) is DROPPED even if the AI ignored\n// the prompt — belt-and-suspenders defence against off-strategy suggestions.\nconst aiResp = $('AI Strategy Generator').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '[]';\n\nlet campaigns;\ntry {\n  // Strip markdown code fences if present\n  const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  campaigns = JSON.parse(cleaned);\n} catch (e) {\n  return [{json: {error: 'Failed to parse AI response', raw: content}}];\n}\n\nif (!Array.isArray(campaigns)) campaigns = [campaigns];\n\nconst ALLOWED_PLATFORMS = new Set(['google_ads', 'meta_ads']);\nconst ALLOWED_OBJECTIVES = new Set(['Traffic', 'Conversions', 'Lead_Gen', 'Awareness', 'Video_Views']);\nconst now = new Date().toISOString().split('T')[0];\nconst results = [];\nconst rejected = [];\n\nfor (const c of campaigns) {\n  const platform = (c.platform || '').toLowerCase();\n  if (!ALLOWED_PLATFORMS.has(platform)) {\n    rejected.push({campaign_name: c.campaign_name, platform: c.platform, reason: 'platform not in allowlist'});\n    continue;\n  }\n\n  // Also drop campaigns whose NAME contains a disallowed platform string\n  // (catches cases like \"... - TikTok Native\" where the platform field is correct but the name leaks)\n  const name = (c.campaign_name || '').toLowerCase();\n  const nameHasBadPlatform = ['tiktok', 'linkedin', 'youtube', 'twitter', 'snapchat'].some(p => name.includes(p));\n  if (nameHasBadPlatform) {\n    rejected.push({campaign_name: c.campaign_name, platform: c.platform, reason: 'name references disallowed platform'});\n    continue;\n  }\n\n  const objective = ALLOWED_OBJECTIVES.has(c.objective) ? c.objective : 'Conversions';\n\n  results.push({\n    json: {\n      'Campaign Name': c.campaign_name || 'Untitled Campaign',\n      'Platform': platform,\n      'Objective': objective,\n      'Status': 'Planned',\n      'Target Audience': c.target_audience || '',\n      'Daily Budget ZAR': c.suggested_daily_budget_zar || 100,\n      'Lifetime Budget ZAR': (c.suggested_daily_budget_zar || 100) * (c.duration_days || 14),\n      'Key Messages': JSON.stringify(c.key_messages || []),\n      'Priority': c.priority || 'Medium',\n      'Created At': now,\n      'Created By': 'ADS-01',\n    }\n  });\n}\n\nif (rejected.length > 0) {\n  console.log('ADS-01 rejected campaigns:', JSON.stringify(rejected));\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No campaigns generated', rejected}}];\n"
       }
     },
     {
-      "id": "a80bd760-d29d-4bc9-bfac-c7e2e409d55a",
+      "id": "b138d50a-145f-4ca2-b233-559949e00559",
       "name": "Filter Valid",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -209,7 +209,7 @@
       }
     },
     {
-      "id": "a90d94cc-c813-43e0-ae67-03ca79c8adeb",
+      "id": "fb6056ca-ed87-4036-a4b1-1e60ca46a690",
       "name": "Write Planned Campaigns",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -248,7 +248,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "ed7267f2-7d62-4ee0-87f3-977d69722e92",
+      "id": "e44e2416-706e-4b4b-857e-fe76185960c7",
       "name": "Email Strategy Summary",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -272,7 +272,7 @@
       }
     },
     {
-      "id": "bc6557c8-adcc-4e16-adce-913e8a02a1e9",
+      "id": "0331e499-6eec-4741-b919-e149b92b5f65",
       "name": "Trigger Creative Generation",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -285,7 +285,7 @@
         "url": "https://ianimmelman89.app.n8n.cloud/webhook/ads-generate-creatives",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"triggered_by\": \"ADS-01\", \"timestamp\": \"\" + $now.toISO() + \"\"}",
+        "jsonBody": "{\"triggered_by\": \"ADS-01\", \"timestamp\": \"\" + $now.toISO() + \"\"}",
         "options": {
           "timeout": 10000
         }

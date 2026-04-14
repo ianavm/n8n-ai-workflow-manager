@@ -168,30 +168,65 @@ return results.length > 0 ? results : [{json: {skip: true, reason: 'No Google Ad
 """
 
 ADS04_TRANSFORM_META_CODE = r"""
-// Transform Meta Ads insights to common schema
-const items = $input.all();
-
-// Meta Graph API wraps insights in a data[] array
-// Response: { data: [ {campaign_id, impressions, ...}, ... ], paging: {...} }
-const firstItem = items[0]?.json;
-if (!firstItem || firstItem.error || (!firstItem.data && !firstItem.impressions)) {
-  return [{json: {skip: true, reason: 'Meta Ads API unavailable'}}];
-}
-
-// Unwrap: if data[] array exists, iterate campaigns inside it; otherwise treat items as flat
-const campaigns = firstItem.data || [firstItem];
-
-const results = [];
+// Transform Meta Ads insights to common schema, LEFT-JOINED with the canonical
+// campaign list so every ACTIVE/PAUSED campaign gets an Ad_Performance row
+// even when it has zero delivery today. Reads two upstream nodes:
+//   - 'Meta List Campaigns' : canonical list with id, name, status, effective_status
+//   - 'Meta Ads Get Insights' : today's insights (campaigns with zero delivery are absent)
 const now = new Date().toISOString().split('T')[0];
 const hour = new Date().toISOString().split('T')[1].substring(0, 5);
 
-for (const d of campaigns) {
+// 1. Pull campaign list — this is the canonical set we emit rows for
+let campaignList = [];
+try {
+  const listResp = $('Meta List Campaigns').first()?.json || {};
+  campaignList = listResp.data || [];
+} catch (e) {
+  // Meta List Campaigns node didn't run (e.g. credential missing). Fall back
+  // to whatever insights we have so behaviour degrades to the old code path.
+  campaignList = [];
+}
+
+// 2. Pull insights and index by campaign_id
+let insightsById = {};
+try {
+  const insResp = $('Meta Ads Get Insights').first()?.json || {};
+  const arr = insResp.data || (insResp.impressions !== undefined ? [insResp] : []);
+  for (const d of arr) {
+    if (d.campaign_id) insightsById[d.campaign_id] = d;
+  }
+} catch (e) {
+  insightsById = {};
+}
+
+// If we have neither list nor insights, the Meta side is effectively unavailable
+if (campaignList.length === 0 && Object.keys(insightsById).length === 0) {
+  return [{json: {skip: true, reason: 'Meta Ads API unavailable'}}];
+}
+
+// 3. Build emission set: start from campaignList when present, otherwise from insights
+const baseSet = campaignList.length > 0
+  ? campaignList.map(c => ({
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      effective_status: c.effective_status,
+    }))
+  : Object.values(insightsById).map(d => ({
+      id: d.campaign_id,
+      name: d.campaign_name,
+      status: '',
+      effective_status: '',
+    }));
+
+const results = [];
+for (const c of baseSet) {
+  const d = insightsById[c.id] || {};
   const impressions = parseInt(d.impressions || 0);
   const clicks = parseInt(d.clicks || 0);
   const spend = parseFloat(d.spend || 0);
   const reach = parseInt(d.reach || 0);
 
-  // Extract conversions from actions array
   let conversions = 0;
   if (d.actions) {
     for (const action of d.actions) {
@@ -210,17 +245,15 @@ for (const d of campaigns) {
 
   results.push({
     json: {
-      // Performance ID = (platform, campaign, date) — no hour, enables upsert.
-      // Meta returns cumulative-since-midnight, so the latest snapshot of the
-      // day = end-of-day total. Subsequent runs overwrite the row.
-      'Performance ID': `meta_${d.campaign_id || 'unknown'}_${now}`,
-      'Campaign Name': d.campaign_name || 'Unknown',
+      // Performance ID = (platform, campaign, date) — enables upsert.
+      'Performance ID': `meta_${c.id || 'unknown'}_${now}`,
+      'Campaign Name': c.name || d.campaign_name || 'Unknown',
       'Platform': 'meta_ads',
       'Date': now,
       'Impressions': impressions,
       'Clicks': clicks,
       'CTR': parseFloat(ctr.toFixed(4)),
-      'Spend ZAR': parseFloat(spend.toFixed(2)),  // cumulative-since-midnight
+      'Spend ZAR': parseFloat(spend.toFixed(2)),
       'Conversions': conversions,
       'CPA ZAR': parseFloat(cpa.toFixed(2)),
       'ROAS': parseFloat(roas.toFixed(2)),
@@ -228,7 +261,7 @@ for (const d of campaigns) {
       'CPC ZAR': parseFloat(cpc.toFixed(2)),
       'Video Views': parseInt(d.video_views || 0),
       'Engagement Rate': parseFloat(engRate.toFixed(4)),
-      'Snapshot Hour': hour,  // kept for debugging; not part of upsert key
+      'Snapshot Hour': hour,
     }
   });
 }
@@ -433,6 +466,12 @@ Output plain text, no JSON."""
 
 ADS01_STRATEGY_PROMPT = """You are the AVM Campaign Strategist for AnyVision Media, a South African SaaS/AI automation company.
 
+CRITICAL RULES — ABSOLUTELY NON-NEGOTIABLE:
+1. platform MUST be EXACTLY "google_ads" OR "meta_ads". NEVER "tiktok_ads", "linkedin_ads", "youtube_ads", "twitter_ads", or anything else. AVM does NOT run on any other platform. Any campaign with a different platform value will be automatically rejected and discarded.
+2. suggested_daily_budget_zar MUST be ≤ R{daily_cap}. Hard limit.
+3. Output ONLY a valid JSON array. No markdown, no commentary, no code fences.
+4. Every campaign in the output must have all required fields below — omit nothing.
+
 BUSINESS CONTEXT:
 - Company: AnyVision Media (www.anyvisionmedia.com)
 - Services: AI consulting, workflow automation, web development, social media management
@@ -454,11 +493,10 @@ BUDGET CONSTRAINTS (MANDATORY):
 - Daily budget per campaign: max R{daily_cap} (HARD LIMIT — never suggest higher)
 - Weekly total across ALL campaigns: max R{weekly_cap}
 - Monthly total: max R{monthly_cap}
-- AVM ONLY runs Google Ads and Meta Ads. Do NOT suggest TikTok, LinkedIn, or other platforms.
 
 Generate 2-3 campaign recommendations as a JSON array. Each item must have:
-- campaign_name: descriptive name
-- platform: one of "google_ads", "meta_ads"
+- campaign_name: descriptive name (DO NOT include platform names like "TikTok" or "LinkedIn" — AVM doesn't run those)
+- platform: MUST be one of ["google_ads", "meta_ads"] — any other value causes rejection
 - objective: one of "Traffic", "Conversions", "Lead_Gen", "Awareness"
 - target_audience: description of who to target
 - suggested_daily_budget_zar: number (MUST NOT exceed R{daily_cap})
@@ -1028,7 +1066,19 @@ def build_ads04_nodes():
     meta_node["alwaysOutputData"] = True
     nodes.append(meta_node)
 
-    # 6. Transform Meta Ads data (handle empty/error input gracefully)
+    # 5b. Meta Ads - List Campaigns (canonical set, so Transform Meta Data can
+    # zero-fill rows for campaigns without insights delivery today).
+    meta_list = build_facebook_graph_api(
+        "Meta List Campaigns", "GET",
+        f"={META_ADS_ACCOUNT_ID}/campaigns",
+        [875, 300],
+        fields='id,name,status,effective_status&effective_status=["ACTIVE","PAUSED","PENDING_REVIEW","PENDING_BILLING_INFO","CAMPAIGN_PAUSED","ADSET_PAUSED","WITH_ISSUES","IN_PROCESS"]&limit=500',
+    )
+    meta_list["continueOnFail"] = True
+    meta_list["alwaysOutputData"] = True
+    nodes.append(meta_list)
+
+    # 6. Transform Meta Ads data — joins List Campaigns with Get Insights
     nodes.append(build_code_node(
         "Transform Meta Data", ADS04_TRANSFORM_META_CODE, [1000, 300]
     ))
@@ -1098,6 +1148,9 @@ def build_ads04_connections(nodes):
             {"node": "Merge All Metrics", "type": "main", "index": 0},
         ]]},
         "Meta Ads Get Insights": {"main": [[
+            {"node": "Meta List Campaigns", "type": "main", "index": 0},
+        ]]},
+        "Meta List Campaigns": {"main": [[
             {"node": "Transform Meta Data", "type": "main", "index": 0},
         ]]},
         "Transform Meta Data": {"main": [[
@@ -1276,7 +1329,10 @@ def build_ads08_connections(nodes):
 # ======================================================================
 
 ADS01_PARSE_STRATEGY_CODE = r"""
-// Parse AI strategy response into individual campaign records
+// Parse AI strategy response into individual campaign records.
+// Enforces a hard allowlist: AVM only runs google_ads and meta_ads. Any other
+// platform (tiktok_ads, linkedin_ads, etc.) is DROPPED even if the AI ignored
+// the prompt — belt-and-suspenders defence against off-strategy suggestions.
 const aiResp = $('AI Strategy Generator').first().json;
 const content = aiResp.choices?.[0]?.message?.content || '[]';
 
@@ -1291,15 +1347,35 @@ try {
 
 if (!Array.isArray(campaigns)) campaigns = [campaigns];
 
+const ALLOWED_PLATFORMS = new Set(['google_ads', 'meta_ads']);
+const ALLOWED_OBJECTIVES = new Set(['Traffic', 'Conversions', 'Lead_Gen', 'Awareness', 'Video_Views']);
 const now = new Date().toISOString().split('T')[0];
 const results = [];
+const rejected = [];
 
 for (const c of campaigns) {
+  const platform = (c.platform || '').toLowerCase();
+  if (!ALLOWED_PLATFORMS.has(platform)) {
+    rejected.push({campaign_name: c.campaign_name, platform: c.platform, reason: 'platform not in allowlist'});
+    continue;
+  }
+
+  // Also drop campaigns whose NAME contains a disallowed platform string
+  // (catches cases like "... - TikTok Native" where the platform field is correct but the name leaks)
+  const name = (c.campaign_name || '').toLowerCase();
+  const nameHasBadPlatform = ['tiktok', 'linkedin', 'youtube', 'twitter', 'snapchat'].some(p => name.includes(p));
+  if (nameHasBadPlatform) {
+    rejected.push({campaign_name: c.campaign_name, platform: c.platform, reason: 'name references disallowed platform'});
+    continue;
+  }
+
+  const objective = ALLOWED_OBJECTIVES.has(c.objective) ? c.objective : 'Conversions';
+
   results.push({
     json: {
       'Campaign Name': c.campaign_name || 'Untitled Campaign',
-      'Platform': c.platform || 'google_ads',
-      'Objective': c.objective || 'Conversions',
+      'Platform': platform,
+      'Objective': objective,
       'Status': 'Planned',
       'Target Audience': c.target_audience || '',
       'Daily Budget ZAR': c.suggested_daily_budget_zar || 100,
@@ -1312,7 +1388,11 @@ for (const c of campaigns) {
   });
 }
 
-return results.length > 0 ? results : [{json: {skip: true, reason: 'No campaigns generated'}}];
+if (rejected.length > 0) {
+  console.log('ADS-01 rejected campaigns:', JSON.stringify(rejected));
+}
+
+return results.length > 0 ? results : [{json: {skip: true, reason: 'No campaigns generated', rejected}}];
 """
 
 
@@ -1831,23 +1911,28 @@ return results;
 """
 
 ADS03_BUILD_GOOGLE_CAMPAIGN_CODE = r"""
-// Build Google Ads campaign creation payload
+// Build Google Ads campaign creation payload — dedupes by Campaign Name so any
+// upstream fan-out can't create duplicate campaigns.
 const items = $input.all();
 const results = [];
+const seen = new Set();
 
 for (const item of items) {
   const d = item.json;
   if (!d._budgetSafe) continue;
+  const name = d['Campaign Name'];
+  if (!name || seen.has(name)) continue;
+  seen.add(name);
 
   const dailyBudgetMicros = Math.round((d['Daily Budget ZAR'] || 100) * 1000000);
 
   results.push({json: {
     _platform: 'google_ads',
-    _campaignName: d['Campaign Name'],
+    _campaignName: name,
     operations: [
       {
         create: {
-          name: d['Campaign Name'],
+          name: name,
           advertisingChannelType: d.Objective === 'Video_Views' ? 'VIDEO' : 'SEARCH',
           status: 'PAUSED',
           containsEuPoliticalAdvertising: false,
@@ -1867,9 +1952,11 @@ return results.length > 0 ? results : [{json: {skip: true}}];
 """
 
 ADS03_BUILD_META_CAMPAIGN_CODE = r"""
-// Build Meta Ads campaign creation payload
+// Build Meta Ads campaign creation payload — dedupes by Campaign Name so any
+// upstream fan-out can't create duplicate campaigns.
 const items = $input.all();
 const results = [];
+const seen = new Set();
 
 const objectiveMap = {
   'Traffic': 'OUTCOME_TRAFFIC',
@@ -1882,11 +1969,14 @@ const objectiveMap = {
 for (const item of items) {
   const d = item.json;
   if (!d._budgetSafe) continue;
+  const name = d['Campaign Name'];
+  if (!name || seen.has(name)) continue;
+  seen.add(name);
 
   results.push({json: {
     _platform: 'meta_ads',
-    _campaignName: d['Campaign Name'],
-    name: d['Campaign Name'],
+    _campaignName: name,
+    name: name,
     objective: objectiveMap[d.Objective] || 'OUTCOME_LEADS',
     status: 'PAUSED',
     daily_budget: Math.round((d['Daily Budget ZAR'] || 100) * 100),
@@ -1932,13 +2022,12 @@ def build_ads03_nodes():
         "={Status}='Approved'", [500, 300],
     ))
 
-    # 3. Read creatives for campaigns
-    nodes.append(build_airtable_search(
-        "Read Creatives", MARKETING_BASE_ID, TABLE_CREATIVES,
-        "={Status}='Approved'", [500, 500],
-    ))
-
-    # 4. Budget safety check
+    # 3. Budget safety check
+    # NOTE: Read Creatives used to sit between here and the campaign chain, but
+    # its filter didn't scope to the input campaigns, so n8n re-ran it N times
+    # and fanned out 6 campaigns × 24 creatives = 144 items — each becoming its
+    # own duplicate Meta/Google campaign. Creatives are handled downstream in
+    # ads creation, not campaign creation.
     nodes.append(build_code_node("Budget Safety Check", ADS03_BUDGET_SAFETY_CODE, [750, 300]))
 
     # 5. Check budget safe
@@ -2005,9 +2094,6 @@ def build_ads03_connections(nodes):
             {"node": "Read Approved Campaigns", "type": "main", "index": 0},
         ]]},
         "Read Approved Campaigns": {"main": [[
-            {"node": "Read Creatives", "type": "main", "index": 0},
-        ]]},
-        "Read Creatives": {"main": [[
             {"node": "Budget Safety Check", "type": "main", "index": 0},
         ]]},
         "Budget Safety Check": {"main": [[
