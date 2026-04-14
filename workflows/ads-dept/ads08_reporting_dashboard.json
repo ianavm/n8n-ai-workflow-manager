@@ -2,7 +2,7 @@
   "name": "AVM Ads: Reporting Dashboard",
   "nodes": [
     {
-      "id": "e931690c-e1cc-48fa-9256-551c4d874bc1",
+      "id": "8b305946-12d4-420f-b199-99a3f8ef1160",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "ba02644d-6b39-405c-9be2-f0396ec0c396",
+      "id": "c8cbe2e6-8650-4fba-a5e3-254c095523a6",
       "name": "Read Campaign Summary",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "2ec4db58-3cfe-4e01-9ab7-bb8d749db894",
+      "id": "c1bcd11d-0cc7-4ad7-a430-fd9bc0ff4860",
       "name": "Read Performance Data",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -84,7 +84,7 @@
       }
     },
     {
-      "id": "d51941d1-30c4-4cb1-9525-f35409593ad3",
+      "id": "e324e200-b704-4726-8bcf-5cd7de331f51",
       "name": "Read Budget Allocations",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -115,7 +115,7 @@
       }
     },
     {
-      "id": "0a1f929c-6598-492c-8509-bb95882f1a7d",
+      "id": "99d96b35-dc1c-471f-b1d9-9dfee070339f",
       "name": "Merge Report Data",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -128,7 +128,7 @@
       }
     },
     {
-      "id": "9e260fe6-4afd-4bfd-9e96-0411f8078cc8",
+      "id": "728c4cf5-a70f-414a-a12d-f55202b37b36",
       "name": "AI Report Generator",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -170,7 +170,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "e44f27f5-a2d2-463f-a97f-70c98ac05b29",
+      "id": "e3bd3301-cdd6-44fd-9159-a8f06fa6b3cf",
       "name": "Build HTML Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -183,7 +183,7 @@
       }
     },
     {
-      "id": "e67ade55-9e89-42fe-8cbb-f32f86178e49",
+      "id": "ab01e8bb-2c63-4eef-99d1-22b714ed9635",
       "name": "Send Weekly Report",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -207,7 +207,7 @@
       }
     },
     {
-      "id": "168f5521-eaa6-4792-8281-877987e26df3",
+      "id": "5c710e0b-2fb6-4a53-9142-d994d8be05d6",
       "name": "Format Report Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -216,11 +216,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Transform Gmail send response into Orchestrator Events fields\nconst gmailResp = $input.first().json;\n\nreturn [{json: {\n  'Event Type': 'weekly_ads_report',\n  'Source Agent': 'ADS-08',\n  'Priority': 'P4',\n  'Status': 'Completed',\n  'Payload': JSON.stringify({\n    messageId: gmailResp.id || '',\n    threadId: gmailResp.threadId || '',\n    sentAt: new Date().toISOString(),\n  }),\n  'Created At': new Date().toISOString(),\n}}];\n"
+        "jsCode": "\n// Transform Gmail send response into Orchestrator Events fields\nconst gmailResp = $input.first().json;\n\nreturn [{json: {\n  'Event Type': 'kpi_update',\n  'Source Agent': 'ADS-08',\n  'Priority': 'P4',\n  'Status': 'Completed',\n  'Payload': JSON.stringify({\n    messageId: gmailResp.id || '',\n    threadId: gmailResp.threadId || '',\n    sentAt: new Date().toISOString(),\n  }),\n  'Created At': new Date().toISOString(),\n}}];\n"
       }
     },
     {
-      "id": "209527fe-af59-4f55-959e-e4329eebc28c",
+      "id": "efe6725a-2b10-4fd4-b83d-3f95ff7c8f6b",
       "name": "Log Report Event",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -234,6 +234,7 @@
           "name": "Airtable account"
         }
       },
+      "continueOnFail": true,
       "parameters": {
         "operation": "create",
         "base": {
@@ -247,16 +248,18 @@
           "value": "tblgHAw52EyUcIkWR"
         },
         "columns": {
-          "mappingMode": "autoMapInputData",
-          "value": null
+          "mappingMode": "defineBelow",
+          "value": {
+            "Event Type": "={{ $json['Event Type'] }}",
+            "Source Agent": "={{ $json['Source Agent'] }}",
+            "Priority": "={{ $json['Priority'] }}",
+            "Status": "={{ $json['Status'] }}",
+            "Payload": "={{ $json['Payload'] }}",
+            "Created At": "={{ $json['Created At'] }}"
+          }
         },
         "options": {}
-      },
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 60000,
-      "continueOnFail": true,
-      "alwaysOutputData": true
+      }
     }
   ],
   "connections": {

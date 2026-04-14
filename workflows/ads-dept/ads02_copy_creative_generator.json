@@ -2,7 +2,7 @@
   "name": "AVM Ads: Copy & Creative Generator",
   "nodes": [
     {
-      "id": "3273dd82-1ab7-4842-aca9-d0fe729522d3",
+      "id": "55b12254-51ad-4fbe-b5f8-63b6009269a6",
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -10,7 +10,7 @@
         250,
         300
       ],
-      "webhookId": "6e2c4a90-1c7c-459d-b01e-f859e8205243",
+      "webhookId": "396a05ef-3182-4d41-980d-47dd413e83e6",
       "parameters": {
         "path": "ads-generate-creatives",
         "httpMethod": "POST",
@@ -18,7 +18,7 @@
       }
     },
     {
-      "id": "b6ced12e-5910-45e5-804e-464b10b3697c",
+      "id": "d7d85158-5978-4a14-8f08-f13992f8b107",
       "name": "Read Campaign Plans",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -49,7 +49,38 @@
       }
     },
     {
-      "id": "b392badf-51f2-4f21-a995-c6dbb31f0304",
+      "id": "494d74ed-30a8-4f43-a92b-8287a09ae3f0",
+      "name": "Has Campaigns?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        625,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{$input.all().length > 0}}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "24e686cb-565a-430e-b23a-bae247241b21",
       "name": "Route by Platform",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
@@ -107,7 +138,7 @@
       }
     },
     {
-      "id": "ffe79084-8502-4a4b-a5c2-5ec5131f10d9",
+      "id": "4640b36f-6686-443a-8403-89770080076f",
       "name": "Google Copy Agent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -142,11 +173,14 @@
           "timeout": 60000
         }
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 60000,
       "continueOnFail": true,
       "alwaysOutputData": true
     },
     {
-      "id": "01c3c812-35a8-4839-974a-1f055e2aafb0",
+      "id": "8c02ab06-0542-4d11-a341-e7f673c2a7c9",
       "name": "Meta Copy Agent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -181,11 +215,14 @@
           "timeout": 60000
         }
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 60000,
       "continueOnFail": true,
       "alwaysOutputData": true
     },
     {
-      "id": "b3269e35-f61a-4b76-ab99-a5c49fdf4ff9",
+      "id": "f6ec590e-454f-4bfe-a26b-56a03aa7b5e1",
       "name": "TikTok Script Agent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -220,11 +257,14 @@
           "timeout": 60000
         }
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 60000,
       "continueOnFail": true,
       "alwaysOutputData": true
     },
     {
-      "id": "da3c6547-88cc-4399-935c-72208e702849",
+      "id": "60f09b30-be8c-473b-94b2-52ed70b95490",
       "name": "Merge Creatives",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -237,7 +277,7 @@
       }
     },
     {
-      "id": "4bc697b0-7228-4859-8fc3-78734f5328de",
+      "id": "9d676678-c6b8-4d8c-a6cd-95eeec0c16be",
       "name": "Parse Creatives",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -246,11 +286,11 @@
         300
       ],
       "parameters": {
-        "jsCode": "\n// Parse AI creative responses and prepare for Airtable\nconst items = $input.all();\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\nlet idx = 0;\n\nfor (const item of items) {\n  if (item.json.skip) continue;\n\n  const resp = item.json;\n  const content = resp.choices?.[0]?.message?.content || JSON.stringify(resp);\n\n  let creative;\n  try {\n    const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    creative = JSON.parse(cleaned);\n  } catch (e) {\n    creative = {raw: content};\n  }\n\n  const campaignName = item.json._campaignName || 'Unknown';\n  const platform = item.json._platform || 'google_ads';\n\n  // Handle Google RSA format\n  if (creative.headlines) {\n    idx++;\n    results.push({json: {\n      'Creative Name': `${campaignName} - RSA ${now} #${idx}`,\n      'Campaign Name': campaignName,\n      'Platform': platform,\n      'Ad Format': 'RSA',\n      'Status': 'Draft',\n      'Headlines': JSON.stringify(creative.headlines),\n      'Descriptions': JSON.stringify(creative.descriptions || []),\n      'CTA': 'Learn_More',\n      'Created At': now,\n    }});\n  }\n\n  // Handle Meta format with variants\n  if (creative.variants) {\n    for (const v of creative.variants) {\n      idx++;\n      results.push({json: {\n        'Creative Name': `${campaignName} - Meta ${now} #${idx}`,\n        'Campaign Name': campaignName,\n        'Platform': platform,\n        'Ad Format': 'Image',\n        'Status': 'Draft',\n        'Primary Text': v.primary_text || '',\n        'Headlines': JSON.stringify([v.headline || '']),\n        'Descriptions': JSON.stringify([v.description || '']),\n        'CTA': (v.cta || 'Learn_More').replace('_', '_'),\n        'Created At': now,\n      }});\n    }\n  }\n\n  // Handle TikTok format\n  if (creative.hook && creative.script) {\n    idx++;\n    results.push({json: {\n      'Creative Name': `${campaignName} - TikTok ${now} #${idx}`,\n      'Campaign Name': campaignName,\n      'Platform': platform,\n      'Ad Format': 'Video',\n      'Status': 'Draft',\n      'Primary Text': creative.script,\n      'Headlines': JSON.stringify([creative.hook]),\n      'Descriptions': JSON.stringify([creative.caption || '']),\n      'CTA': 'Learn_More',\n      'Created At': now,\n    }});\n  }\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No creatives parsed'}}];\n"
+        "jsCode": "\n// Parse AI creative responses and prepare for Airtable.\n// Fixed 2026-04-10: recovers Campaign Name + Platform via paired-item\n// lookup to `Read Campaign Plans`. Drops items that cannot be matched\n// instead of writing \"Unknown\" garbage rows downstream.\nconst items = $input.all();\nconst results = [];\nconst now = new Date().toISOString().split('T')[0];\nlet idx = 0;\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  if (item.json.skip) continue;\n\n  // Recover original campaign via paired-item reference\n  let campaignName = null;\n  let platform = null;\n  try {\n    const original = $('Read Campaign Plans').itemMatching(i);\n    if (original && original.json) {\n      const fields = original.json.fields || original.json;\n      campaignName = fields['Campaign Name'] || null;\n      platform = fields['Platform'] || null;\n    }\n  } catch (e) {\n    // pairedItem unavailable — fall through\n  }\n\n  // Fall back to inline metadata if present\n  if (!campaignName) campaignName = item.json._campaignName || null;\n  if (!platform) platform = item.json._platform || 'google_ads';\n\n  // Drop items with no recoverable campaign — prevents \"Unknown\" garbage rows\n  if (!campaignName || campaignName === 'Unknown') continue;\n\n  const resp = item.json;\n  const content = resp.choices?.[0]?.message?.content || JSON.stringify(resp);\n\n  let creative;\n  try {\n    const cleaned = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    creative = JSON.parse(cleaned);\n  } catch (e) {\n    creative = {raw: content};\n  }\n\n  // Handle Google RSA format\n  if (creative.headlines) {\n    idx++;\n    results.push({json: {\n      'Creative Name': `${campaignName} - RSA ${now} #${idx}`,\n      'Campaign Name': campaignName,\n      'Platform': platform,\n      'Ad Format': 'RSA',\n      'Status': 'Draft',\n      'Headlines': JSON.stringify(creative.headlines),\n      'Descriptions': JSON.stringify(creative.descriptions || []),\n      'CTA': 'Learn_More',\n      'Created At': now,\n    }});\n  }\n\n  // Handle Meta format with variants\n  if (creative.variants) {\n    for (const v of creative.variants) {\n      idx++;\n      results.push({json: {\n        'Creative Name': `${campaignName} - Meta ${now} #${idx}`,\n        'Campaign Name': campaignName,\n        'Platform': platform,\n        'Ad Format': 'Image',\n        'Status': 'Draft',\n        'Primary Text': v.primary_text || '',\n        'Headlines': JSON.stringify([v.headline || '']),\n        'Descriptions': JSON.stringify([v.description || '']),\n        'CTA': (v.cta || 'Learn_More').replace('_', '_'),\n        'Created At': now,\n      }});\n    }\n  }\n\n  // Handle TikTok format\n  if (creative.hook && creative.script) {\n    idx++;\n    results.push({json: {\n      'Creative Name': `${campaignName} - TikTok ${now} #${idx}`,\n      'Campaign Name': campaignName,\n      'Platform': platform,\n      'Ad Format': 'Video',\n      'Status': 'Draft',\n      'Primary Text': creative.script,\n      'Headlines': JSON.stringify([creative.hook]),\n      'Descriptions': JSON.stringify([creative.caption || '']),\n      'CTA': 'Learn_More',\n      'Created At': now,\n    }});\n  }\n}\n\nreturn results.length > 0 ? results : [{json: {skip: true, reason: 'No creatives parsed'}}];\n"
       }
     },
     {
-      "id": "97c35a90-e6b6-40ef-b113-150bad5712d6",
+      "id": "61f6331f-8c06-4631-937c-6b25b5ff8435",
       "name": "Filter Valid Creatives",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -263,7 +303,7 @@
       }
     },
     {
-      "id": "ec48f8c4-3b27-4d01-bfdc-d80bb0f1e545",
+      "id": "8805666f-2173-44d1-8c89-db8b2a7275d5",
       "name": "Write Creatives",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -295,10 +335,14 @@
         },
         "options": {}
       },
-      "continueOnFail": true
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 60000,
+      "continueOnFail": true,
+      "alwaysOutputData": true
     },
     {
-      "id": "926bc0eb-eee0-4154-ae35-75952ee6330a",
+      "id": "73303f53-cd66-4f89-9d86-abde2612aae9",
       "name": "Create Approval Request",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -327,11 +371,11 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Campaign Name": "={{ $json.fields ? $json.fields['Campaign Name'] : $json['Campaign Name'] }}",
+            "Campaign Name": "={{ $('Parse Creatives').item.json['Campaign Name'] }}",
             "Request Type": "Creative_Update",
             "Requested By": "ADS-02",
             "Status": "Pending",
-            "Details": "={{ ($json.fields ? $json.fields['Creative Name'] : $json['Creative Name']) + ' (' + ($json.fields ? $json.fields['Platform'] : $json['Platform']) + ')' }}",
+            "Details": "={{ $('Parse Creatives').item.json['Creative Name'] + ' (' + $('Parse Creatives').item.json['Platform'] + ')' }}",
             "Created At": "={{ new Date().toISOString().split('T')[0] }}"
           }
         },
@@ -339,7 +383,7 @@
       }
     },
     {
-      "id": "69cc928b-8754-4981-807f-59dfb93cfb42",
+      "id": "b3e6fd18-c04d-4fd0-95db-c630f1ac83c7",
       "name": "Email Approval Link",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
@@ -379,11 +423,23 @@
       "main": [
         [
           {
-            "node": "Route by Platform",
+            "node": "Has Campaigns?",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "Has Campaigns?": {
+      "main": [
+        [
+          {
+            "node": "Route by Platform",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     },
     "Route by Platform": {
@@ -503,6 +559,7 @@
   "settings": {
     "executionOrder": "v1",
     "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "L915QaaJuo6au7Oe"
   }
 }

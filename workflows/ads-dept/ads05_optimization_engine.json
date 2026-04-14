@@ -2,7 +2,7 @@
   "name": "AVM Ads: Optimization Engine",
   "nodes": [
     {
-      "id": "94c747dc-9beb-44c4-b99b-a70b413b3103",
+      "id": "8d6e8e06-da72-4c1f-ab11-a4861956b2e9",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "id": "110bb24f-b713-44b8-bc17-16798bcb6233",
+      "id": "805fdc74-3463-4ba0-8f27-992b8a03955c",
       "name": "Read 7-Day Performance",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -53,7 +53,7 @@
       }
     },
     {
-      "id": "94f08186-3da1-449a-a762-efdc71b364fa",
+      "id": "c274ccb6-6dd9-4b54-a325-c1d16de9f147",
       "name": "Read Budgets",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -84,7 +84,7 @@
       }
     },
     {
-      "id": "e8877fd9-4b35-49b2-aabe-adabdad2717a",
+      "id": "66269011-48da-4188-8e16-1091cae13194",
       "name": "Compute Signals",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -97,7 +97,7 @@
       }
     },
     {
-      "id": "471d45bd-cd7e-4b7e-92f3-0c3ffc023b46",
+      "id": "2e6e65d7-e1fa-48e0-9972-91cfc3585d03",
       "name": "Merge Data",
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3,
@@ -110,7 +110,7 @@
       }
     },
     {
-      "id": "b42b43e6-11b6-4500-99b7-7b87d0b04050",
+      "id": "edb8ecb1-aad6-4c9f-8e90-2b23b10157c6",
       "name": "Aggregate Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -123,7 +123,7 @@
       }
     },
     {
-      "id": "acb33946-3433-4b9a-8662-3e8397056729",
+      "id": "64d77769-93b0-4230-9cb2-cadf70205e82",
       "name": "AI Optimizer",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -153,7 +153,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Ads Optimization Agent for AnyVision Media.\\n\\nCRITICAL RULES:\\n- AVM ONLY runs Google Ads and Meta Ads (Facebook/Instagram). Do NOT reference YouTube, LinkedIn, TikTok, or any other platform.\\n- ONLY reference campaigns that actually exist in the performance data below. NEVER invent campaign names.\\n- If the data contains campaign names, use those EXACT names. Do NOT create fictional names like \\\"Facebook Brand Awareness\\\" or \\\"Google Search - Premium Products\\\".\\n- If there is insufficient data to make recommendations, say so honestly.\\n\\n7-DAY PERFORMANCE DATA:\\n{{JSON.stringify($json)}}\\n\\nCURRENT BUDGET ALLOCATION:\\n{{JSON.stringify($json)}}\\n\\nSAFETY CONSTRAINTS:\\n- Daily budget per campaign: max R500\\n- Weekly total across all campaigns: max R2600\\n- Monthly total: max R11000\\n- Max single bid change: 30%\\n- Max auto-approve budget increase: R200/day\\n\\nAnalyze trends and recommend specific optimizations:\\n\\nFor each recommendation, output JSON:\\n{{\\n  \\\"campaign_name\\\": \\\"...\\\",\\n  \\\"platform\\\": \\\"...\\\",\\n  \\\"action\\\": \\\"bid_adjust|budget_change|pause|reactivate|targeting_change\\\",\\n  \\\"current_value\\\": N,\\n  \\\"proposed_value\\\": N,\\n  \\\"change_percent\\\": N,\\n  \\\"reasoning\\\": \\\"...\\\",\\n  \\\"confidence\\\": \\\"high|medium|low\\\",\\n  \\\"auto_approvable\\\": true/false\\n}}\\n\\nRules:\\n- Be conservative. Only recommend changes backed by data.\\n- Flag auto_approvable=true ONLY if bid change < 20% AND budget increase < R200/day\\n- Recommend pausing campaigns with CPA > R500 and < 5 conversions\\n- Recommend increasing budget for campaigns with ROAS > 3.0\\n- Never recommend exceeding safety caps\\n\\nOutput as JSON array.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
+        "jsonBody": "{\"model\": \"anthropic/claude-sonnet-4\", \"max_tokens\": 2000, \"temperature\": 0.7, \"messages\": [{\"role\": \"system\", \"content\": \"You are the AVM Ads Optimization Agent for AnyVision Media.\\n\\nCRITICAL RULES:\\n- AVM ONLY runs Google Ads and Meta Ads (Facebook/Instagram). Do NOT reference YouTube, LinkedIn, TikTok, or any other platform.\\n- ONLY reference campaigns that actually exist in the performance data below. NEVER invent campaign names.\\n- If the data contains campaign names, use those EXACT names. Do NOT create fictional names like \\\"Facebook Brand Awareness\\\" or \\\"Google Search - Premium Products\\\".\\n- If there is insufficient data to make recommendations, say so honestly.\\n\\n7-DAY PERFORMANCE DATA:\\n{{JSON.stringify($json)}}\\n\\nCURRENT BUDGET ALLOCATION:\\n{{JSON.stringify($json)}}\\n\\nSAFETY CONSTRAINTS:\\n- Daily budget per campaign: max R666\\n- Weekly total across all campaigns: max R5000\\n- Monthly total: max R20000\\n- Max single bid change: 30%\\n- Max auto-approve budget increase: R200/day\\n\\nAnalyze trends and recommend specific optimizations:\\n\\nFor each recommendation, output JSON:\\n{{\\n  \\\"campaign_name\\\": \\\"...\\\",\\n  \\\"platform\\\": \\\"...\\\",\\n  \\\"action\\\": \\\"bid_adjust|budget_change|pause|reactivate|targeting_change\\\",\\n  \\\"current_value\\\": N,\\n  \\\"proposed_value\\\": N,\\n  \\\"change_percent\\\": N,\\n  \\\"reasoning\\\": \\\"...\\\",\\n  \\\"confidence\\\": \\\"high|medium|low\\\",\\n  \\\"auto_approvable\\\": true/false\\n}}\\n\\nRules:\\n- Be conservative. Only recommend changes backed by data.\\n- Flag auto_approvable=true ONLY if bid change < 20% AND budget increase < R200/day\\n- Recommend pausing campaigns with CPA > R800 and < 5 conversions\\n- Recommend increasing budget for campaigns with ROAS > 3.0\\n- Never recommend exceeding safety caps\\n\\nOutput as JSON array.\"}, {\"role\": \"user\", \"content\": \"={{JSON.stringify($json)}}\"}]}",
         "options": {
           "timeout": 60000
         }
@@ -165,7 +165,7 @@
       "alwaysOutputData": true
     },
     {
-      "id": "cfab1678-24db-4487-b718-ecc3f8e53883",
+      "id": "00c19c9c-7f16-4228-8daa-735f946636bb",
       "name": "Parse Optimizations",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -178,7 +178,7 @@
       }
     },
     {
-      "id": "928e17e5-e859-4a2b-a360-e48e33564b99",
+      "id": "afccb6dd-608d-4d35-b56b-8583df6569fb",
       "name": "Filter Valid Opts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -191,7 +191,7 @@
       }
     },
     {
-      "id": "df94b435-615a-4457-bfb5-6484dba2b727",
+      "id": "fa0a0fda-e2ad-44ee-ae1e-f8e46b29cd17",
       "name": "Auto Approve?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
@@ -222,7 +222,7 @@
       }
     },
     {
-      "id": "8f0cfcc2-ae7d-445f-9d3c-5e1540a850a3",
+      "id": "6e3ff7f6-e26f-42d2-bf5c-46ad416bfb8e",
       "name": "Log Auto Changes",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -236,6 +236,7 @@
           "name": "Airtable account"
         }
       },
+      "continueOnFail": true,
       "parameters": {
         "operation": "create",
         "base": {
@@ -249,19 +250,21 @@
           "value": "tblov57B8uj09ZF2k"
         },
         "columns": {
-          "mappingMode": "autoMapInputData",
-          "value": null
+          "mappingMode": "defineBelow",
+          "value": {
+            "Campaign Name": "={{ $json['Campaign Name'] }}",
+            "Request Type": "={{ $json['Request Type'] }}",
+            "Requested By": "={{ $json['Requested By'] }}",
+            "Status": "={{ $json['Status'] }}",
+            "Details": "={{ $json['Details'] }}",
+            "Created At": "={{ $json['Created At'] }}"
+          }
         },
         "options": {}
-      },
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 60000,
-      "continueOnFail": true,
-      "alwaysOutputData": true
+      }
     },
     {
-      "id": "d13cb105-47b3-4de7-9a85-3d9ce319f772",
+      "id": "3abb7c78-22f8-40c7-af89-ef209605f57d",
       "name": "Create Approval Requests",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
@@ -275,6 +278,7 @@
           "name": "Airtable account"
         }
       },
+      "continueOnFail": true,
       "parameters": {
         "operation": "create",
         "base": {
@@ -288,19 +292,21 @@
           "value": "tblov57B8uj09ZF2k"
         },
         "columns": {
-          "mappingMode": "autoMapInputData",
-          "value": null
+          "mappingMode": "defineBelow",
+          "value": {
+            "Campaign Name": "={{ $json['Campaign Name'] }}",
+            "Request Type": "={{ $json['Request Type'] }}",
+            "Requested By": "={{ $json['Requested By'] }}",
+            "Status": "={{ $json['Status'] }}",
+            "Details": "={{ $json['Details'] }}",
+            "Created At": "={{ $json['Created At'] }}"
+          }
         },
         "options": {}
-      },
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 60000,
-      "continueOnFail": true,
-      "alwaysOutputData": true
+      }
     },
     {
-      "id": "0aba67af-57e7-4532-a622-8243cdaee25a",
+      "id": "029a7dc0-5d45-4e79-b9cf-021e2fd7dff9",
       "name": "Email Optimization Summary",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
