@@ -111,10 +111,11 @@ async function jobGet(jobId) {
 }
 
 // Render concurrency limiter.
-// Railway Hobby can only run ~2 Chromium instances in parallel without
-// hitting the 30-second browser startup timeout. Jobs beyond the limit
-// queue up and execute in FIFO order.
-const MAX_CONCURRENT_RENDERS = parseInt(process.env.MAX_CONCURRENT_RENDERS || "2", 10);
+// Railway Hobby (8GB RAM) can only run 1 720×1280 render at a time:
+// concurrency 2 hits FFmpeg SIGKILL (OOM) during encoding even though
+// browser setup succeeds. Override via MAX_CONCURRENT_RENDERS env var
+// after upgrading Railway tier.
+const MAX_CONCURRENT_RENDERS = parseInt(process.env.MAX_CONCURRENT_RENDERS || "1", 10);
 let activeRenders = 0;
 const renderQueue = [];
 
