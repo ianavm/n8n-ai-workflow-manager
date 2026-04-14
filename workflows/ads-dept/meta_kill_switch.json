@@ -1,0 +1,196 @@
+{
+  "name": "ADS \u2014 Meta Kill Switch (manual)",
+  "nodes": [
+    {
+      "id": "a61ce033-b53c-4a60-9c94-70803433da16",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "1fb8ef2d-6f51-484e-ba64-d840e6b34dc3",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meta-kill-switch",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "5b2f9487-6a98-4a6a-995a-daff8e03ecf0",
+      "name": "List Meta Campaigns",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "4UZH1VRXvVufgvrI",
+          "name": "Meta Ads Graph API"
+        }
+      },
+      "parameters": {
+        "httpRequestMethod": "GET",
+        "graphApiVersion": "v25.0",
+        "node": "=act_26395704183451218/campaigns",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "fields",
+                "value": "id,name,status,effective_status,daily_budget,lifetime_budget"
+              },
+              {
+                "name": "effective_status",
+                "value": "[\"ACTIVE\",\"IN_PROCESS\",\"WITH_ISSUES\",\"PENDING_REVIEW\",\"PENDING_BILLING_INFO\",\"CAMPAIGN_PAUSED\"]"
+              },
+              {
+                "name": "limit",
+                "value": "500"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "8177fb39-7fd6-4e56-a5e5-abd1c2ffa12e",
+      "name": "Extract & Filter Active",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// runOnceForAllItems: expand the Graph API response and drop already-inactive campaigns.\nconst response = $input.first().json || {};\nconst data = response.data || [];\nconst inactive = new Set(['PAUSED', 'DELETED', 'ARCHIVED']);\n\nconst toPause = data\n  .filter(c => !inactive.has(c.status))\n  .map(c => ({\n    json: {\n      id: c.id,\n      name: c.name || '(unnamed)',\n      status: c.status,\n      effective_status: c.effective_status || '',\n      daily_budget_zar: c.daily_budget ? parseFloat(c.daily_budget) / 100 : 0,\n      lifetime_budget_zar: c.lifetime_budget ? parseFloat(c.lifetime_budget) / 100 : 0,\n    },\n  }));\n\nif (toPause.length === 0) {\n  // Emit a single sentinel item so downstream nodes don't fail on empty input.\n  return [{\n    json: {\n      id: '__noop__',\n      name: 'No active campaigns \u2014 nothing to pause',\n      status: 'NOOP',\n      skip: true,\n      daily_budget_zar: 0,\n      lifetime_budget_zar: 0,\n    },\n  }];\n}\n\nreturn toPause;\n"
+      }
+    },
+    {
+      "id": "3e5e26e8-95cb-4afc-a60d-371a470c8975",
+      "name": "Pause Campaign",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "4UZH1VRXvVufgvrI",
+          "name": "Meta Ads Graph API"
+        }
+      },
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v25.0",
+        "node": "={{ $json.skip ? 'me' : $json.id }}",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "status",
+                "value": "PAUSED"
+              }
+            ]
+          }
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "e945ee0e-c1ad-4445-bb31-d3f8d1ff8397",
+      "name": "Tag Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\n// runOnceForEachItem: attach the original campaign id/name to the pause response.\nconst paired = $('Extract & Filter Active').all();\nconst idx = $itemIndex;\nconst orig = paired[idx] ? paired[idx].json : {};\nreturn {\n  json: {\n    ...$json,\n    __campaign_id: orig.id || null,\n    __campaign_name: orig.name || null,\n    __skip: orig.skip === true,\n  },\n};\n"
+      }
+    },
+    {
+      "id": "dd0afcd7-417b-4ce7-9f1c-01c88ff07c90",
+      "name": "Summarize Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// runOnceForAllItems: tally pause results and build a summary item.\nconst items = $input.all();\nlet paused = 0;\nlet failed = 0;\nlet skipped = 0;\nconst failures = [];\nconst successes = [];\n\nfor (const it of items) {\n  const j = it.json || {};\n  // Sentinel from the filter step when nothing was active.\n  if (j.skip === true || j.status === 'NOOP') {\n    skipped += 1;\n    continue;\n  }\n  // After Pause Campaign (facebookGraphApi POST) the $json is the Graph API response.\n  // On success Meta returns { success: true }. On failure, an { error: {...} } object.\n  // We pair it with the original via $('Extract & Filter Active') lookup inside the node.\n  const hadError = !!(j.error || j.errors || (j.httpCode && j.httpCode >= 400));\n  if (hadError) {\n    failed += 1;\n    failures.push({\n      id: j.__campaign_id || '(unknown)',\n      name: j.__campaign_name || '(unknown)',\n      error: JSON.stringify(j.error || j.errors || j).slice(0, 300),\n    });\n  } else {\n    paused += 1;\n    successes.push({\n      id: j.__campaign_id || '(unknown)',\n      name: j.__campaign_name || '(unknown)',\n    });\n  }\n}\n\nreturn [{\n  json: {\n    summary: {\n      paused,\n      failed,\n      skipped,\n      total_targets: paused + failed,\n      timestamp: new Date().toISOString(),\n    },\n    successes,\n    failures,\n  },\n}];\n"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "List Meta Campaigns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Meta Campaigns": {
+      "main": [
+        [
+          {
+            "node": "Extract & Filter Active",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Filter Active": {
+      "main": [
+        [
+          {
+            "node": "Pause Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause Campaign": {
+      "main": [
+        [
+          {
+            "node": "Tag Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag Result": {
+      "main": [
+        [
+          {
+            "node": "Summarize Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
