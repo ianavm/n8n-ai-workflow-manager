@@ -1,0 +1,124 @@
+{
+  "name": "WF-12 Meta CAPI Sync",
+  "nodes": [
+    {
+      "id": "83e55ac0-3f1e-4141-ba8b-ae978d852985",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "a0c5cd33-f7ad-4935-93b7-389138f0f63c",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meta-capi-lead",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "2b8ec48e-5c1e-4666-afd1-3bacbb90ddf9",
+      "name": "Hash PII",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// Server-side hashing of PII for Meta CAPI.\n// Meta requires SHA-256 hex digest of normalised values.\nconst crypto = require('crypto');\n\nfunction sha256(s) {\n  return crypto.createHash('sha256').update(s).digest('hex');\n}\n\nfunction normaliseEmail(e) {\n  return (e || '').toString().trim().toLowerCase();\n}\n\nfunction normalisePhone(p) {\n  // strip all non-digits; Meta expects E.164-ish digits (country code + number)\n  const digits = (p || '').toString().replace(/\\D/g, '');\n  // If it starts with 27 (ZA) that's fine; if it starts with 0, replace with 27\n  if (digits.startsWith('0')) return '27' + digits.slice(1);\n  return digits;\n}\n\nfunction normaliseName(n) {\n  return (n || '').toString().trim().toLowerCase();\n}\n\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const body = item.json.body || item.json || {};\n\n  const email = normaliseEmail(body.email);\n  const phone = normalisePhone(body.phone);\n  const firstName = normaliseName(body.firstName || (body.name || '').split(' ')[0] || '');\n  const lastName = normaliseName(body.lastName || (body.name || '').split(' ').slice(1).join(' ') || '');\n  const city = normaliseName(body.city);\n  const country = 'za';  // AnyVision Media is South African\n\n  // Meta requires em/ph be arrays of hashed values; drop if we don't have it\n  const userData = {};\n  if (email) userData.em = [sha256(email)];\n  if (phone) userData.ph = [sha256(phone)];\n  if (firstName) userData.fn = [sha256(firstName)];\n  if (lastName) userData.ln = [sha256(lastName)];\n  if (city) userData.ct = [sha256(city)];\n  userData.country = [sha256(country)];\n\n  // Client IP + UA improve Meta's match quality score\n  if (body.client_ip_address) userData.client_ip_address = body.client_ip_address;\n  if (body.client_user_agent) userData.client_user_agent = body.client_user_agent;\n\n  // event_id MUST match what the client-side fbq sent, so Meta dedups.\n  // If the caller didn't pass one, generate a random id \u2014 Meta will just count\n  // it as a separate event (no dedup, but still tracked).\n  const eventId = body.event_id || ('capi_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10));\n  const eventTime = Math.floor(Date.now() / 1000);\n  const eventName = body.event_name || 'Lead';\n\n  const customData = {\n    currency: body.currency || 'ZAR',\n    value: body.value || 5000,\n  };\n  if (body.content_name) customData.content_name = body.content_name;\n\n  results.push({\n    json: {\n      // Payload for Meta CAPI /events endpoint\n      capi_body: {\n        data: [{\n          event_name: eventName,\n          event_time: eventTime,\n          event_id: eventId,\n          action_source: 'website',\n          event_source_url: body.page_url || body.source_url || 'https://www.anyvisionmedia.com/',\n          user_data: userData,\n          custom_data: customData,\n        }],\n      },\n      // Echoed fields for the response + debugging\n      event_id: eventId,\n      event_name: eventName,\n      email_hashed: userData.em ? userData.em[0].slice(0, 16) + '\u2026' : null,\n      has_phone: !!userData.ph,\n    },\n  });\n}\n\nreturn results;\n"
+      }
+    },
+    {
+      "id": "919bff7e-17fa-48d0-8e7d-f2118b2a2222",
+      "name": "Post to Meta CAPI",
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        750,
+        300
+      ],
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "4UZH1VRXvVufgvrI",
+          "name": "Meta Ads Graph API"
+        }
+      },
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v25.0",
+        "node": "=2503365216786353/events",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "data",
+                "value": "={{ JSON.stringify($json.capi_body.data) }}"
+              }
+            ]
+          }
+        }
+      },
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000
+    },
+    {
+      "id": "f938ba1f-3230-431e-b58a-bff132a95fe3",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "\n// Build a clean response for the frontend caller.\nconst items = $input.all();\nif (items.length === 0) {\n  return [{ json: { ok: false, error: 'no items' } }];\n}\nconst d = items[0].json || {};\nconst capiResp = d.events_received !== undefined ? d : (d.body || {});\n\nreturn [{\n  json: {\n    ok: !!(capiResp.events_received && capiResp.events_received > 0),\n    event_id: $('Hash PII').first().json.event_id,\n    events_received: capiResp.events_received || 0,\n    fbtrace_id: capiResp.fbtrace_id || null,\n    messages: capiResp.messages || null,\n  },\n}]\n"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Hash PII",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hash PII": {
+      "main": [
+        [
+          {
+            "node": "Post to Meta CAPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post to Meta CAPI": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
