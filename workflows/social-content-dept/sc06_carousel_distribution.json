@@ -1,0 +1,349 @@
+{
+  "name": "Social Content - Carousel Post (SC-06)",
+  "nodes": [
+    {
+      "id": "3493c9dc-32f0-45d2-9976-40929e504b69",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "65219e16-6775-4a9d-b64f-177ebb9f8896",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        500
+      ],
+      "webhookId": "sc06-carousel-trigger",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sc06-carousel-trigger",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "15a47721-da4a-4138-bc00-b3f1bb69150c",
+      "name": "Carousel Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        400
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ae401bf6-ca36-4c1a-9621-285c7044ef7a",
+              "name": "carouselId",
+              "type": "string",
+              "value": "ai-misconceptions-2026-04-14"
+            },
+            {
+              "id": "906077f5-2033-4eba-9db8-b78301e26920",
+              "name": "scheduledAt",
+              "type": "string",
+              "value": "2026-04-15T06:00:00Z"
+            },
+            {
+              "id": "e9ac3d05-c294-4abc-9a1d-9425309a7ac9",
+              "name": "captionInstagram",
+              "type": "string",
+              "value": "Most business owners are getting AI completely wrong.\n\nThey think it's:\n→ Too complex to learn\n→ A threat to their team\n→ Overhyped Silicon Valley noise\n\nMeanwhile, the SMEs who figured it out are quietly:\n→ Cutting admin time by 70%\n→ Doubling their content output\n→ Closing deals while they sleep\n\nThe gap between \"AI-aware\" and \"AI-active\" businesses is widening fast.\n\nWhich side will you be on in 6 months?\n\n💬 DM \"AI\" and we'll send you the exact 5 tools we use to run AnyVision Media — no fluff, no jargon, just what works.\n\n.\n.\n.\n\n#AIforBusiness #SMEgrowth #BusinessAutomation #AItools #AnyVisionMedia"
+            },
+            {
+              "id": "3f8b1173-7ebc-4f53-b395-b26479d015b9",
+              "name": "captionLinkedin",
+              "type": "string",
+              "value": "Most business owners are getting AI completely wrong.\n\nThey think it's:\n→ Too complex to implement\n→ A threat to their team\n→ Overhyped industry noise\n\nMeanwhile, the SMEs who figured it out are:\n→ Cutting admin time by 70%\n→ Doubling their content output\n→ Closing deals at a compounding rate\n\nThe gap between \"AI-aware\" and \"AI-active\" businesses is widening every single week.\n\nWhich side will you be on in 6 months?\n\nIf you're an SME owner ready to deploy real AI tools — not chatbots, not demos — comment \"AI\" below or DM me, and I'll send you the exact 5-tool stack we use to run AnyVision Media.\n\n#AIforBusiness #SME #DigitalTransformation #BusinessAutomation #Leadership #Entrepreneurship"
+            },
+            {
+              "id": "9f7fced7-18e1-4ffe-8199-0477c0bca934",
+              "name": "captionFacebook",
+              "type": "string",
+              "value": "Most business owners are getting AI completely wrong.\n\nThey think it's:\n→ Too complex to learn\n→ A threat to their team\n→ Overhyped tech marketing\n\nMeanwhile, the SMEs who figured it out are quietly:\n→ Cutting admin time by 70%\n→ Doubling their content output\n→ Closing deals while they sleep\n\nThe gap between \"AI-aware\" and \"AI-active\" businesses is widening fast.\n\nWhich side will you be on in 6 months?\n\nMessage us \"AI\" and we'll send you the exact 5 tools we use to run AnyVision Media."
+            },
+            {
+              "id": "df963736-e818-4e4b-9600-3f2185db43bf",
+              "name": "publicImageUrls",
+              "type": "array",
+              "value": "[\"https://qfvsqjsrlnxjplqefhon.supabase.co/storage/v1/object/public/avm-public/carousels/ai-misconceptions-2026-04-14/slide1.png\", \"https://qfvsqjsrlnxjplqefhon.supabase.co/storage/v1/object/public/avm-public/carousels/ai-misconceptions-2026-04-14/slide2.png\", \"https://qfvsqjsrlnxjplqefhon.supabase.co/storage/v1/object/public/avm-public/carousels/ai-misconceptions-2026-04-14/slide3.png\"]"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "3c0fd79d-7f4c-49db-8b4a-5c20f72cc0bc",
+      "name": "Expand Images",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const config = $input.first().json;\nconst urls = Array.isArray(config.publicImageUrls)\n  ? config.publicImageUrls\n  : JSON.parse(config.publicImageUrls || '[]');\n\nreturn urls.map((url, idx) => ({\n  json: {\n    index: idx,\n    url,\n    // pass the rest of config through for downstream merge\n    carouselId: config.carouselId,\n    scheduledAt: config.scheduledAt,\n    captionInstagram: config.captionInstagram,\n    captionLinkedin: config.captionLinkedin,\n    captionFacebook: config.captionFacebook,\n    publicImageUrls: urls,\n  }\n}));"
+      }
+    },
+    {
+      "id": "f368198a-d7e2-46fc-a244-7b8e185d9a63",
+      "name": "Upload to Blotato",
+      "type": "@blotato/n8n-nodes-blotato.blotato",
+      "typeVersion": 2,
+      "position": [
+        860,
+        400
+      ],
+      "parameters": {
+        "resource": "media",
+        "operation": "upload",
+        "useBinaryData": false,
+        "mediaUrl": "={{ $json.url }}"
+      },
+      "credentials": {
+        "blotatoApi": {
+          "id": "hhRiqZrWNlqvmYZR",
+          "name": "Blotato AVM"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "1173b9f3-2903-4047-a6db-86d0bd8237b5",
+      "name": "Aggregate Blotato URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nconst uploadedUrls = items.map(i => {\n  const resp = i.json || {};\n  return resp.url || resp.mediaUrl || '';\n}).filter(Boolean);\n\nconst config = $('Carousel Config').first().json;\n\nreturn [{\n  json: {\n    carouselId: config.carouselId,\n    scheduledAt: config.scheduledAt,\n    captionInstagram: config.captionInstagram,\n    captionLinkedin: config.captionLinkedin,\n    captionFacebook: config.captionFacebook,\n    publicImageUrls: Array.isArray(config.publicImageUrls)\n      ? config.publicImageUrls\n      : JSON.parse(config.publicImageUrls || '[]'),\n    blotatoMediaUrls: uploadedUrls,\n    uploadedCount: uploadedUrls.length,\n  }\n}];"
+      }
+    },
+    {
+      "id": "cae9debd-1f13-44fe-8ed2-8ac588c213cb",
+      "name": "Fan Out Platforms",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $input.first().json;\nconst media = cfg.blotatoMediaUrls || [];\n\nconst ACCOUNTS = {\"instagram\": {\"accountId\": \"35463\", \"name\": \"Instagram (anyvision.media)\"}, \"linkedin\": {\"accountId\": \"15167\", \"name\": \"LinkedIn (Ian Immelman)\"}};\nconst FB_PAGES = [{\"accountId\": \"27283\", \"pageId\": \"972448295960293\", \"name\": \"Any Vision Media\"}];\n\nfunction buildPost(platform, accountId, text, extraTarget = {}) {\n  return {\n    post: {\n      accountId,\n      content: {\n        text,\n        mediaUrls: media,\n        platform,\n      },\n      target: {\n        targetType: platform,\n        ...extraTarget,\n      },\n    },\n    scheduledTime: cfg.scheduledAt,\n  };\n}\n\nconst out = [\n  {\n    json: {\n      platform: 'instagram',\n      postBody: buildPost('instagram', ACCOUNTS.instagram.accountId, cfg.captionInstagram),\n      carouselId: cfg.carouselId,\n      scheduledAt: cfg.scheduledAt,\n    }\n  },\n  {\n    json: {\n      platform: 'linkedin',\n      postBody: buildPost('linkedin', ACCOUNTS.linkedin.accountId, cfg.captionLinkedin),\n      carouselId: cfg.carouselId,\n      scheduledAt: cfg.scheduledAt,\n    }\n  },\n];\n\nfor (const fb of FB_PAGES) {\n  out.push({\n    json: {\n      platform: 'facebook:' + fb.name,\n      postBody: buildPost(\n        'facebook',\n        fb.accountId,\n        cfg.captionFacebook,\n        { pageId: fb.pageId }\n      ),\n      carouselId: cfg.carouselId,\n      scheduledAt: cfg.scheduledAt,\n    }\n  });\n}\n\nreturn out;"
+      }
+    },
+    {
+      "id": "83665270-7e35-47e4-bb5c-2b103de1238d",
+      "name": "Post Carousel to Blotato",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1540,
+        400
+      ],
+      "credentials": {
+        "blotatoApi": {
+          "id": "hhRiqZrWNlqvmYZR",
+          "name": "Blotato AVM"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://backend.blotato.com/v2/posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "blotatoApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.postBody) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "b5e27e5d-2fdd-4d44-87c1-bd0ec0b90487",
+      "name": "Collect Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nconst fanout = $('Fan Out Platforms').all();\n\nfunction errString(err) {\n  if (!err) return null;\n  if (typeof err === 'string') return err;\n  return err.description || err.message || JSON.stringify(err);\n}\n\nconst results = items.map((item, idx) => {\n  const platform = fanout[idx]?.json?.platform || 'unknown';\n  const resp = item.json || {};\n  const submissionId = resp.postSubmissionId || null;\n  const error = errString(resp.error) || (resp.message && !submissionId ? resp.message : null);\n  return {\n    platform,\n    success: Boolean(submissionId) && !error,\n    submissionId,\n    error,\n  };\n});\n\nconst cfg = $('Aggregate Blotato URLs').first().json;\nconst summary = results.map(r =>\n  r.success\n    ? `${r.platform}: OK (${r.submissionId})`\n    : `${r.platform}: FAIL (${r.error || 'no id'})`\n).join(' | ');\n\nreturn [{\n  json: {\n    carouselId: cfg.carouselId,\n    scheduledAt: cfg.scheduledAt,\n    blotatoMediaUrls: cfg.blotatoMediaUrls,\n    publicImageUrls: cfg.publicImageUrls,\n    results,\n    summary,\n    allSuccess: results.every(r => r.success),\n    timestamp: new Date().toISOString(),\n  }\n}];"
+      }
+    },
+    {
+      "id": "9fa4e6bc-b4e4-4586-b382-08520b7dc3ea",
+      "name": "Log to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2020,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tbl07CZz5buxBPFdl"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Log ID": "={{ 'sc06-' + $json.carouselId + '-' + Date.now() }}",
+            "Script ID": "={{ $json.carouselId }}",
+            "Response": "={{ 'SC-06 carousel | ' + ($json.allSuccess ? 'SCHEDULED' : 'PARTIAL') + ' | scheduledAt=' + $json.scheduledAt + ' | ' + $json.summary }}",
+            "Created At": "={{ $json.timestamp }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Carousel Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Carousel Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carousel Config": {
+      "main": [
+        [
+          {
+            "node": "Expand Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Images": {
+      "main": [
+        [
+          {
+            "node": "Upload to Blotato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Blotato": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Blotato URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Blotato URLs": {
+      "main": [
+        [
+          {
+            "node": "Fan Out Platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fan Out Platforms": {
+      "main": [
+        [
+          {
+            "node": "Post Carousel to Blotato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Carousel to Blotato": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Results": {
+      "main": [
+        [
+          {
+            "node": "Log to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

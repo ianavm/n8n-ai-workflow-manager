@@ -1,0 +1,99 @@
+{
+  "name": "Blotato Admin Proxy",
+  "nodes": [
+    {
+      "id": "48428097-0102-4ddb-b4dd-89608d01abc5",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "blotato-admin-proxy",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "blotato-admin-proxy",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "c88af085-cd3a-4c34-a74a-28886fdba3d9",
+      "name": "Blotato HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        400
+      ],
+      "credentials": {
+        "blotatoApi": {
+          "id": "hhRiqZrWNlqvmYZR",
+          "name": "Blotato AVM"
+        }
+      },
+      "parameters": {
+        "method": "={{ $json.body?.method || $json.method || 'GET' }}",
+        "url": "={{ 'https://backend.blotato.com/v2' + ($json.body?.path || $json.path || '') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "blotatoApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body?.body || $json.innerBody || {}) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ac1194d6-f6b7-4b85-ab09-39816db13091",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const resp = $input.first().json || {};\nreturn [{ json: { ok: !resp.error, response: resp } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Blotato HTTP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Blotato HTTP": {
+      "main": [
+        [
+          {
+            "node": "Wrap Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
