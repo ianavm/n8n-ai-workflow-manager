@@ -283,7 +283,8 @@ return items.map(lead => ({ json: lead }));"""
             "base": {"__rl": True, "value": SEO_BASE_ID, "mode": "id"},
             "table": {"__rl": True, "value": SEO_TABLE_LEADS, "mode": "id"},
             "columns": {
-                "mappingMode": "autoMapInputData",
+                "mappingMode": "defineBelow",
+                "value": {},
                 "matchingColumns": [],
             },
             "options": {},

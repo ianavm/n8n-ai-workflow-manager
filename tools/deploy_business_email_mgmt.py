@@ -933,7 +933,7 @@ def build_nodes() -> list[dict]:
             "operation": "append",
             "documentId": {"mode": "id", "value": EMAIL_LOG_SHEET_ID},
             "sheetName": {"mode": "name", "value": "Email Log"},
-            "columns": {"mappingMode": "autoMapInputData", "value": {}},
+            "columns": {"mappingMode": "defineBelow", "value": {}},
             "options": {},
         },
         "id": uid(),

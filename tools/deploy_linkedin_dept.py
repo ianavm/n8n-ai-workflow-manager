@@ -195,8 +195,8 @@ def build_airtable_create(name: str, base_id: str, table_id: str,
         "operation": "create",
         **airtable_ref(base_id, table_id),
         "columns": {
-            "mappingMode": "autoMapInputData",
-            "value": None,
+            "mappingMode": "defineBelow",
+            "value": {},
         },
         "options": {},
     }
@@ -227,8 +227,8 @@ def build_airtable_update(name: str, base_id: str, table_id: str,
         **airtable_ref(base_id, table_id),
         "matchingColumns": matching_columns,
         "columns": {
-            "mappingMode": "autoMapInputData",
-            "value": None,
+            "mappingMode": "defineBelow",
+            "value": {},
         },
         "options": {},
     }

@@ -208,7 +208,7 @@ def build_gsheets_append(name: str, spreadsheet_id: str, tab_name: str,
         "operation": "append",
         **gsheets_ref(spreadsheet_id, tab_name),
         "columns": {
-            "mappingMode": "autoMapInputData",
+            "mappingMode": "defineBelow",
             "value": {},
         },
         "options": {},

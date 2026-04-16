@@ -715,7 +715,7 @@ def build_airtable_search(name, base_id, table_id, formula, position, sort_field
 
 
 def build_airtable_create(name, base_id, table_id, position, columns=None):
-    """Build an Airtable create node. Uses defineBelow if columns provided, else autoMapInputData.
+    """Build an Airtable create node. Uses defineBelow with explicit columns if provided.
 
     Args:
         columns: Optional dict of {field_name: expression} for explicit field mapping.
@@ -728,8 +728,8 @@ def build_airtable_create(name, base_id, table_id, position, columns=None):
         }
     else:
         col_config = {
-            "mappingMode": "autoMapInputData",
-            "value": None,
+            "mappingMode": "defineBelow",
+            "value": {},
         }
     return make_resilient({
         "id": uid(),

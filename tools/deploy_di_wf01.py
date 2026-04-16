@@ -471,7 +471,7 @@ return [{
                 "mode": "name",
             },
             "columns": {
-                "mappingMode": "autoMapInputData",
+                "mappingMode": "defineBelow",
                 "value": {},
             },
             "options": {},
