@@ -1,0 +1,1001 @@
+{
+  "name": "DEMO: Inbox Autopilot",
+  "nodes": [
+    {
+      "id": "bdaf1090-daf5-482f-a594-9a2a9644ac50",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        200,
+        400
+      ],
+      "parameters": {
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "adf4e631-b1a9-4a74-8ef5-ca773b331d63",
+      "name": "Prepare Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\n// Prepare email data for classification. Skip automation senders so we never\n// classify our own outbound mail (prevents reply-to-self loops).\nconst AUTOMATION_SENDERS = [\"ian@anyvisionmedia.com\"];\nconst msg = $input.first().json || {};\n\nconst rawFrom = String(msg.from || (msg.headers && msg.headers.from) || '').toLowerCase();\nconst bareMatch = rawFrom.match(/<([^>]+)>/);\nconst bareFrom = (bareMatch ? bareMatch[1] : rawFrom).trim();\n\nconst subject = String(msg.subject || (msg.headers && msg.headers.subject) || '').trim();\nconst snippet = String(msg.snippet || msg.text || msg.textPlain || '').trim().slice(0, 2000);\nconst messageId = msg.id || (msg.headers && msg.headers['message-id']) || '';\nconst threadId = msg.threadId || '';\n\nconst isAutomation = AUTOMATION_SENDERS.some(s => bareFrom.includes(s));\n\nconst prompt = (\n  'FROM: ' + bareFrom + '\\n'\n  + 'SUBJECT: ' + subject + '\\n\\n'\n  + 'BODY:\\n' + snippet + '\\n\\n'\n  + 'Return JSON only.'\n);\n\nreturn [{\n  json: {\n    original_message_id: messageId,\n    thread_id: threadId,\n    from: bareFrom,\n    subject: subject,\n    snippet: snippet,\n    is_automation_sender: isAutomation,\n    classificationPrompt: prompt,\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "d3111be1-72b8-42cb-9c1d-0929ca132304",
+      "name": "Skip Automation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "leftValue": ""
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "a80cbb82-c3f8-4d89-8476-493d6006373c",
+              "leftValue": "={{ $json.is_automation_sender ? 'yes' : '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c804b40c-c403-4b63-90e0-e961a886a177",
+      "name": "Skip (Own Email)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        600
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c03be0d1-98d1-40f8-9dbe-89c34edb0161",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        880,
+        400
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.classificationPrompt }}",
+        "options": {
+          "systemMessage": "You are an email triage assistant for a solo business owner at AnyVision Media. For each incoming email, classify it into exactly one of the following categories:\n\n- URGENT: immediate attention needed (server down, upset client, hot deal closing, time-sensitive bank/legal notice)\n- CLIENT: existing client or project communication (not urgent)\n- SALES: a prospect reaching out, cold pitch from a vendor that could matter, or a reply in an ongoing sales conversation\n- BILLING: invoices, receipts, payment confirmations, statements\n- NOISE: newsletters, marketing, LinkedIn/social notifications, shipping updates, automated system mail\n\nRespond with a JSON object ONLY. No prose, no markdown, no code fences. Schema:\n{\n  \"category\": \"URGENT|CLIENT|SALES|BILLING|NOISE\",\n  \"summary\": \"one-line summary <= 120 chars\",\n  \"suggested_reply\": \"plain-text reply suitable as a draft (empty string if category is URGENT, BILLING, or NOISE)\"\n}",
+          "maxIterations": 1,
+          "returnIntermediateSteps": false
+        }
+      }
+    },
+    {
+      "id": "d0b940b7-cc04-495a-a447-6f141db5bec3",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        880,
+        600
+      ],
+      "parameters": {
+        "model": "anthropic/claude-sonnet-4",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "credentials": {
+        "openRouterApi": {
+          "id": "HPAZMuVNbPKnCLx0",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "id": "b10b11af-cd83-47e9-9f11-8d478ec94d05",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse the JSON out of the AI Agent response.\nconst input = $input.first().json || {};\nlet raw = input.output || input.text || input.content || input.message || '';\n\n// The agent sometimes wraps JSON in ```json fences; strip them.\nraw = String(raw).trim()\n  .replace(/^```(?:json)?\\s*/i, '')\n  .replace(/\\s*```\\s*$/i, '')\n  .trim();\n\nlet parsed = { category: 'NOISE', summary: '', suggested_reply: '' };\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  // Fallback: crude category sniff so we never hard-fail.\n  const upper = raw.toUpperCase();\n  if (upper.includes('URGENT')) parsed.category = 'URGENT';\n  else if (upper.includes('CLIENT')) parsed.category = 'CLIENT';\n  else if (upper.includes('SALES')) parsed.category = 'SALES';\n  else if (upper.includes('BILLING')) parsed.category = 'BILLING';\n  parsed.summary = raw.slice(0, 120);\n  parsed.suggested_reply = '';\n}\n\nconst prep = $('Prepare Email Data').first().json;\nconst category = String(parsed.category || 'NOISE').toUpperCase();\nconst now = new Date();\n\nreturn [{\n  json: {\n    'Log ID': 'IA-' + now.getTime().toString(36).toUpperCase(),\n    'Message ID': prep.original_message_id,\n    'From': prep.from,\n    'Subject': prep.subject,\n    'Category': category,\n    'Summary': String(parsed.summary || '').slice(0, 500),\n    'Suggested Reply': String(parsed.suggested_reply || '').slice(0, 2000),\n    'Urgent Flagged': category === 'URGENT',\n    'Processed At': now.toISOString(),\n    _thread_id: prep.thread_id,\n    _action: '', // filled by the category branch\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "c3d66993-7eda-4584-9ead-0fe0360691da",
+      "name": "Route by Category",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1360,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Urgent",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "d28b420d-ce92-4654-b7af-6fd19347cdab",
+                    "leftValue": "={{ $json.Category }}",
+                    "rightValue": "URGENT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "Client",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "d6cdb2d5-fdea-4076-bddf-a88b4d14bf13",
+                    "leftValue": "={{ $json.Category }}",
+                    "rightValue": "CLIENT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "Sales",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "1a72e8b7-1eec-497d-aa60-7790e1de6647",
+                    "leftValue": "={{ $json.Category }}",
+                    "rightValue": "SALES",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "Billing",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "f952d211-5ce8-487a-aa1d-1af5f7e553af",
+                    "leftValue": "={{ $json.Category }}",
+                    "rightValue": "BILLING",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "outputKey": "Noise",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "b9049f5c-4540-419a-9104-47ab7b3b3f70",
+                    "leftValue": "={{ $json.Category }}",
+                    "rightValue": "NOISE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      }
+    },
+    {
+      "id": "2d2112f2-e035-4489-a3d8-81fb3b1f757e",
+      "name": "Star Urgent",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        1600,
+        80
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "addLabels",
+        "messageId": "={{ $json['Message ID'] }}",
+        "labelIds": [
+          "STARRED"
+        ]
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "44cee8c1-8fa8-4f90-8585-7c6c6d15eaa1",
+      "name": "Alert Owner (Urgent)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        1600,
+        240
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "6311361442",
+        "text": "=<b>⚠️ URGENT email</b>\nFrom: {{ $json['From'] }}\nSubject: {{ $json['Subject'] }}\n{{ $json['Summary'] }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "disable_notification": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "Ha3Ewmk9ofbvWyZ9",
+          "name": "Telegram AVMCRMBot"
+        }
+      }
+    },
+    {
+      "id": "56a696d3-d37b-4da8-b3d4-426dc038cbfc",
+      "name": "Draft Reply (Client)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        1600,
+        400
+      ],
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "subject": "=Re: {{ $json['Subject'] }}",
+        "emailType": "text",
+        "message": "={{ $json['Suggested Reply'] }}",
+        "options": {
+          "threadId": "={{ $json._thread_id }}",
+          "sendTo": "={{ $json['From'] }}"
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "b3ba63dc-d688-473b-b999-6bc82da4c21d",
+      "name": "Draft Reply (Sales)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        1600,
+        560
+      ],
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "subject": "=Re: {{ $json['Subject'] }}",
+        "emailType": "text",
+        "message": "={{ $json['Suggested Reply'] }}",
+        "options": {
+          "threadId": "={{ $json._thread_id }}",
+          "sendTo": "={{ $json['From'] }}"
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "692cf676-bfd7-4d18-97c7-30258c4a770a",
+      "name": "Billing (Log Only)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        720
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c8dbda53-74c3-4306-8a58-b1bfe0f9deec",
+      "name": "Archive Noise",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        1600,
+        880
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "removeLabels",
+        "messageId": "={{ $json['Message ID'] }}",
+        "labelIds": [
+          "INBOX",
+          "UNREAD"
+        ]
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "3ad74e22-ebc2-495d-910c-e69e23282a3a",
+      "name": "Fallback (Log Only)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        1040
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "839f21a7-caad-4060-8443-fa1267262555",
+      "name": "Set Action (Urgent)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1840,
+        160
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "55342f55-967a-41cf-9e0c-7b0ec5fc944a",
+              "name": "Action",
+              "value": "Starred",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "5efc8760-a0d7-4b53-8daa-d4772172cd02",
+      "name": "Set Action (Client)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1840,
+        400
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "715714c9-27b4-444e-b4aa-1757adedf717",
+              "name": "Action",
+              "value": "Draft Created",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "f340d23e-ce80-4ab3-8ae7-b6d37e050a69",
+      "name": "Set Action (Sales)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1840,
+        560
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "85138e13-3c8e-434e-867e-8e851a815f77",
+              "name": "Action",
+              "value": "Draft Created",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "ead6a5e0-eed5-43c1-819c-f25ab90e8fa6",
+      "name": "Set Action (Billing)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1840,
+        720
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d93f3e60-7b74-4445-9812-5f21180abb93",
+              "name": "Action",
+              "value": "Logged Only",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "43704ce4-9395-4774-9a87-8f270e0934a4",
+      "name": "Set Action (Noise)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1840,
+        880
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3dc7501e-b1d8-4eaa-abb2-9fc7669248ea",
+              "name": "Action",
+              "value": "Archived",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "6f96a5eb-7093-4cb7-a753-b7f2610818c8",
+      "name": "Set Action (Fallback)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1840,
+        1040
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4a3aed57-91c1-4867-8c48-ea2222815ac3",
+              "name": "Action",
+              "value": "Logged Only",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "4b365ba6-6b18-41f0-bd3c-32a262c2a760",
+      "name": "Log Email",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        2080,
+        560
+      ],
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "appdRv8eJY6uweQ5F"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tbleorFM1ztbmutNW"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Log ID": "={{ $json['Log ID'] }}",
+            "Message ID": "={{ $json['Message ID'] }}",
+            "From": "={{ $json['From'] }}",
+            "Subject": "={{ $json['Subject'] }}",
+            "Category": "={{ $json['Category'] }}",
+            "Summary": "={{ $json['Summary'] }}",
+            "Suggested Reply": "={{ $json['Suggested Reply'] }}",
+            "Action": "={{ $json['Action'] }}",
+            "Urgent Flagged": "={{ $json['Urgent Flagged'] }}",
+            "Processed At": "={{ $json['Processed At'] }}"
+          },
+          "schema": [
+            {
+              "id": "Log ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Log ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Message ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Message ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "From",
+              "type": "string",
+              "display": true,
+              "displayName": "From",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Subject",
+              "type": "string",
+              "display": true,
+              "displayName": "Subject",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Category",
+              "type": "string",
+              "display": true,
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Summary",
+              "type": "string",
+              "display": true,
+              "displayName": "Summary",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Suggested Reply",
+              "type": "string",
+              "display": true,
+              "displayName": "Suggested Reply",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Action",
+              "type": "string",
+              "display": true,
+              "displayName": "Action",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Urgent Flagged",
+              "type": "string",
+              "display": true,
+              "displayName": "Urgent Flagged",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Processed At",
+              "type": "string",
+              "display": true,
+              "displayName": "Processed At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email Data": {
+      "main": [
+        [
+          {
+            "node": "Skip Automation?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Automation?": {
+      "main": [
+        [
+          {
+            "node": "Skip (Own Email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Route by Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Category": {
+      "main": [
+        [
+          {
+            "node": "Star Urgent",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alert Owner (Urgent)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Draft Reply (Client)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Draft Reply (Sales)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Billing (Log Only)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Archive Noise",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback (Log Only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Star Urgent": {
+      "main": [
+        [
+          {
+            "node": "Set Action (Urgent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Owner (Urgent)": {
+      "main": [
+        []
+      ]
+    },
+    "Draft Reply (Client)": {
+      "main": [
+        [
+          {
+            "node": "Set Action (Client)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft Reply (Sales)": {
+      "main": [
+        [
+          {
+            "node": "Set Action (Sales)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Billing (Log Only)": {
+      "main": [
+        [
+          {
+            "node": "Set Action (Billing)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archive Noise": {
+      "main": [
+        [
+          {
+            "node": "Set Action (Noise)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback (Log Only)": {
+      "main": [
+        [
+          {
+            "node": "Set Action (Fallback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Action (Urgent)": {
+      "main": [
+        [
+          {
+            "node": "Log Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Action (Client)": {
+      "main": [
+        [
+          {
+            "node": "Log Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Action (Sales)": {
+      "main": [
+        [
+          {
+            "node": "Log Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Action (Billing)": {
+      "main": [
+        [
+          {
+            "node": "Log Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Action (Noise)": {
+      "main": [
+        [
+          {
+            "node": "Log Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Action (Fallback)": {
+      "main": [
+        [
+          {
+            "node": "Log Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "demo"
+    },
+    {
+      "name": "gmail"
+    },
+    {
+      "name": "ai"
+    },
+    {
+      "name": "inbox-triage"
+    }
+  ]
+}

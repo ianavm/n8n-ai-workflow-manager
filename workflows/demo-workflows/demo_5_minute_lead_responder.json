@@ -1,0 +1,395 @@
+{
+  "name": "DEMO: 5-Minute Lead Responder",
+  "nodes": [
+    {
+      "id": "1277fb9e-1877-4fbf-a10c-097ab035d504",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        320
+      ],
+      "webhookId": "00b568ff-0a0a-4c7c-a9ef-e67d9e4f38ae",
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "path": "demo/speed-to-lead",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "24e5acdb-48fd-47eb-a230-3b071e2ac706",
+      "name": "Format Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        320
+      ],
+      "parameters": {
+        "jsCode": "\n// Normalize the form payload into a lead row, a personalized SMS, and a\n// personalized reply-email body.\nconst root = $input.first().json || {};\nconst body = (root && typeof root.body === 'object' && root.body) ? root.body : root;\n\nconst now = new Date();\nconst leadId = 'SL-' + now.getTime().toString(36).toUpperCase();\n\nconst firstName = (body.first_name || body.firstName || '').trim();\nconst lastName = (body.last_name || body.lastName || '').trim();\nconst fullName = (body.name || (firstName + ' ' + lastName).trim() || '').trim();\nconst givenName = firstName || (fullName.split(' ')[0] || 'there');\n\nconst rawEmail = String(body.email || '').trim();\nconst rawPhone = String(body.phone || '').trim();\n\n// Light E.164-ish phone normalization — keep only digits and a leading +.\nconst digitsOnly = rawPhone.replace(/[^\\d+]/g, '');\nlet phone = digitsOnly;\nif (phone && !phone.startsWith('+')) {\n  // Treat leading zero as local South African and swap to +27.\n  if (phone.startsWith('0')) {\n    phone = '+27' + phone.slice(1);\n  } else {\n    phone = '+' + phone;\n  }\n}\n\nconst company = (body.company || '').trim();\nconst message = (body.message || body.notes || '').trim();\n\nconst smsBody = \"Hi \" + givenName + \", this is Ian from AnyVision Media. \"\n              + \"Got your enquiry — can I call you in 10 min, or is WhatsApp easier?\";\n\nconst emailSubject = \"Got your enquiry, \" + givenName + \" — quick next steps\";\nconst emailHtml = (\n  '<div style=\"font-family:Arial,sans-serif;max-width:600px;\">'\n  + '<p>Hi ' + givenName + ',</p>'\n  + '<p>Thanks for reaching out — I\\'ve got your enquiry and will be in touch '\n  + 'personally within the hour.</p>'\n  + '<p>If it\\'s urgent, reply to this email or WhatsApp me on the number '\n  + 'you just gave us and I\\'ll jump the queue.</p>'\n  + '<p>\\u2014 Ian<br>AnyVision Media</p>'\n  + '<p style=\"color:#999;font-size:12px;\">Ref: ' + leadId + '</p>'\n  + '</div>'\n);\n\nreturn [{\n  json: {\n    'Lead ID': leadId,\n    'Contact Name': fullName,\n    'Email': rawEmail,\n    'Phone': phone,\n    'Company': company,\n    'Source Channel': 'Organic',\n    'Source URL': body.page_url || '',\n    'UTM Source': body.utm_source || '',\n    'UTM Medium': body.utm_medium || '',\n    'UTM Campaign': body.utm_campaign || '',\n    'First Touch Content': body.interest || '',\n    'Notes': message,\n    'Status': 'New',\n    'Source System': 'SEO_Inbound',\n    'Grade': 'Warm',\n    'Created At': now.toISOString().slice(0, 10),\n    _sms_body: smsBody,\n    _email_subject: emailSubject,\n    _email_html: emailHtml,\n    _given_name: givenName,\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "02b8938f-6024-4e99-b2ac-2e021ebb35d0",
+      "name": "Save Lead",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        700,
+        160
+      ],
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "appdRv8eJY6uweQ5F"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tbl3emOkS0K1PAXQa"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Lead ID": "={{ $('Format Lead').first().json['Lead ID'] }}",
+            "Contact Name": "={{ $('Format Lead').first().json['Contact Name'] }}",
+            "Email": "={{ $('Format Lead').first().json['Email'] }}",
+            "Phone": "={{ $('Format Lead').first().json['Phone'] }}",
+            "Company": "={{ $('Format Lead').first().json['Company'] }}",
+            "Source Channel": "={{ $('Format Lead').first().json['Source Channel'] }}",
+            "Source URL": "={{ $('Format Lead').first().json['Source URL'] }}",
+            "UTM Source": "={{ $('Format Lead').first().json['UTM Source'] }}",
+            "UTM Medium": "={{ $('Format Lead').first().json['UTM Medium'] }}",
+            "UTM Campaign": "={{ $('Format Lead').first().json['UTM Campaign'] }}",
+            "First Touch Content": "={{ $('Format Lead').first().json['First Touch Content'] }}",
+            "Notes": "={{ $('Format Lead').first().json['Notes'] }}",
+            "Status": "={{ $('Format Lead').first().json['Status'] }}",
+            "Source System": "={{ $('Format Lead').first().json['Source System'] }}",
+            "Grade": "={{ $('Format Lead').first().json['Grade'] }}",
+            "Created At": "={{ $('Format Lead').first().json['Created At'] }}"
+          },
+          "schema": [
+            {
+              "id": "Lead ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Lead ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Contact Name",
+              "type": "string",
+              "display": true,
+              "displayName": "Contact Name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "type": "string",
+              "display": true,
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "type": "string",
+              "display": true,
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "type": "string",
+              "display": true,
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source Channel",
+              "type": "string",
+              "display": true,
+              "displayName": "Source Channel",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source URL",
+              "type": "string",
+              "display": true,
+              "displayName": "Source URL",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UTM Source",
+              "type": "string",
+              "display": true,
+              "displayName": "UTM Source",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UTM Medium",
+              "type": "string",
+              "display": true,
+              "displayName": "UTM Medium",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "UTM Campaign",
+              "type": "string",
+              "display": true,
+              "displayName": "UTM Campaign",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "First Touch Content",
+              "type": "string",
+              "display": true,
+              "displayName": "First Touch Content",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Notes",
+              "type": "string",
+              "display": true,
+              "displayName": "Notes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Source System",
+              "type": "string",
+              "display": true,
+              "displayName": "Source System",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Grade",
+              "type": "string",
+              "display": true,
+              "displayName": "Grade",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Created At",
+              "type": "string",
+              "display": true,
+              "displayName": "Created At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "id": "4447a1ba-05f5-4f66-a65b-c68e93217f22",
+      "name": "WhatsApp the Lead",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "onError": "continueRegularOutput",
+      "position": [
+        700,
+        320
+      ],
+      "parameters": {
+        "resource": "sms",
+        "operation": "send",
+        "from": "+14155238886",
+        "to": "={{ $('Format Lead').first().json['Phone'] }}",
+        "toWhatsapp": true,
+        "message": "={{ $('Format Lead').first().json._sms_body }}",
+        "options": {}
+      },
+      "credentials": {
+        "twilioApi": {
+          "id": "YzAgDJdx5ZaKbbar",
+          "name": "Twilio"
+        }
+      }
+    },
+    {
+      "id": "1dfcc26d-4ad2-4a41-ba4c-ea614a7d135b",
+      "name": "Auto-Reply to Lead",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        700,
+        480
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Format Lead').first().json['Email'] }}",
+        "subject": "={{ $('Format Lead').first().json._email_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Format Lead').first().json._email_html }}",
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      }
+    },
+    {
+      "id": "ede9546b-e15a-44a0-9a60-5916667df47b",
+      "name": "Alert Owner",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        700,
+        640
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "6311361442",
+        "text": "=<b>NEW LEAD</b> 🔥\nName: {{ $('Format Lead').first().json['Contact Name'] }}\nEmail: {{ $('Format Lead').first().json['Email'] }}\nPhone: {{ $('Format Lead').first().json['Phone'] }}\nCompany: {{ $('Format Lead').first().json['Company'] }}\nMsg: {{ $('Format Lead').first().json['Notes'] }}",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "disable_notification": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "Ha3Ewmk9ofbvWyZ9",
+          "name": "Telegram AVMCRMBot"
+        }
+      }
+    },
+    {
+      "id": "0ad8a113-998b-4063-ad4c-2bb1ecf99095",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        320
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true}) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Lead": {
+      "main": [
+        [
+          {
+            "node": "Save Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "WhatsApp the Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Auto-Reply to Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alert Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Lead": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "demo"
+    },
+    {
+      "name": "lead-capture"
+    },
+    {
+      "name": "webhook"
+    }
+  ]
+}

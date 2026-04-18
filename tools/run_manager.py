@@ -9,6 +9,7 @@ Orchestrates workflow management operations across multiple modes:
   deploy    - Deploy workflow from JSON file
   docs      - Generate documentation for all workflows
   ai-audit  - Audit AI nodes across all workflows
+  revision  - Run full revision (health + drift + quality + SOP) — dry-run by default; pass --apply to write
 """
 
 import sys
@@ -239,6 +240,26 @@ def run_ai_audit():
     return result
 
 
+def run_revision():
+    """Run full revision across active departments. Dry-run unless --apply passed."""
+    import subprocess
+    tools_dir = Path(__file__).parent
+    extra_args = sys.argv[2:]  # pass-through flags: --apply, --dept, --skip-live-health
+    print("=" * 60)
+    print("N8N AGENTIC WORKFLOWS MANAGER - FULL REVISION")
+    print("=" * 60)
+    try:
+        result = subprocess.run(
+            [sys.executable, str(tools_dir / 'run_full_revision.py'), *extra_args],
+            capture_output=False,
+            text=True,
+        )
+        return result.returncode
+    except Exception as e:
+        print(f"  Error running revision: {e}")
+        return 1
+
+
 # ── AWLM Modes ──────────────────────────────────────────────
 
 def run_lifecycle():
@@ -317,6 +338,7 @@ def main():
         'deploy': run_deploy,
         'docs': run_docs,
         'ai-audit': run_ai_audit,
+        'revision': run_revision,
         # AWLM modes
         'lifecycle': run_lifecycle,
         'repair': run_repair,

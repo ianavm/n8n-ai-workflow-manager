@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {},
-      "id": "f8cf47ef-a4fa-46f8-b21a-f9cbb5048ae0",
+      "id": "6d614904-bb42-4700-b40a-4dcf8e1b771a",
       "name": "When clicking 'Test workflow'",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -19,7 +19,7 @@
         },
         "options": {}
       },
-      "id": "e71eb16a-87a5-4974-9e50-58a29f99425f",
+      "id": "74b2c02b-cc52-4eb1-9804-b389c4754539",
       "name": "Gmail Trigger",
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.3,
@@ -36,7 +36,7 @@
     },
     {
       "parameters": {},
-      "id": "59d70b4e-27c8-4b48-8e82-a88712b87856",
+      "id": "c1598a41-559e-447b-9706-a3bc1f7ccd65",
       "name": "Error Trigger",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
@@ -68,7 +68,7 @@
         },
         "options": {}
       },
-      "id": "a0e9059f-5bff-4442-8893-9500242ec455",
+      "id": "566138f3-9ca4-4360-9fea-b4b624a0d371",
       "name": "Has DNT Label?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -79,7 +79,7 @@
     },
     {
       "parameters": {},
-      "id": "e585570c-04f9-440d-99ec-ca8d4f77d9ee",
+      "id": "839318d1-2490-4817-8581-07968d4af1ee",
       "name": "Skip - DNT",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -92,7 +92,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nconst results = [];\n\n// Blocked domains - emails from these are classified but never auto-replied\nconst BLOCKED_DOMAINS = [\n  '@eftcorp.atlassian.net',\n  '@noreply.github.com',\n  '@notifications.google.com',\n  '@mailer-daemon.',\n  // n8n platform alerts (execution reports, workflow failures, billing)\n  '@n8n.io',\n  '@app.n8n.cloud',\n  '@ianimmelman89.app.n8n.cloud'\n];\n\n// Subject patterns for n8n-generated reports/updates - no drafts needed\n// Catches self-sent workflow reports even when 'from' is ian@anyvisionmedia.com\nconst N8N_REPORT_SUBJECT_PATTERNS = [\n  /\\bworkflow\\s+execution/i,\n  /\\bexecution\\s+(report|failed|error)/i,\n  /\\[n8n\\]/i,\n  /\\bn8n\\s+(alert|report|notification|update)/i,\n  /\\b(daily|weekly|monthly)\\s+report\\b/i,\n  /\\baudit\\s+report\\b/i,\n  /\\bbudget\\s+enforcer/i,\n  /\\[ADS-\\d+\\]/i,\n  /\\[SHM\\]/i,\n  /\\[ERR\\]/i,\n  /\\[LI-\\d+\\]/i,\n  /\\bSHM\\s+health\\s+check/i,\n  /\\bworkflow\\s+(update|summary)/i\n];\n\nfor (const item of items) {\n  const emailData = {\n    from: item.json.from || item.json.sender || '',\n    to: item.json.to || '',\n    subject: item.json.subject || '',\n    date: item.json.date || new Date().toISOString(),\n    body: (item.json.textPlain || item.json.snippet || item.json.text || '').substring(0, 3000),\n    hasAttachments: item.json.attachments ? item.json.attachments.length > 0 : false,\n    attachmentCount: item.json.attachments ? item.json.attachments.length : 0,\n    messageId: item.json.id || item.json.messageId || '',\n    threadId: item.json.threadId || '',\n    labelIds: item.json.labelIds || []\n  };\n\n  const fromLower = emailData.from.toLowerCase();\n  const isBlockedDomain = BLOCKED_DOMAINS.some(d => fromLower.includes(d));\n  const isN8nReport = N8N_REPORT_SUBJECT_PATTERNS.some(rx => rx.test(emailData.subject || ''));\n\n  const classificationPrompt = `Analyze this business email. Return ONLY valid JSON, no markdown, no backticks.\n\nFrom: ${emailData.from}\nSubject: ${emailData.subject}\nDate: ${emailData.date}\nBody:\n${emailData.body}\nHas Attachments: ${emailData.hasAttachments ? 'Yes (' + emailData.attachmentCount + ')' : 'No'}\n\nReturn this exact JSON:\n{\n  \"sender\": \"<email>\",\n  \"sender_name\": \"<name>\",\n  \"subject\": \"<subject>\",\n  \"intent\": \"<what sender wants>\",\n  \"tone\": \"<formal|informal|urgent|angry|friendly|neutral>\",\n  \"urgency\": \"<high|medium|low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance|Customer_Support|Sales|Management|Admin|Legal|Internal|Spam_Irrelevant>\",\n  \"tags\": [\"<from: Invoice,Payment,Refund,Complaint,New_Lead,Contract,Meeting_Request,Follow_Up,Escalation,Urgent>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<professional reply if action_required, else null>\",\n  \"summary\": \"<1-2 sentence summary>\",\n  \"escalation_needed\": true or false,\n  \"is_interested_reply\": true or false\n}\n\nRules:\n- Accounting_Finance: invoices, payments, billing, refunds\n- Customer_Support: complaints, technical issues, service support\n- Sales: new enquiries, pricing, leads\n- Management: strategy, legal, partnerships, high-level complaints\n- Spam_Irrelevant: suspicious links, phishing, irrelevant promos\n- Mark urgency HIGH if: urgent/ASAP in subject, legal threats, payment issues\n- Responses must be professional and concise`;\n\n  results.push({\n    json: {\n      ...emailData,\n      classificationPrompt,\n      is_blocked_domain: isBlockedDomain,\n      is_n8n_report: isN8nReport\n    }\n  });\n}\n\nreturn results;"
       },
-      "id": "6e8cd4eb-8d70-40a5-b52a-66e21acebc12",
+      "id": "d43f5408-fe68-4177-ae9d-15a7b7951832",
       "name": "Prepare Email Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -117,7 +117,7 @@
         660,
         432
       ],
-      "id": "0ce6324e-4721-4df0-8655-b6d488759317",
+      "id": "a0131fd0-f531-4f45-9825-7dd486d28790",
       "name": "AI Agent"
     },
     {
@@ -131,7 +131,7 @@
         660,
         680
       ],
-      "id": "f0c10547-cbbf-42de-aeb6-c3876cea6d89",
+      "id": "f139b75a-838f-4008-85d6-e84ea8aca5df",
       "name": "OpenRouter Chat Model",
       "credentials": {
         "openRouterApi": {
@@ -142,9 +142,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst results = [];\n\n// Opt-out phrases (case-insensitive)\nconst OPT_OUT_PHRASES = [\n  'unsubscribe', 'opt out', 'opt-out', 'remove me', 'stop emailing',\n  'not interested', 'no thanks', 'no thank you', \"i'll pass\", 'take me off',\n  'remove from list', 'stop sending', 'do not contact', \"don't contact\",\n  'leave me alone', 'stop messaging', 'reported as spam', 'block sender',\n  'cease and desist', 'gdpr removal', 'popia removal', 'remove my data'\n];\n\n// Ticket / reference number patterns\nconst TICKET_PATTERNS = [\n  /\\bTKT[-#]?\\s*\\d+/i,\n  /\\bTICKET\\s*[#:]?\\s*\\d+/i,\n  /\\bTICKET\\s+NUMBER\\s*:?\\s*\\w+/i,\n  /\\bREF\\s*[-:]\\s*#?\\s*[A-Z0-9]{3,}/i,\n  /\\bREFERENCE\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bENQ[-#]?\\s*\\d+/i,\n  /\\bENQUIRY\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*\\w+/i,\n  /\\bCASE\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bINCIDENT\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bSR[-#]\\s*\\d+/i,\n  /\\bINC[-#]\\s*\\d+/i,\n  /\\b[A-Z]{2,4}-\\d{4,}\\b/\n];\n\nconst SIGNATURE = `<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table>`;\n\nfor (const item of items) {\n  const emailData = $('Prepare Email Data').first().json;\n\n  let parsed;\n  try {\n    let aiContent = item.json.output || '';\n    if (!aiContent && item.json.choices) {\n      aiContent = item.json.choices[0].message.content;\n    }\n    const cleaned = aiContent\n      .replace(/```json\\n?/g, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n    parsed = JSON.parse(cleaned);\n  } catch (e) {\n    parsed = {\n      sender: emailData.from || 'unknown',\n      sender_name: 'Unknown',\n      subject: emailData.subject || 'No Subject',\n      intent: 'Classification failed - manual review required',\n      tone: 'neutral',\n      urgency: 'medium',\n      action_required: true,\n      department: 'Admin',\n      tags: ['Escalation'],\n      is_spam: false,\n      suggested_response: null,\n      summary: 'Email could not be auto-classified. Manual review required.',\n      escalation_needed: true,\n      is_interested_reply: false\n    };\n  }\n\n  // Reference number detection\n  const subject = (emailData.subject || '').toUpperCase();\n  const body = (emailData.body || '').substring(0, 2000).toUpperCase();\n  const textToCheck = subject + ' ' + body;\n\n  let has_reference_number = false;\n  let matched_reference_pattern = '';\n  for (const pattern of TICKET_PATTERNS) {\n    const match = textToCheck.match(pattern);\n    if (match) {\n      has_reference_number = true;\n      matched_reference_pattern = match[0];\n      break;\n    }\n  }\n\n  // Opt-out detection\n  const bodyLower = (emailData.body || '').toLowerCase();\n  const subjectLower = (emailData.subject || '').toLowerCase();\n  const is_opt_out = OPT_OUT_PHRASES.some(phrase =>\n    bodyLower.includes(phrase) || subjectLower.includes(phrase)\n  );\n\n  // Build HTML response from suggested_response\n  const html_response = (() => {\n    const text = parsed.suggested_response || '';\n    if (!text) return '';\n    const paragraphs = text.split(/\\n\\n+/);\n    const htmlParagraphs = paragraphs\n      .map(p => p.replace(/\\n/g, '<br>'))\n      .map(p => '<p style=\"margin:0 0 12px 0;font-family:Segoe UI,Helvetica Neue,Arial,' +\n        'sans-serif;font-size:14px;line-height:1.5;color:#333333;\">' + p + '</p>')\n      .join('');\n    return '<div style=\"font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;\">' +\n      htmlParagraphs + '<br>' + SIGNATURE + '</div>';\n  })();\n\n  results.push({\n    json: {\n      original_from: emailData.from || '',\n      original_to: emailData.to || '',\n      original_subject: emailData.subject || '',\n      original_date: emailData.date || '',\n      original_body: emailData.body || '',\n      original_message_id: emailData.messageId || '',\n      original_thread_id: emailData.threadId || '',\n      has_original_attachments: emailData.hasAttachments || false,\n      sender: parsed.sender || emailData.from || '',\n      sender_name: parsed.sender_name || 'Unknown',\n      subject: parsed.subject || emailData.subject || '',\n      intent: parsed.intent || '',\n      tone: parsed.tone || 'neutral',\n      urgency: parsed.urgency || 'medium',\n      action_required: parsed.action_required || false,\n      department: parsed.department || 'Admin',\n      tags: parsed.tags || [],\n      tags_string: (parsed.tags || []).join(', '),\n      is_spam: parsed.is_spam || false,\n      suggested_response: parsed.suggested_response || '',\n      html_response,\n      summary: parsed.summary || '',\n      escalation_needed: parsed.escalation_needed || false,\n      is_interested_reply: parsed.is_interested_reply || false,\n      has_reference_number,\n      matched_reference_pattern,\n      is_opt_out,\n      is_blocked_domain: emailData.is_blocked_domain || false,\n      is_n8n_report: emailData.is_n8n_report || false,\n      processed_at: new Date().toISOString(),\n      ticket_number: 'TKT-' + Date.now()\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "const items = $input.all();\nconst results = [];\n\n// Addresses n8n itself sends from — inbound messages from these are never\n// auto-drafted (prevents reply-to-self loops when a workflow-sent email\n// lands back in the inbox via Cc, auto-forward, or send-as alias).\nconst AUTOMATION_SENDERS = [\"ian@anyvisionmedia.com\"];\n\n// Opt-out phrases (case-insensitive)\nconst OPT_OUT_PHRASES = [\n  'unsubscribe', 'opt out', 'opt-out', 'remove me', 'stop emailing',\n  'not interested', 'no thanks', 'no thank you', \"i'll pass\", 'take me off',\n  'remove from list', 'stop sending', 'do not contact', \"don't contact\",\n  'leave me alone', 'stop messaging', 'reported as spam', 'block sender',\n  'cease and desist', 'gdpr removal', 'popia removal', 'remove my data'\n];\n\n// Ticket / reference number patterns\nconst TICKET_PATTERNS = [\n  /\\bTKT[-#]?\\s*\\d+/i,\n  /\\bTICKET\\s*[#:]?\\s*\\d+/i,\n  /\\bTICKET\\s+NUMBER\\s*:?\\s*\\w+/i,\n  /\\bREF\\s*[-:]\\s*#?\\s*[A-Z0-9]{3,}/i,\n  /\\bREFERENCE\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bENQ[-#]?\\s*\\d+/i,\n  /\\bENQUIRY\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*\\w+/i,\n  /\\bCASE\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bINCIDENT\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bSR[-#]\\s*\\d+/i,\n  /\\bINC[-#]\\s*\\d+/i,\n  /\\b[A-Z]{2,4}-\\d{4,}\\b/\n];\n\nconst SIGNATURE = `<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table>`;\n\nfor (const item of items) {\n  const emailData = $('Prepare Email Data').first().json;\n\n  let parsed;\n  try {\n    let aiContent = item.json.output || '';\n    if (!aiContent && item.json.choices) {\n      aiContent = item.json.choices[0].message.content;\n    }\n    const cleaned = aiContent\n      .replace(/```json\\n?/g, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n    parsed = JSON.parse(cleaned);\n  } catch (e) {\n    parsed = {\n      sender: emailData.from || 'unknown',\n      sender_name: 'Unknown',\n      subject: emailData.subject || 'No Subject',\n      intent: 'Classification failed - manual review required',\n      tone: 'neutral',\n      urgency: 'medium',\n      action_required: true,\n      department: 'Admin',\n      tags: ['Escalation'],\n      is_spam: false,\n      suggested_response: null,\n      summary: 'Email could not be auto-classified. Manual review required.',\n      escalation_needed: true,\n      is_interested_reply: false\n    };\n  }\n\n  // Reference number detection\n  const subject = (emailData.subject || '').toUpperCase();\n  const body = (emailData.body || '').substring(0, 2000).toUpperCase();\n  const textToCheck = subject + ' ' + body;\n\n  let has_reference_number = false;\n  let matched_reference_pattern = '';\n  for (const pattern of TICKET_PATTERNS) {\n    const match = textToCheck.match(pattern);\n    if (match) {\n      has_reference_number = true;\n      matched_reference_pattern = match[0];\n      break;\n    }\n  }\n\n  // Opt-out detection\n  const bodyLower = (emailData.body || '').toLowerCase();\n  const subjectLower = (emailData.subject || '').toLowerCase();\n  const is_opt_out = OPT_OUT_PHRASES.some(phrase =>\n    bodyLower.includes(phrase) || subjectLower.includes(phrase)\n  );\n\n  // Automation-sender detection — extract the bare email address from the\n  // \"From\" header (which may be \"Display Name <addr@host>\") and check against\n  // the AUTOMATION_SENDERS blocklist. Equality match on the bare address so a\n  // legitimate client like iansomething@example.com is not blocked by a\n  // substring check.\n  const fromRaw = emailData.from || '';\n  const bracketMatch = fromRaw.match(/<([^>]+)>/);\n  const original_from_address = (bracketMatch ? bracketMatch[1] : fromRaw)\n    .trim()\n    .toLowerCase();\n  const is_automation_sender = AUTOMATION_SENDERS.includes(original_from_address);\n\n  // Build HTML response from suggested_response\n  const html_response = (() => {\n    const text = parsed.suggested_response || '';\n    if (!text) return '';\n    const paragraphs = text.split(/\\n\\n+/);\n    const htmlParagraphs = paragraphs\n      .map(p => p.replace(/\\n/g, '<br>'))\n      .map(p => '<p style=\"margin:0 0 12px 0;font-family:Segoe UI,Helvetica Neue,Arial,' +\n        'sans-serif;font-size:14px;line-height:1.5;color:#333333;\">' + p + '</p>')\n      .join('');\n    return '<div style=\"font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;\">' +\n      htmlParagraphs + '<br>' + SIGNATURE + '</div>';\n  })();\n\n  results.push({\n    json: {\n      original_from: emailData.from || '',\n      original_to: emailData.to || '',\n      original_subject: emailData.subject || '',\n      original_date: emailData.date || '',\n      original_body: emailData.body || '',\n      original_message_id: emailData.messageId || '',\n      original_thread_id: emailData.threadId || '',\n      has_original_attachments: emailData.hasAttachments || false,\n      sender: parsed.sender || emailData.from || '',\n      sender_name: parsed.sender_name || 'Unknown',\n      subject: parsed.subject || emailData.subject || '',\n      intent: parsed.intent || '',\n      tone: parsed.tone || 'neutral',\n      urgency: parsed.urgency || 'medium',\n      action_required: parsed.action_required || false,\n      department: parsed.department || 'Admin',\n      tags: parsed.tags || [],\n      tags_string: (parsed.tags || []).join(', '),\n      is_spam: parsed.is_spam || false,\n      suggested_response: parsed.suggested_response || '',\n      html_response,\n      summary: parsed.summary || '',\n      escalation_needed: parsed.escalation_needed || false,\n      is_interested_reply: parsed.is_interested_reply || false,\n      has_reference_number,\n      matched_reference_pattern,\n      is_opt_out,\n      original_from_address,\n      is_automation_sender,\n      is_blocked_domain: emailData.is_blocked_domain || false,\n      is_n8n_report: emailData.is_n8n_report || false,\n      processed_at: new Date().toISOString(),\n      ticket_number: 'TKT-' + Date.now()\n    }\n  });\n}\n\nreturn results;"
       },
-      "id": "043e30c1-767e-4153-a3ea-137c512724c9",
+      "id": "ef0097f8-63b0-44d6-9a99-413ecb59d479",
       "name": "Parse AI Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -263,7 +263,7 @@
           "fallbackOutput": "extra"
         }
       },
-      "id": "65ff8151-4a3e-46e3-8692-99b095659885",
+      "id": "5c5b65ee-a46d-4832-b262-fa0003b7d441",
       "name": "Route by Department",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
@@ -280,7 +280,7 @@
           "Label_8"
         ]
       },
-      "id": "1a282d13-68e6-4622-9172-30bab8dfaa7b",
+      "id": "d222b99b-eccc-441b-aeb7-490d1a0e9abf",
       "name": "Label Junk",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -304,7 +304,7 @@
           "Label_1"
         ]
       },
-      "id": "dcba26a5-1059-46d5-88a4-43c0add3ce7c",
+      "id": "c56400f8-88d2-49ac-b586-4843da7858d8",
       "name": "Label Finance",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -328,7 +328,7 @@
           "Label_2"
         ]
       },
-      "id": "ef9a163e-b0d0-45a0-86ad-76bd3391e6b9",
+      "id": "2b1bb40b-e20a-400a-af27-2e48d41843e7",
       "name": "Label Support",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -352,7 +352,7 @@
           "Label_3"
         ]
       },
-      "id": "2bb92d17-2e46-4aac-bd5a-6fd034b43343",
+      "id": "38ee5606-639d-4c37-b23f-2f81eef64678",
       "name": "Label Sales",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -376,7 +376,7 @@
           "Label_4"
         ]
       },
-      "id": "61a65d75-6fe7-4974-9d06-0c8bc16c9d6f",
+      "id": "e9730dab-942c-4d3d-8f46-47861605b7a6",
       "name": "Label Management",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -400,7 +400,7 @@
           "Label_5"
         ]
       },
-      "id": "b10713cd-0ce5-4bb5-9d49-e7cf5ae8a186",
+      "id": "7a254827-8c4e-48e0-b359-ad1001b17ec8",
       "name": "Label General",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -421,7 +421,7 @@
         "operation": "markAsRead",
         "messageId": "={{ $('Parse AI Response').first().json.original_message_id }}"
       },
-      "id": "3533837a-e32c-4aae-bb18-6e0fa233735d",
+      "id": "62e0a9ff-9059-4eaf-a8ed-27027d006c29",
       "name": "Mark Spam Read",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -460,7 +460,7 @@
         },
         "options": {}
       },
-      "id": "3df42fef-adc8-49b3-bbb0-edb32e32440f",
+      "id": "876e99c6-a3c6-4ee1-bb66-ebc2b9c23c2d",
       "name": "Is Urgent?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -477,7 +477,7 @@
           "Label_7"
         ]
       },
-      "id": "aa052afa-b973-430c-aa72-01882d5a3fed",
+      "id": "3ef6fc4e-7b37-4622-8835-6656b7be54b9",
       "name": "Label Urgent",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -495,7 +495,7 @@
     },
     {
       "parameters": {},
-      "id": "1e98f7fd-2be7-4d78-b67f-e657d4f796bb",
+      "id": "b530a4a2-79dd-47ae-9b6b-bfaf18ddeb7f",
       "name": "Not Urgent",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -543,7 +543,7 @@
         },
         "options": {}
       },
-      "id": "e0a58cd3-5f9e-40ef-94dd-db87f35d9235",
+      "id": "3b35c721-e719-4d3f-81b9-c3ac67e21fc5",
       "name": "Is No-Reply?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -557,7 +557,7 @@
         "operation": "markAsRead",
         "messageId": "={{ $json.original_message_id }}"
       },
-      "id": "26ceca05-7976-45a4-b72f-c66a22bef5ca",
+      "id": "c22a2dd0-d59e-495e-83b8-321bdc9e8602",
       "name": "Mark No-Reply Read",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -575,7 +575,7 @@
     },
     {
       "parameters": {},
-      "id": "7b932c31-4b88-481b-8558-aece2461ef03",
+      "id": "9d69f22a-021c-47cc-bb30-a0aed53d6522",
       "name": "Not No-Reply",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -681,13 +681,21 @@
                 "operation": "false",
                 "singleValue": true
               }
+            },
+            {
+              "leftValue": "={{ $json.is_automation_sender }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "9f516e4f-4b0f-4445-b266-e7789086f3f6",
+      "id": "24f97594-a946-44c9-9434-a77ac7c48a3c",
       "name": "Reply Needed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -708,7 +716,7 @@
           "sendTo": "={{ $json.sender }}"
         }
       },
-      "id": "0aba0302-b961-4a2d-9806-7548caf8da04",
+      "id": "c4de8fdd-c4ef-45e9-89cc-295b22c27d87",
       "name": "Create Reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -726,7 +734,7 @@
     },
     {
       "parameters": {},
-      "id": "1b20c335-ab6c-4c7e-b574-ef936f2dac91",
+      "id": "74e32ebc-579a-4c08-bea4-74675a04b702",
       "name": "No Reply Needed",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -758,7 +766,7 @@
         },
         "options": {}
       },
-      "id": "bef16637-5bd8-4c77-b984-a0dd25f50685",
+      "id": "05a82088-aa88-40cf-bd7c-a07f62d3ea7a",
       "name": "Has Reference Number?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -815,7 +823,7 @@
         },
         "options": {}
       },
-      "id": "8ec7b94f-6de3-4402-b0e6-ae4de4d242bb",
+      "id": "0ef98208-4b2f-4aca-9646-7a02461935f3",
       "name": "Update Lead - Stop Follow Up",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
@@ -833,7 +841,7 @@
     },
     {
       "parameters": {},
-      "id": "9a5c65df-d0d9-4e88-a9c0-a5dd916b923b",
+      "id": "6e496d2c-337b-4ffc-a2d4-2a2904157ecc",
       "name": "Skip - Not Ticket Reply",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -854,12 +862,12 @@
           "value": "Email Log"
         },
         "columns": {
-          "mappingMode": "autoMapInputData",
+          "mappingMode": "defineBelow",
           "value": {}
         },
         "options": {}
       },
-      "id": "07466df4-5dd5-4d8e-8c46-e11573b3dae2",
+      "id": "41960bec-c92a-40a4-a5b7-04df0b724ebf",
       "name": "Log to Email Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -879,7 +887,7 @@
       "parameters": {
         "jsCode": "const item = $input.first();\nconst d = item.json;\n\nif (d.department === 'Sales' && d.tags_string && d.tags_string.includes('New_Lead')) {\n  return [{\n    json: {\n      date: d.processed_at,\n      lead_name: d.sender_name,\n      email: d.sender,\n      subject: d.original_subject,\n      interest: d.intent,\n      summary: d.summary,\n      urgency: d.urgency,\n      status: 'New',\n      follow_up_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)\n        .toISOString().split('T')[0],\n      is_lead: true\n    }\n  }];\n}\n\nreturn [{ json: { is_lead: false } }];"
       },
-      "id": "3ecff5d2-cea3-4fc0-b67b-bb2e260013de",
+      "id": "0018a62e-2095-457d-8715-1d089bd3c4f5",
       "name": "Check If Lead",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -911,7 +919,7 @@
         },
         "options": {}
       },
-      "id": "5ccc8f96-547d-4827-9473-c98366bc3ead",
+      "id": "ebe6d0e0-ad42-4ff3-a23e-7c3fd825cb30",
       "name": "Is New Lead?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -947,7 +955,7 @@
         },
         "options": {}
       },
-      "id": "4f74f3b2-684b-4891-9292-9e3329f4e971",
+      "id": "837220f4-7d97-44bb-8c57-dd22559d34ae",
       "name": "Log New Lead",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -973,7 +981,7 @@
           "summary": "=Follow up: {{ $json.lead_name }}"
         }
       },
-      "id": "67b158e7-c903-48aa-99e9-4f54ff211676",
+      "id": "6be663bd-3d98-48d2-b8e2-ff58f1bc08c9",
       "name": "Create Follow-Up",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1,
@@ -991,7 +999,7 @@
     },
     {
       "parameters": {},
-      "id": "13d42321-828a-4cdc-823a-f487e49af4ec",
+      "id": "7c8bb7ab-fb5f-4850-b584-06abf48bb4eb",
       "name": "Not a Lead",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -1031,7 +1039,7 @@
         },
         "options": {}
       },
-      "id": "0fa47d4e-941e-491e-9c39-feff1e5def29",
+      "id": "f060c912-9fbd-4944-9cb7-b290b8338da7",
       "name": "Is Interested Reply?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -1047,7 +1055,7 @@
         "message": "=<div style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.5;color:#333333;\"><p style=\"margin:0 0 12px 0;\">Hi {{ $json.sender_name }},</p><p style=\"margin:0 0 12px 0;\">Thank you so much for getting back to us! We really appreciate your interest.</p><p style=\"margin:0 0 12px 0;\">I'll be in touch shortly to discuss how AnyVision Media can help you further. In the meantime, if you have any questions, feel free to reply to this email.</p><p style=\"margin:0 0 12px 0;\">Looking forward to connecting!</p><br><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table></div>",
         "options": {}
       },
-      "id": "9589a50f-c069-4f7b-86a0-219692097f43",
+      "id": "0b79a6ce-47f7-49c2-af2f-7bab6e879ed5",
       "name": "Send Thank You",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -1071,7 +1079,7 @@
           "Label_9"
         ]
       },
-      "id": "f08daa88-1de5-40fa-aa54-584eb95df568",
+      "id": "3a890e84-be3e-4aaa-9681-fb527e883e1b",
       "name": "Apply DNT Label",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -1112,7 +1120,7 @@
           "cellFormat": "USER_ENTERED"
         }
       },
-      "id": "067a25da-86ef-474c-8ba6-9cd5791a71f5",
+      "id": "c5651f5a-c9df-4ddb-80cb-746772340195",
       "name": "Update Lead Status",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -1130,7 +1138,7 @@
     },
     {
       "parameters": {},
-      "id": "80380551-d9c8-4ef0-982c-65b7214b2246",
+      "id": "a4071997-eda4-4e3d-b540-e7c8e4404fcd",
       "name": "Not Interested Reply",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -1162,7 +1170,7 @@
         },
         "options": {}
       },
-      "id": "e40b5566-e030-42dc-86e2-6f468865d275",
+      "id": "b23b0761-21f0-4a78-ade6-25681484df74",
       "name": "Is Opt-Out?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -1223,7 +1231,7 @@
         },
         "options": {}
       },
-      "id": "e9ac195a-5aaa-41a9-80d9-be0ee120b6b5",
+      "id": "b0a068ff-9f70-4b1d-be7a-37712bd1fc88",
       "name": "Mark Opt-Out Suppression",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
@@ -1247,7 +1255,7 @@
           "Label_9"
         ]
       },
-      "id": "501e04b8-89a1-43c2-b538-c6b5bf358dc8",
+      "id": "09238b09-c447-4c92-b313-7535528017c1",
       "name": "Apply Opt-Out DNT",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -1265,7 +1273,7 @@
     },
     {
       "parameters": {},
-      "id": "d6690299-395e-4817-a050-e4f5be2a045c",
+      "id": "6817a040-09a5-41b5-a18a-749f4c97c4e5",
       "name": "Not Opt-Out",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -1297,7 +1305,7 @@
         },
         "options": {}
       },
-      "id": "814d1f20-3135-4d7c-aa56-df8894b5da5a",
+      "id": "842e3b76-8364-49b6-8594-1b92cfce4d20",
       "name": "Log Error to Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,

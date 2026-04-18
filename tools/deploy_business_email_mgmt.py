@@ -78,6 +78,14 @@ AIRTABLE_BASE_ID = "app2ALQUP7CKEkHOz"
 AIRTABLE_LEADS_TABLE = "tblOsuh298hB9WWrA"
 AIRTABLE_SUPPRESSION_TABLE = "tbl0LtepawDzFYg4I"
 
+# Addresses n8n itself sends from. Any inbound message with a bare from-address
+# in this list is blocked from auto-drafting to prevent reply-to-self loops.
+AUTOMATION_SENDERS: list[str] = [
+    s.strip().lower()
+    for s in os.getenv("AUTOMATION_SENDERS", "ian@anyvisionmedia.com").split(",")
+    if s.strip()
+]
+
 # -- Gmail Label Map --------------------------------------------------------
 
 LABELS = {
@@ -347,9 +355,21 @@ Rules:
 
 return results;"""
 
-PARSE_AI_RESPONSE_JS = (
-    r"""const items = $input.all();
+def build_parse_ai_response_js(automation_senders: list[str]) -> str:
+    """Build the Parse AI Response Code node body, with the automation-sender
+    blocklist injected as a JS array literal. Serialize via json.dumps so the
+    JS syntax is guaranteed valid regardless of the Python list contents.
+    """
+    return (
+        r"""const items = $input.all();
 const results = [];
+
+// Addresses n8n itself sends from — inbound messages from these are never
+// auto-drafted (prevents reply-to-self loops when a workflow-sent email
+// lands back in the inbox via Cc, auto-forward, or send-as alias).
+const AUTOMATION_SENDERS = """
+        + json.dumps(automation_senders)
+        + r""";
 
 // Opt-out phrases (case-insensitive)
 const OPT_OUT_PHRASES = [
@@ -376,13 +396,11 @@ const TICKET_PATTERNS = [
   /\b[A-Z]{2,4}-\d{4,}\b/
 ];
 
-"""
-    + """const SIGNATURE = `"""
-    + AVM_SIGNATURE.replace("`", "\\`")
-    + """`;
+const SIGNATURE = `"""
+        + AVM_SIGNATURE.replace("`", "\\`")
+        + r"""`;
 
-"""
-    + r"""for (const item of items) {
+for (const item of items) {
   const emailData = $('Prepare Email Data').first().json;
 
   let parsed;
@@ -438,6 +456,18 @@ const TICKET_PATTERNS = [
     bodyLower.includes(phrase) || subjectLower.includes(phrase)
   );
 
+  // Automation-sender detection — extract the bare email address from the
+  // "From" header (which may be "Display Name <addr@host>") and check against
+  // the AUTOMATION_SENDERS blocklist. Equality match on the bare address so a
+  // legitimate client like iansomething@example.com is not blocked by a
+  // substring check.
+  const fromRaw = emailData.from || '';
+  const bracketMatch = fromRaw.match(/<([^>]+)>/);
+  const original_from_address = (bracketMatch ? bracketMatch[1] : fromRaw)
+    .trim()
+    .toLowerCase();
+  const is_automation_sender = AUTOMATION_SENDERS.includes(original_from_address);
+
   // Build HTML response from suggested_response
   const html_response = (() => {
     const text = parsed.suggested_response || '';
@@ -481,6 +511,8 @@ const TICKET_PATTERNS = [
       has_reference_number,
       matched_reference_pattern,
       is_opt_out,
+      original_from_address,
+      is_automation_sender,
       is_blocked_domain: emailData.is_blocked_domain || false,
       is_n8n_report: emailData.is_n8n_report || false,
       processed_at: new Date().toISOString(),
@@ -720,8 +752,12 @@ def build_nodes() -> list[dict]:
         "credentials": {"openRouterApi": CRED_OPENROUTER},
     })
 
-    # 9. Parse AI Response (includes reference number + opt-out detection)
-    nodes.append(code_node("Parse AI Response", PARSE_AI_RESPONSE_JS, [990, 432]))
+    # 9. Parse AI Response (includes reference number + opt-out + automation-sender detection)
+    nodes.append(code_node(
+        "Parse AI Response",
+        build_parse_ai_response_js(AUTOMATION_SENDERS),
+        [990, 432],
+    ))
 
     # ── Department Routing ────────────────────────────────────────────
 
@@ -831,7 +867,8 @@ def build_nodes() -> list[dict]:
 
     # 24. Reply Needed? (guards: action required + not spam + not no-reply
     #     + not blocked domain + not opt-out + no reference number
-    #     + not an n8n report/update — read-only, never draft)
+    #     + not an n8n report/update + sender is not one of our own automation
+    #     addresses — read-only, never draft)
     nodes.append(if_node(
         "Reply Needed?",
         [
@@ -846,6 +883,7 @@ def build_nodes() -> list[dict]:
             cond_bool("={{ $json.is_opt_out }}", "false"),
             cond_bool("={{ $json.is_blocked_domain }}", "false"),
             cond_bool("={{ $json.is_n8n_report }}", "false"),
+            cond_bool("={{ $json.is_automation_sender }}", "false"),
         ],
         [1250, 1520],
         case_sensitive=False,

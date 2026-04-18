@@ -1,0 +1,433 @@
+{
+  "name": "DEMO: Missed Call Money Back",
+  "nodes": [
+    {
+      "id": "cce4b501-a218-41cd-9b50-99618207e66f",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        320
+      ],
+      "webhookId": "4e99aeb7-1120-4ea2-af74-b4bf20b9f8e0",
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "path": "demo/missed-call",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "65b1873b-3423-4f2c-87ee-8e71b89d8e88",
+      "name": "Parse Call",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        320
+      ],
+      "parameters": {
+        "jsCode": "\n// Parse Twilio Voice StatusCallback payload (or a manual test POST).\n// Webhook v2 wraps POST body under $json.body.\nconst root = $input.first().json || {};\nconst body = (root && typeof root.body === 'object' && root.body) ? root.body : root;\n\nconst rawStatus = String(body.CallStatus || body.DialCallStatus || body.call_status || '').toLowerCase().trim();\nconst missedStatuses = ['no-answer', 'busy', 'failed', 'canceled', 'cancelled'];\nconst isMissed = missedStatuses.includes(rawStatus);\n\nconst fromPhone = String(body.From || body.from || '').trim();\nconst toPhone = String(body.To || body.to || '').trim();\nconst callSid = String(body.CallSid || body.call_sid || '').trim();\n\n// Johannesburg hours — Date.toLocaleString with a timezone returns the wall-clock\n// in that zone, so parsing its hour gives us SAST regardless of server TZ.\nconst now = new Date();\nconst sastParts = now.toLocaleString('en-GB', {\n  timeZone: 'Africa/Johannesburg',\n  hour: '2-digit',\n  hour12: false,\n});\nconst sastHour = parseInt(sastParts, 10);\nconst businessHoursStart = 8;\nconst businessHoursEnd = 18;\nconst inBusinessHours = sastHour >= businessHoursStart && sastHour < businessHoursEnd;\nconst callWindow = inBusinessHours ? 'business-hours' : 'after-hours';\n\nconst callId = 'MCB-' + now.getTime().toString(36).toUpperCase();\n\nreturn [{\n  json: {\n    'Call ID': callId,\n    'From Phone': fromPhone,\n    'To Phone': toPhone,\n    'Call Status': rawStatus || 'unknown',\n    'Call Window': callWindow,\n    'Call SID': callSid,\n    'Received At': now.toISOString(),\n    _isMissed: isMissed,\n    _inBusinessHours: inBusinessHours,\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "9b4c5fa2-e4e7-4f26-bfca-e1c660d9c99b",
+      "name": "Is Missed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        320
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "leftValue": ""
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "6778f22e-5f9d-4171-9af6-41f5147b0c6f",
+              "leftValue": "={{ $json._isMissed ? 'yes' : '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5ec5af77-cfbd-4b70-9af8-8e93704e9aac",
+      "name": "Repeat Caller?",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "position": [
+        900,
+        240
+      ],
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "appdRv8eJY6uweQ5F"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tbl9Kp2eWSca6opov"
+        },
+        "filterByFormula": "={{ \"{From Phone} = '\" + $('Parse Call').first().json['From Phone'] + \"'\" }}",
+        "options": {
+          "fields": [
+            "From Phone"
+          ]
+        }
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "id": "41143388-c7b7-4c2c-bb62-0651d2baa739",
+      "name": "Compose SMS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        240
+      ],
+      "parameters": {
+        "jsCode": "\n// Compose the reply WhatsApp message. If there is already a row in\n// MCB_Missed_Calls for this phone number, treat it as a repeat caller and\n// send a softer follow-up.\nconst parsed = $('Parse Call').first().json;\nconst search = $input.first().json || {};\nconst isRepeat = !!(search && search.id);\n\nconst inHours = parsed._inBusinessHours;\nlet body;\nif (isRepeat) {\n  body = \"Hey again — thanks for calling back. What's the best way to help you? \"\n       + \"Happy to sort it over WhatsApp or book a quick call.\";\n} else if (inHours) {\n  body = \"Hey! Sorry I missed your call — I'm on a job right now. \"\n       + \"What can I help you with? I'll WhatsApp you back in 10 min.\";\n} else {\n  body = \"Hey! Sorry I missed your call — we're closed right now. \"\n       + \"What can I help you with? I'll reply first thing tomorrow.\";\n}\n\nreturn [{\n  json: Object.assign({}, parsed, {\n    'Is Repeat Caller': isRepeat,\n    'SMS Body': body,\n    'Status': 'SMS Sent',\n  })\n}];\n"
+      }
+    },
+    {
+      "id": "1b56aa09-99f6-42e5-8e8b-b8469f2342a1",
+      "name": "Send WhatsApp",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "onError": "continueRegularOutput",
+      "position": [
+        1340,
+        160
+      ],
+      "parameters": {
+        "resource": "sms",
+        "operation": "send",
+        "from": "+14155238886",
+        "to": "={{ $json['From Phone'] }}",
+        "toWhatsapp": true,
+        "message": "={{ $json['SMS Body'] }}",
+        "options": {}
+      },
+      "credentials": {
+        "twilioApi": {
+          "id": "YzAgDJdx5ZaKbbar",
+          "name": "Twilio"
+        }
+      }
+    },
+    {
+      "id": "c00f545f-436c-4a38-be6e-d98639205804",
+      "name": "Log Call",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "onError": "continueRegularOutput",
+      "position": [
+        1340,
+        320
+      ],
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "appdRv8eJY6uweQ5F"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "tbl9Kp2eWSca6opov"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Call ID": "={{ $('Compose SMS').first().json['Call ID'] }}",
+            "From Phone": "={{ $('Compose SMS').first().json['From Phone'] }}",
+            "To Phone": "={{ $('Compose SMS').first().json['To Phone'] }}",
+            "Call Status": "={{ $('Compose SMS').first().json['Call Status'] }}",
+            "Call Window": "={{ $('Compose SMS').first().json['Call Window'] }}",
+            "Is Repeat Caller": "={{ $('Compose SMS').first().json['Is Repeat Caller'] }}",
+            "SMS Body": "={{ $('Compose SMS').first().json['SMS Body'] }}",
+            "Status": "={{ $('Compose SMS').first().json['Status'] }}",
+            "Received At": "={{ $('Compose SMS').first().json['Received At'] }}"
+          },
+          "schema": [
+            {
+              "id": "Call ID",
+              "type": "string",
+              "display": true,
+              "displayName": "Call ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "From Phone",
+              "type": "string",
+              "display": true,
+              "displayName": "From Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "To Phone",
+              "type": "string",
+              "display": true,
+              "displayName": "To Phone",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Call Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Call Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Call Window",
+              "type": "string",
+              "display": true,
+              "displayName": "Call Window",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Is Repeat Caller",
+              "type": "string",
+              "display": true,
+              "displayName": "Is Repeat Caller",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SMS Body",
+              "type": "string",
+              "display": true,
+              "displayName": "SMS Body",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Received At",
+              "type": "string",
+              "display": true,
+              "displayName": "Received At",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      }
+    },
+    {
+      "id": "c8530c9e-8ee5-41b5-9099-fbb780db6f03",
+      "name": "Alert Owner",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        1340,
+        480
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "6311361442",
+        "text": "=<b>Missed call</b>\nFrom: {{ $json['From Phone'] }}\nWindow: {{ $json['Call Window'] }}\nRepeat: {{ $json['Is Repeat Caller'] ? 'yes' : 'no' }}\nWhatsApp sent ✅",
+        "additionalFields": {
+          "parse_mode": "HTML",
+          "disable_notification": false
+        }
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "Ha3Ewmk9ofbvWyZ9",
+          "name": "Telegram AVMCRMBot"
+        }
+      }
+    },
+    {
+      "id": "c7af6bf0-c32d-4da5-a543-25b389f4a209",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1560,
+        320
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "ed191f63-82f0-445c-957a-059678d48208",
+      "name": "Respond (not missed)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        480
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({success: true}) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Call": {
+      "main": [
+        [
+          {
+            "node": "Is Missed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Missed?": {
+      "main": [
+        [
+          {
+            "node": "Repeat Caller?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond (not missed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Repeat Caller?": {
+      "main": [
+        [
+          {
+            "node": "Compose SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose SMS": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Call",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alert Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Call": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": [
+    {
+      "name": "demo"
+    },
+    {
+      "name": "twilio"
+    },
+    {
+      "name": "missed-call"
+    }
+  ]
+}
