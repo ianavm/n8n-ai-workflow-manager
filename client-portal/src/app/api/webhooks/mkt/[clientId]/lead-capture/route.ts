@@ -40,7 +40,9 @@ export async function POST(
   { params }: { params: Promise<{ clientId: string }> }
 ) {
   const webhookSecret = req.headers.get("x-n8n-webhook-secret");
-  const expectedSecret = process.env.N8N_WEBHOOK_SECRET;
+  // Per-endpoint secret with fallback to the shared one during migration.
+  const expectedSecret =
+    process.env.N8N_WEBHOOK_SECRET_MKT_LEAD ?? process.env.N8N_WEBHOOK_SECRET;
 
   if (!expectedSecret || webhookSecret !== expectedSecret) {
     return NextResponse.json({ error: "Invalid webhook secret" }, { status: 401 });
