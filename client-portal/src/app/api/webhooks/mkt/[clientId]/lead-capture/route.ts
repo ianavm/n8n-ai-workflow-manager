@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { incrementUsage } from "@/lib/feature-gate";
+import { isValidUUID } from "@/lib/validation";
 import { z } from "zod";
 
 const SOURCE_ENUM = z.enum([
@@ -46,6 +47,9 @@ export async function POST(
   }
 
   const { clientId } = await params;
+  if (!isValidUUID(clientId)) {
+    return NextResponse.json({ error: "Invalid client ID" }, { status: 400 });
+  }
 
   const body = await req.json();
   const parsed = leadCaptureSchema.safeParse(body);
@@ -57,6 +61,18 @@ export async function POST(
   }
 
   const supabase = await createServiceRoleClient();
+
+  // Confirm the clientId refers to a real client before accepting writes —
+  // prevents orphaned rows from a forged/stale client UUID even with the
+  // webhook secret.
+  const { data: clientRow } = await supabase
+    .from("clients")
+    .select("id")
+    .eq("id", clientId)
+    .maybeSingle();
+  if (!clientRow) {
+    return NextResponse.json({ error: "Unknown client" }, { status: 404 });
+  }
 
   // Build metadata from UTM params
   const metadata: Record<string, string> = {};
@@ -83,7 +99,11 @@ export async function POST(
     .single();
 
   if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 });
+    console.error("[webhooks/mkt/lead-capture] Insert failed:", insertError);
+    return NextResponse.json(
+      { error: "Failed to capture lead" },
+      { status: 500 }
+    );
   }
 
   // Record initial activity

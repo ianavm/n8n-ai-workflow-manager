@@ -47,9 +47,24 @@ export async function POST(request: NextRequest) {
   }
 
   // Validate field lengths
-  if (resolvedName.length > 200) {
+  if (resolvedName.length < 2 || resolvedName.length > 200) {
     return NextResponse.json(
-      { error: "Name is too long (max 200 characters)" },
+      { error: "Name must be 2-200 characters" },
+      { status: 400 }
+    );
+  }
+  // Block obviously bot-generated names (must contain at least one letter
+  // and must not be a gibberish block of random consonants — reject strings
+  // with >8 consecutive letters and no vowels or spaces).
+  if (!/[a-zA-Z]/.test(resolvedName)) {
+    return NextResponse.json(
+      { error: "Name must contain at least one letter" },
+      { status: 400 }
+    );
+  }
+  if (/[a-zA-Z]{9,}/.test(resolvedName) && !/[aeiouAEIOU\s]/.test(resolvedName)) {
+    return NextResponse.json(
+      { error: "Please enter a valid name" },
       { status: 400 }
     );
   }
@@ -60,9 +75,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Validate email format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
+  // Validate email format (stricter than before — rejects double @ and
+  // missing TLD cases)
+  const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(email) || email.length > 255) {
     return NextResponse.json(
       { error: "Please enter a valid email address" },
       { status: 400 }

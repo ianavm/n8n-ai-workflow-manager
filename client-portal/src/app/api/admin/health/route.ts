@@ -2,16 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   const session = await getSession();
-  let isApiKeyAuth = false;
-
   if (!session || (session.role !== "owner" && session.role !== "employee")) {
-    const apiKey = req.headers.get("x-api-key");
-    if (!process.env.INTERNAL_API_KEY || !apiKey || apiKey !== process.env.INTERNAL_API_KEY) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    isApiKeyAuth = true;
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const supabase = await createServiceRoleClient();
@@ -24,9 +18,7 @@ export async function GET(req: NextRequest) {
       .from("renewal_pipeline")
       .select("*")
       .order("days_until_renewal", { ascending: true }),
-    supabase
-      .from("clients")
-      .select(isApiKeyAuth ? "id, company_name" : "id, company_name, email"),
+    supabase.from("clients").select("id, company_name, email"),
   ]);
 
   return NextResponse.json({

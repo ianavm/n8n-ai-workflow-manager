@@ -276,9 +276,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, action });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[webhooks/n8n-accounting] Error:", error);
     return NextResponse.json(
-      { error: "Failed to process webhook", details: message },
+      { error: "Failed to process webhook" },
       { status: 500 }
     );
   }

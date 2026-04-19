@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     if (!signature) {
       console.error("[webhooks/stripe] Missing stripe-signature header");
-      return NextResponse.json({ received: true }, { status: 200 });
+      return NextResponse.json({ error: "Missing signature" }, { status: 400 });
     }
 
     let event: Stripe.Event;
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       event = constructWebhookEvent(rawBody, signature);
     } catch (err) {
       console.error("[webhooks/stripe] Signature verification failed:", err);
-      return NextResponse.json({ received: true }, { status: 200 });
+      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
 
     console.info(`[webhooks/stripe] Event: ${event.type}, ID: ${event.id}`);

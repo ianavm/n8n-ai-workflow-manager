@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { sanitizeMetadata } from "@/lib/validation";
 
 // GET: Return current onboarding progress (creates record if missing)
 export async function GET() {
@@ -97,6 +98,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Invalid skipped_steps" }, { status: 400 });
   }
 
+  const cleanStepData = sanitizeMetadata(step_data);
+
   // Atomic upsert — prevents race condition on concurrent saves (CRITICAL-2 fix)
   const { error: upsertError } = await svc
     .from("onboarding_progress")
@@ -104,7 +107,7 @@ export async function PATCH(request: NextRequest) {
       {
         client_id: client.id,
         current_step: current_step ?? 1,
-        step_data: step_data ?? {},
+        step_data: cleanStepData,
         completed_steps: completed_steps ?? [],
         skipped_steps: skipped_steps ?? [],
       },

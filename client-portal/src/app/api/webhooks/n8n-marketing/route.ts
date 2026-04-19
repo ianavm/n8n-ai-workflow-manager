@@ -176,11 +176,24 @@ export async function POST(req: NextRequest) {
 
       case "campaign_updated": {
         const d = data as Record<string, unknown>;
-        const updates = d.updates as Record<string, unknown>;
+        const rawUpdates = (d.updates ?? {}) as Record<string, unknown>;
+        const ALLOWED_CAMPAIGN_UPDATE_KEYS = new Set([
+          "status",
+          "budget_spent",
+          "performance_summary",
+          "end_date",
+          "impressions",
+          "clicks",
+          "conversions",
+        ]);
+        const safeUpdates: Record<string, unknown> = {};
+        for (const [key, val] of Object.entries(rawUpdates)) {
+          if (ALLOWED_CAMPAIGN_UPDATE_KEYS.has(key)) safeUpdates[key] = val;
+        }
         await supabase
           .from("mkt_campaigns")
           .update({
-            ...updates,
+            ...safeUpdates,
             updated_at: new Date().toISOString(),
           })
           .eq("id", d.campaign_id as string);
@@ -206,9 +219,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, action });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[webhooks/n8n-marketing] Error:", error);
     return NextResponse.json(
-      { error: "Failed to process webhook", details: message },
+      { error: "Failed to process webhook" },
       { status: 500 }
     );
   }
