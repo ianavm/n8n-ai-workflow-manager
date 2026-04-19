@@ -31,6 +31,11 @@ load_dotenv(env_path)
 CRED_AIRTABLE = {"id": "ZyBrcAO6fps7YB3u", "name": "Airtable account"}
 CRED_GMAIL = {"id": "2IuycrTIgWJZEjBE", "name": "Gmail account AVM Tutorial"}
 
+# ── Turnstile (Cloudflare bot challenge) ────────────────────
+# Server-side secret baked into the Verify Turnstile HTTP Request node at
+# deploy time. Must be present in .env or deploy fails closed.
+TURNSTILE_SECRET: str = os.environ.get("CLOUDFLARE_TURNSTILE_SECRET", "")
+
 # ── Airtable IDs ────────────────────────────────────────────
 LEADS_BASE_ID = "apptjjBx34z9340tK"
 LEADS_TABLE_ID = "tblwOPTPY85Tcj7NJ"
@@ -236,6 +241,7 @@ def build_not_suppressed_if_node(
             "conditions": {
                 "options": {
                     "version": 2,
+                    "leftValue": "",
                     "caseSensitive": True,
                     "typeValidation": "loose",
                 },
@@ -253,6 +259,104 @@ def build_not_suppressed_if_node(
                     }
                 ],
             },
+            "options": {},
+        },
+    }
+
+
+def build_turnstile_verify_node(
+    name: str,
+    position: List[int],
+    secret: str,
+) -> Dict[str, Any]:
+    """Build an HTTP Request node that verifies a Turnstile token with Cloudflare.
+
+    Posts to https://challenges.cloudflare.com/turnstile/v0/siteverify with the
+    server-side secret and the client-submitted token. Output shape:
+        {success: bool, "error-codes": [...], ...}
+    """
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": position,
+        "parameters": {
+            "method": "POST",
+            "url": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            "sendBody": True,
+            "contentType": "form-urlencoded",
+            "bodyParameters": {
+                "parameters": [
+                    {"name": "secret", "value": secret},
+                    {
+                        "name": "response",
+                        "value": "={{ $json.body.cf_turnstile_token || '' }}",
+                    },
+                ]
+            },
+            "options": {},
+        },
+    }
+
+
+def build_turnstile_valid_if_node(
+    name: str,
+    position: List[int],
+) -> Dict[str, Any]:
+    """Build an IF v2.2 gate that checks Cloudflare siteverify returned success.
+
+    Output 0 (true) = verified human = continue to Format.
+    Output 1 (false) = verification failed or missing = respond 403.
+    """
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": position,
+        "parameters": {
+            "conditions": {
+                "options": {
+                    "version": 2,
+                    "leftValue": "",
+                    "caseSensitive": True,
+                    "typeValidation": "loose",
+                },
+                "combinator": "and",
+                "conditions": [
+                    {
+                        "id": uid(),
+                        "leftValue": "={{ $json.success }}",
+                        "rightValue": "",
+                        "operator": {
+                            "type": "boolean",
+                            "operation": "true",
+                            "singleValue": True,
+                        },
+                    }
+                ],
+            },
+            "options": {},
+        },
+    }
+
+
+def build_turnstile_failed_respond_node(
+    name: str,
+    position: List[int],
+) -> Dict[str, Any]:
+    """respondToWebhook returning HTTP 403 when Turnstile verification fails."""
+    return {
+        "id": uid(),
+        "name": name,
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": position,
+        "parameters": {
+            "respondWith": "json",
+            "responseCode": 403,
+            "responseBody": "={{ JSON.stringify({error: 'turnstile verification failed'}) }}",
             "options": {},
         },
     }
@@ -305,6 +409,9 @@ def build_respond_node(
 
 def build_lead_capture_connections(
     webhook: str,
+    turnstile_verify: str,
+    turnstile_valid: str,
+    turnstile_failed: str,
     code: str,
     search: str,
     gate: str,
@@ -312,10 +419,13 @@ def build_lead_capture_connections(
     gmail: str,
     respond: str,
 ) -> Dict[str, Any]:
-    """Wire the 7-node lead capture chain with inline suppression gating.
+    """Wire the 10-node lead capture chain with Turnstile + suppression gating.
 
     Flow:
-      webhook -> code -> search -> gate
+      webhook -> turnstile_verify -> turnstile_valid
+      turnstile_valid output 0 (true, verified human) -> code
+      turnstile_valid output 1 (false, bot/invalid)   -> turnstile_failed (403)
+      code -> search -> gate
       gate output 0 (true, not suppressed) -> airtable + gmail
       gate output 1 (false, suppressed)    -> respond (silent success)
       airtable -> respond
@@ -323,7 +433,16 @@ def build_lead_capture_connections(
     """
     return {
         webhook: {
-            "main": [[{"node": code, "type": "main", "index": 0}]]
+            "main": [[{"node": turnstile_verify, "type": "main", "index": 0}]]
+        },
+        turnstile_verify: {
+            "main": [[{"node": turnstile_valid, "type": "main", "index": 0}]]
+        },
+        turnstile_valid: {
+            "main": [
+                [{"node": code, "type": "main", "index": 0}],
+                [{"node": turnstile_failed, "type": "main", "index": 0}],
+            ]
         },
         code: {
             "main": [[{"node": search, "type": "main", "index": 0}]]
@@ -553,52 +672,93 @@ GMAIL_SEO_LEAD_HTML = """<div style="font-family: Arial, sans-serif; max-width: 
 # WORKFLOW BUILDERS
 # ======================================================================
 
-def build_website_contact_form() -> Dict[str, Any]:
-    """Build the Website Contact Form webhook workflow."""
-    format_name = "Format Lead Data"
+def _build_lead_form_workflow(
+    *,
+    workflow_name: str,
+    webhook_path: str,
+    format_name: str,
+    format_code: str,
+    columns: List[str],
+    email_subject_expr: str,
+    email_html: str,
+) -> Dict[str, Any]:
+    """Shared assembly for the Website Contact Form and SEO Lead Capture flows.
+
+    Layout: Webhook → Verify Turnstile → Turnstile Valid? → [false → 403,
+    true → Format → Check Suppression → Not Suppressed? → {Save, Email} → Respond]
+    """
+    if not TURNSTILE_SECRET:
+        raise RuntimeError(
+            "CLOUDFLARE_TURNSTILE_SECRET must be set in .env before deploying "
+            "lead-capture workflows (required for Cloudflare siteverify)."
+        )
 
     webhook = build_webhook_node(
         name="Webhook",
-        path="website-contact-form",
+        path=webhook_path,
         position=[250, 300],
+    )
+    turnstile_verify = build_turnstile_verify_node(
+        name="Verify Turnstile",
+        position=[360, 180],
+        secret=TURNSTILE_SECRET,
+    )
+    turnstile_valid = build_turnstile_valid_if_node(
+        name="Turnstile Valid?",
+        position=[470, 180],
+    )
+    turnstile_failed = build_turnstile_failed_respond_node(
+        name="Turnstile Failed",
+        position=[580, 60],
     )
     code = build_code_node(
         name=format_name,
-        js_code=FORMAT_WEBSITE_CONTACT_CODE,
-        position=[470, 300],
+        js_code=format_code,
+        position=[580, 300],
     )
     search = build_suppression_search_node(
         name="Check Suppression",
-        position=[690, 300],
+        position=[800, 300],
         format_node_name=format_name,
     )
     gate = build_not_suppressed_if_node(
         name="Not Suppressed?",
-        position=[910, 300],
+        position=[1020, 300],
     )
     airtable = build_airtable_create_node(
         name="Save to Airtable",
-        position=[1130, 250],
+        position=[1240, 250],
         format_node_name=format_name,
-        columns=WEBSITE_CONTACT_COLUMNS,
+        columns=columns,
     )
     gmail = build_gmail_send_node(
         name="Email Notification",
-        subject_expr=(
-            "=NEW LEAD: {{ $('Format Lead Data').first().json['Contact Name'] }} "
-            "from {{ $('Format Lead Data').first().json['Company'] }}"
-        ),
-        html_body=GMAIL_WEBSITE_CONTACT_HTML,
-        position=[1130, 450],
+        subject_expr=email_subject_expr,
+        html_body=email_html,
+        position=[1240, 450],
     )
     respond = build_respond_node(
         name="Respond Success",
-        position=[1350, 250],
+        position=[1460, 250],
     )
 
-    nodes = [webhook, code, search, gate, airtable, gmail, respond]
+    nodes = [
+        webhook,
+        turnstile_verify,
+        turnstile_valid,
+        turnstile_failed,
+        code,
+        search,
+        gate,
+        airtable,
+        gmail,
+        respond,
+    ]
     connections = build_lead_capture_connections(
         webhook=webhook["name"],
+        turnstile_verify=turnstile_verify["name"],
+        turnstile_valid=turnstile_valid["name"],
+        turnstile_failed=turnstile_failed["name"],
         code=code["name"],
         search=search["name"],
         gate=gate["name"],
@@ -608,70 +768,41 @@ def build_website_contact_form() -> Dict[str, Any]:
     )
 
     return build_workflow_json(
-        name="AVM: Website Contact Form",
+        name=workflow_name,
         nodes=nodes,
         connections=connections,
+    )
+
+
+def build_website_contact_form() -> Dict[str, Any]:
+    """Build the Website Contact Form webhook workflow."""
+    return _build_lead_form_workflow(
+        workflow_name="AVM: Website Contact Form",
+        webhook_path="website-contact-form",
+        format_name="Format Lead Data",
+        format_code=FORMAT_WEBSITE_CONTACT_CODE,
+        columns=WEBSITE_CONTACT_COLUMNS,
+        email_subject_expr=(
+            "=NEW LEAD: {{ $('Format Lead Data').first().json['Contact Name'] }} "
+            "from {{ $('Format Lead Data').first().json['Company'] }}"
+        ),
+        email_html=GMAIL_WEBSITE_CONTACT_HTML,
     )
 
 
 def build_seo_lead_capture() -> Dict[str, Any]:
     """Build the SEO Lead Capture webhook workflow."""
-    format_name = "Format SEO Lead"
-
-    webhook = build_webhook_node(
-        name="Webhook",
-        path="seo-social/lead-capture",
-        position=[250, 300],
-    )
-    code = build_code_node(
-        name=format_name,
-        js_code=FORMAT_SEO_LEAD_CODE,
-        position=[470, 300],
-    )
-    search = build_suppression_search_node(
-        name="Check Suppression",
-        position=[690, 300],
-        format_node_name=format_name,
-    )
-    gate = build_not_suppressed_if_node(
-        name="Not Suppressed?",
-        position=[910, 300],
-    )
-    airtable = build_airtable_create_node(
-        name="Save to Airtable",
-        position=[1130, 250],
-        format_node_name=format_name,
+    return _build_lead_form_workflow(
+        workflow_name="AVM: SEO Lead Capture",
+        webhook_path="seo-social/lead-capture",
+        format_name="Format SEO Lead",
+        format_code=FORMAT_SEO_LEAD_CODE,
         columns=SEO_LEAD_COLUMNS,
-    )
-    gmail = build_gmail_send_node(
-        name="Email Notification",
-        subject_expr=(
+        email_subject_expr=(
             "=NEW LEAD (SEO): {{ $('Format SEO Lead').first().json['Contact Name'] }} "
             "from {{ $('Format SEO Lead').first().json['Company'] }}"
         ),
-        html_body=GMAIL_SEO_LEAD_HTML,
-        position=[1130, 450],
-    )
-    respond = build_respond_node(
-        name="Respond Success",
-        position=[1350, 250],
-    )
-
-    nodes = [webhook, code, search, gate, airtable, gmail, respond]
-    connections = build_lead_capture_connections(
-        webhook=webhook["name"],
-        code=code["name"],
-        search=search["name"],
-        gate=gate["name"],
-        airtable=airtable["name"],
-        gmail=gmail["name"],
-        respond=respond["name"],
-    )
-
-    return build_workflow_json(
-        name="AVM: SEO Lead Capture",
-        nodes=nodes,
-        connections=connections,
+        email_html=GMAIL_SEO_LEAD_HTML,
     )
 
 
@@ -694,17 +825,36 @@ def get_n8n_client():
     return N8nClient(base_url=base_url, api_key=api_key)
 
 
+TURNSTILE_SECRET_PLACEHOLDER = "__CLOUDFLARE_TURNSTILE_SECRET__"
+
+
+def _redact_turnstile_for_commit(workflow_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a copy of the workflow with the real Turnstile secret replaced
+    by a placeholder so the committed JSON does not leak the live secret.
+
+    The deploy path does NOT use this — it sends the real secret to n8n.
+    """
+    if not TURNSTILE_SECRET:
+        return workflow_data
+    dumped = json.dumps(workflow_data)
+    if TURNSTILE_SECRET in dumped:
+        dumped = dumped.replace(TURNSTILE_SECRET, TURNSTILE_SECRET_PLACEHOLDER)
+        return json.loads(dumped)
+    return workflow_data
+
+
 def save_workflow(key: str, workflow_data: Dict[str, Any]) -> Path:
-    """Save workflow JSON to file."""
+    """Save workflow JSON to file (with Turnstile secret redacted)."""
     spec = WORKFLOW_BUILDERS[key]
     output_dir = Path(__file__).parent.parent / "workflows" / "lead-capture"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / spec["filename"]
 
+    redacted = _redact_turnstile_for_commit(workflow_data)
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(workflow_data, f, indent=2, ensure_ascii=False)
+        json.dump(redacted, f, indent=2, ensure_ascii=False)
 
-    node_count = len(workflow_data["nodes"])
+    node_count = len(redacted["nodes"])
     print(f"  + {spec['name']:<40} -> {output_path.name} ({node_count} nodes)")
     return output_path
 

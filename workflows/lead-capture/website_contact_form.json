@@ -2,7 +2,7 @@
   "name": "AVM: Website Contact Form",
   "nodes": [
     {
-      "id": "620729ce-34bc-4442-90e9-4a393e0e30f0",
+      "id": "0565edad-2306-4799-9a48-7c37db84692c",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
@@ -10,7 +10,7 @@
         250,
         300
       ],
-      "webhookId": "a55760e6-8cdd-467e-bc70-5a7795263460",
+      "webhookId": "efc2a697-9e5d-461e-a8a4-65710e534258",
       "parameters": {
         "path": "website-contact-form",
         "httpMethod": "POST",
@@ -18,12 +18,91 @@
       }
     },
     {
-      "id": "9a3f3b3e-b70b-4da9-b8ae-fb5460a91bb4",
+      "id": "901507c2-5058-43ca-815c-97cf81676892",
+      "name": "Verify Turnstile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        360,
+        180
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "secret",
+              "value": "__CLOUDFLARE_TURNSTILE_SECRET__"
+            },
+            {
+              "name": "response",
+              "value": "={{ $json.body.cf_turnstile_token || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "556fc0e4-42fe-4573-9374-a508801e0d82",
+      "name": "Turnstile Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        470,
+        180
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "4c9ea361-8829-405c-b58c-d7c3077b15c1",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a706a1de-deff-4b9f-8dc8-a1de25ea909e",
+      "name": "Turnstile Failed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        580,
+        60
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 403,
+        "responseBody": "={{ JSON.stringify({error: 'turnstile verification failed'}) }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "01321839-ee79-4db8-bb5c-ab632cec7b88",
       "name": "Format Lead Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        470,
+        580,
         300
       ],
       "parameters": {
@@ -31,14 +110,14 @@
       }
     },
     {
-      "id": "0be4e5ba-63fd-4506-a2ea-c1efcd77cc05",
+      "id": "0c4b0d26-3f13-4183-b7f5-98e4f8675c6e",
       "name": "Check Suppression",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
       "alwaysOutputData": true,
       "onError": "continueRegularOutput",
       "position": [
-        690,
+        800,
         300
       ],
       "parameters": {
@@ -70,25 +149,26 @@
       }
     },
     {
-      "id": "b55e81a8-1ee4-4902-8488-d17366c545e5",
+      "id": "dc849814-b2bc-4ba3-be72-c4c1a32157fc",
       "name": "Not Suppressed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        910,
+        1020,
         300
       ],
       "parameters": {
         "conditions": {
           "options": {
             "version": 2,
+            "leftValue": "",
             "caseSensitive": true,
             "typeValidation": "loose"
           },
           "combinator": "and",
           "conditions": [
             {
-              "id": "979b40ff-489f-470e-a7a5-52f0382ef939",
+              "id": "703ed8da-79f6-43f3-8cf3-5e7f5b1017c2",
               "leftValue": "={{ $json.id || '' }}",
               "rightValue": "",
               "operator": {
@@ -103,13 +183,13 @@
       }
     },
     {
-      "id": "0b3a1687-0a6a-4fc3-a316-976bbc7c149c",
+      "id": "04d7fd86-924b-4bfb-b4b9-b4a4210724b4",
       "name": "Save to Airtable",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.1,
       "onError": "continueRegularOutput",
       "position": [
-        1130,
+        1240,
         250
       ],
       "parameters": {
@@ -303,13 +383,13 @@
       }
     },
     {
-      "id": "64b04028-4e62-4431-a334-bded81d3d821",
+      "id": "ff0beed8-ac89-4f59-94a1-a51580e5e88d",
       "name": "Email Notification",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "onError": "continueRegularOutput",
       "position": [
-        1130,
+        1240,
         450
       ],
       "parameters": {
@@ -326,12 +406,12 @@
       }
     },
     {
-      "id": "965a6ea1-6561-4e47-98fe-6fecb5baae53",
+      "id": "a1cc4597-70ba-4d9b-af38-0d274c0dd871",
       "name": "Respond Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1350,
+        1460,
         250
       ],
       "parameters": {
@@ -346,7 +426,36 @@
       "main": [
         [
           {
+            "node": "Verify Turnstile",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Turnstile": {
+      "main": [
+        [
+          {
+            "node": "Turnstile Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turnstile Valid?": {
+      "main": [
+        [
+          {
             "node": "Format Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Turnstile Failed",
             "type": "main",
             "index": 0
           }

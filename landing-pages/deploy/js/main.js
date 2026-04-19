@@ -216,6 +216,18 @@
                 return { ok: true };
             }
 
+            function showFormError(form, msg) {
+                var existing = form.querySelector('.form-inline-error');
+                if (existing) existing.remove();
+                var errDiv = document.createElement('div');
+                errDiv.className = 'form-inline-error';
+                errDiv.setAttribute('role', 'alert');
+                errDiv.style.cssText = 'color:#ff6b6b;background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.25);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:0.9rem;';
+                errDiv.textContent = msg;
+                form.insertBefore(errDiv, form.firstChild);
+                setTimeout(function() { if (errDiv.parentNode) errDiv.remove(); }, 5000);
+            }
+
             var contactForm = document.getElementById('contactForm');
             if (contactForm) {
                 contactForm.addEventListener('submit', function(e) {
@@ -223,15 +235,13 @@
 
                     var validation = validateLeadForm(contactForm);
                     if (!validation.ok) {
-                        var existing = contactForm.querySelector('.form-inline-error');
-                        if (existing) existing.remove();
-                        var errDiv = document.createElement('div');
-                        errDiv.className = 'form-inline-error';
-                        errDiv.setAttribute('role', 'alert');
-                        errDiv.style.cssText = 'color:#ff6b6b;background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.25);padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:0.9rem;';
-                        errDiv.textContent = validation.message;
-                        contactForm.insertBefore(errDiv, contactForm.firstChild);
-                        setTimeout(function() { if (errDiv.parentNode) errDiv.remove(); }, 5000);
+                        showFormError(contactForm, validation.message);
+                        return;
+                    }
+
+                    var turnstileToken = (contactForm.querySelector('[name="cf-turnstile-response"]') || {}).value;
+                    if (!turnstileToken) {
+                        showFormError(contactForm, 'Please complete the verification challenge above.');
                         return;
                     }
 
@@ -308,7 +318,8 @@
                                     utm_medium: utmParams.utm_medium || 'website',
                                     utm_campaign: utmParams.utm_campaign,
                                     utm_term: utmParams.utm_term,
-                                    utm_content: utmParams.utm_content
+                                    utm_content: utmParams.utm_content,
+                                    cf_turnstile_token: turnstileToken
                             });
                             var webhookHeaders = { 'Content-Type': 'application/json' };
                             /* Contact form -> Airtable + email notification */
@@ -321,6 +332,7 @@
                             }).catch(function(err) { console.warn('Lead webhook failed (SEO):', err.message || err); });
 
                             contactForm.reset();
+                            if (typeof turnstile !== 'undefined' && turnstile.reset) { turnstile.reset(); }
                         } else {
                             submitBtn.innerHTML = 'Something went wrong — please try again';
                         }
@@ -350,6 +362,12 @@
                 supportForm.addEventListener('submit', function(e) {
                     e.preventDefault();
 
+                    var supportTurnstileToken = (supportForm.querySelector('[name="cf-turnstile-response"]') || {}).value;
+                    if (!supportTurnstileToken) {
+                        showFormError(supportForm, 'Please complete the verification challenge above.');
+                        return;
+                    }
+
                     var submitBtn = supportForm.querySelector('.btn-primary');
                     var originalHTML = submitBtn.innerHTML;
                     submitBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Sending...';
@@ -363,7 +381,8 @@
                         reporter_name: supportForm.querySelector('[name="name"]').value,
                         reporter_email: supportForm.querySelector('[name="email"]').value,
                         priority: supportForm.querySelector('[name="priority"]').value,
-                        submitted_at: new Date().toISOString()
+                        submitted_at: new Date().toISOString(),
+                        cf_turnstile_token: supportTurnstileToken
                     });
 
                     fetch('https://ianimmelman89.app.n8n.cloud/webhook/self-healing/report', {
@@ -375,8 +394,10 @@
                         if (resp.ok) {
                             supportForm.style.display = 'none';
                             supportSuccess.classList.add('show');
+                            if (typeof turnstile !== 'undefined' && turnstile.reset) { turnstile.reset(); }
                         } else {
                             submitBtn.innerHTML = 'Something went wrong. Please email us instead.';
+                            if (typeof turnstile !== 'undefined' && turnstile.reset) { turnstile.reset(); }
                         }
                         setTimeout(function() {
                             submitBtn.innerHTML = originalHTML;
