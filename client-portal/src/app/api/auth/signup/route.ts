@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { validatePassword, extractClientIp } from "@/lib/validation";
+import { PUBLIC_SIGNUPS_ENABLED } from "@/lib/signup-config";
 
 // Trial duration in days
 const TRIAL_DAYS = 30;
@@ -8,6 +9,16 @@ const TRIAL_DAYS = 30;
 type SignupMethod = "email" | "magic_link" | "google_sso";
 
 export async function POST(request: NextRequest) {
+  if (!PUBLIC_SIGNUPS_ENABLED) {
+    return NextResponse.json(
+      {
+        error:
+          "Self-service signups are closed. Please contact sales at ian@anyvisionmedia.com to request access.",
+      },
+      { status: 403 }
+    );
+  }
+
   const body = await request.json();
   const {
     email,

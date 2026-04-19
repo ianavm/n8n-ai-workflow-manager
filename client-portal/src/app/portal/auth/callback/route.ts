@@ -1,5 +1,6 @@
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { PUBLIC_SIGNUPS_ENABLED } from "@/lib/signup-config";
 
 const TRIAL_DAYS = 30;
 
@@ -72,7 +73,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/portal", request.url));
   }
 
-  // Truly new user (Google SSO) — create client record from Google metadata
+  // Truly new user (Google SSO) — public signups gate.
+  // When closed, delete the just-minted auth.users record so no orphan lingers,
+  // and bounce back to login with an explanatory error.
+  if (!PUBLIC_SIGNUPS_ENABLED) {
+    await svc.auth.admin.deleteUser(user.id);
+    return NextResponse.redirect(
+      new URL("/portal/login?error=signups_closed", request.url)
+    );
+  }
+
   const fullName =
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||

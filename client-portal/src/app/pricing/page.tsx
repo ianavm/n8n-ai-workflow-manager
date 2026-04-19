@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { PricingCard } from "@/components/billing/PricingCard";
@@ -36,7 +35,6 @@ interface Addon {
 }
 
 export default function PricingPage() {
-  const router = useRouter();
   const supabase = createClient();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
@@ -69,7 +67,14 @@ export default function PricingPage() {
   }, [supabase]);
 
   function handleSelectPlan(slug: string) {
-    router.push(`/portal/signup?plan=${slug}&currency=${currency}`);
+    // Public signups are closed — route selections to a sales contact instead.
+    const subject = encodeURIComponent(
+      `Plan enquiry: ${slug} (${currency}, ${billingInterval})`
+    );
+    const body = encodeURIComponent(
+      `Hi AnyVision,\n\nI'd like to sign up for the ${slug} plan (${currency}, ${billingInterval}).\n\nCompany: \nName: \nPhone: \n\nThanks.`
+    );
+    window.location.href = `mailto:ian@anyvisionmedia.com?subject=${subject}&body=${body}`;
   }
 
   // Filter plans and addons by selected currency
@@ -143,8 +148,8 @@ export default function PricingPage() {
           >
             Log In
           </Link>
-          <Link
-            href="/portal/signup"
+          <a
+            href="mailto:ian@anyvisionmedia.com?subject=Portal%20access%20request"
             style={{
               background: "linear-gradient(135deg, #6C63FF, #00D4AA)",
               color: "#fff",
@@ -155,8 +160,8 @@ export default function PricingPage() {
               borderRadius: "12px",
             }}
           >
-            Get Started
-          </Link>
+            Contact Sales
+          </a>
         </div>
       </nav>
 
@@ -433,9 +438,10 @@ export default function PricingPage() {
                   priceMonthly={addon.price_monthly}
                   features={addon.features}
                   category={addon.category}
-                  onAction={(slug) =>
-                    router.push(`/portal/signup?addon=${slug}&currency=${currency}`)
-                  }
+                  onAction={(slug) => {
+                    const subject = encodeURIComponent(`Add-on enquiry: ${slug}`);
+                    window.location.href = `mailto:ian@anyvisionmedia.com?subject=${subject}`;
+                  }}
                 />
               ))}
             </div>

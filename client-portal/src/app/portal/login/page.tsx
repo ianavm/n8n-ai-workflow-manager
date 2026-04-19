@@ -1,12 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Mail, Lock, ShieldCheck } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 import Image from "next/image";
+
+const LOGIN_ERROR_MESSAGES: Record<string, string> = {
+  signups_closed:
+    "New signups are closed. Contact ian@anyvisionmedia.com to request portal access.",
+  signup_failed: "Sign-in failed. Please try again or contact support.",
+};
 
 export default function PortalLoginPage() {
   const [email, setEmail] = useState("");
@@ -19,8 +25,16 @@ export default function PortalLoginPage() {
   const [magicLinkMode, setMagicLinkMode] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const theme = useTheme();
+
+  useEffect(() => {
+    const errParam = searchParams?.get("error");
+    if (errParam && LOGIN_ERROR_MESSAGES[errParam]) {
+      setError(LOGIN_ERROR_MESSAGES[errParam]);
+    }
+  }, [searchParams]);
 
   async function handleGoogleLogin() {
     setError("");
@@ -326,18 +340,6 @@ export default function PortalLoginPage() {
                 </div>
               )}
 
-              {/* Create account link */}
-              {!resetMode && !magicLinkMode && (
-                <div className="text-center mt-4">
-                  <Link
-                    href="/portal/signup"
-                    className="text-[13px] text-[#71717A] no-underline"
-                  >
-                    Don&apos;t have an account?{" "}
-                    <span style={{ color: brandColor }}>Sign up</span>
-                  </Link>
-                </div>
-              )}
             </form>
           </>
         )}
