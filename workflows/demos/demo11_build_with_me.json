@@ -1,0 +1,269 @@
+{
+  "name": "DEMO-11 Build-With-Me Minimal Pipeline",
+  "nodes": [
+    {
+      "id": "04ddb777-590c-4fbb-a927-bf96d940c2aa",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "demo11-build-with-me",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo11-build-with-me",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "7f3a1b95-0345-4a95-a3a6-5d060c281664",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e2f3ba61-2f61-4342-9c29-4a01fa0b78b7",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "f553acee-1d35-4c41-aa42-dc07fcc86cd3",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ 'RUN-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "19c6e0b5-7539-4736-a824-a674469c9790",
+              "name": "sheetId",
+              "type": "string",
+              "value": "={{ $env.DEMO_SHEET_VOL2_ID || 'REPLACE_WITH_SHEET_ID' }}"
+            },
+            {
+              "id": "bb7fb418-f7f5-4b5b-b240-2f9a1b2e4aa8",
+              "name": "slackWebhook",
+              "type": "string",
+              "value": "={{ $env.SLACK_DEMO_WEBHOOK_URL || '' }}"
+            },
+            {
+              "id": "ce809df2-600a-462f-a892-c3fae9f96f32",
+              "name": "name",
+              "type": "string",
+              "value": "={{ $json.body?.name || $json.name || 'there' }}"
+            },
+            {
+              "id": "275cacf8-1b74-4a99-8175-1875cbb0b52a",
+              "name": "email",
+              "type": "string",
+              "value": "={{ $json.body?.email || $json.email }}"
+            },
+            {
+              "id": "0dd4ae8a-c65d-4e62-87bd-82441f754a94",
+              "name": "company",
+              "type": "string",
+              "value": "={{ $json.body?.company || $json.company || '' }}"
+            },
+            {
+              "id": "da42346a-630f-49f9-8f2b-f687d6828881",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.body?.message || $json.message || 'No message provided' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "90532931-6ab6-4203-b8fe-d4a908d1f02d",
+      "name": "AI Draft Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 450, temperature: 0.6, messages: [{role: 'user', content: `You are the founder replying to a new website lead from ` + ($json.company || 'their company') + `.\\n\\nLead name: ` + $json.name + `\\nTheir message: ` + $json.message + `\\n\\nReply in 3 short sentences. Be warm, specific to what they asked, suggest a quick call, sign off as Ian. HTML formatting allowed. No subject line, body only.`}] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "161ca758-f481-40af-b7d1-48187a8e8770",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        860,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $('Demo Config').first().json.email }}",
+        "subject": "='Thanks — re: ' + ($('Demo Config').first().json.message || 'your enquiry').slice(0, 48)",
+        "emailType": "html",
+        "message": "={{ $json.choices?.[0]?.message?.content || 'Thanks for reaching out — I will be in touch shortly.' }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "7077a791-2665-4324-9d7a-ee0bd4400ac3",
+      "name": "Log to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        860,
+        420
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Leads_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Name": "={{ $('Demo Config').first().json.name }}",
+            "Email": "={{ $('Demo Config').first().json.email }}",
+            "Source": "'webhook'",
+            "Intent": "'new-lead'",
+            "AI_Reply_Preview": "={{ ($('AI Draft Reply').first().json.choices?.[0]?.message?.content || '').slice(0, 240) }}",
+            "Status": "'replied'",
+            "Run_ID": "={{ $('Demo Config').first().json.runId }}",
+            "Workflow": "'DEMO-11'"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "69775217-c747-476c-8767-36f7b6778a9f",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'replied', runId: $('Demo Config').first().json.runId, emailSentTo: $('Demo Config').first().json.email }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "AI Draft Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Draft Reply": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reply": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -1,10 +1,123 @@
-# AVM Demo Workflows
+# AVM Demo Workflows — Sales Playbook
 
-Demo workflows for client presentations showcasing AnyVision Media's automation capabilities.
+Demo workflows built to be shown cold on prospect calls. Two volumes:
+
+- **Vol. 1** — content-ops demos (Video Clip Factory, UGC Ops, Comment Lead
+  Miner, Hook Lab). Airtable-backed. Setup: `tools/setup_demo_airtable.py`.
+- **Vol. 2** — lead / admin replacement demos (DEMO-05 through DEMO-13).
+  Google Sheets-backed (one master workbook, 9 tabs). Setup:
+  `tools/setup_demo_vol2_sheet.py`.
+
+All demos run in `DEMO_MODE=1` with inline fixtures so a cold demo needs
+no external API keys beyond Gmail / Sheets / OpenRouter.
 
 ---
 
-## WhatsApp -> AI -> CRM Pipeline
+## Vol. 1 — Content Ops Shortlist
+
+| # | Demo | File | Best for | Live-demo time |
+|---|------|------|----------|----------------|
+| 1 | **Video Clip Factory** | `demo01_video_clips.json` | Creators, podcasters, agencies, B2B founders with long-form content | ~90s |
+| 2 | **UGC Ops Autopilot** | `demo02_ugc_ops.json` | Ecommerce, DTC, CPG brands, performance agencies | ~2m |
+| 3 | **Comment Lead Miner** | `demo03_comment_leads.json` | B2B SaaS, service agencies, any brand running content + ads | ~60s |
+| 4 | **Hook Lab** | `demo04_hook_lab.json` | Solopreneurs, small teams, copywriters; easy upsell to #1 | ~60s |
+
+---
+
+## Vol. 2 — Lead & Admin Replacement Pack
+
+All 9 workflows share one master sheet — `AVM_Demo_Pack_Vol2` — with 9
+tabs (`Leads_Log`, `Meeting_Actions`, `CRM_Clients`, `Follow_Ups`,
+`Quotes_Log`, `Reminders`, `Gmail_Drafts_Log`, `Audit_Log`, `Demo_Control`).
+
+| # | Demo | File | Headline | Live-demo time |
+|---|------|------|----------|----------------|
+| 5 | **Instant Lead Reply Engine** | `demo05_lead_reply.json` | "Lead replied to in 20 seconds" | ~60s |
+| 6 | **Smart Lead Reply Bot (Inbox)** | `demo06_inbox_reply_bot.json` | "Every inbox lead gets a draft reply in 10s" | ~60s |
+| 7 | **Meeting Notes → Action Machine** | `demo07_meeting_notes.json` | "Meeting notes turned into action items instantly" | ~90s |
+| 8 | **Client Follow-Up Autopilot** | `demo08_followup_autopilot.json` | "Zero forgotten follow-ups, forever" | ~45s |
+| 9 | **Email → CRM Auto-Updater** | `demo09_email_crm_updater.json` | "No more manual Google Sheet updates" | ~75s |
+| 10 | **Logistics Quote Request Handler** | `demo10_logistics_quotes.json` | "Quote request handled automatically" | ~90s |
+| 11 | **Build-With-Me Minimal Pipeline** | `demo11_build_with_me.json` | "Built this in 90 seconds" | ~90s (built live) |
+| 12 | **Full Lead Handling Engine (Part 2)** | `demo12_full_lead_engine.json` | "From raw lead to CRM record in 15 seconds" | ~2m |
+| 13 | **Admin Replacement System** | `demo13_admin_replacement.json` | "Replace 3 admin jobs with one automation" | ~90s |
+
+Each demo has a dedicated SOP at `SOP_demo0X_*.md` with node-by-node
+walkthrough, demo narration, example input/output, and upsell path.
+
+---
+
+## Which to open with
+
+For content-ops prospects, lead with Demo 1 (Video Clip Factory).
+
+For **lead / admin prospects** (the much bigger pool):
+
+1. **DEMO-11 Build-With-Me** — opens the room. "Here's what it takes to build this. 6 nodes. 90 seconds."
+2. **DEMO-10 Logistics Quote Handler** — niche-specific credibility. Use for warehousing, 3PL, freight prospects, or any vertical where a tailored form exists.
+3. **DEMO-13 Admin Replacement System** — the closer. "One workflow, three admin jobs, every lead, forever."
+
+Hold DEMO-07 (Meeting Notes), DEMO-08 (Follow-Up Autopilot), and
+DEMO-09 (Email -> CRM) as second-round material after the first yes.
+
+---
+
+## First-time setup — Vol. 2
+
+```bash
+# 1. Create the master Google Sheet (requires GOOGLE_APPLICATION_CREDENTIALS)
+python tools/setup_demo_vol2_sheet.py
+
+# 2. Paste the printed DEMO_SHEET_VOL2_ID into .env
+
+# 3. (Optional) add SLACK_DEMO_WEBHOOK_URL for DEMO-07/08/12/13
+
+# 4. Build + deploy each workflow:
+python tools/deploy_demo_11_build_with_me.py deploy
+python tools/deploy_demo_05_lead_reply.py deploy
+python tools/deploy_demo_06_inbox_reply_bot.py activate    # Gmail trigger
+python tools/deploy_demo_07_meeting_notes.py deploy
+python tools/deploy_demo_08_followup_autopilot.py activate # Daily cron
+python tools/deploy_demo_09_email_crm_updater.py activate  # Gmail trigger
+python tools/deploy_demo_10_logistics_quotes.py deploy
+python tools/deploy_demo_12_full_lead_engine.py deploy
+python tools/deploy_demo_13_admin_replacement.py deploy
+```
+
+Webhook-triggered workflows (05, 07, 10, 11, 12, 13) don't need `activate`
+— `deploy` makes them reachable at their test URL. `activate` is only
+required for scheduled triggers (DEMO-08) and Gmail pollers (DEMO-06,
+DEMO-09).
+
+---
+
+## Running Vol. 2 cold (fixture mode)
+
+Every workflow defaults to `demoMode=1`. Inline fixture data means
+nothing external needs to be wired. Only three creds matter:
+
+| Layer | Demo cred ID | Fail mode if missing |
+|---|---|---|
+| Gmail OAuth | `2IuycrTIgWJZEjBE` | Email step fails; audit logs it; workflow still completes |
+| Google Sheets | `OkpDXxwI8WcUJp4P` | Sheet rows not appended; workflow still completes |
+| OpenRouter | `9ZgHenDBrFuyboov` | AI fallback copy used; workflow still produces visible output |
+| Slack webhook | env var only | Posts to `/DISABLED`, fails soft |
+
+---
+
+## Going live (production mode)
+
+Switch `demoMode=0` on the trigger payload and:
+
+- Gmail: connect client's own OAuth cred
+- Google Sheets: create a client-owned workbook mirroring the 9-tab schema (`setup_demo_vol2_sheet.py` can be pointed at an existing ID via `DEMO_SHEET_VOL2_ID`)
+- Slack: swap shared webhook for client workspace webhook
+- OpenRouter: set per-client budget cap
+- POPIA: capture consent on the form; append to `CRM_Clients` only after consent checkbox
+
+---
+
+## Legacy demo: WhatsApp -> AI -> CRM Pipeline
 
 **File:** `whatsapp_ai_crm_demo.json`
 
@@ -24,82 +137,6 @@ A complete AI-powered message intake pipeline that processes incoming WhatsApp m
 ### Node Count
 
 20 functional nodes + 5 sticky notes (documentation)
-
-### Key Technologies Shown
-
-| Technology | Usage |
-|-----------|-------|
-| **n8n Webhook** | Real-time HTTP endpoint for message intake |
-| **OpenRouter / Claude Sonnet** | AI classification, order extraction, lead scoring, reply generation |
-| **Airtable** | CRM record creation (orders and leads) |
-| **Switch Router** | Intelligent multi-path routing based on AI output |
-| **Code Nodes** | JSON parsing with error handling for AI responses |
-| **Respond to Webhook** | Structured JSON response back to the caller |
-
-### How to Use for Client Presentations
-
-#### Option A: Import into n8n (Live Demo)
-
-1. Open n8n Cloud (ianimmelman89.app.n8n.cloud)
-2. Create a new workflow and import `whatsapp_ai_crm_demo.json`
-3. Replace credential placeholders:
-   - `REPLACE_WITH_OPENROUTER_CRED_ID` -> your OpenRouter httpHeaderAuth credential
-   - `REPLACE_WITH_AIRTABLE_CRED_ID` -> your Airtable PAT credential
-   - `REPLACE_WITH_BASE_ID` -> target Airtable base
-   - `REPLACE_WITH_ORDERS_TABLE_ID` -> Orders table in Airtable
-   - `REPLACE_WITH_LEADS_TABLE_ID` -> Leads table in Airtable
-4. Activate the workflow
-5. Send test requests via curl or Postman (see examples below)
-
-#### Option B: Walkthrough (No Setup)
-
-Open the workflow in n8n's editor view. The sticky notes explain each section. Walk through the flow visually:
-- Start at "Receive WhatsApp Message" (left)
-- Show the AI classification step
-- Follow each branch to its outcome
-- Highlight the Airtable CRM integration
-
-### Test Payloads
-
-**Order:**
-```json
-POST /webhook/whatsapp-incoming
-{
-  "sender_name": "John Smith",
-  "phone": "+27821234567",
-  "message": "Hi, I'd like to order 5 branded videos for our product launch next month. Budget is around R15,000."
-}
-```
-
-**Lead:**
-```json
-POST /webhook/whatsapp-incoming
-{
-  "sender_name": "Sarah Johnson",
-  "phone": "+27839876543",
-  "message": "Hi there! I run a small restaurant in Fourways and I'm looking for help with social media marketing. What packages do you offer?"
-}
-```
-
-**Inquiry:**
-```json
-POST /webhook/whatsapp-incoming
-{
-  "sender_name": "Mike van der Berg",
-  "phone": "+27841112233",
-  "message": "What are your business hours? And do you offer SEO services?"
-}
-```
-
-**Complaint:**
-```json
-POST /webhook/whatsapp-incoming
-{
-  "sender_name": "Lisa Naidoo",
-  "phone": "+27825556677",
-  "message": "I'm very unhappy with the social media posts from last week. They had spelling errors and the wrong images were used. I want this fixed immediately."
-}
-```
 
 ### Client Talking Points
 

@@ -1,0 +1,579 @@
+{
+  "name": "DEMO-06 Smart Lead Reply Bot (Inbox)",
+  "nodes": [
+    {
+      "id": "cc37a1d9-b035-4a25-ac4a-02b76dd35b71",
+      "name": "Gmail Trigger (leads label)",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "labelIds": [
+            "INBOX"
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a105a69c-dcad-42f9-964c-6bb9c0c523e2",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        420
+      ],
+      "webhookId": "demo06-inbox-reply-bot",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo06-inbox-reply-bot",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "2b7228fa-f6fc-4818-972d-f436d97b9aae",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4e072af9-3110-41fd-8250-805ca13275a4",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "50ceffc0-9e17-43f0-a0b9-ac4221574575",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ 'RUN-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "bb42777a-becc-4906-9469-9cfd976bb16e",
+              "name": "sheetId",
+              "type": "string",
+              "value": "={{ $env.DEMO_SHEET_VOL2_ID || 'REPLACE_WITH_SHEET_ID' }}"
+            },
+            {
+              "id": "d9ac972c-e3f9-40db-970a-ef613d77c42f",
+              "name": "slackWebhook",
+              "type": "string",
+              "value": "={{ $env.SLACK_DEMO_WEBHOOK_URL || '' }}"
+            },
+            {
+              "id": "8ef07c31-8283-4a12-ae55-1485f293c26a",
+              "name": "fixtureData",
+              "type": "string",
+              "value": "{\"threadId\": \"thread-fx-06-001\", \"messageId\": \"msg-fx-06-002\", \"from\": {\"name\": \"Thandi Dlamini\", \"email\": \"thandi@greenleaf.co.za\"}, \"subject\": \"Re: Interested in automation — quick question\", \"priorMessages\": [{\"from\": \"ian@anyvisionmedia.com\", \"body\": \"Hi Thandi — great chatting yesterday. Sending through a short note on how we'd approach automating your customer follow-ups. Let me know what you think.\", \"date\": \"2026-04-18T10:12:00Z\"}], \"latestMessage\": {\"body\": \"Hi Ian, thanks for the note. Two quick questions before we book a call: (1) do you integrate with Shopify, and (2) what does pricing look like for a team of 6? Aiming to decide by Friday.\", \"date\": \"2026-04-20T08:43:00Z\"}}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f143b3f1-60d7-496d-bee1-397806c50442",
+      "name": "DEMO_MODE Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "6d9ced18-4b88-4427-8e99-50d3d6d04569",
+      "name": "Load Fixture Thread",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst t = JSON.parse(cfg.fixtureData);\nreturn [{ json: { ...t, runId: cfg.runId, source: 'fixture' } }];\n"
+      }
+    },
+    {
+      "id": "f62b3a2c-23e2-4044-bb99-47859a17d5b5",
+      "name": "Extract Live Thread",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst raw = $json;\nconst from = raw.from || raw.payload?.headers?.find(h => h.name === 'From')?.value || 'unknown';\nconst subject = raw.subject || raw.payload?.headers?.find(h => h.name === 'Subject')?.value || '(no subject)';\nconst body = raw.snippet || raw.textPlain || raw.html || raw.body || '';\nreturn [{\n  json: {\n    threadId: raw.threadId || raw.id,\n    messageId: raw.id,\n    from: { name: String(from).split('<')[0].trim(), email: String(from).match(/<([^>]+)>/)?.[1] || from },\n    subject,\n    latestMessage: { body, date: new Date().toISOString() },\n    priorMessages: [],\n    runId: cfg.runId,\n    source: 'gmail',\n  }\n}];"
+      }
+    },
+    {
+      "id": "d1693af9-4633-4619-a880-4cb8233c081c",
+      "name": "Merge Thread Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "d7dd964b-30fd-458a-b3a0-563c5e76ffb4",
+      "name": "Build Draft Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $input.first().json;\nconst prompt = `You are Ian Immelman, founder of AnyVision Media (AI automation\nagency, Johannesburg). You are drafting a reply to the LATEST message in the\nthread below. Keep your voice: direct, warm, specific, no filler, no emoji.\n\nGuidance:\n- Answer their exact questions. If you don't know a number, commit to sending\n  it in the next reply.\n- Always suggest a next step (15-min call, link to a one-pager, or a specific\n  timeline).\n- 3-5 sentences max. HTML allowed.\n- Output STRICT JSON only, no markdown fences:\n  { \"draftBody\": \"...\", \"draftSubject\": \"Re: ...\" }\n\nThread:\n${JSON.stringify($json, null, 2)}`;\nreturn [{ json: { ...t, prompt } }];\n"
+      }
+    },
+    {
+      "id": "169ad4e6-77d4-442b-a211-725180da8e46",
+      "name": "AI Draft Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 650, temperature: 0.5, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "a232fe2d-7768-4bef-808c-3c630335bc26",
+      "name": "Parse Draft",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Build Draft Prompt').first().json;\nconst resp = $input.first().json || {};\nconst raw = resp.choices?.[0]?.message?.content || '';\nconst cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\nlet parsed = { draftBody: null, draftSubject: null };\ntry { parsed = cleaned ? JSON.parse(cleaned) : parsed; } catch (e) {}\nconst fallbackBody = (t.latestMessage?.body || '').slice(0, 160);\nreturn [{\n  json: {\n    ...t,\n    draftBody: parsed.draftBody || `Thanks for the note — I will come back to you within the next business day.\\n\\n(Auto-draft fallback based on: ${fallbackBody})`,\n    draftSubject: parsed.draftSubject || `Re: ${t.subject || 'your message'}`,\n  }\n}];"
+      }
+    },
+    {
+      "id": "97d76c87-8987-463d-87d4-68b5001bd716",
+      "name": "Save Draft in Thread",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1960,
+        260
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "subject": "={{ $json.draftSubject }}",
+        "message": "={{ $json.draftBody }}",
+        "emailType": "html",
+        "options": {
+          "sendTo": "={{ $json.from.email }}",
+          "appendAttribution": false,
+          "threadId": "={{ $json.threadId }}"
+        }
+      }
+    },
+    {
+      "id": "430eb17e-8e81-42b4-9006-125ea9f10d59",
+      "name": "Log Draft",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        260
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Gmail_Drafts_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Thread_ID": "={{ $json.threadId }}",
+            "From": "={{ $json.from.email }}",
+            "Subject": "={{ $json.draftSubject }}",
+            "Draft_Preview": "={{ ($json.draftBody || '').slice(0, 240) }}",
+            "Approved": "'pending-review'",
+            "Run_ID": "={{ $json.runId }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "c9fa78c4-b778-4ddc-86e8-b2f09bf13947",
+      "name": "Log Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2440,
+        260
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Leads_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Name": "={{ $json.from.name }}",
+            "Email": "={{ $json.from.email }}",
+            "Source": "'gmail-inbox'",
+            "Intent": "'inbox-reply'",
+            "AI_Reply_Preview": "={{ ($json.draftBody || '').slice(0, 240) }}",
+            "Status": "'draft-created'",
+            "Run_ID": "={{ $json.runId }}",
+            "Workflow": "'DEMO-06'"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "aade0132-d241-41c5-af35-4318a5009550",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2680,
+        260
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Audit_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Workflow": "'DEMO-06'",
+            "Run_ID": "={{ $('Demo Config').first().json.runId }}",
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Action": "={{ 'run_complete' }}",
+            "Status": "={{ 'ok' }}",
+            "Error_Message": "={{ '' }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Gmail Trigger (leads label)": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "DEMO_MODE Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DEMO_MODE Switch": {
+      "main": [
+        [
+          {
+            "node": "Load Fixture Thread",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Live Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Fixture Thread": {
+      "main": [
+        [
+          {
+            "node": "Merge Thread Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Live Thread": {
+      "main": [
+        [
+          {
+            "node": "Merge Thread Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Thread Sources": {
+      "main": [
+        [
+          {
+            "node": "Build Draft Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Draft Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Draft Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Draft Reply": {
+      "main": [
+        [
+          {
+            "node": "Parse Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Draft": {
+      "main": [
+        [
+          {
+            "node": "Save Draft in Thread",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Draft in Thread": {
+      "main": [
+        [
+          {
+            "node": "Log Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Draft": {
+      "main": [
+        [
+          {
+            "node": "Log Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Lead": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

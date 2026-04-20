@@ -1,0 +1,620 @@
+{
+  "name": "DEMO-09 Email -> CRM Auto-Updater",
+  "nodes": [
+    {
+      "id": "a19b36f1-57a9-48c7-b602-e74ebd76d7a4",
+      "name": "Gmail Inbox Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "labelIds": [
+            "INBOX"
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "43e77894-ef82-4697-8106-8d5971996f49",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        420
+      ],
+      "webhookId": "demo09-email-crm",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo09-email-crm",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "1c48bbbe-7675-4558-a62c-f76db1c56dfe",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "81d77d01-486e-478e-8f18-bd9d99be0b6a",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "29a7d015-6166-4fef-aa74-7892ddb14435",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ 'RUN-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "f6c8b90a-a0b3-4970-9d4b-85869d27e1ae",
+              "name": "sheetId",
+              "type": "string",
+              "value": "={{ $env.DEMO_SHEET_VOL2_ID || 'REPLACE_WITH_SHEET_ID' }}"
+            },
+            {
+              "id": "150b7e0c-f7e8-432b-a877-b45aa05187c0",
+              "name": "slackWebhook",
+              "type": "string",
+              "value": "={{ $env.SLACK_DEMO_WEBHOOK_URL || '' }}"
+            },
+            {
+              "id": "a5d5f1e5-12bd-4155-b666-273fa0ec3267",
+              "name": "fixtureData",
+              "type": "string",
+              "value": "{\"threadId\": \"thread-fx-09-001\", \"messageId\": \"msg-fx-09-001\", \"from\": \"Naledi van Wyk <naledi@bluehorizon.co.za>\", \"subject\": \"Intro — Blue Horizon Consulting wants to explore automation\", \"body\": \"Hi Ian,\\n\\nWe spoke briefly at the JCCI breakfast last month. I run Blue Horizon Consulting (20-person boutique, mostly corporate strategy work). We're drowning in admin — client onboarding, status reports, follow-ups. \\n\\nWould love to chat about what automation could do for us. My direct line is +27 82 413 6609, and I'm generally free after 2pm on Tuesdays and Thursdays.\\n\\nLooking at a 3-6 month engagement, budget R20-40k/mo depending on scope.\\n\\nNaledi\\nManaging Partner | Blue Horizon Consulting\", \"date\": \"2026-04-20T08:14:00Z\"}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "acc4f285-17f0-4ca1-b7be-81280006b078",
+      "name": "DEMO_MODE Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "31648ec8-fec0-4ea4-8a70-2877dfd08911",
+      "name": "Load Fixture Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst m = JSON.parse(cfg.fixtureData);\nreturn [{ json: { ...m, runId: cfg.runId } }];\n"
+      }
+    },
+    {
+      "id": "75da5143-53fb-493c-942d-ab55160959d8",
+      "name": "Normalise Gmail Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst raw = $json;\nconst headers = raw.payload?.headers || [];\nconst h = (n) => headers.find(x => x.name?.toLowerCase() === n.toLowerCase())?.value || '';\nreturn [{\n  json: {\n    threadId: raw.threadId || raw.id,\n    messageId: raw.id,\n    from: h('From') || raw.from || 'unknown',\n    subject: h('Subject') || raw.subject || '(no subject)',\n    body: raw.snippet || raw.textPlain || raw.body || '',\n    date: h('Date') || new Date().toISOString(),\n    runId: cfg.runId,\n  }\n}];"
+      }
+    },
+    {
+      "id": "2ccaca04-7f27-4cd0-954f-f18078588d01",
+      "name": "Merge Email Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "aa85ab73-b8da-4423-8a34-d111eead4d7f",
+      "name": "Build Extract Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const msg = $input.first().json;\nconst prompt = `You are a CRM data extractor. Read the email below and extract\nthe sender's structured details. Return STRICT JSON ONLY (no prose, no markdown\nfences), with these keys:\n\n  {\n    \"name\": \"...\",\n    \"company\": \"...\",\n    \"email\": \"...\",\n    \"phone\": \"...|null\",\n    \"ask\": \"one-sentence summary of what they want\",\n    \"budgetZAR\": \"string or null, preserve their wording e.g. 'R20-40k/mo'\",\n    \"availability\": \"string or null, e.g. 'Tue/Thu after 2pm'\",\n    \"leadScore\": 1-10,\n    \"shouldAcknowledge\": true|false,\n    \"acknowledgementBody\": \"<p>...</p>\" (HTML, 3 short sentences, sign off as Ian)\n  }\n\nRules:\n- If you cannot confidently identify a field, use null (never invent data).\n- shouldAcknowledge = false only if the email is clearly spam or an auto-\n  responder bounce.\n- leadScore rubric: 10 = ready-to-buy with budget + timeline; 5 = curious;\n  1 = unrelated/noise.\n\nEmail:\n${JSON.stringify($json, null, 2)}`;\nreturn [{ json: { ...msg, prompt } }];\n"
+      }
+    },
+    {
+      "id": "5637c050-f436-4097-85a9-def0c5ab8a92",
+      "name": "AI Extract CRM Fields",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 900, temperature: 0.2, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "31060540-d7f2-4b5a-9877-69e1a21abe4f",
+      "name": "Parse Extracted Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const msg = $('Build Extract Prompt').first().json;\nconst resp = $input.first().json || {};\nconst raw = resp.choices?.[0]?.message?.content || '';\nconst cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\nlet parsed = {};\ntry { parsed = cleaned ? JSON.parse(cleaned) : {}; } catch (e) {}\n\nfunction deriveEmail(from) {\n  const m = String(from).match(/<([^>]+)>/);\n  return m ? m[1] : (String(from).includes('@') ? String(from).trim() : '');\n}\n\nconst emailAddr = parsed.email || deriveEmail(msg.from) || '';\nconst safeName = parsed.name || String(msg.from).split('<')[0].replace(/\"/g, '').trim() || 'Unknown';\n\nreturn [{\n  json: {\n    ...msg,\n    clientId: `CLT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,\n    name: safeName,\n    company: parsed.company || '',\n    email: emailAddr,\n    phone: parsed.phone || '',\n    ask: parsed.ask || msg.subject || '',\n    budgetZAR: parsed.budgetZAR || '',\n    availability: parsed.availability || '',\n    leadScore: Number(parsed.leadScore) || 3,\n    shouldAcknowledge: parsed.shouldAcknowledge !== false && !!emailAddr,\n    acknowledgementBody: parsed.acknowledgementBody || `<p>Thanks for reaching out — I will come back to you within one business day.</p><p>Ian</p>`,\n  }\n}];"
+      }
+    },
+    {
+      "id": "f38406c6-5ca8-4b92-849e-f9373901f6e4",
+      "name": "Has Actionable Fields?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "964e4f49-d743-41ed-bcff-7fbeb4e8bc3c",
+              "leftValue": "={{ $json.shouldAcknowledge }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "959cdd5d-5a96-43f3-8c27-e4eba424a804",
+      "name": "Upsert Client Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "CRM_Clients"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Client_ID": "={{ $json.clientId }}",
+            "Name": "={{ $json.name }}",
+            "Company": "={{ $json.company }}",
+            "Email": "={{ $json.email }}",
+            "Phone": "={{ $json.phone }}",
+            "Last_Contacted": "={{ new Date().toISOString() }}",
+            "Ask": "={{ $json.ask }}",
+            "Status": "'inbox-captured'",
+            "Notes": "={{ 'score=' + $json.leadScore + ' budget=' + $json.budgetZAR + ' availability=' + $json.availability }}",
+            "Run_ID": "={{ $json.runId }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "7a7d895e-0100-4daa-894c-ece75a2e6d9b",
+      "name": "Send Acknowledgement",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2440,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "='Got it — ' + ($json.company || $json.name) + ' | next step'",
+        "emailType": "html",
+        "message": "={{ $json.acknowledgementBody }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "371f37bc-4c11-4115-86f4-61720991b943",
+      "name": "Skip Action",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        420
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "e21c0558-f6be-4ab1-9c28-6dcfa72910b4",
+      "name": "Merge End",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2680,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "151366d7-7b4d-4aae-b8d0-ff3f5e28e0c1",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2920,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Audit_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Workflow": "'DEMO-09'",
+            "Run_ID": "={{ $('Demo Config').first().json.runId }}",
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Action": "={{ 'run_complete' }}",
+            "Status": "={{ 'ok' }}",
+            "Error_Message": "={{ '' }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Gmail Inbox Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "DEMO_MODE Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DEMO_MODE Switch": {
+      "main": [
+        [
+          {
+            "node": "Load Fixture Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalise Gmail Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Fixture Email": {
+      "main": [
+        [
+          {
+            "node": "Merge Email Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Gmail Payload": {
+      "main": [
+        [
+          {
+            "node": "Merge Email Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Email Sources": {
+      "main": [
+        [
+          {
+            "node": "Build Extract Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Extract Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Extract CRM Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Extract CRM Fields": {
+      "main": [
+        [
+          {
+            "node": "Parse Extracted Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Extracted Fields": {
+      "main": [
+        [
+          {
+            "node": "Has Actionable Fields?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Actionable Fields?": {
+      "main": [
+        [
+          {
+            "node": "Upsert Client Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Client Row": {
+      "main": [
+        [
+          {
+            "node": "Send Acknowledgement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Acknowledgement": {
+      "main": [
+        [
+          {
+            "node": "Merge End",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Action": {
+      "main": [
+        [
+          {
+            "node": "Merge End",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge End": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

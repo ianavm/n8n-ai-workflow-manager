@@ -1,0 +1,805 @@
+{
+  "name": "DEMO-12 Full Lead Handling Engine",
+  "nodes": [
+    {
+      "id": "b9d241cb-f88f-4755-8a41-118f1432d650",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "demo12-full-lead-engine",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo12-full-lead-engine",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "cc8ade34-d42d-40f3-8696-51f13fb8f30d",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8c841e49-43fe-4ad7-9d92-4d7561a5778a",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "a0ad3d98-079f-4978-a00e-422eaa7962f8",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ 'RUN-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "569d3754-8355-4234-a911-65ea32d05f79",
+              "name": "sheetId",
+              "type": "string",
+              "value": "={{ $env.DEMO_SHEET_VOL2_ID || 'REPLACE_WITH_SHEET_ID' }}"
+            },
+            {
+              "id": "c09e8e7c-f31c-4892-a7a5-4ac5c186cc14",
+              "name": "slackWebhook",
+              "type": "string",
+              "value": "={{ $env.SLACK_DEMO_WEBHOOK_URL || '' }}"
+            },
+            {
+              "id": "080e3fe9-6e29-4a0d-b21a-5b646af2f0d7",
+              "name": "fixtureData",
+              "type": "string",
+              "value": "{\"name\": \"Lerato Mofokeng\", \"email\": \"lerato@riverviewlaw.co.za\", \"company\": \"Riverview Law Chambers\", \"phone\": \"+27 82 333 0199\", \"source\": \"landing-page\", \"message\": \"We're a 12-attorney boutique firm looking to automate client intake, case-file summaries, and billing reminders. Read your LinkedIn post on GPTs for legal — would love a 20-min call to compare notes on security/POPIA considerations. Budget is R30-50k/mo for the first engagement.\"}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ea632bff-50f3-4772-81c5-c063b7af1f6f",
+      "name": "DEMO_MODE Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "830cac0e-faf9-4883-843c-81432ac60784",
+      "name": "Load Fixture Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst l = JSON.parse(cfg.fixtureData);\nreturn [{ json: { ...l, runId: cfg.runId, source: l.source || 'fixture' } }];"
+      }
+    },
+    {
+      "id": "19220d07-a1e1-4642-b612-7bfa20ac65a3",
+      "name": "Validate + Normalise Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst body = $json.body || $json;\nconst email = String(body.email || '').trim().toLowerCase();\nconst emailOk = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\nreturn [{\n  json: {\n    name: body.name || 'there',\n    email,\n    company: body.company || '',\n    phone: body.phone || '',\n    source: body.source || 'webhook',\n    message: body.message || '',\n    runId: cfg.runId,\n    emailOk,\n  }\n}];"
+      }
+    },
+    {
+      "id": "d8bea869-3034-4a7b-9f35-105d3b394233",
+      "name": "Merge Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "95ab06de-7f22-4f17-ae76-83031f4cfb34",
+      "name": "Validate Email",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ec5cac12-f5e3-455d-8ab9-7dda23bf8b9f",
+              "leftValue": "={{ $json.emailOk !== false && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test($json.email || '') }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "76595f53-64ad-4061-adfb-53acc1c21557",
+      "name": "Read CRM_Clients",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1520,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "CRM_Clients"
+        },
+        "options": {
+          "range": "A:Z"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "0fd592aa-81b6-42a6-999e-cc4a5b8249e3",
+      "name": "Dedup + Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const existing = $input.all().map(i => i.json);\nconst lead = $('Validate Email').first().json;\nconst match = existing.find(r => (r.Email || '').toLowerCase() === lead.email);\nconst existingClient = Boolean(match);\nconst prompt = `You are a senior SDR for AnyVision Media. For the lead\nbelow, do three things and return STRICT JSON (no fences):\n\n  {\n    \"industry\": \"single-line industry classification\",\n    \"companySizeGuess\": \"SMB|mid-market|enterprise (best guess)\",\n    \"leadScore\": 1-10,\n    \"intent\": \"hot|question|generic\",\n    \"subjectLine\": \"...\",\n    \"replyHtml\": \"<p>...</p> (3-4 sentences, personalised, offer a specific 20-min slot, sign as Ian)\"\n  }\n\nInputs include an ``existingClient`` flag. If existingClient=true, the reply\nshould reference prior context gently; if false, introduce yourself briefly.\n\nLead:\n${JSON.stringify($json, null, 2)}`;\nreturn [{\n  json: {\n    ...lead,\n    existingClient,\n    existingNotes: match ? match.Notes : '',\n    clientId: match?.Client_ID || `CLT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,\n    prompt,\n  }\n}];\n"
+      }
+    },
+    {
+      "id": "06cb0a8c-c3db-4227-98ef-5adbc396ef45",
+      "name": "AI Enrich + Draft Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1960,
+        200
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 900, temperature: 0.4, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "b8833e2b-94c0-4ada-9887-a1bc2b978db1",
+      "name": "Parse Enrichment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const src = $('Dedup + Build Prompt').first().json;\nconst resp = $input.first().json || {};\nconst raw = resp.choices?.[0]?.message?.content || '';\nconst cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\nlet parsed = {};\ntry { parsed = cleaned ? JSON.parse(cleaned) : {}; } catch (e) {}\n\nconst score = Number(parsed.leadScore) || 5;\n\nreturn [{\n  json: {\n    ...src,\n    industry: parsed.industry || 'unknown',\n    companySizeGuess: parsed.companySizeGuess || 'SMB',\n    leadScore: score,\n    intent: parsed.intent || 'question',\n    hot: score >= 7,\n    subjectLine: parsed.subjectLine || `Re: ${src.company || src.name}`,\n    replyHtml: parsed.replyHtml || `<p>Thanks for reaching out — I will follow up within one business day.</p><p>Ian</p>`,\n  }\n}];"
+      }
+    },
+    {
+      "id": "9285ebaa-6e0e-43c0-b1da-ce6afe483140",
+      "name": "Upsert CRM Client",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2440,
+        100
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "CRM_Clients"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Client_ID": "={{ $json.clientId }}",
+            "Name": "={{ $json.name }}",
+            "Company": "={{ $json.company }}",
+            "Email": "={{ $json.email }}",
+            "Phone": "={{ $json.phone }}",
+            "Last_Contacted": "={{ new Date().toISOString() }}",
+            "Ask": "={{ ($json.message || '').slice(0, 240) }}",
+            "Status": "={{ $json.hot ? 'hot-new' : ($json.existingClient ? 'existing-touch' : 'new') }}",
+            "Notes": "={{ 'industry=' + $json.industry + ' size=' + $json.companySizeGuess + ' score=' + $json.leadScore + ' intent=' + $json.intent }}",
+            "Run_ID": "={{ $json.runId }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "665b768a-ee1e-49e9-8b6b-29b81c0dc13a",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2440,
+        260
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subjectLine }}",
+        "emailType": "html",
+        "message": "={{ $json.replyHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "aba4e82d-c218-4a45-9e8d-bb12f075edb1",
+      "name": "Slack Ping Sales",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2440,
+        420
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Demo Config').first().json.slackWebhook || 'https://hooks.slack.com/services/DISABLED' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: 'New lead ' + ($json.hot ? ':fire: ' : '') + '(' + $json.leadScore + '/10, ' + $json.intent + ')\\n' + 'From: ' + $json.name + ' <' + $json.email + '>\\n' + 'Company: ' + ($json.company || '-') + '\\nAsk: ' + ($json.message || '').slice(0, 240) }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "e957cee2-2536-4ccb-aec2-62ef363d628d",
+      "name": "Schedule 24h Follow-Up",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2680,
+        260
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Follow_Ups"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Follow_Up_ID": "={{ 'FU-' + $json.clientId }}",
+            "Related_Record": "={{ $json.clientId }}",
+            "Contact": "={{ $json.email }}",
+            "Scheduled_For": "={{ new Date(Date.now() + 1000*60*60*24).toISOString().slice(0, 10) }}",
+            "Type": "'lead-nurture'",
+            "Status": "'due'",
+            "Last_Action": "'auto-reply-sent'",
+            "Notes": "={{ 'Check in on ' + $json.company + ' - score ' + $json.leadScore }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "1f120d79-c1fd-450b-9095-db30664afc9c",
+      "name": "Flag Invalid",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{\n  json: {\n    status: 'invalid_email',\n    runId: $('Demo Config').first().json.runId,\n    reason: 'email failed regex validation',\n    email: $json.email || '',\n  }\n}];"
+      }
+    },
+    {
+      "id": "844789a4-36a5-4590-b7dc-0c33de51aedb",
+      "name": "Log Invalid Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1740,
+        420
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Leads_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Name": "={{ $json.name || '' }}",
+            "Email": "={{ $json.email || '' }}",
+            "Source": "'webhook'",
+            "Intent": "'invalid-email'",
+            "AI_Reply_Preview": "''",
+            "Status": "'rejected'",
+            "Run_ID": "={{ $json.runId }}",
+            "Workflow": "'DEMO-12'"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "e2122eee-1fe2-4f87-92fb-c808585ece98",
+      "name": "Merge End",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2920,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "87c9f668-b815-4433-bba2-ec8748a1f49e",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3160,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Audit_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Workflow": "'DEMO-12'",
+            "Run_ID": "={{ $('Demo Config').first().json.runId }}",
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Action": "={{ 'run_complete' }}",
+            "Status": "={{ 'ok' }}",
+            "Error_Message": "={{ '' }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "d10d030f-ab0b-4337-964c-0cd90f55819a",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3400,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({runId: $('Demo Config').first().json.runId, status: $json.status || 'processed' }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "DEMO_MODE Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DEMO_MODE Switch": {
+      "main": [
+        [
+          {
+            "node": "Load Fixture Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate + Normalise Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Fixture Lead": {
+      "main": [
+        [
+          {
+            "node": "Merge Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate + Normalise Input": {
+      "main": [
+        [
+          {
+            "node": "Merge Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Sources": {
+      "main": [
+        [
+          {
+            "node": "Validate Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Email": {
+      "main": [
+        [
+          {
+            "node": "Read CRM_Clients",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flag Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read CRM_Clients": {
+      "main": [
+        [
+          {
+            "node": "Dedup + Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup + Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Enrich + Draft Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Enrich + Draft Reply": {
+      "main": [
+        [
+          {
+            "node": "Parse Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Upsert CRM Client",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Slack Ping Sales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert CRM Client": {
+      "main": [
+        [
+          {
+            "node": "Schedule 24h Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reply": {
+      "main": [
+        [
+          {
+            "node": "Schedule 24h Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Ping Sales": {
+      "main": [
+        [
+          {
+            "node": "Schedule 24h Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule 24h Follow-Up": {
+      "main": [
+        [
+          {
+            "node": "Merge End",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag Invalid": {
+      "main": [
+        [
+          {
+            "node": "Log Invalid Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Invalid Lead": {
+      "main": [
+        [
+          {
+            "node": "Merge End",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge End": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

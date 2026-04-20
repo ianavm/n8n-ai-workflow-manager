@@ -1,0 +1,510 @@
+{
+  "name": "DEMO-08 Client Follow-Up Autopilot",
+  "nodes": [
+    {
+      "id": "a86de58c-4ae6-4e54-8b5b-6d272a368e53",
+      "name": "Daily 09:00 SAST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 9 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e91ad363-e057-45a4-a86d-14396706b1e1",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        420
+      ],
+      "webhookId": "demo08-followup-autopilot",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo08-followup-autopilot",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "236f40da-59a7-406c-a3e6-01596baab1b6",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "50191c5c-560e-4299-b172-167c5afd0a32",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "25e0de20-c2fc-4a65-9db9-c9c17cc44d3b",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ 'RUN-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "866eba6c-338d-4603-a586-bbe8c58159f8",
+              "name": "sheetId",
+              "type": "string",
+              "value": "={{ $env.DEMO_SHEET_VOL2_ID || 'REPLACE_WITH_SHEET_ID' }}"
+            },
+            {
+              "id": "19a1a051-2777-4089-9346-59d4afa10394",
+              "name": "slackWebhook",
+              "type": "string",
+              "value": "={{ $env.SLACK_DEMO_WEBHOOK_URL || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "db751267-a3a3-4948-938f-e74b1f3ec195",
+      "name": "Read Follow_Ups Tab",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        640,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Follow_Ups"
+        },
+        "options": {
+          "range": "A:Z"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ebab9bf6-6e66-443b-9447-ea6cf6eea524",
+      "name": "Filter Due Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst today = new Date().toISOString().slice(0, 10);\nconst due = rows.filter(r => (r.Status || '').toLowerCase() === 'due'\n  && (r.Scheduled_For || '') <= today);\n\n// If there are no due rows AND we are in demo mode, inject fixture seeds\n// so the workflow always has something to show on camera.\nconst cfg = $('Demo Config').first().json;\nif (due.length === 0 && String(cfg.demoMode) === '1') {\n  const seeds = [{'Follow_Up_ID': 'FU-DEMO-001', 'Related_Record': 'Q-2026-0123', 'Contact': 'naledi@bluehorizon.co.za', 'Scheduled_For': '2026-04-19', 'Type': 'check-in', 'Status': 'due', 'Last_Action': 'intro-call-2026-04-12', 'Notes': 'Asked about automation for client onboarding. Decided nothing yet.'}, {'Follow_Up_ID': 'FU-DEMO-002', 'Related_Record': 'LEAD-88', 'Contact': 'pieter@karoocraft.co.za', 'Scheduled_For': '2026-04-20', 'Type': 'quote-followup', 'Status': 'due', 'Last_Action': 'quote-sent-2026-04-17', 'Notes': 'Sent freight quote R82k. No response in 3 days.'}];\n  return JSON.parse(JSON.stringify(seeds)).map(s => ({ json: { ...s, _seeded: true } }));\n}\nreturn due.map(r => ({ json: r }));\n"
+      }
+    },
+    {
+      "id": "8e9d679f-811a-4944-813b-1393e09067aa",
+      "name": "Build Per-Row Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const r = $json;\nconst prompt = `You are Ian Immelman, founder of AnyVision Media, writing a\npersonalised re-engagement email based on the follow-up record below.\n\nRules:\n- 3 short sentences. No filler, no emoji, no \"just checking in\".\n- Reference the specific last_action / notes so it reads human.\n- End with a concrete next step (a specific time slot, a link, or a\n  \"reply yes and I'll send the proposal\").\n- STRICT JSON OUTPUT ONLY, no markdown:\n    { \"subject\": \"...\", \"bodyHtml\": \"<p>...</p>\" }\n\nRecord:\n${JSON.stringify($json, null, 2)}`;\nreturn [{ json: { ...r, prompt } }];\n"
+      }
+    },
+    {
+      "id": "e8cca569-b99c-45d9-bb84-9326ad337556",
+      "name": "AI Personalise Follow-Up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 500, temperature: 0.5, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "d3c70e1b-72de-4b2f-85a3-24fe19740554",
+      "name": "Parse Follow-Up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const src = $('Build Per-Row Prompt').first().json;\nconst resp = $input.first().json || {};\nconst raw = resp.choices?.[0]?.message?.content || '';\nconst cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\nlet parsed = {};\ntry { parsed = cleaned ? JSON.parse(cleaned) : {}; } catch (e) {}\nreturn [{\n  json: {\n    ...src,\n    subject: parsed.subject || `Quick follow-up on ${src.Related_Record || 'our last chat'}`,\n    bodyHtml: parsed.bodyHtml || `<p>Hi, just circling back on the ${src.Type || 'follow-up'} from ${src.Last_Action || 'earlier'}. Let me know if helpful.</p><p>Ian</p>`,\n  }\n}];"
+      }
+    },
+    {
+      "id": "c848e887-638a-4bff-860d-a55adec7d90f",
+      "name": "Send Follow-Up Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1740,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $json.Contact }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.bodyHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "a03d775d-fa81-4a9b-a32e-d9d54f2ecba1",
+      "name": "Mark Row Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1960,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Follow_Ups"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Follow_Up_ID": "={{ $json.Follow_Up_ID }}",
+            "Status": "'sent'",
+            "Last_Action": "={{ 'followup-sent-' + new Date().toISOString().slice(0, 10) }}",
+            "Notes": "={{ $json.Notes }}"
+          },
+          "matchingColumns": [
+            "Follow_Up_ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "bbb7404d-9c0b-45bf-97c0-4321d053d046",
+      "name": "Aggregate Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const all = $input.all().map(i => i.json);\nconst runId = $('Demo Config').first().json.runId;\nconst slackText = all.length === 0\n  ? `_No follow-ups due today (run ${runId})._`\n  : `*Follow-up autopilot* sent ${all.length} personalised emails:\\n` +\n    all.map(r => `- ${r.Contact} (${r.Type || 'follow-up'})`).join('\\n');\nreturn [{\n  json: {\n    runId,\n    processed: all.length,\n    contacts: all.map(r => r.Contact),\n    slackText,\n  }\n}];"
+      }
+    },
+    {
+      "id": "8f665e29-c5de-4ad7-ae03-817a9d3b3fa2",
+      "name": "Slack Digest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2440,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Demo Config').first().json.slackWebhook || 'https://hooks.slack.com/services/DISABLED' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.slackText }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "1bc5f082-85ce-407d-b519-2a4a5faf2453",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2680,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Audit_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Workflow": "'DEMO-08'",
+            "Run_ID": "={{ $('Demo Config').first().json.runId }}",
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Action": "={{ 'run_complete' }}",
+            "Status": "={{ 'ok' }}",
+            "Error_Message": "={{ '' }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "a3321e96-0065-4e28-a31c-3097a0d68cfa",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2920,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({status: 'complete', runId: $('Aggregate Summary').first().json.runId, processed: $('Aggregate Summary').first().json.processed, contacts: $('Aggregate Summary').first().json.contacts }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Daily 09:00 SAST": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "Read Follow_Ups Tab",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Follow_Ups Tab": {
+      "main": [
+        [
+          {
+            "node": "Filter Due Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Due Rows": {
+      "main": [
+        [
+          {
+            "node": "Build Per-Row Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Per-Row Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Personalise Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Personalise Follow-Up": {
+      "main": [
+        [
+          {
+            "node": "Parse Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Follow-Up": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-Up Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-Up Email": {
+      "main": [
+        [
+          {
+            "node": "Mark Row Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Row Sent": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Summary": {
+      "main": [
+        [
+          {
+            "node": "Slack Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Digest": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

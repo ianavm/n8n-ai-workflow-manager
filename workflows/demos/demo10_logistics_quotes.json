@@ -1,0 +1,561 @@
+{
+  "name": "DEMO-10 Logistics Quote Request Handler",
+  "nodes": [
+    {
+      "id": "5891c173-5424-451e-8d71-4c04694a1fb0",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "demo10-logistics-quote",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo10-logistics-quote",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "789def29-70fe-4310-99e1-58f5f11921d8",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8a30dfbf-f33d-417a-a051-29b8122c4d24",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "32313d1e-70b5-4c58-8335-1cf722d35a71",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ 'RUN-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "1e8a5253-eb24-4ad7-9ff2-17f7830b44b7",
+              "name": "sheetId",
+              "type": "string",
+              "value": "={{ $env.DEMO_SHEET_VOL2_ID || 'REPLACE_WITH_SHEET_ID' }}"
+            },
+            {
+              "id": "ce94727c-1f04-4e46-989f-4a34fbc87084",
+              "name": "slackWebhook",
+              "type": "string",
+              "value": "={{ $env.SLACK_DEMO_WEBHOOK_URL || '' }}"
+            },
+            {
+              "id": "bb98369b-b4ab-47f1-9cef-ebddb62c7e31",
+              "name": "fixtureData",
+              "type": "string",
+              "value": "{\"company\": \"Karoo Craft Beverages\", \"contactName\": \"Pieter de Villiers\", \"contactEmail\": \"pieter@karoocraft.co.za\", \"contactPhone\": \"+27 82 555 0132\", \"origin\": \"Port Elizabeth, EC\", \"destination\": \"Midrand, GP\", \"weightKg\": 4200, \"palletCount\": 6, \"cargoType\": \"Ambient beverages (glass bottles)\", \"pickupDate\": \"2026-04-25\", \"notes\": \"Prefer arrival before 08:00 on 25 April. Forklift on site both ends.\"}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7b9bde72-83ad-49c5-a166-02fb580010d1",
+      "name": "DEMO_MODE Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "ddb75a51-b3c3-4972-911d-53138c758234",
+      "name": "Load Fixture Quote",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst q = JSON.parse(cfg.fixtureData);\nreturn [{ json: { ...q, runId: cfg.runId, source: 'fixture' } }];\n"
+      }
+    },
+    {
+      "id": "320232cb-6307-4b9f-80fe-298988f019e6",
+      "name": "Normalise Quote Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst body = $json.body || $json;\nreturn [{\n  json: {\n    company: body.company || '',\n    contactName: body.contactName || body.name || '',\n    contactEmail: body.contactEmail || body.email || '',\n    contactPhone: body.contactPhone || body.phone || '',\n    origin: body.origin || '',\n    destination: body.destination || '',\n    weightKg: Number(body.weightKg || body.weight_kg || 0),\n    palletCount: Number(body.palletCount || body.pallet_count || 1),\n    cargoType: body.cargoType || body.cargo_type || 'general',\n    pickupDate: body.pickupDate || body.pickup_date || '',\n    notes: body.notes || '',\n    runId: cfg.runId,\n    source: 'webhook',\n  }\n}];"
+      }
+    },
+    {
+      "id": "c9144439-8f21-4cf3-9a84-abc7481cc35d",
+      "name": "Merge Quote Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "81e40995-e971-4ade-a6af-c28071eb65f4",
+      "name": "Build Quote Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const q = $input.first().json;\nconst prompt = `You are a freight-quoting assistant for AnyVision Logistics\n(demo company, South African 3PL). Produce a realistic-looking quote for the\ninbound request. Output STRICT JSON ONLY (no markdown fences):\n\n  {\n    \"estimateZAR\": <integer, total incl. VAT>,\n    \"transitDays\": <integer>,\n    \"pricingRationale\": \"1-sentence, shows the calc: distance, weight, pallet fuel levy\",\n    \"quoteHtml\": \"<HTML email body, ~150 words, warm but professional, includes estimate, ETA, next step>\",\n    \"subjectLine\": \"Quote #... -  {origin} -> {destination}\",\n    \"quoteId\": \"Q-2026-XXXX\"\n  }\n\nPricing heuristics (use these as a starting point, then write the rationale):\n  - Base: R18/km per pallet for ambient\n  - Chilled / hazmat / glass -> +20%\n  - Fuel levy: R0.60/km/pallet\n  - Overnight / before-08:00 surcharge: R1 200\n  - VAT 15% on top\n  - Distance reference lanes:\n      PE -> Midrand ~= 1 100 km\n      Cape Town -> Joburg ~= 1 400 km\n      Durban -> Joburg ~= 600 km\n\nRequest:\n${JSON.stringify($json, null, 2)}`;\nreturn [{ json: { ...q, prompt } }];\n"
+      }
+    },
+    {
+      "id": "d6228245-eac3-40c8-a903-acc285e1d58e",
+      "name": "AI Draft Quote",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 1000, temperature: 0.4, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "4c57e68d-0e65-4dc1-8302-7c90f211ded7",
+      "name": "Parse Quote",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const q = $('Build Quote Prompt').first().json;\nconst resp = $input.first().json || {};\nconst raw = resp.choices?.[0]?.message?.content || '';\nconst cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\nlet parsed = {};\ntry { parsed = cleaned ? JSON.parse(cleaned) : {}; } catch (e) {}\n\n// Safe fallback if AI fails — rough calc so the demo still produces numbers.\nconst baseKm = 1100;\nconst perPallet = 18 * baseKm + 0.60 * baseKm;\nconst subtotal = perPallet * (q.palletCount || 1);\nconst fallbackEstimate = Math.round(subtotal * 1.15);\n\nreturn [{\n  json: {\n    ...q,\n    quoteId: parsed.quoteId || `Q-2026-${Math.floor(Math.random() * 9000 + 1000)}`,\n    estimateZAR: Number(parsed.estimateZAR) || fallbackEstimate,\n    transitDays: Number(parsed.transitDays) || 2,\n    pricingRationale: parsed.pricingRationale || `Estimated from ~${baseKm}km at standard pallet rate`,\n    quoteHtml: parsed.quoteHtml || `<p>Hi ${q.contactName},</p><p>Thanks for the request. Preliminary estimate for ${q.origin} -> ${q.destination}: <b>R${fallbackEstimate.toLocaleString()}</b> (excl. any special handling). I will confirm firm pricing within 2 hours once we lock the lane.</p><p>Ian</p>`,\n    subjectLine: parsed.subjectLine || `Quote ${parsed.quoteId || 'Q-2026'} - ${q.origin} -> ${q.destination}`,\n  }\n}];"
+      }
+    },
+    {
+      "id": "4ddc6fa5-6db5-49ea-9b75-5ccc361f91f9",
+      "name": "Send Quote Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1960,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $json.contactEmail }}",
+        "subject": "={{ $json.subjectLine }}",
+        "emailType": "html",
+        "message": "={{ $json.quoteHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "103d27e4-b2a6-4612-a448-60a1cd79fd92",
+      "name": "Log Quote",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Quotes_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Quote_ID": "={{ $json.quoteId }}",
+            "Company": "={{ $json.company }}",
+            "Origin": "={{ $json.origin }}",
+            "Destination": "={{ $json.destination }}",
+            "Weight_Kg": "={{ $json.weightKg }}",
+            "Pallets": "={{ $json.palletCount }}",
+            "Estimate_ZAR": "={{ $json.estimateZAR }}",
+            "Sent_At": "={{ new Date().toISOString() }}",
+            "Status": "'sent'",
+            "Contact_Email": "={{ $json.contactEmail }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "9b613373-09ae-441a-abbb-d0b59cca61b6",
+      "name": "Create 72h Follow-Up",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        420
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Follow_Ups"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Follow_Up_ID": "={{ 'FU-' + $json.quoteId }}",
+            "Related_Record": "={{ $json.quoteId }}",
+            "Contact": "={{ $json.contactEmail }}",
+            "Scheduled_For": "={{ new Date(Date.now() + 1000*60*60*72).toISOString().slice(0, 10) }}",
+            "Type": "'quote-followup'",
+            "Status": "'due'",
+            "Last_Action": "'quote-sent'",
+            "Notes": "={{ 'Check in on ' + $json.company + ' quote R' + $json.estimateZAR }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "0550bcc8-aa1c-42b3-b73f-f667a3b334fa",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2680,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Audit_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Workflow": "'DEMO-10'",
+            "Run_ID": "={{ $('Demo Config').first().json.runId }}",
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Action": "={{ 'run_complete' }}",
+            "Status": "={{ 'ok' }}",
+            "Error_Message": "={{ '' }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "1f9ab085-7771-404e-ad7f-53d41925f917",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2920,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({status: 'quoted', quoteId: $('Parse Quote').first().json.quoteId, estimateZAR: $('Parse Quote').first().json.estimateZAR, transitDays: $('Parse Quote').first().json.transitDays }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "DEMO_MODE Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DEMO_MODE Switch": {
+      "main": [
+        [
+          {
+            "node": "Load Fixture Quote",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalise Quote Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Fixture Quote": {
+      "main": [
+        [
+          {
+            "node": "Merge Quote Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Quote Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge Quote Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Quote Sources": {
+      "main": [
+        [
+          {
+            "node": "Build Quote Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Quote Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Draft Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Draft Quote": {
+      "main": [
+        [
+          {
+            "node": "Parse Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Quote": {
+      "main": [
+        [
+          {
+            "node": "Send Quote Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Quote Email": {
+      "main": [
+        [
+          {
+            "node": "Log Quote",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Quote": {
+      "main": [
+        [
+          {
+            "node": "Create 72h Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create 72h Follow-Up": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

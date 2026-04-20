@@ -1,0 +1,693 @@
+{
+  "name": "DEMO-13 Admin Replacement System",
+  "nodes": [
+    {
+      "id": "ae0c30fe-80d3-4423-b73e-feddaa738801",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "demo13-admin-replacement",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo13-admin-replacement",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "6747afd5-8ecc-403e-9053-92d9f1a7083f",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d7515521-f254-4f2d-9c7b-06fb670ef10e",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "8350e4b4-b22d-41b7-833f-1b14637d1c36",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ 'RUN-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "efbe34c0-1519-47ee-9a49-27e723987fdc",
+              "name": "sheetId",
+              "type": "string",
+              "value": "={{ $env.DEMO_SHEET_VOL2_ID || 'REPLACE_WITH_SHEET_ID' }}"
+            },
+            {
+              "id": "58e39e90-8dba-4959-86d3-365df05e8fdf",
+              "name": "slackWebhook",
+              "type": "string",
+              "value": "={{ $env.SLACK_DEMO_WEBHOOK_URL || '' }}"
+            },
+            {
+              "id": "fbb5ae79-7a7b-4255-ad13-fa50d89dfa09",
+              "name": "fixtureData",
+              "type": "string",
+              "value": "{\"name\": \"Sibusiso Ndlovu\", \"email\": \"sbu@nextgen-installs.co.za\", \"company\": \"NextGen Installs\", \"phone\": \"+27 82 555 0177\", \"source\": \"google-ad\", \"message\": \"We're a 25-person solar installer in KZN. Tired of chasing service quotes and booking follow-ups manually. Looking for a system that automates lead replies + admin. Aiming to pick a partner in the next 2 weeks. Budget around R15k/mo.\"}"
+            },
+            {
+              "id": "dfeb8546-8ab9-4d47-bcc1-22e3c5a1862e",
+              "name": "brand",
+              "type": "string",
+              "value": "AnyVision Media - Johannesburg AI automation agency for SA SMEs. Founder: Ian Immelman. Typical package R5k-R15k/mo."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2545140f-e8b2-45f9-9cd8-874faa4b28ee",
+      "name": "DEMO_MODE Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "a9488818-2c07-473f-84c7-a9d1906f92bc",
+      "name": "Load Fixture Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst l = JSON.parse(cfg.fixtureData);\nreturn [{ json: { ...l, runId: cfg.runId, source: l.source || 'fixture' } }];"
+      }
+    },
+    {
+      "id": "4db562f9-cdf6-43ad-a868-1a9311284438",
+      "name": "Normalise Live Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst body = $json.body || $json;\nreturn [{\n  json: {\n    name: body.name || 'there',\n    email: body.email || '',\n    company: body.company || '',\n    phone: body.phone || '',\n    source: body.source || 'webhook',\n    message: body.message || '',\n    runId: cfg.runId,\n  }\n}];"
+      }
+    },
+    {
+      "id": "40358465-bba6-43af-80b7-e50596262622",
+      "name": "Merge Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "dd13981e-b548-4161-aeac-2a4bab27e5e8",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst l = $input.first().json;\nconst prompt = `You are the sales operator for ${cfg.brand}.\n\nFor the lead below, do three things. Output STRICT JSON (no fences):\n{\n  \"intent\": \"hot|question|generic|spam\",\n  \"urgency\": \"low|medium|high\",\n  \"industry\": \"short label\",\n  \"leadScore\": 1-10,\n  \"subjectLine\": \"...\",\n  \"replyHtml\": \"<p>3-sentence personalised reply, sign as Ian, offer a 20-min slot</p>\",\n  \"slackSummary\": \"one punchy slack line with name, company, ask, score\"\n}\n\nLead:\n${JSON.stringify($json, null, 2)}`;\nreturn [{ json: { ...l, prompt } }];\n"
+      }
+    },
+    {
+      "id": "372602b8-46db-4a36-8472-57e7f0df019e",
+      "name": "AI Classify + Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 900, temperature: 0.4, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "b95d50dc-8f98-47fe-8878-87a80b346ad4",
+      "name": "Parse Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const src = $('Build Prompt').first().json;\nconst resp = $input.first().json || {};\nconst raw = resp.choices?.[0]?.message?.content || '';\nconst cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\nlet parsed = {};\ntry { parsed = cleaned ? JSON.parse(cleaned) : {}; } catch (e) {}\nreturn [{\n  json: {\n    ...src,\n    clientId: `CLT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,\n    intent: (parsed.intent || 'generic').toLowerCase(),\n    urgency: (parsed.urgency || 'low').toLowerCase(),\n    industry: parsed.industry || '',\n    leadScore: Number(parsed.leadScore) || 5,\n    subjectLine: parsed.subjectLine || `Re: ${src.company || src.name}`,\n    replyHtml: parsed.replyHtml || `<p>Thanks — will follow up within one business day.</p><p>Ian</p>`,\n    slackSummary: parsed.slackSummary || `New lead: ${src.name} (${src.company || '-'})`,\n  }\n}];"
+      }
+    },
+    {
+      "id": "0661b565-405b-40a5-ba11-3444498d0263",
+      "name": "[A] Send Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        120
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subjectLine }}",
+        "emailType": "html",
+        "message": "={{ $json.replyHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "be5d1863-f666-46a2-9c8a-47e164a8d462",
+      "name": "[A] Log Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2220,
+        120
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Leads_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Name": "={{ $json.name }}",
+            "Email": "={{ $json.email }}",
+            "Source": "={{ $json.source }}",
+            "Intent": "={{ $json.intent + '/' + $json.urgency }}",
+            "AI_Reply_Preview": "={{ ($json.replyHtml || '').slice(0, 240) }}",
+            "Status": "'replied'",
+            "Run_ID": "={{ $json.runId }}",
+            "Workflow": "'DEMO-13'"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "6b45caca-7b12-484c-8510-d116e3b3d07a",
+      "name": "[B] Upsert CRM Client",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2000,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "CRM_Clients"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Client_ID": "={{ $json.clientId }}",
+            "Name": "={{ $json.name }}",
+            "Company": "={{ $json.company }}",
+            "Email": "={{ $json.email }}",
+            "Phone": "={{ $json.phone }}",
+            "Last_Contacted": "={{ new Date().toISOString() }}",
+            "Ask": "={{ ($json.message || '').slice(0, 240) }}",
+            "Status": "={{ $json.leadScore >= 7 ? 'hot' : 'warm' }}",
+            "Notes": "={{ 'industry=' + $json.industry + ' score=' + $json.leadScore }}",
+            "Run_ID": "={{ $json.runId }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "e005d39f-76b3-4bc1-8a44-ae3fdc0d11e3",
+      "name": "[C] Slack Ping Sales",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        480
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Demo Config').first().json.slackWebhook || 'https://hooks.slack.com/services/DISABLED' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.slackSummary }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "c485e435-91a9-420a-bbb1-0056abb36a33",
+      "name": "[C] Schedule 48h Follow-Up",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2220,
+        480
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Follow_Ups"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Follow_Up_ID": "={{ 'FU-' + $json.clientId }}",
+            "Related_Record": "={{ $json.clientId }}",
+            "Contact": "={{ $json.email }}",
+            "Scheduled_For": "={{ new Date(Date.now() + 1000*60*60*48).toISOString().slice(0, 10) }}",
+            "Type": "'lead-nurture'",
+            "Status": "'due'",
+            "Last_Action": "'admin-replacement-reply'",
+            "Notes": "={{ 'Auto-scheduled from DEMO-13. Lead score ' + $json.leadScore }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "a956fdf5-05b8-4ef6-8b40-4edaeee88f3d",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2480,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "273869d0-7e77-4ee7-8d6b-df301f591f34",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2720,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Audit_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Workflow": "'DEMO-13'",
+            "Run_ID": "={{ $('Demo Config').first().json.runId }}",
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Action": "={{ 'run_complete' }}",
+            "Status": "={{ 'ok' }}",
+            "Error_Message": "={{ '' }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "4f6d406c-db9f-4954-b26a-01c7acc640d4",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2960,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({runId: $('Demo Config').first().json.runId, status: 'three_admin_jobs_replaced', leadScore: $('Parse Output').first().json.leadScore, intent: $('Parse Output').first().json.intent }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "DEMO_MODE Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DEMO_MODE Switch": {
+      "main": [
+        [
+          {
+            "node": "Load Fixture Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalise Live Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Fixture Lead": {
+      "main": [
+        [
+          {
+            "node": "Merge Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Live Input": {
+      "main": [
+        [
+          {
+            "node": "Merge Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Sources": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Classify + Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify + Draft": {
+      "main": [
+        [
+          {
+            "node": "Parse Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Output": {
+      "main": [
+        [
+          {
+            "node": "[A] Send Reply",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "[B] Upsert CRM Client",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "[C] Slack Ping Sales",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[A] Send Reply": {
+      "main": [
+        [
+          {
+            "node": "[A] Log Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[A] Log Lead": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[B] Upsert CRM Client": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[C] Slack Ping Sales": {
+      "main": [
+        [
+          {
+            "node": "[C] Schedule 48h Follow-Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[C] Schedule 48h Follow-Up": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Branches": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,614 @@
+{
+  "name": "DEMO-07 Meeting Notes to Action Machine",
+  "nodes": [
+    {
+      "id": "7225fd9c-9f07-46a3-8062-ce10d8ce13c4",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "demo07-meeting-notes",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo07-meeting-notes",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "3d496376-70df-4e8c-858d-e57c395dd3d1",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cecff62e-155f-46ed-8aa0-272a1bac4a8d",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "7dfd2a5d-403c-4166-a7eb-0aa856db42c1",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ 'RUN-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "8101a27e-ab23-451e-b426-9b7320c64f0b",
+              "name": "sheetId",
+              "type": "string",
+              "value": "={{ $env.DEMO_SHEET_VOL2_ID || 'REPLACE_WITH_SHEET_ID' }}"
+            },
+            {
+              "id": "e4e3a38d-9547-4109-8099-77c9e3b06de1",
+              "name": "slackWebhook",
+              "type": "string",
+              "value": "={{ $env.SLACK_DEMO_WEBHOOK_URL || '' }}"
+            },
+            {
+              "id": "2ef6ea79-736b-42cf-8c0d-a19bf821daf1",
+              "name": "fixtureData",
+              "type": "string",
+              "value": "{\"meetingTitle\": \"AnyVision <> Fourways Fitness — kickoff\", \"meetingDate\": \"2026-04-20\", \"attendees\": [{\"name\": \"Ian Immelman\", \"email\": \"ian@anyvisionmedia.com\"}, {\"name\": \"Kagiso Mokoena\", \"email\": \"kagiso@fourwaysfitness.co.za\"}, {\"name\": \"Thandi Xaba\", \"email\": \"thandi@fourwaysfitness.co.za\"}], \"transcript\": \"Ian: Great to meet you both. Let's lock in scope. First priority was the WhatsApp enquiry bot, right?\\nKagiso: Yes. Every week we miss 30-40 enquiries because nobody watches the number after 6pm. Thandi, can you export the last month of messages for Ian by Wednesday?\\nThandi: I'll pull them from Business Suite and drop in Drive.\\nIan: Perfect. On my side I'll ship a first draft of the bot by Friday next week so we can test it over the weekend.\\nKagiso: Second thing — can we also automate class-booking follow-ups? Members who book but don't show up.\\nIan: That's a separate workflow, phase 2. I'll write up scope and pricing and send it tomorrow.\\nKagiso: Great. Last thing, invoicing — can Thandi get added to the invoice email so she can process it properly?\\nIan: Noted — I'll cc Thandi on every invoice from now.\"}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5753bce3-88b6-459e-91de-292a7220fedf",
+      "name": "DEMO_MODE Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "5c6676b1-969b-4a12-b040-f3bafc78b106",
+      "name": "Load Fixture Meeting",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst m = JSON.parse(cfg.fixtureData);\nreturn [{ json: { ...m, runId: cfg.runId } }];\n"
+      }
+    },
+    {
+      "id": "fb12daeb-11ad-4486-9105-b9d553cc07a8",
+      "name": "Extract Live Meeting",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst body = $json.body || $json;\nreturn [{\n  json: {\n    meetingTitle: body.meetingTitle || body.title || 'Untitled meeting',\n    meetingDate: body.meetingDate || new Date().toISOString().slice(0, 10),\n    attendees: Array.isArray(body.attendees) ? body.attendees : [],\n    transcript: body.transcript || body.notes || '',\n    runId: cfg.runId,\n  }\n}];"
+      }
+    },
+    {
+      "id": "f1124164-ae65-4eed-8cd9-f8e7739f388c",
+      "name": "Merge Meeting Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "170d672d-4952-412d-ab5a-7772966299c1",
+      "name": "Build Extract Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const m = $input.first().json;\nconst prompt = `You are a meeting-notes processor. From the transcript\nbelow, extract every concrete action item. Output STRICT JSON ONLY\n(no markdown fences):\n\n  {\n    \"summary\": \"3-sentence summary of the meeting\",\n    \"actions\": [\n      {\n        \"description\": \"what needs to happen, plain English\",\n        \"owner\": \"name OR email OR 'unassigned'\",\n        \"dueDate\": \"YYYY-MM-DD or '' if not specified\",\n        \"priority\": \"high|medium|low\"\n      }\n    ]\n  }\n\nRules:\n- Only include items that are genuinely actionable (not descriptions of past events).\n- Preserve owner names exactly as mentioned in the transcript.\n- Convert relative dates against meetingDate (e.g. 'by Wednesday' -> the next Wed).\n- If a phase/workstream is mentioned but not explicitly owned, owner='unassigned'.\n\nMeeting:\n${JSON.stringify($json, null, 2)}`;\nreturn [{ json: { ...m, prompt } }];\n"
+      }
+    },
+    {
+      "id": "a0525152-aec1-4929-ac02-d393607bad39",
+      "name": "AI Extract Actions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 1500, temperature: 0.2, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "6d99bfc5-194e-4748-bb03-c919565e34ee",
+      "name": "Parse & Fan Out Actions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const meeting = $('Build Extract Prompt').first().json;\nconst resp = $input.first().json || {};\nconst raw = resp.choices?.[0]?.message?.content || '';\nconst cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\nlet parsed = { summary: '', actions: [] };\ntry { parsed = cleaned ? JSON.parse(cleaned) : parsed; } catch (e) {}\nconst actions = Array.isArray(parsed.actions) ? parsed.actions : [];\n\n// Store summary on a side channel via a single 'summary item' we prefix.\nconst header = { json: { _kind: 'summary', meeting, summary: parsed.summary || '' } };\nconst rows = actions.map((a, i) => ({\n  json: {\n    _kind: 'action',\n    meetingTitle: meeting.meetingTitle,\n    meetingDate: meeting.meetingDate,\n    attendees: meeting.attendees,\n    runId: meeting.runId,\n    actionIndex: i + 1,\n    description: a.description || '',\n    owner: a.owner || 'unassigned',\n    dueDate: a.dueDate || '',\n    priority: (a.priority || 'medium').toLowerCase(),\n    status: 'open',\n  }\n}));\nreturn [header, ...rows];"
+      }
+    },
+    {
+      "id": "5c0957d0-07cd-43eb-9aba-9c6b08d10d92",
+      "name": "Filter Actions Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return $input.all().filter(i => i.json._kind === 'action');"
+      }
+    },
+    {
+      "id": "388025a0-dd47-4724-9ed6-420a912c9eb5",
+      "name": "Log Meeting Action",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2200,
+        200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Meeting_Actions"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Meeting_Title": "={{ $json.meetingTitle }}",
+            "Attendees": "={{ ($json.attendees || []).map(a => a.name || a.email).join(', ') }}",
+            "Action_Item": "={{ $json.description }}",
+            "Owner": "={{ $json.owner }}",
+            "Due_Date": "={{ $json.dueDate }}",
+            "Status": "={{ $json.status }}",
+            "Run_ID": "={{ $json.runId }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "d4c359ce-7f68-4b2e-a43a-97ec7e8cf74d",
+      "name": "Build Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const summaryItem = $('Parse & Fan Out Actions').all()\n  .find(i => i.json._kind === 'summary')?.json || {};\nconst actions = $('Parse & Fan Out Actions').all()\n  .filter(i => i.json._kind === 'action')\n  .map(i => i.json);\n\nconst meeting = summaryItem.meeting || {};\nconst attendees = (meeting.attendees || []);\nconst toList = attendees.map(a => a.email).filter(Boolean).join(',');\n\nfunction esc(s) { return String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;'); }\n\nconst rows = actions.map(a => `\n  <tr>\n    <td>${esc(a.description)}</td>\n    <td>${esc(a.owner)}</td>\n    <td>${esc(a.dueDate || 'TBD')}</td>\n    <td>${esc(a.priority)}</td>\n  </tr>`).join('');\n\nconst html = `<p>Hi team,</p>\n<p>Here is the action list from <b>${esc(meeting.meetingTitle || 'our meeting')}</b> (${esc(meeting.meetingDate || '')}):</p>\n<p>${esc(summaryItem.summary || '')}</p>\n<table border=\"1\" cellpadding=\"6\" cellspacing=\"0\">\n  <thead><tr><th>Action</th><th>Owner</th><th>Due</th><th>Priority</th></tr></thead>\n  <tbody>${rows || '<tr><td colspan=4>No actions captured.</td></tr>'}</tbody>\n</table>\n<p>Ian</p>`;\n\nconst slackText = `*${meeting.meetingTitle || 'Meeting'}* — ${actions.length} actions captured\\n` +\n  actions.map(a => `- ${a.description} (_${a.owner}, due ${a.dueDate || 'TBD'}_)`).join('\\n');\n\nreturn [{\n  json: {\n    meetingTitle: meeting.meetingTitle || '',\n    runId: meeting.runId || $('Demo Config').first().json.runId,\n    toList,\n    actionsCount: actions.length,\n    digestHtml: html,\n    slackText,\n    summary: summaryItem.summary || '',\n  }\n}];"
+      }
+    },
+    {
+      "id": "12a0c1e9-de14-4eb3-8f9d-e8d18bce6e00",
+      "name": "Email Digest to Attendees",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        420
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $json.toList }}",
+        "subject": "='Action items — ' + $json.meetingTitle",
+        "emailType": "html",
+        "message": "={{ $json.digestHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "9957638b-3b09-4b6d-8e3a-771699cdd27c",
+      "name": "Slack Digest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2440,
+        420
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Demo Config').first().json.slackWebhook || 'https://hooks.slack.com/services/DISABLED' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.slackText }) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "0acf7f03-f62a-4656-8f99-73c5fa386a8a",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2680,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "f314f3d5-33a8-4ec3-8df7-971e210c6313",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2920,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Audit_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Workflow": "'DEMO-07'",
+            "Run_ID": "={{ $('Demo Config').first().json.runId }}",
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Action": "={{ 'run_complete' }}",
+            "Status": "={{ 'ok' }}",
+            "Error_Message": "={{ '' }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "3bffffc2-93dd-47e0-b16a-77df2dc78b50",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3160,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({status: 'complete', runId: $('Demo Config').first().json.runId, actionsCount: $('Build Digest').first().json.actionsCount, summary: $('Build Digest').first().json.summary }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "DEMO_MODE Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DEMO_MODE Switch": {
+      "main": [
+        [
+          {
+            "node": "Load Fixture Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Live Meeting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Fixture Meeting": {
+      "main": [
+        [
+          {
+            "node": "Merge Meeting Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Live Meeting": {
+      "main": [
+        [
+          {
+            "node": "Merge Meeting Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Meeting Sources": {
+      "main": [
+        [
+          {
+            "node": "Build Extract Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Extract Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Extract Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Extract Actions": {
+      "main": [
+        [
+          {
+            "node": "Parse & Fan Out Actions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Fan Out Actions": {
+      "main": [
+        [
+          {
+            "node": "Filter Actions Only",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Actions Only": {
+      "main": [
+        [
+          {
+            "node": "Log Meeting Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Meeting Action": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Digest": {
+      "main": [
+        [
+          {
+            "node": "Email Digest to Attendees",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Digest to Attendees": {
+      "main": [
+        [
+          {
+            "node": "Slack Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Digest": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Branches": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,625 @@
+{
+  "name": "DEMO-05 Instant Lead Reply Engine",
+  "nodes": [
+    {
+      "id": "26be2807-e30d-44d6-ac53-954f4ca0b84e",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "demo05-lead-reply",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo05-lead-reply",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "adabfbbe-2486-4a9e-821b-9faf1a80a3ab",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7c9b99b6-74a6-4eb6-bc79-777e6b272294",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "ea1a5d61-f990-4e2f-b90f-40c97fc895b7",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ 'RUN-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "44f00532-3773-4f3a-bd1b-561dbbbcfecd",
+              "name": "sheetId",
+              "type": "string",
+              "value": "={{ $env.DEMO_SHEET_VOL2_ID || 'REPLACE_WITH_SHEET_ID' }}"
+            },
+            {
+              "id": "f0e3b135-5ea1-48f9-8ddc-2dcece850722",
+              "name": "slackWebhook",
+              "type": "string",
+              "value": "={{ $env.SLACK_DEMO_WEBHOOK_URL || '' }}"
+            },
+            {
+              "id": "9eae23a4-9e65-49f5-adb6-51ea4adb9b23",
+              "name": "fixtureData",
+              "type": "string",
+              "value": "{\"name\": \"Kagiso Mokoena\", \"email\": \"kagiso@fourwaysfitness.co.za\", \"company\": \"Fourways Fitness\", \"phone\": \"+27 72 555 0199\", \"source\": \"website-form\", \"message\": \"Hi Ian, saw your LinkedIn post about AI automation. We're a 4-studio gym running classes across Joburg, currently drowning in admin — member follow-ups, class bookings, WhatsApp enquiries. Would love a demo of what's possible. Any chance of a call this week?\"}"
+            },
+            {
+              "id": "851dcf6c-3271-45ff-8be9-5231d9724a1e",
+              "name": "brand",
+              "type": "string",
+              "value": "AnyVision Media — Johannesburg AI automation agency for SA SMEs. Typical package R5k-R15k/mo. Founder: Ian Immelman."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "4aa85ae2-5f89-41ae-8688-6dab3ba82add",
+      "name": "DEMO_MODE Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "f7a3c861-283a-4d53-9078-767ae3de9727",
+      "name": "Load Fixture Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        200
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst lead = JSON.parse(cfg.fixtureData);\nreturn [{ json: { ...lead, runId: cfg.runId, source: lead.source || 'fixture' } }];\n"
+      }
+    },
+    {
+      "id": "5e45d1ee-dd24-4cc6-905c-739ebdee25ed",
+      "name": "Normalise Live Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        420
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst body = $json.body || $json;\nreturn [{\n  json: {\n    name: body.name || 'there',\n    email: body.email || '',\n    company: body.company || '',\n    phone: body.phone || '',\n    source: body.source || 'webhook',\n    message: body.message || '',\n    runId: cfg.runId,\n  }\n}];"
+      }
+    },
+    {
+      "id": "668a43f5-f307-46b9-bce7-0cada6a97452",
+      "name": "Merge Lead Sources",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1080,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "80f78964-8014-4743-b905-9b1f6b75390b",
+      "name": "Build Classification Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst lead = $input.first().json;\nconst prompt = `You are the lead-qualifier for ${cfg.brand}.\n\nClassify the inbound lead on two axes:\n  1. intent: one of [hot, question, spam, generic]\n     - hot       = explicit buying signal, demo request, budget or timeline\n     - question  = curious, asking general info, objection, comparison\n     - spam      = bot/random/crypto/unrelated\n     - generic   = fan message, compliment, no ask\n  2. urgency: low | medium | high\n\nFor intent = hot OR question, draft a short personalised reply (3 short\nsentences, HTML allowed, no preamble). Sign off as Ian.\nFor spam or generic, suggestedReply = null.\n\nReturn STRICT JSON (no prose, no markdown fences):\n{{\n  \"intent\": \"...\",\n  \"urgency\": \"...\",\n  \"reasoning\": \"one sentence\",\n  \"suggestedReply\": \"...\" | null,\n  \"subjectLine\": \"...\"\n}}\n\nBrand: ${cfg.brand}\nLead:\n  Name: ${lead.name}\n  Email: ${lead.email}\n  Company: ${lead.company}\n  Source: ${lead.source}\n  Message: ${lead.message}\n`;\nreturn [{ json: { ...lead, prompt } }];\n"
+      }
+    },
+    {
+      "id": "f637b00c-ef8d-48bb-8b66-940df73ecd6c",
+      "name": "AI Classify & Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 700, temperature: 0.4, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "d74a869b-691e-4e5c-a198-87181d164c3f",
+      "name": "Parse AI Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const lead = $('Build Classification Prompt').first().json;\nconst resp = $input.first().json || {};\nlet raw = '';\ntry { raw = resp.choices?.[0]?.message?.content || ''; } catch (e) { raw = ''; }\nconst cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\nlet parsed = {};\ntry { parsed = cleaned ? JSON.parse(cleaned) : {}; } catch (e) { parsed = {}; }\nconst intent = (parsed.intent || '').toLowerCase() || 'generic';\nreturn [{\n  json: {\n    ...lead,\n    intent,\n    urgency: (parsed.urgency || 'low').toLowerCase(),\n    reasoning: parsed.reasoning || 'ai-fallback',\n    suggestedReply: parsed.suggestedReply || null,\n    subjectLine: parsed.subjectLine || `Re: ${lead.company || 'your enquiry'}`,\n    shouldReply: ['hot', 'question'].includes(intent),\n  }\n}];"
+      }
+    },
+    {
+      "id": "ba39de8d-c7e6-435f-a966-043668197081",
+      "name": "Intent Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1960,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.shouldReply }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "reply"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.shouldReply }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "false"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "noReply"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 1
+        }
+      }
+    },
+    {
+      "id": "c11749d2-39b0-42f4-80e3-0bb23290ac7c",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        200
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subjectLine }}",
+        "emailType": "html",
+        "message": "={{ $json.suggestedReply }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "2074fd00-f73f-40cf-8f2f-c9fd94f3e9bc",
+      "name": "Skip Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        400
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "ce767ac6-fd70-4451-b6e1-701e6f3b9796",
+      "name": "Merge Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2440,
+        300
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "638c6f07-45d5-49f7-8d38-0b7cf34a0a3c",
+      "name": "Log Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2680,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Leads_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Name": "={{ $json.name }}",
+            "Email": "={{ $json.email }}",
+            "Source": "={{ $json.source }}",
+            "Intent": "={{ $json.intent + '/' + $json.urgency }}",
+            "AI_Reply_Preview": "={{ ($json.suggestedReply || '(no reply drafted)').slice(0, 240) }}",
+            "Status": "={{ $json.shouldReply ? 'replied' : 'logged-only' }}",
+            "Run_ID": "={{ $json.runId }}",
+            "Workflow": "'DEMO-05'"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "db6b52a6-2678-4e38-85c0-919809f38976",
+      "name": "Audit Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2920,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Demo Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Audit_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Workflow": "'DEMO-05'",
+            "Run_ID": "={{ $('Demo Config').first().json.runId }}",
+            "Timestamp": "={{ new Date().toISOString() }}",
+            "Action": "={{ 'run_complete' }}",
+            "Status": "={{ 'ok' }}",
+            "Error_Message": "={{ '' }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "bda46c5f-b9cb-4a06-bd22-c873b6f9b58e",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3160,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({runId: $('Demo Config').first().json.runId, intent: $('Parse AI Output').first().json.intent, urgency: $('Parse AI Output').first().json.urgency, replied: $('Parse AI Output').first().json.shouldReply, reply: $('Parse AI Output').first().json.suggestedReply }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "DEMO_MODE Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DEMO_MODE Switch": {
+      "main": [
+        [
+          {
+            "node": "Load Fixture Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalise Live Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Fixture Lead": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Live Lead": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead Sources",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Lead Sources": {
+      "main": [
+        [
+          {
+            "node": "Build Classification Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Classification Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Classify & Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify & Draft": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "Intent Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent Router": {
+      "main": [
+        [
+          {
+            "node": "Send Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reply": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Reply": {
+      "main": [
+        [
+          {
+            "node": "Merge Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Branches": {
+      "main": [
+        [
+          {
+            "node": "Log Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Lead": {
+      "main": [
+        [
+          {
+            "node": "Audit Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
