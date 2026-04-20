@@ -87,17 +87,29 @@ AUTOMATION_SENDERS: list[str] = [
 ]
 
 # -- Gmail Label Map --------------------------------------------------------
+# Label IDs come from .env so Gmail rotations don't need a code edit. Defaults
+# match the IDs that were hardcoded prior to 2026-04-19. Verify live IDs with
+# `python tools/verify_gmail_labels.py` — if Gmail addLabels silently no-ops,
+# the label was likely renamed or recreated and the ID drifted.
 
-LABELS = {
-    "Finance": "Label_1",
-    "Support": "Label_2",
-    "Sales": "Label_3",
-    "Management": "Label_4",
-    "General": "Label_5",
-    "Urgent": "Label_7",
-    "Junk": "Label_8",
-    "DNT": "Label_9",
+LABELS: dict[str, str] = {
+    "Finance": os.getenv("EMAIL_LABEL_FINANCE", "Label_1"),
+    "Support": os.getenv("EMAIL_LABEL_SUPPORT", "Label_2"),
+    "Sales": os.getenv("EMAIL_LABEL_SALES", "Label_3"),
+    "Management": os.getenv("EMAIL_LABEL_MANAGEMENT", "Label_4"),
+    "General": os.getenv("EMAIL_LABEL_GENERAL", "Label_5"),
+    "Urgent": os.getenv("EMAIL_LABEL_URGENT", "Label_7"),
+    "Junk": os.getenv("EMAIL_LABEL_JUNK", "Label_8"),
+    "DNT": os.getenv("EMAIL_LABEL_DNT", "Label_9"),
 }
+
+_missing_labels = [name for name, value in LABELS.items() if not value]
+if _missing_labels:
+    raise RuntimeError(
+        "Missing Gmail label IDs: "
+        + ", ".join(_missing_labels)
+        + ". Set EMAIL_LABEL_* in .env (see .env.template)."
+    )
 
 # -- Helpers ----------------------------------------------------------------
 
@@ -404,6 +416,7 @@ for (const item of items) {
   const emailData = $('Prepare Email Data').first().json;
 
   let parsed;
+  let parsing_failed = false;
   try {
     let aiContent = item.json.output || '';
     if (!aiContent && item.json.choices) {
@@ -415,6 +428,9 @@ for (const item of items) {
       .trim();
     parsed = JSON.parse(cleaned);
   } catch (e) {
+    parsing_failed = true;
+    // Route parse failures to Management (a real, wired department) so they
+    // do not silently land in the General fallback and disappear.
     parsed = {
       sender: emailData.from || 'unknown',
       sender_name: 'Unknown',
@@ -423,7 +439,7 @@ for (const item of items) {
       tone: 'neutral',
       urgency: 'medium',
       action_required: true,
-      department: 'Admin',
+      department: 'Management',
       tags: ['Escalation'],
       is_spam: false,
       suggested_response: null,
@@ -499,10 +515,11 @@ for (const item of items) {
       tone: parsed.tone || 'neutral',
       urgency: parsed.urgency || 'medium',
       action_required: parsed.action_required || false,
-      department: parsed.department || 'Admin',
+      department: parsed.department || 'Management',
       tags: parsed.tags || [],
       tags_string: (parsed.tags || []).join(', '),
       is_spam: parsed.is_spam || false,
+      parsing_failed,
       suggested_response: parsed.suggested_response || '',
       html_response,
       summary: parsed.summary || '',
@@ -547,6 +564,39 @@ if (d.department === 'Sales' && d.tags_string && d.tags_string.includes('New_Lea
 
 return [{ json: { is_lead: false } }];"""
 
+# -- Enrich for Log (computes which labels the workflow will actually apply) -
+
+ENRICH_FOR_LOG_JS = r"""const items = $input.all();
+
+// Mirror of the Switch "Route by Department" rules. Anything not in this
+// map falls through to the General label (Label_5) — matches the workflow's
+// fallbackOutput behaviour.
+const DEPT_TO_LABEL = {
+  'Spam_Irrelevant': 'Junk',
+  'Accounting_Finance': 'Finance',
+  'Customer_Support': 'Support',
+  'Sales': 'Sales',
+  'Management': 'Management'
+};
+
+return items.map(item => {
+  const d = item.json;
+  const applied_dept_label = DEPT_TO_LABEL[d.department] || 'General';
+  // Same gate as the "Is Urgent?" If node. Keep these two in sync.
+  const urgent_label_applied = (
+    d.urgency === 'high' &&
+    d.is_spam === false &&
+    d.action_required === true
+  );
+  return {
+    json: {
+      ...d,
+      applied_dept_label,
+      urgent_label_applied
+    }
+  };
+});"""
+
 # -- AI System Message ------------------------------------------------------
 
 AI_SYSTEM_MESSAGE = (
@@ -574,7 +624,7 @@ AI_SYSTEM_MESSAGE = (
     '  "urgency": "<one of: high, medium, low>",\n'
     '  "action_required": true or false,\n'
     '  "department": "<ONE of: Accounting_Finance, Customer_Support, Sales, '
-    'Management, Admin, Legal, Internal, Spam_Irrelevant>",\n'
+    'Management, Spam_Irrelevant>",\n'
     '  "tags": ["<applicable tags from the list below>"],\n'
     '  "is_spam": true or false,\n'
     '  "suggested_response": "<a professional draft reply if action_required '
@@ -584,33 +634,120 @@ AI_SYSTEM_MESSAGE = (
     '  "is_interested_reply": true or false\n'
     "}\n\n"
     "## Department Classification Rules\n"
+    "Choose EXACTLY ONE of five departments. Admin, Legal, Internal, and "
+    "HR-style emails all fold into Management.\n"
     "- **Accounting_Finance**: Invoices, payments, billing inquiries, refund "
-    "requests, financial statements, tax documents\n"
+    "requests, financial statements, tax documents, VAT / SARS, bank notices\n"
     "- **Customer_Support**: Service complaints, technical issues, bug reports, "
-    "account help, feature requests\n"
+    "account help, feature requests, ticket follow-ups\n"
     "- **Sales**: New business enquiries, pricing requests, partnership "
-    "proposals, lead generation, RFP responses\n"
-    "- **Management**: Strategic decisions, legal matters, high-level "
-    "partnerships, media/PR, executive communications, escalated complaints\n"
-    "- **Admin**: Documentation, compliance, vendor setup, office operations\n"
-    "- **Legal**: Contracts, legal threats, regulatory matters, NDAs\n"
-    "- **Internal**: Team communications, internal updates, HR matters\n"
-    "- **Spam_Irrelevant**: Unsolicited marketing, phishing attempts, "
-    "suspicious links, irrelevant promotions\n\n"
+    "proposals, lead generation, RFP responses, demo requests\n"
+    "- **Management**: Strategic decisions, legal matters, contracts, legal "
+    "threats, regulatory matters, NDAs, high-level partnerships, media / PR, "
+    "executive communications, escalated complaints, documentation, "
+    "compliance, vendor setup, office operations, admin tasks, team "
+    "communications, internal updates, HR matters\n"
+    "- **Spam_Irrelevant**: Unsolicited marketing, phishing, suspicious "
+    "links, irrelevant promotions, newsletters not subscribed to\n\n"
+    "If an email is a legitimate cold sales pitch TO us (another vendor "
+    "pitching their services), classify it as Sales with is_spam=false only "
+    "if it looks personalised; generic mass-mailer pitches are "
+    "Spam_Irrelevant.\n\n"
     "## Available Tags\n"
     "Invoice, Payment, Refund, Complaint, New_Lead, Contract, Meeting_Request, "
     "Follow_Up, Escalation, Urgent\n\n"
-    "## Urgency Rules\n"
-    "Mark as HIGH if any of these apply:\n"
-    '- Subject contains "urgent", "ASAP", "immediate", "critical"\n'
-    "- Legal threats or regulatory deadlines\n"
-    "- Payment disputes or overdue invoices\n"
-    "- Escalated customer complaints\n"
-    "- Time-sensitive business opportunities\n\n"
+    "## Urgency Rules (STRICT)\n"
+    "Mark urgency HIGH only when ALL of these are true:\n"
+    "- action_required is true\n"
+    "- is_spam is false\n"
+    "- AND one of:\n"
+    "  * Sender is an existing client / known contact AND subject or body "
+    'contains "urgent", "ASAP", "immediate", "critical", or "deadline"\n'
+    "  * Legal threat, regulatory deadline, subpoena, or lawsuit language\n"
+    "  * Payment dispute or overdue-invoice language from a real client\n"
+    "  * Escalated complaint with a specific ticket reference or named harm\n"
+    "  * Time-sensitive opportunity that is a reply in an ongoing "
+    "conversation (warm contact)\n\n"
+    "Do NOT mark urgency HIGH for:\n"
+    '- Cold outreach with "urgent" clickbait in the subject\n'
+    "- Newsletters, marketing, or product launches using urgency language\n"
+    "- Automated service emails (build alerts, shipping notifications, etc.)\n"
+    "- First-time unsolicited pitches, even with deadline wording\n\n"
+    "Default urgency is medium for legitimate business emails and low for "
+    "spam / newsletters.\n\n"
+    "## Few-Shot Examples\n\n"
+    "### Example 1 - Sales Lead\n"
+    "Input:\n"
+    "From: Sarah Chen <sarah@techstartup.io>\n"
+    "Subject: AI Automation Services Inquiry\n"
+    "Body: Hi, we're a growing SaaS startup looking for help automating our "
+    "customer onboarding workflows. Could you share pricing and availability?\n\n"
+    "Output:\n"
+    '{"sender":"sarah@techstartup.io","sender_name":"Sarah Chen",'
+    '"subject":"AI Automation Services Inquiry","intent":"Requesting pricing '
+    'and availability for AI workflow automation services","tone":"friendly",'
+    '"urgency":"medium","action_required":true,"department":"Sales",'
+    '"tags":["New_Lead"],"is_spam":false,"suggested_response":"Hi Sarah,\\n\\n'
+    "Thank you for reaching out to AnyVision Media. We'd love to learn more "
+    "about your onboarding workflows.\\n\\nWe specialise in AI workflow "
+    "automation and have helped SaaS companies streamline their onboarding "
+    "processes. Could we schedule a 30-minute discovery call this week to "
+    "understand your needs and provide a tailored quote?\\n\\nBest "
+    'regards,\\nAnyVision Media Team","summary":"SaaS founder asking about '
+    'AI automation for customer onboarding.","escalation_needed":false,'
+    '"is_interested_reply":false}\n\n'
+    "### Example 2 - Obvious Spam\n"
+    "Input:\n"
+    "From: deals@bulk-promo-offers.net\n"
+    "Subject: EXCLUSIVE OFFER - 90% OFF SEO SERVICES!!!\n"
+    "Body: Dear business owner, we guarantee first page Google rankings in "
+    "24 hours! Click here for our limited time offer...\n\n"
+    "Output:\n"
+    '{"sender":"deals@bulk-promo-offers.net","sender_name":"Unknown",'
+    '"subject":"EXCLUSIVE OFFER - 90% OFF SEO SERVICES!!!","intent":'
+    '"Unsolicited promotional email selling SEO services","tone":"informal",'
+    '"urgency":"low","action_required":false,"department":"Spam_Irrelevant",'
+    '"tags":[],"is_spam":true,"suggested_response":null,"summary":"Spam '
+    'promoting unrealistic SEO results with clickbait subject.",'
+    '"escalation_needed":false,"is_interested_reply":false}\n\n'
+    "### Example 3 - Urgent Finance (from real client)\n"
+    "Input:\n"
+    "From: Mike Torres <mike@clientcorp.co.za>\n"
+    "Subject: URGENT - Invoice #4521 Payment Dispute\n"
+    "Body: Hi Ian, we received invoice #4521 for R12,500 but the agreed "
+    "amount was R10,000. Please resolve this ASAP as our accounts payable "
+    "closes end of day Friday.\n\n"
+    "Output:\n"
+    '{"sender":"mike@clientcorp.co.za","sender_name":"Mike Torres",'
+    '"subject":"URGENT - Invoice #4521 Payment Dispute","intent":'
+    '"Disputing invoice amount before payment deadline","tone":"urgent",'
+    '"urgency":"high","action_required":true,"department":'
+    '"Accounting_Finance","tags":["Invoice","Payment","Urgent"],'
+    '"is_spam":false,"suggested_response":"Hi Mike,\\n\\nThank you for '
+    "flagging this. I'll review Invoice #4521 against our agreed terms and "
+    "send a corrected invoice or clarification well before your Friday "
+    'deadline.\\n\\nBest regards,\\nAnyVision Media Team","summary":"Client '
+    'disputing invoice (R12,500 vs agreed R10,000) with Friday deadline.",'
+    '"escalation_needed":true,"is_interested_reply":false}\n\n'
+    "### Example 4 - Cold Outreach With 'URGENT' Clickbait\n"
+    "Input:\n"
+    "From: Growth Partners <hello@growth-bd.io>\n"
+    "Subject: URGENT: We can 3x your revenue this quarter\n"
+    "Body: Hi there, I saw AnyVision Media online and wanted to reach out "
+    "immediately. Our agency has helped dozens of businesses scale. Can we "
+    "jump on a quick call ASAP?\n\n"
+    "Output:\n"
+    '{"sender":"hello@growth-bd.io","sender_name":"Growth Partners",'
+    '"subject":"URGENT: We can 3x your revenue this quarter","intent":'
+    '"Cold pitch from a growth agency using urgency clickbait","tone":'
+    '"informal","urgency":"low","action_required":false,"department":'
+    '"Spam_Irrelevant","tags":[],"is_spam":true,"suggested_response":null,'
+    '"summary":"Cold outreach from an agency using fake urgency; not a '
+    'real deadline.","escalation_needed":false,"is_interested_reply":false}\n\n'
     "## Response Writing Rules (for suggested_response)\n"
     "When action_required is true, write a professional, well-structured reply:\n\n"
     "**STRUCTURE:**\n"
-    "1. Greeting - Personalized with sender's name\n"
+    "1. Greeting - Personalised with sender's name\n"
     "2. Acknowledgment - Thank them and acknowledge their specific concern\n"
     "3. Response - Address their question or request (1-2 paragraphs)\n"
     "4. Next Steps - What happens next (if applicable)\n"
@@ -821,10 +958,16 @@ def build_nodes() -> list[dict]:
 
     # ── Urgency Check ─────────────────────────────────────────────────
 
-    # 18. Is Urgent?
+    # 18. Is Urgent? — belt-and-braces gate: even if the AI slips and marks
+    #     spam / no-action emails as high urgency, this blocks the Urgent
+    #     label from firing. urgency=high AND is_spam=false AND action_required=true.
     nodes.append(if_node(
         "Is Urgent?",
-        [cond_str("={{ $json.urgency }}", "equals", "high")],
+        [
+            cond_str("={{ $json.urgency }}", "equals", "high"),
+            cond_bool("={{ $json.is_spam }}", "false"),
+            cond_bool("={{ $json.action_required }}", "true"),
+        ],
         [1250, 1200],
     ))
 
@@ -965,13 +1108,42 @@ def build_nodes() -> list[dict]:
 
     # ── Email Logging ─────────────────────────────────────────────────
 
-    # 30. Log to Email Sheet
+    # 30a. Enrich for Log — computes applied_dept_label + urgent_label_applied
+    #      so the Email Log sheet shows what the workflow actually did,
+    #      not just what the AI said.
+    nodes.append(code_node(
+        "Enrich for Log", ENRICH_FOR_LOG_JS, [1100, 1950],
+    ))
+
+    # 30. Log to Email Sheet — explicit column mapping so mis-routing surfaces
+    #     immediately (blank applied_dept_label row = label failed to apply).
     nodes.append({
         "parameters": {
             "operation": "append",
             "documentId": {"mode": "id", "value": EMAIL_LOG_SHEET_ID},
             "sheetName": {"mode": "name", "value": "Email Log"},
-            "columns": {"mappingMode": "defineBelow", "value": {}},
+            "columns": {
+                "mappingMode": "defineBelow",
+                "value": {
+                    "processed_at": "={{ $json.processed_at }}",
+                    "sender": "={{ $json.sender }}",
+                    "sender_name": "={{ $json.sender_name }}",
+                    "subject": "={{ $json.original_subject }}",
+                    "department": "={{ $json.department }}",
+                    "urgency": "={{ $json.urgency }}",
+                    "tags": "={{ $json.tags_string }}",
+                    "intent": "={{ $json.intent }}",
+                    "summary": "={{ $json.summary }}",
+                    "action_required": "={{ $json.action_required }}",
+                    "escalation_needed": "={{ $json.escalation_needed }}",
+                    "ticket_number": "={{ $json.ticket_number }}",
+                    "is_spam": "={{ $json.is_spam }}",
+                    "original_from": "={{ $json.original_from }}",
+                    "applied_dept_label": "={{ $json.applied_dept_label }}",
+                    "urgent_label_applied": "={{ $json.urgent_label_applied }}",
+                    "parsing_failed": "={{ $json.parsing_failed }}",
+                },
+            },
             "options": {},
         },
         "id": uid(),
@@ -1250,7 +1422,9 @@ def build_connections() -> dict:
         "OpenRouter Chat Model": {
             "ai_languageModel": [[conn("AI Agent", conn_type="ai_languageModel")]],
         },
-        # Parse AI Response fans out to 9 parallel branches
+        # Parse AI Response fans out to 9 parallel branches.
+        # The email-log branch goes through Enrich for Log so the sheet
+        # captures applied_dept_label + urgent_label_applied.
         "Parse AI Response": {
             "main": [[
                 conn("Route by Department"),
@@ -1258,11 +1432,14 @@ def build_connections() -> dict:
                 conn("Is No-Reply?"),
                 conn("Reply Needed?"),
                 conn("Has Reference Number?"),
-                conn("Log to Email Sheet"),
+                conn("Enrich for Log"),
                 conn("Check If Lead"),
                 conn("Is Interested Reply?"),
                 conn("Is Opt-Out?"),
             ]],
+        },
+        "Enrich for Log": {
+            "main": [[conn("Log to Email Sheet")]],
         },
         # Department routing (Switch outputs 0-4 + fallback)
         "Route by Department": {
