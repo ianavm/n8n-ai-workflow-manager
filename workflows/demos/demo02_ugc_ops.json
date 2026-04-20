@@ -1,0 +1,937 @@
+{
+  "name": "DEMO-02 UGC Ops Autopilot",
+  "nodes": [
+    {
+      "id": "1417e9b1-2963-4e4e-bf66-0510408150a0",
+      "name": "Form Trigger",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        200,
+        260
+      ],
+      "webhookId": "demo02-ugc-ops-form",
+      "parameters": {
+        "formTitle": "UGC Campaign Launcher — AnyVision Media",
+        "formDescription": "Describe your UGC campaign. We'll find creators, score fit, draft personalised briefs, and send outreach in under 60 seconds.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Brand",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Product Name",
+              "fieldType": "text",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Product Brief",
+              "fieldType": "textarea",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Niche Keywords",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "wellness, supplements, SA moms"
+            },
+            {
+              "fieldLabel": "Deliverables",
+              "fieldType": "text",
+              "requiredField": true,
+              "placeholder": "1 × 30s TikTok, 1 × IG reel"
+            },
+            {
+              "fieldLabel": "Budget Per Creator (ZAR)",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Quantity",
+              "fieldType": "number",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Demo Mode",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "1"
+                  },
+                  {
+                    "option": "0"
+                  }
+                ]
+              },
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "19ae863b-37be-410d-a88f-9d3c694bc017",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        500
+      ],
+      "webhookId": "demo02-ugc-ops",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo02-ugc-ops",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "bf440dbe-6136-4e04-a78f-91da7f6f2121",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        380
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "073a10c0-ee06-4c32-beff-c719d90cdcca",
+              "name": "campaignId",
+              "type": "string",
+              "value": "={{ 'UGC-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "9b1a2da7-0757-4893-a612-696e9b3538b5",
+              "name": "brand",
+              "type": "string",
+              "value": "={{ $json['Brand'] || $json.brand || 'VitalityCo' }}"
+            },
+            {
+              "id": "4554a1a5-063f-4cea-8835-251bf5873818",
+              "name": "productName",
+              "type": "string",
+              "value": "={{ $json['Product Name'] || $json.productName || 'Morning Stack Supplement' }}"
+            },
+            {
+              "id": "beb183be-650c-4c88-a4c7-ac6396c7e9d9",
+              "name": "productBrief",
+              "type": "string",
+              "value": "={{ $json['Product Brief'] || $json.productBrief || 'Locally-sourced daily stack for busy professionals — no caffeine, no crash.' }}"
+            },
+            {
+              "id": "7d6958f7-d983-4500-ac80-5848ec63434d",
+              "name": "niche",
+              "type": "string",
+              "value": "={{ $json['Niche Keywords'] || $json.niche || 'wellness, supplements, SA moms, busy professionals' }}"
+            },
+            {
+              "id": "a864c1a3-d98b-4bd2-ad96-e6300bae0244",
+              "name": "deliverables",
+              "type": "string",
+              "value": "={{ $json['Deliverables'] || $json.deliverables || '1 × 30s TikTok + 1 × IG reel' }}"
+            },
+            {
+              "id": "a12a5ec7-f96f-4c19-8d5f-00b65032f718",
+              "name": "budgetPerCreator",
+              "type": "number",
+              "value": "={{ Number($json['Budget Per Creator (ZAR)'] ?? $json.budgetPerCreator ?? 1200) }}"
+            },
+            {
+              "id": "57303147-8d39-4044-b850-422a6b9b9ab5",
+              "name": "quantity",
+              "type": "number",
+              "value": "={{ Number($json['Quantity'] ?? $json.quantity ?? 5) }}"
+            },
+            {
+              "id": "f1432930-bc4a-42d8-84eb-fea9bcea7d7a",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json['Demo Mode'] ?? $json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "788069f0-7401-4848-96e4-0ae4e8d1a058",
+              "name": "fixtureCreators",
+              "type": "string",
+              "value": "[{\"handle\": \"@miriam_wellness\", \"platform\": \"tiktok\", \"followers\": 28400, \"niche\": \"wellness, supplements, morning routines\", \"avgViews\": 18900, \"engagementRate\": 6.8, \"samplePost\": \"day 14 of trying every supplement on clean-tok \\u2014 the only one that actually helped my 3pm crash\", \"email\": \"miriam@creators.demo\", \"rateCard\": 850}, {\"handle\": \"@fitness_nandi\", \"platform\": \"instagram\", \"followers\": 42100, \"niche\": \"fitness, SA women in sport, moms-who-lift\", \"avgViews\": 31200, \"engagementRate\": 5.1, \"samplePost\": \"post-workout recovery stack \\u2014 this one saved my joints after marathon training\", \"email\": \"nandi@creators.demo\", \"rateCard\": 1400}, {\"handle\": \"@dietitian_jay\", \"platform\": \"tiktok\", \"followers\": 67800, \"niche\": \"registered dietitian, debunks supplement hype\", \"avgViews\": 52000, \"engagementRate\": 7.9, \"samplePost\": \"I reviewed 200 supplements. These 5 are worth your money, the rest are scams.\", \"email\": \"jay@creators.demo\", \"rateCard\": 2200}, {\"handle\": \"@fast_lane_cars\", \"platform\": \"instagram\", \"followers\": 89200, \"niche\": \"car enthusiasts, reviews\", \"avgViews\": 41000, \"engagementRate\": 3.2, \"samplePost\": \"new BMW M4 feature nobody's talking about\", \"email\": \"cars@creators.demo\", \"rateCard\": 1800}, {\"handle\": \"@salon_kholi\", \"platform\": \"tiktok\", \"followers\": 19700, \"niche\": \"SA salon owner, beauty entrepreneurs\", \"avgViews\": 8200, \"engagementRate\": 9.4, \"samplePost\": \"the morning supplement routine that made me stop skipping breakfast as a salon owner\", \"email\": \"kholi@creators.demo\", \"rateCard\": 600}, {\"handle\": \"@run_club_tebogo\", \"platform\": \"instagram\", \"followers\": 15400, \"niche\": \"running, endurance, SA run clubs\", \"avgViews\": 9800, \"engagementRate\": 6.2, \"samplePost\": \"5 things I take pre-run \\u2014 no, not caffeine pills\", \"email\": \"tebogo@creators.demo\", \"rateCard\": 500}, {\"handle\": \"@busy_mom_van\", \"platform\": \"tiktok\", \"followers\": 34500, \"niche\": \"busy moms, wellness hacks, SA mompreneurs\", \"avgViews\": 22100, \"engagementRate\": 8.1, \"samplePost\": \"the 3-supplement morning stack that stopped me crashing at 2pm\", \"email\": \"vanessa@creators.demo\", \"rateCard\": 1100}, {\"handle\": \"@crypto_randy\", \"platform\": \"twitter\", \"followers\": 52000, \"niche\": \"crypto, trading signals\", \"avgViews\": 7000, \"engagementRate\": 0.8, \"samplePost\": \"BTC to the moon \\ud83d\\ude80\", \"email\": \"randy@creators.demo\", \"rateCard\": 900}, {\"handle\": \"@zulu_yogi\", \"platform\": \"instagram\", \"followers\": 24800, \"niche\": \"yoga, mindful wellness, mental health SA\", \"avgViews\": 14600, \"engagementRate\": 7.3, \"samplePost\": \"post-yoga recovery routine \\u2014 what I put in my body matters as much as the practice\", \"email\": \"zulu@creators.demo\", \"rateCard\": 750}, {\"handle\": \"@food_chef_thabo\", \"platform\": \"tiktok\", \"followers\": 11200, \"niche\": \"cooking, nutrition, SA home chefs\", \"avgViews\": 4900, \"engagementRate\": 5.8, \"samplePost\": \"what I actually feed my kids vs what the ads say you should\", \"email\": \"thabo@creators.demo\", \"rateCard\": 400}]"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "802ec22c-1193-4298-8214-4b4d22657f38",
+      "name": "Create Campaign Record",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        640,
+        380
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_TABLE_ID"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Campaign ID": "={{ $json.campaignId }}",
+            "Brand": "={{ $json.brand }}",
+            "Product Name": "={{ $json.productName }}",
+            "Product Brief": "={{ $json.productBrief }}",
+            "Niche": "={{ $json.niche }}",
+            "Deliverables": "={{ $json.deliverables }}",
+            "Budget Per Creator": "={{ $json.budgetPerCreator }}",
+            "Quantity": "={{ $json.quantity }}",
+            "Status": "Sourcing",
+            "Created At": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "3bd4ca4b-cf18-478f-a5fd-1dbe52324d53",
+      "name": "DEMO_MODE Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        860,
+        380
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Demo Config').first().json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Demo Config').first().json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "d8a1fb20-4fe9-49ef-b1ea-b95253118777",
+      "name": "Load Fixture Creators",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        260
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst fx = JSON.parse(cfg.fixtureCreators || '[]');\nreturn fx.map(c => ({ json: { ...c, campaignId: cfg.campaignId, source: 'fixture' } }));"
+      }
+    },
+    {
+      "id": "85ba7e45-2228-4ccf-b88a-2674769765e3",
+      "name": "Apify TikTok Scrape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        500
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/clockworks~tiktok-scraper/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $env.APIFY_API_TOKEN || 'MISSING' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ hashtags: ($('Demo Config').first().json.niche || '').split(',').map(s => s.trim()).filter(Boolean), resultsPerPage: 20 }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "8a2325e5-e5e8-4c9e-a64c-2df288224ad1",
+      "name": "Normalise Apify Creators",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        500
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst items = $input.all();\nconst out = [];\nconst seen = new Set();\nfor (const item of items) {\n  const rows = Array.isArray(item.json) ? item.json : [item.json];\n  for (const r of rows) {\n    const author = r.authorMeta || r.author || {};\n    const handle = author.name ? '@' + author.name : null;\n    if (!handle || seen.has(handle)) continue;\n    seen.add(handle);\n    out.push({\n      json: {\n        handle,\n        platform: 'tiktok',\n        followers: author.fans || 0,\n        niche: cfg.niche,\n        avgViews: r.playCount || 0,\n        engagementRate: r.playCount ? ((r.diggCount || 0) + (r.commentCount || 0)) / r.playCount * 100 : 0,\n        samplePost: r.text || '',\n        email: author.email || '',\n        rateCard: 0,\n        campaignId: cfg.campaignId,\n        source: 'apify',\n      }\n    });\n  }\n}\nreturn out.length ? out : [{ json: { _empty: true, campaignId: cfg.campaignId } }];"
+      }
+    },
+    {
+      "id": "2087e906-3eb0-428c-af4b-76154cf42400",
+      "name": "Merge Creators",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1520,
+        380
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "9892a845-ac20-4b5f-b22e-62d51502e267",
+      "name": "Build Scoring Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        380
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const c = $json;\nif (c._empty) return { json: c };\nconst cfg = $('Demo Config').first().json;\n\nconst prompt = `You are a UGC casting director for ${cfg.brand}.\n\nCampaign:\n- Product: ${cfg.productName}\n- Brief: ${cfg.productBrief}\n- Niche keywords: ${cfg.niche}\n- Deliverables: ${cfg.deliverables}\n- Budget per creator: R${cfg.budgetPerCreator}\n\nCreator:\n- Handle: ${c.handle} (${c.platform})\n- Followers: ${c.followers} | Avg views: ${c.avgViews} | ER: ${c.engagementRate}%\n- Niche: ${c.niche}\n- Sample post: \"${c.samplePost}\"\n- Rate card: R${c.rateCard}\n\nTask: score fit 1-10 and draft a personalised outreach DM + subject line.\n\nScoring rubric:\n- 9-10 = niche alignment perfect, audience match, within budget, high engagement\n- 7-8  = strong match, minor gap (rate slightly high, niche adjacent)\n- 4-6  = weak match\n- 1-3  = wrong niche / audience / quality\n\nReturn STRICT JSON:\n{\n  \"fitScore\": n,\n  \"fitReasoning\": \"one sentence\",\n  \"outreachSubject\": \"short, <= 60 chars, no clickbait\",\n  \"outreachBody\": \"2-3 short paragraphs referencing their sample post specifically, proposing the collab, mentioning budget, easy reply CTA\"\n}`;\nreturn { json: { ...c, scoringPrompt: prompt } };"
+      }
+    },
+    {
+      "id": "cf2d1e96-d2d5-47ac-97cf-b935601ac9fc",
+      "name": "AI Score + Brief",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1960,
+        380
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 900, temperature: 0.7, messages: [{role:'user', content: $json.scoringPrompt || ''}] }) }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "52ff6879-bbed-4de9-8494-e02389cdf06c",
+      "name": "Parse Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2180,
+        380
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const c = $('Build Scoring Prompt').item.json;\nif (c._empty) return { json: c };\n\nconst aiResp = $json || {};\nlet raw = '';\ntry {\n  raw = aiResp.choices && aiResp.choices[0] && aiResp.choices[0].message\n    ? aiResp.choices[0].message.content : '';\n} catch (e) { raw = ''; }\n\nlet parsed = null;\ntry {\n  const cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\n  parsed = cleaned ? JSON.parse(cleaned) : null;\n} catch (e) { parsed = null; }\n\nif (!parsed) {\n  // Heuristic fallback: niche keyword overlap\n  const nicheTokens = (c.niche || '').toLowerCase().split(/[,\\s]+/).filter(Boolean);\n  const campaignTokens = ($('Demo Config').first().json.niche || '').toLowerCase().split(/[,\\s]+/).filter(Boolean);\n  const overlap = nicheTokens.filter(t => campaignTokens.some(ct => ct.includes(t) || t.includes(ct))).length;\n  parsed = {\n    fitScore: Math.min(10, Math.max(1, 3 + overlap)),\n    fitReasoning: 'Heuristic niche overlap fallback (' + overlap + ' tokens).',\n    outreachSubject: 'Quick collab idea — ' + c.handle,\n    outreachBody: 'Hey, loved your recent post. We run ' + ($('Demo Config').first().json.brand) + ' and think it fits your audience. Budget R' + ($('Demo Config').first().json.budgetPerCreator) + ' for ' + ($('Demo Config').first().json.deliverables) + '. Interested?',\n  };\n}\n\nreturn {\n  json: {\n    ...c,\n    fitScore: Number(parsed.fitScore) || 0,\n    fitReasoning: parsed.fitReasoning || '',\n    outreachSubject: parsed.outreachSubject || '',\n    outreachBody: parsed.outreachBody || '',\n  }\n};"
+      }
+    },
+    {
+      "id": "3b441566-a00c-4f7d-ac59-e162b00f6f34",
+      "name": "Filter Qualified",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        380
+      ],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.fitScore }}",
+              "rightValue": 7,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            },
+            {
+              "leftValue": "={{ $json._empty }}",
+              "rightValue": "={{ true }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "notEqual"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "8b086b29-c75f-4c89-b595-f8794c61dded",
+      "name": "Log Creator",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2620,
+        380
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_TABLE_ID"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Campaign ID": "={{ $json.campaignId }}",
+            "Handle": "={{ $json.handle }}",
+            "Platform": "={{ $json.platform }}",
+            "Followers": "={{ $json.followers }}",
+            "Avg Views": "={{ $json.avgViews }}",
+            "Engagement Rate": "={{ $json.engagementRate }}",
+            "Niche": "={{ $json.niche }}",
+            "Sample Post": "={{ $json.samplePost }}",
+            "Email": "={{ $json.email }}",
+            "Rate Card": "={{ $json.rateCard }}",
+            "Fit Score": "={{ $json.fitScore }}",
+            "Fit Reasoning": "={{ $json.fitReasoning }}",
+            "Outreach Subject": "={{ $json.outreachSubject }}",
+            "Outreach Body": "={{ $json.outreachBody }}",
+            "Status": "Qualified",
+            "Source": "={{ $json.source }}",
+            "Created At": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "5cef780c-4772-448d-946d-977106909442",
+      "name": "Send Mode Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2840,
+        380
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Demo Config').first().json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('Demo Config').first().json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "097373d8-aff1-4f23-85e1-04eeac5c0ac4",
+      "name": "Simulate Send",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3060,
+        260
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d141b4ce-2e55-4cc5-b8da-ea9eaa4f06ce",
+              "name": "outreachStatus",
+              "type": "string",
+              "value": "simulated_sent"
+            },
+            {
+              "id": "e3b23e8e-01ff-4401-95df-2840d822530a",
+              "name": "messageId",
+              "type": "string",
+              "value": "={{ 'SIM-' + $json.handle + '-' + Date.now() }}"
+            },
+            {
+              "id": "0b031e16-9742-4370-b1d3-45bf8e1a1659",
+              "name": "sentAt",
+              "type": "string",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "include": "all",
+        "options": {}
+      }
+    },
+    {
+      "id": "c3dabbef-e233-42b1-84b6-2cbad09c099d",
+      "name": "Send Gmail Outreach",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3060,
+        500
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.outreachSubject }}",
+        "message": "={{ $json.outreachBody }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "a7784cef-c5f7-412a-963f-8d046e2d9c4b",
+      "name": "Merge Send Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        3300,
+        380
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "74f2bc47-84c1-43e6-84a5-c2aac18b3c69",
+      "name": "Log Outreach",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3520,
+        380
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_TABLE_ID"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Campaign ID": "={{ $json.campaignId }}",
+            "Handle": "={{ $json.handle }}",
+            "Email": "={{ $json.email }}",
+            "Subject": "={{ $json.outreachSubject }}",
+            "Body": "={{ $json.outreachBody }}",
+            "Status": "={{ $json.outreachStatus || 'sent' }}",
+            "Message ID": "={{ $json.messageId || ($json.id || '') }}",
+            "Sent At": "={{ $json.sentAt || new Date().toISOString() }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "e16a475e-09f3-4500-91bc-30fe1c6ce92c",
+      "name": "Aggregate Campaign",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        380
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst cfg = $('Demo Config').first().json;\nreturn [{\n  json: {\n    campaignId: cfg.campaignId,\n    brand: cfg.brand,\n    productName: cfg.productName,\n    quantityRequested: cfg.quantity,\n    creatorsReached: items.length,\n    creators: items.map(c => ({\n      handle: c.handle,\n      platform: c.platform,\n      fitScore: c.fitScore,\n      outreachStatus: c.outreachStatus,\n      subject: c.outreachSubject,\n    })),\n    timestamp: new Date().toISOString(),\n    status: 'outreach_complete',\n  }\n}];"
+      }
+    },
+    {
+      "id": "f061b92a-df11-4b9f-9400-8f6a6c289a02",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3960,
+        380
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Form Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "Create Campaign Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Campaign Record": {
+      "main": [
+        [
+          {
+            "node": "DEMO_MODE Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DEMO_MODE Switch": {
+      "main": [
+        [
+          {
+            "node": "Load Fixture Creators",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apify TikTok Scrape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Fixture Creators": {
+      "main": [
+        [
+          {
+            "node": "Merge Creators",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify TikTok Scrape": {
+      "main": [
+        [
+          {
+            "node": "Normalise Apify Creators",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Apify Creators": {
+      "main": [
+        [
+          {
+            "node": "Merge Creators",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Creators": {
+      "main": [
+        [
+          {
+            "node": "Build Scoring Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scoring Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Score + Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Score + Brief": {
+      "main": [
+        [
+          {
+            "node": "Parse Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Score": {
+      "main": [
+        [
+          {
+            "node": "Filter Qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Qualified": {
+      "main": [
+        [
+          {
+            "node": "Log Creator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Creator": {
+      "main": [
+        [
+          {
+            "node": "Send Mode Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Mode Switch": {
+      "main": [
+        [
+          {
+            "node": "Simulate Send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Gmail Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simulate Send": {
+      "main": [
+        [
+          {
+            "node": "Merge Send Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Gmail Outreach": {
+      "main": [
+        [
+          {
+            "node": "Merge Send Paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Send Paths": {
+      "main": [
+        [
+          {
+            "node": "Log Outreach",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Outreach": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Campaign": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

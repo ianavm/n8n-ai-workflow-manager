@@ -1,0 +1,680 @@
+{
+  "name": "DEMO-04 Hook Lab",
+  "nodes": [
+    {
+      "id": "2252c208-1d95-4bd6-950e-bc6d1dce84a7",
+      "name": "Form Trigger",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        200,
+        260
+      ],
+      "webhookId": "demo04-hook-lab-form",
+      "parameters": {
+        "formTitle": "Hook Lab — AnyVision Media",
+        "formDescription": "Give us one content idea. We'll generate 5 winning hooks per platform, score them, and tell you which one to post.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Core Idea",
+              "fieldType": "textarea",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Platforms",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "instagram,linkedin,tiktok,twitter"
+                  },
+                  {
+                    "option": "instagram,linkedin"
+                  },
+                  {
+                    "option": "tiktok,twitter"
+                  },
+                  {
+                    "option": "linkedin"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Target Audience",
+              "fieldType": "text",
+              "requiredField": false
+            },
+            {
+              "fieldLabel": "Demo Mode",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "1"
+                  },
+                  {
+                    "option": "0"
+                  }
+                ]
+              },
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "c168fa93-97b7-45d1-801a-d3f19200f24d",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        480
+      ],
+      "webhookId": "demo04-hook-lab",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo04-hook-lab",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "22cde2d0-63dc-4f7e-bb23-6cfb77b7bff2",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        370
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "32dc522f-36a8-4c30-ae16-58579fd96dde",
+              "name": "idea",
+              "type": "string",
+              "value": "={{ $json['Core Idea'] || $json.idea || 'We just launched a 5-tool AI stack for SA SMEs under R2k/mo' }}"
+            },
+            {
+              "id": "1ffa8adb-d2d3-4b8c-a159-84580ee24836",
+              "name": "platforms",
+              "type": "string",
+              "value": "={{ $json['Platforms'] || $json.platforms || 'instagram,linkedin,tiktok,twitter' }}"
+            },
+            {
+              "id": "d6eea8e0-56f0-4340-b0d5-1e67748771f9",
+              "name": "audience",
+              "type": "string",
+              "value": "={{ $json['Target Audience'] || $json.audience || 'SA SME owners, 30-55, hands-on' }}"
+            },
+            {
+              "id": "379be231-4430-4ea7-b1d9-e40056017db5",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json['Demo Mode'] ?? $json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "7da645cc-8b77-42fd-8bfb-96504369a7b3",
+              "name": "experimentId",
+              "type": "string",
+              "value": "={{ 'HL-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "5bd60b72-8158-48fd-b94b-40e818b3cb56",
+              "name": "brandVoice",
+              "type": "string",
+              "value": "AnyVision Media — punchy, direct, SA-SME-focused. Talks like a founder, not a marketer. Short lines, no fluff, 1-2 emojis max, CTA always earns the click."
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "49ba6182-3c0b-4b06-9243-18f73d4a5938",
+      "name": "Build Variation Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        370
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const cfg = $json;\nconst platforms = String(cfg.platforms || '').split(',').map(s => s.trim()).filter(Boolean);\n\nconst prompt = `You are a direct-response copywriter writing for ${cfg.brandVoice}.\nTarget audience: ${cfg.audience}.\n\nCore idea: ${cfg.idea}\n\nProduce 5 hook variations for EACH of these platforms: ${platforms.join(', ')}.\n\nEach variation must use a DIFFERENT emotional angle from this list:\ncuriosity | contrarian | fear-of-missing-out | social-proof | transformation\n\nRespect platform norms:\n- instagram: 1-2 lines, 1 emoji OK, strong first 6 words\n- linkedin: 2-3 lines, no emoji, no hashtags in hook, professional tone\n- tiktok: 1 line, punchy, can be playful, on-beat with gen-z speak if audience allows\n- twitter: <= 240 chars, provocative, 1 emoji max\n- facebook: conversational, question or story opener\n- youtube: title-style, curiosity-driven, all caps forbidden\n\nReturn STRICT JSON, no prose, no code fences:\n{\n  \"variations\": [\n    {\"platform\":\"instagram\",\"angle\":\"curiosity\",\"hook\":\"...\",\"cta\":\"...\"},\n    ...\n  ]\n}`;\n\nreturn { json: { ...cfg, prompt, platformsArray: platforms } };"
+      }
+    },
+    {
+      "id": "94e1ba06-e4c6-4e61-9e32-4cad65f983c3",
+      "name": "AI Generate Variations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        370
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-sonnet-4-20250514', max_tokens: 2200, temperature: 0.85, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "c176547a-0f9f-4362-a15f-501b23a3900d",
+      "name": "Parse & Fan Out",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        370
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst aiResp = $input.first().json || {};\n\n// Pull raw content string from OpenRouter response.\nlet raw = '';\ntry {\n  raw = aiResp.choices && aiResp.choices[0] && aiResp.choices[0].message\n    ? aiResp.choices[0].message.content\n    : '';\n} catch (e) { raw = ''; }\n\nfunction fallbackVariations(idea, platforms) {\n  const angles = ['curiosity','contrarian','fomo','social-proof','transformation'];\n  const out = [];\n  for (const p of platforms) {\n    for (let i = 0; i < 5; i++) {\n      out.push({\n        platform: p,\n        angle: angles[i],\n        hook: `[fallback] ${angles[i]} hook for ${p}: ${idea.slice(0, 80)}`,\n        cta: 'DM us \"GO\"'\n      });\n    }\n  }\n  return out;\n}\n\nlet variations = [];\ntry {\n  const cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\n  const parsed = cleaned ? JSON.parse(cleaned) : {};\n  variations = Array.isArray(parsed.variations) ? parsed.variations : [];\n} catch (e) {\n  variations = [];\n}\n\nif (!variations.length) {\n  variations = fallbackVariations(cfg.idea, cfg.platformsArray || []);\n}\n\nreturn variations.map((v, i) => ({\n  json: {\n    experimentId: cfg.experimentId,\n    idea: cfg.idea,\n    variationIdx: i + 1,\n    platform: v.platform,\n    angle: v.angle,\n    hook: v.hook,\n    cta: v.cta,\n    demoMode: cfg.demoMode,\n    createdAt: new Date().toISOString(),\n  }\n}));"
+      }
+    },
+    {
+      "id": "35403738-2617-4add-9e39-465e35e9f6aa",
+      "name": "Log Variation to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1300,
+        370
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_TABLE_ID"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Experiment ID": "={{ $json.experimentId }}",
+            "Variation Idx": "={{ $json.variationIdx }}",
+            "Platform": "={{ $json.platform }}",
+            "Angle": "={{ $json.angle }}",
+            "Hook": "={{ $json.hook }}",
+            "CTA": "={{ $json.cta }}",
+            "Idea": "={{ $json.idea }}",
+            "Created At": "={{ $json.createdAt }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "f059fa3c-983d-4b73-b857-78166663b31b",
+      "name": "DEMO_MODE Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1540,
+        370
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "079edd41-7a04-4c27-af25-6d04065a895c",
+      "name": "Simulate Engagement",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        260
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Deterministic synthetic engagement so demos are repeatable.\n// Contrarian + curiosity hooks tend to win; social-proof on LinkedIn.\nconst v = $json;\n\nfunction seeded(s) {\n  let h = 0;\n  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;\n  return Math.abs(h % 10000) / 10000;\n}\n\nconst base = seeded(v.hook + v.platform + v.angle);\nlet score = 0.35 + base * 0.5;\n\nif (v.angle === 'contrarian') score += 0.08;\nif (v.angle === 'curiosity') score += 0.05;\nif (v.platform === 'linkedin' && v.angle === 'social-proof') score += 0.1;\nif (v.platform === 'tiktok' && v.angle === 'fomo') score += 0.07;\n\nscore = Math.max(0, Math.min(1, score));\n\nconst impressions = Math.floor(2000 + base * 8000);\nconst engagementRate = Number((score * 12).toFixed(2));\n\nreturn {\n  json: {\n    ...v,\n    simulated: true,\n    impressions,\n    engagementRate,\n    score24h: Number(score.toFixed(3)),\n  }\n};"
+      }
+    },
+    {
+      "id": "00270cf3-3de6-4703-b4a3-e04a61d8ca66",
+      "name": "Live Path Placeholder",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1780,
+        480
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5205cfb9-17b1-44bb-be02-90cf05f8168d",
+              "name": "simulated",
+              "type": "boolean",
+              "value": false
+            },
+            {
+              "id": "72dd617d-f960-446d-a7f5-de7048646d19",
+              "name": "impressions",
+              "type": "number",
+              "value": 0
+            },
+            {
+              "id": "3d2db714-0f18-4542-9b46-e61e1217f9c9",
+              "name": "engagementRate",
+              "type": "number",
+              "value": 0
+            },
+            {
+              "id": "0df10e98-8794-4d2a-9314-1c271b1407b9",
+              "name": "score24h",
+              "type": "number",
+              "value": 0
+            },
+            {
+              "id": "3569f98d-5b04-43c8-9baf-b551299b7fd5",
+              "name": "livePathNote",
+              "type": "string",
+              "value": "Live mode: wire Blotato schedule + 24h wait + metrics fetch here."
+            }
+          ]
+        },
+        "include": "all",
+        "options": {}
+      }
+    },
+    {
+      "id": "6b4e6e58-1ee2-4752-aecc-b0bd215ea42a",
+      "name": "Merge Paths",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2020,
+        370
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "48da5e3b-20f5-4c67-a5ed-09c7a94b7235",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        370
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\n\n// Winner = highest score24h, tiebreak on engagementRate.\nconst sorted = [...items].sort((a, b) => {\n  const s = (b.score24h || 0) - (a.score24h || 0);\n  return s !== 0 ? s : (b.engagementRate || 0) - (a.engagementRate || 0);\n});\n\nconst winner = sorted[0] || null;\nreturn [{\n  json: {\n    experimentId: items[0]?.experimentId,\n    idea: items[0]?.idea,\n    totalVariations: items.length,\n    winner,\n    allVariations: sorted,\n    timestamp: new Date().toISOString(),\n  }\n}];"
+      }
+    },
+    {
+      "id": "011cc3f1-7c11-4110-94b1-c33da6d3bff9",
+      "name": "AI Explain Winner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2460,
+        370
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-haiku-4-5', max_tokens: 400, temperature: 0.4, messages: [{role: 'user', content: 'Given this winning hook variation, write a 2-sentence rationale explaining WHY it is likely to outperform the alternatives. Be concrete about the psychology. Output plain text, no markdown.\\n\\nWinner: ' + JSON.stringify($json.winner) + '\\n\\nAll variations (for context): ' + JSON.stringify($json.allVariations.slice(0,10))}] }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "fa471e5b-aadb-4909-bae5-5b5e306cac26",
+      "name": "Finalize Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2680,
+        370
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const agg = $('Aggregate Results').first().json;\nconst aiResp = $input.first().json || {};\n\nlet rationale = '';\ntry {\n  rationale = aiResp.choices && aiResp.choices[0] && aiResp.choices[0].message\n    ? aiResp.choices[0].message.content.trim()\n    : '';\n} catch (e) { rationale = ''; }\nif (!rationale) rationale = 'Winner selected by highest synthetic engagement score.';\n\nreturn [{\n  json: {\n    experimentId: agg.experimentId,\n    idea: agg.idea,\n    winner: agg.winner,\n    winnerRationale: rationale,\n    topThree: (agg.allVariations || []).slice(0, 3),\n    totalVariations: agg.totalVariations,\n    timestamp: agg.timestamp,\n    status: 'complete',\n  }\n}];"
+      }
+    },
+    {
+      "id": "6bf900c9-937f-4da3-b4ac-52062fa0eeba",
+      "name": "Log Winner to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2900,
+        370
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_TABLE_ID"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Experiment ID": "={{ $json.experimentId + '-WINNER' }}",
+            "Variation Idx": "=0",
+            "Platform": "={{ $json.winner && $json.winner.platform ? $json.winner.platform : 'n/a' }}",
+            "Angle": "={{ $json.winner && $json.winner.angle ? $json.winner.angle : 'n/a' }}",
+            "Hook": "={{ $json.winner && $json.winner.hook ? $json.winner.hook : 'no winner' }}",
+            "CTA": "={{ $json.winner && $json.winner.cta ? $json.winner.cta : '' }}",
+            "Idea": "={{ $json.idea }}",
+            "Is Winner": "=true",
+            "Winner Rationale": "={{ $json.winnerRationale }}",
+            "Created At": "={{ $json.timestamp }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "9fc150f5-5b1f-4b4d-8e26-209c0e99312e",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3120,
+        370
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Form Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "Build Variation Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Variation Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Generate Variations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Generate Variations": {
+      "main": [
+        [
+          {
+            "node": "Parse & Fan Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Fan Out": {
+      "main": [
+        [
+          {
+            "node": "Log Variation to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Variation to Airtable": {
+      "main": [
+        [
+          {
+            "node": "DEMO_MODE Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DEMO_MODE Switch": {
+      "main": [
+        [
+          {
+            "node": "Simulate Engagement",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Live Path Placeholder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simulate Engagement": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live Path Placeholder": {
+      "main": [
+        [
+          {
+            "node": "Merge Paths",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Paths": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "AI Explain Winner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Explain Winner": {
+      "main": [
+        [
+          {
+            "node": "Finalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Payload": {
+      "main": [
+        [
+          {
+            "node": "Log Winner to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Winner to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

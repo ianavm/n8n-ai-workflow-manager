@@ -1,0 +1,713 @@
+{
+  "name": "DEMO-03 Comment Lead Miner",
+  "nodes": [
+    {
+      "id": "40884f62-7078-4648-bf4f-e3c6daa9545c",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "demo03-comment-leads",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "demo03-comment-leads",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "47a2ba20-ae99-4285-9fce-7bd5a7dd8f10",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        520
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "84944415-d4d4-431c-ac0f-64036060efd1",
+      "name": "Demo Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        420,
+        410
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "17788ae7-da46-4877-9d7d-b24962771c25",
+              "name": "demoMode",
+              "type": "string",
+              "value": "={{ String($json.demoMode ?? '1') }}"
+            },
+            {
+              "id": "08dd812d-f2dd-44fc-a1e9-5a6f57610b3a",
+              "name": "postUrl",
+              "type": "string",
+              "value": "={{ $json.postUrl || 'https://instagram.com/p/DEMO' }}"
+            },
+            {
+              "id": "32240e14-b507-477e-a446-05ba15ac3419",
+              "name": "platform",
+              "type": "string",
+              "value": "={{ $json.platform || 'instagram' }}"
+            },
+            {
+              "id": "64b3fc46-9422-46a3-b710-4eb663af63b7",
+              "name": "brandInfo",
+              "type": "string",
+              "value": "AnyVision Media — Johannesburg-based AI automation agency for SA SMEs. Helps 3-50 person businesses deploy AI tools without a tech team. Typical package R2k-R15k/mo. Founder: Ian Immelman."
+            },
+            {
+              "id": "7562966a-b36b-4eeb-8a13-5797ddfbd8da",
+              "name": "runId",
+              "type": "string",
+              "value": "={{ 'CL-' + $now.toFormat('yyyyLLdd-HHmmss') }}"
+            },
+            {
+              "id": "3d0aacc0-e4b8-4244-b506-8d84ffa16598",
+              "name": "fixtureComments",
+              "type": "string",
+              "value": "[{\"commentId\": \"fx-001\", \"username\": \"@kagiso_sme\", \"text\": \"Wait this is exactly what my cleaning business needs. How much does the full stack cost?\", \"likes\": 3, \"timestamp\": \"2026-04-20T09:12:03Z\"}, {\"commentId\": \"fx-002\", \"username\": \"@thando_creates\", \"text\": \"Love this. Been following your journey for months \\ud83d\\udd25\", \"likes\": 7, \"timestamp\": \"2026-04-20T09:14:22Z\"}, {\"commentId\": \"fx-003\", \"username\": \"@nightshade_ops\", \"text\": \"DM me the link please, I want to sign up today before month end.\", \"likes\": 0, \"timestamp\": \"2026-04-20T09:15:48Z\"}, {\"commentId\": \"fx-004\", \"username\": \"@marketbuster\", \"text\": \"lol this won't work for property agents, too niche\", \"likes\": 1, \"timestamp\": \"2026-04-20T09:17:01Z\"}, {\"commentId\": \"fx-005\", \"username\": \"@lindiwe_jhb\", \"text\": \"Do you offer the onboarding in Zulu? Asking for my mom's salon business.\", \"likes\": 2, \"timestamp\": \"2026-04-20T09:19:33Z\"}, {\"commentId\": \"fx-006\", \"username\": \"@startup_wayne\", \"text\": \"Can we jump on a demo call this week? Running 12 person team, real pain with admin.\", \"likes\": 0, \"timestamp\": \"2026-04-20T09:21:05Z\"}, {\"commentId\": \"fx-007\", \"username\": \"@random_bot_42\", \"text\": \"Check out my profile for free crypto giveaway\", \"likes\": 0, \"timestamp\": \"2026-04-20T09:22:14Z\"}, {\"commentId\": \"fx-008\", \"username\": \"@retail_pieter\", \"text\": \"What's the pricing for a 5-person team?\", \"likes\": 4, \"timestamp\": \"2026-04-20T09:24:41Z\"}, {\"commentId\": \"fx-009\", \"username\": \"@gardeningqueen\", \"text\": \"Is there a free trial? Would love to test before committing.\", \"likes\": 2, \"timestamp\": \"2026-04-20T09:26:08Z\"}, {\"commentId\": \"fx-010\", \"username\": \"@joburg_dentist\", \"text\": \"Terrible experience with the last automation tool I tried. How is yours different?\", \"likes\": 1, \"timestamp\": \"2026-04-20T09:28:15Z\"}, {\"commentId\": \"fx-011\", \"username\": \"@samkeleisha\", \"text\": \"Link in bio?\", \"likes\": 1, \"timestamp\": \"2026-04-20T09:29:44Z\"}, {\"commentId\": \"fx-012\", \"username\": \"@fourways_fitness\", \"text\": \"Just signed up last week \\u2014 best decision this year. Bookings up 40% already.\", \"likes\": 9, \"timestamp\": \"2026-04-20T09:31:22Z\"}]"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "8898104e-4f4f-4afa-8a86-6ce695ca1f15",
+      "name": "DEMO_MODE Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        640,
+        410
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "1",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "demo"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.demoMode }}",
+                    "rightValue": "0",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "live"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 0
+        }
+      }
+    },
+    {
+      "id": "dcf18eea-7111-459a-a39f-6c6373fb77fd",
+      "name": "Load Fixture Comments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cfg = $('Demo Config').first().json;\nconst fx = JSON.parse(cfg.fixtureComments || '[]');\nreturn fx.map(c => ({\n  json: {\n    ...c,\n    postUrl: cfg.postUrl,\n    platform: cfg.platform,\n    runId: cfg.runId,\n    source: 'fixture',\n  }\n}));"
+      }
+    },
+    {
+      "id": "051cee6a-e457-41cb-9a50-bf7d5bf45c47",
+      "name": "Apify Comment Scrape",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        520
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~instagram-comment-scraper/run-sync-get-dataset-items",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "token",
+              "value": "={{ $env.APIFY_API_TOKEN || 'MISSING' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ directUrls: [$json.postUrl], resultsLimit: 50 }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "07f99801-c5ae-420d-8467-280fbf0eb832",
+      "name": "Normalise Apify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        520
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nconst cfg = $('Demo Config').first().json;\nconst out = [];\nfor (const item of items) {\n  const rows = Array.isArray(item.json) ? item.json : [item.json];\n  for (const r of rows) {\n    if (!r || !r.text) continue;\n    out.push({\n      json: {\n        commentId: r.id || r.pk || String(Date.now()) + Math.random(),\n        username: r.ownerUsername ? '@' + r.ownerUsername : (r.username || '@unknown'),\n        text: r.text,\n        likes: r.likesCount || 0,\n        timestamp: r.timestamp || new Date().toISOString(),\n        postUrl: cfg.postUrl,\n        platform: cfg.platform,\n        runId: cfg.runId,\n        source: 'apify',\n      }\n    });\n  }\n}\nreturn out.length ? out : [{ json: { _empty: true, runId: cfg.runId } }];"
+      }
+    },
+    {
+      "id": "074a65e0-aab6-46bf-8f5a-91395dbe5dc8",
+      "name": "Merge Comments",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1300,
+        410
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "207db7d9-9dbc-4d9c-9199-280d60d41ae2",
+      "name": "Build Classification Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        410
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const comments = $input.all()\n  .map(i => i.json)\n  .filter(c => c && c.text);\n\nconst cfg = $('Demo Config').first().json;\n\nconst prompt = `You are a sales qualifier for ${cfg.brandInfo}\n\nScore each of these social-media comments on buying intent (0-100).\nCategory must be one of: pricing | demo-request | objection | endorsement | support | spam | generic.\n\nScoring guide:\n- 0-29   = low intent (fan noise, spam, random)\n- 30-69  = medium intent (curious, asking general questions, objections)\n- 70-100 = high intent (asking price, wants demo, ready to buy)\n\nFor HIGH intent comments, also draft a 1-2 sentence reply that feels human,\naddresses their question, and invites them to DM or book a call. No emoji\nunless the original comment used one. Never pitch hard — earn the click.\n\nFor MEDIUM intent, draft a softer nurture reply (1 sentence).\nFor LOW, suggestedReply = null.\n\nReturn STRICT JSON, no prose:\n{\n  \"results\": [\n    {\n      \"commentId\":\"...\",\n      \"intentScore\": 0-100,\n      \"category\":\"...\",\n      \"reasoning\":\"one short sentence\",\n      \"suggestedReply\":\"...\" | null\n    }\n  ]\n}\n\nComments to score:\n${JSON.stringify(comments.map(c => ({commentId: c.commentId, username: c.username, text: c.text})), null, 2)}`;\n\nreturn [{ json: { prompt, comments } }];"
+      }
+    },
+    {
+      "id": "757269c1-239f-416e-9f40-500cb2513cde",
+      "name": "AI Classify Intent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1740,
+        410
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "9ZgHenDBrFuyboov",
+          "name": "OpenRouter 2WC"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'anthropic/claude-haiku-4-5', max_tokens: 2500, temperature: 0.2, messages: [{role: 'user', content: $json.prompt}] }) }}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "9756d908-b538-40a0-b90b-575c53fb8594",
+      "name": "Merge & Fan Out",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        410
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const promptPayload = $('Build Classification Prompt').first().json;\nconst comments = promptPayload.comments || [];\n\nconst aiResp = $input.first().json || {};\nlet raw = '';\ntry {\n  raw = aiResp.choices && aiResp.choices[0] && aiResp.choices[0].message\n    ? aiResp.choices[0].message.content : '';\n} catch (e) { raw = ''; }\n\nlet results = [];\ntry {\n  const cleaned = raw.replace(/^```(?:json)?\\s*|\\s*```$/g, '').trim();\n  const parsed = cleaned ? JSON.parse(cleaned) : {};\n  results = Array.isArray(parsed.results) ? parsed.results : [];\n} catch (e) { results = []; }\n\n// Heuristic fallback — basic keyword intent if AI fails.\nfunction heuristic(text) {\n  const t = (text || '').toLowerCase();\n  let score = 10, cat = 'generic';\n  if (/(how much|price|pricing|cost|rate|quote)/.test(t)) { score = 82; cat = 'pricing'; }\n  else if (/(demo|jump on a call|book)/.test(t)) { score = 88; cat = 'demo-request'; }\n  else if (/(dm|link|sign up|sign-up|trial)/.test(t)) { score = 74; cat = 'pricing'; }\n  else if (/(won't work|terrible|bad experience)/.test(t)) { score = 45; cat = 'objection'; }\n  else if (/(🔥|love this|amazing|game-changer|best decision)/.test(t)) { score = 30; cat = 'endorsement'; }\n  else if (/(crypto|giveaway|check my profile)/.test(t)) { score = 0; cat = 'spam'; }\n  return { score, cat };\n}\n\nconst byId = new Map(results.map(r => [r.commentId, r]));\n\nreturn comments.map(c => {\n  let r = byId.get(c.commentId);\n  if (!r) {\n    const h = heuristic(c.text);\n    r = {\n      commentId: c.commentId,\n      intentScore: h.score,\n      category: h.cat,\n      reasoning: 'heuristic fallback',\n      suggestedReply: null,\n    };\n  }\n  return {\n    json: {\n      ...c,\n      intentScore: Number(r.intentScore) || 0,\n      category: r.category || 'generic',\n      reasoning: r.reasoning || '',\n      suggestedReply: r.suggestedReply || null,\n      tier: (r.intentScore >= 70) ? 'high' : (r.intentScore >= 30 ? 'medium' : 'low'),\n    }\n  };\n});"
+      }
+    },
+    {
+      "id": "71964d73-9a6a-4020-939b-8b46abad9e38",
+      "name": "Log Lead to Airtable",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        410
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "ZyBrcAO6fps7YB3u",
+          "name": "Airtable account"
+        }
+      },
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "mode": "id",
+          "value": "apptjjBx34z9340tK"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_TABLE_ID"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Comment ID": "={{ $json.commentId }}",
+            "Run ID": "={{ $json.runId }}",
+            "Platform": "={{ $json.platform }}",
+            "Post URL": "={{ $json.postUrl }}",
+            "Username": "={{ $json.username }}",
+            "Comment Text": "={{ $json.text }}",
+            "Intent Score": "={{ $json.intentScore }}",
+            "Category": "={{ $json.category }}",
+            "Tier": "={{ $json.tier }}",
+            "Reasoning": "={{ $json.reasoning }}",
+            "Suggested Reply": "={{ $json.suggestedReply || '' }}",
+            "Likes": "={{ $json.likes }}",
+            "Source": "={{ $json.source }}",
+            "Commented At": "={{ $json.timestamp }}",
+            "Created At": "={{ new Date().toISOString() }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "9d55042e-97a5-40ec-98bb-f2c9b053209e",
+      "name": "Tier Router",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2440,
+        410
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "high",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "high"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "medium",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "medium"
+            },
+            {
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "low",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "outputKey": "low"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": 2
+        }
+      }
+    },
+    {
+      "id": "a25594fa-79b2-4e82-93e2-a0db64beb77e",
+      "name": "Slack Alert — High Intent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2680,
+        260
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL || 'https://hooks.slack.com/services/DISABLED' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: '🔥 HIGH-INTENT LEAD on ' + $json.platform + '\\nScore: ' + $json.intentScore + ' (' + $json.category + ')' + '\\nFrom: ' + $json.username + '\\nComment: \"' + $json.text + '\"' + '\\nSuggested reply: ' + ($json.suggestedReply || '(draft yourself)') + '\\nPost: ' + $json.postUrl}) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "41fbcca6-9adf-4176-9a22-5c5726bd4d47",
+      "name": "Pass-through Medium",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2680,
+        410
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "fde73691-0fcb-4784-a151-50dcd246c325",
+      "name": "Pass-through Low",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2680,
+        560
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "7315dcf2-3279-44c2-ac48-ed5d0f06413b",
+      "name": "Merge Tiers",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2900,
+        410
+      ],
+      "parameters": {
+        "mode": "append"
+      }
+    },
+    {
+      "id": "1aea11eb-acd4-473c-a4dd-fba77ba674b6",
+      "name": "Summarise Run",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        410
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json).filter(c => c && c.commentId);\nconst tiers = { high: 0, medium: 0, low: 0 };\nfor (const c of items) tiers[c.tier] = (tiers[c.tier] || 0) + 1;\n\nconst highs = items.filter(c => c.tier === 'high').map(c => ({\n  username: c.username,\n  score: c.intentScore,\n  text: c.text,\n  category: c.category,\n  suggestedReply: c.suggestedReply,\n}));\n\nconst runId = items[0]?.runId || ('CL-' + Date.now());\n\nreturn [{\n  json: {\n    runId,\n    total: items.length,\n    breakdown: tiers,\n    highIntentLeads: highs,\n    timestamp: new Date().toISOString(),\n    status: 'complete',\n  }\n}];"
+      }
+    },
+    {
+      "id": "d81bd434-c8ef-46c7-97cf-79dc7d4bdf87",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3340,
+        410
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Demo Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Demo Config": {
+      "main": [
+        [
+          {
+            "node": "DEMO_MODE Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DEMO_MODE Switch": {
+      "main": [
+        [
+          {
+            "node": "Load Fixture Comments",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Apify Comment Scrape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Fixture Comments": {
+      "main": [
+        [
+          {
+            "node": "Merge Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify Comment Scrape": {
+      "main": [
+        [
+          {
+            "node": "Normalise Apify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Apify": {
+      "main": [
+        [
+          {
+            "node": "Merge Comments",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Comments": {
+      "main": [
+        [
+          {
+            "node": "Build Classification Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Classification Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Classify Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Classify Intent": {
+      "main": [
+        [
+          {
+            "node": "Merge & Fan Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge & Fan Out": {
+      "main": [
+        [
+          {
+            "node": "Log Lead to Airtable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Lead to Airtable": {
+      "main": [
+        [
+          {
+            "node": "Tier Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tier Router": {
+      "main": [
+        [
+          {
+            "node": "Slack Alert — High Intent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pass-through Medium",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pass-through Low",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Alert — High Intent": {
+      "main": [
+        [
+          {
+            "node": "Merge Tiers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass-through Medium": {
+      "main": [
+        [
+          {
+            "node": "Merge Tiers",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Pass-through Low": {
+      "main": [
+        [
+          {
+            "node": "Merge Tiers",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Tiers": {
+      "main": [
+        [
+          {
+            "node": "Summarise Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarise Run": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}
