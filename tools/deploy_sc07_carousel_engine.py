@@ -88,7 +88,6 @@ BLOTATO_ACCOUNTS = {
 NOTIFY_RECIPIENT = os.getenv("SC07_NOTIFY_EMAIL", "ian@anyvisionmedia.com")
 
 MAX_RETRIES = 3
-SCHEDULE_LOOKAHEAD_MIN = 10  # pick up rows scheduled within this window
 IG_MAX_HASHTAGS = 5
 
 
@@ -174,8 +173,12 @@ def build_nodes() -> list[dict]:
 
     # --- 2. Filter Eligible Rows --------------------------------------
     # Picks the EARLIEST row matching:
-    #   Status == Approved, Posted At empty, Scheduled At <= now+10min,
-    #   Retry Count < MAX_RETRIES. Returns [] when none -> short-circuits.
+    #   Status == Approved, Posted At empty, Retry Count < MAX_RETRIES,
+    #   has Carousel ID and Image URLs, and Scheduled At parses.
+    # NOTE: No upper-bound cutoff on Scheduled At -- Blotato itself handles
+    # future scheduling, so we queue any approved-but-unposted row
+    # immediately and let Blotato wait until the scheduled time.
+    # Returns [] when none -> short-circuits downstream.
     nodes.append({
         "id": uid(),
         "name": "Filter Eligible Rows",
@@ -185,8 +188,6 @@ def build_nodes() -> list[dict]:
         "parameters": {
             "mode": "runOnceForAllItems",
             "jsCode": f"""const rows = $input.all().map(i => i.json);
-const now = new Date();
-const cutoff = new Date(now.getTime() + {SCHEDULE_LOOKAHEAD_MIN} * 60 * 1000);
 
 const eligible = rows
   .filter(r =>
@@ -194,7 +195,6 @@ const eligible = rows
     !String(r['Posted At'] || '').trim() &&
     r['Scheduled At'] &&
     !isNaN(new Date(r['Scheduled At']).getTime()) &&
-    new Date(r['Scheduled At']) <= cutoff &&
     Number(r['Retry Count'] || 0) < {MAX_RETRIES} &&
     String(r['Carousel ID'] || '').trim() !== '' &&
     String(r['Image URLs'] || '').trim() !== ''
@@ -212,6 +212,8 @@ return [{{ json: eligible[0] }}];""",
     # --- 3. Carousel Config (Set) -------------------------------------
     # Normalises the sheet row into the shape downstream nodes expect.
     # Hashtags are split; IG hashtags are capped at {IG_MAX_HASHTAGS}.
+    # Default (per-item) mode so 0 input rows = 0 executions -- this is the
+    # short-circuit for the "nothing to post" schedule tick.
     nodes.append({
         "id": uid(),
         "name": "Carousel Config",
@@ -219,8 +221,7 @@ return [{{ json: eligible[0] }}];""",
         "typeVersion": 2,
         "position": [860, 380],
         "parameters": {
-            "mode": "runOnceForAllItems",
-            "jsCode": f"""const row = $input.first().json;
+            "jsCode": f"""const row = $json;
 
 function splitUrls(s) {{
   return String(s || '')
@@ -294,6 +295,9 @@ return [{{
 
     # --- 5. Expand Images --------------------------------------------
     # Fan out: 1 item per image URL for per-image Blotato media upload.
+    # IMPORTANT: reference 'Carousel Config' directly -- 'Mark In-Progress'
+    # upstream is a Google Sheets node, which replaces $json with just the
+    # columns it wrote (not the full Carousel Config payload).
     nodes.append({
         "id": uid(),
         "name": "Expand Images",
@@ -301,8 +305,9 @@ return [{{
         "typeVersion": 2,
         "position": [1300, 380],
         "parameters": {
-            "mode": "runOnceForAllItems",
-            "jsCode": """const cfg = $('Carousel Config').first().json;
+            "jsCode": """const cfgRef = $('Carousel Config').first();
+if (!cfgRef) return [];
+const cfg = cfgRef.json;
 const urls = Array.isArray(cfg.publicImageUrls)
   ? cfg.publicImageUrls
   : [];
@@ -336,6 +341,7 @@ return urls.map((url, idx) => ({
 
     # --- 7. Aggregate Blotato URLs (fan-in) ---------------------------
     # IMPORTANT: no executeOnce -- that drops all but the first item.
+    # Guarded: returns [] if no uploads so downstream per-item nodes skip.
     nodes.append({
         "id": uid(),
         "name": "Aggregate Blotato URLs",
@@ -345,12 +351,16 @@ return urls.map((url, idx) => ({
         "parameters": {
             "mode": "runOnceForAllItems",
             "jsCode": """const items = $input.all();
+if (items.length === 0) return [];
+
 const uploadedUrls = items.map(i => {
   const resp = i.json || {};
   return resp.url || resp.mediaUrl || '';
 }).filter(Boolean);
 
-const cfg = $('Carousel Config').first().json;
+const cfgRef = $('Carousel Config').first();
+if (!cfgRef) return [];
+const cfg = cfgRef.json;
 
 return [{
   json: {
@@ -363,6 +373,7 @@ return [{
     })
 
     # --- 8. Fan Out Platforms -----------------------------------------
+    # Per-item mode: 1 input -> 3 output items. 0 input -> 0 executions.
     nodes.append({
         "id": uid(),
         "name": "Fan Out Platforms",
@@ -370,8 +381,7 @@ return [{
         "typeVersion": 2,
         "position": [1960, 380],
         "parameters": {
-            "mode": "runOnceForAllItems",
-            "jsCode": f"""const cfg = $input.first().json;
+            "jsCode": f"""const cfg = $json;
 const media = cfg.blotatoMediaUrls || [];
 const ACCOUNTS = {json.dumps(BLOTATO_ACCOUNTS)};
 
@@ -458,8 +468,12 @@ return [
         "parameters": {
             "mode": "runOnceForAllItems",
             "jsCode": """const items = $input.all();
+if (items.length === 0) return [];
+
 const fanout = $('Fan Out Platforms').all();
-const cfg = $('Aggregate Blotato URLs').first().json;
+const cfgRef = $('Aggregate Blotato URLs').first();
+if (!cfgRef) return [];
+const cfg = cfgRef.json;
 
 function errString(err) {
   if (!err) return null;
@@ -536,7 +550,11 @@ return results.map(r => ({
         "parameters": {
             "mode": "runOnceForAllItems",
             "jsCode": """const items = $input.all().map(i => i.json);
-const cfg = $('Carousel Config').first().json;
+if (items.length === 0) return [];
+
+const cfgRef = $('Carousel Config').first();
+if (!cfgRef) return [];
+const cfg = cfgRef.json;
 const allSuccess = items.length > 0 && items.every(r => r.success);
 const anyFail = items.some(r => !r.success);
 
@@ -606,16 +624,23 @@ return [{
     })
 
     # --- 13. Notify (Gmail) -------------------------------------------
-    subject_tpl = "={{ 'SC-07 ' + ($json.allSuccess ? '[OK]' : '[FAIL]') + ' ' + $json.title }}"
+    # Pull fields from "Aggregate Final" directly — the preceding Google Sheets
+    # appendOrUpdate replaces $json with only the sheet columns, dropping
+    # title/scheduledAt/summary/allSuccess/newStatus/newRetryCount.
+    af = "$('Aggregate Final').first().json"
+    subject_tpl = (
+        "={{ 'SC-07 ' + (" + af + ".allSuccess ? '[OK]' : '[FAIL]')"
+        " + ' ' + " + af + ".title }}"
+    )
     body_tpl = (
         "={{ '<h2>Carousel posting summary</h2>'"
-        " + '<p><b>Title:</b> ' + $json.title + '</p>'"
-        " + '<p><b>Carousel ID:</b> ' + $json.carouselId + '</p>'"
-        " + '<p><b>Scheduled:</b> ' + $json.scheduledAt + '</p>'"
-        " + '<p><b>Status:</b> ' + $json.newStatus + '</p>'"
-        " + '<p><b>Retry count:</b> ' + $json.newRetryCount + '</p>'"
-        " + '<p><b>Per platform:</b><br/>' + $json.summary + '</p>'"
-        " + ($json.lastError ? ('<p><b>Errors:</b> ' + $json.lastError + '</p>') : '')"
+        " + '<p><b>Title:</b> ' + " + af + ".title + '</p>'"
+        " + '<p><b>Carousel ID:</b> ' + " + af + ".carouselId + '</p>'"
+        " + '<p><b>Scheduled:</b> ' + " + af + ".scheduledAt + '</p>'"
+        " + '<p><b>Status:</b> ' + " + af + ".newStatus + '</p>'"
+        " + '<p><b>Retry count:</b> ' + " + af + ".newRetryCount + '</p>'"
+        " + '<p><b>Per platform:</b><br/>' + " + af + ".summary + '</p>'"
+        " + (" + af + ".lastError ? ('<p><b>Errors:</b> ' + " + af + ".lastError + '</p>') : '')"
         " }}"
     )
     nodes.append({

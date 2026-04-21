@@ -80,9 +80,18 @@ AIRTABLE_SUPPRESSION_TABLE = "tbl0LtepawDzFYg4I"
 
 # Addresses n8n itself sends from. Any inbound message with a bare from-address
 # in this list is blocked from auto-drafting to prevent reply-to-self loops.
+# Default includes Ian's address (catches send-as / forwarded copies) plus the
+# common noreply addresses for the AnyVision domain and the n8n platform.
+_DEFAULT_AUTOMATION_SENDERS = (
+    "ian@anyvisionmedia.com,"
+    "noreply@anyvisionmedia.com,"
+    "noreply@n8n.io,"
+    "no-reply@n8n.io,"
+    "notifications@n8n.cloud"
+)
 AUTOMATION_SENDERS: list[str] = [
     s.strip().lower()
-    for s in os.getenv("AUTOMATION_SENDERS", "ian@anyvisionmedia.com").split(",")
+    for s in os.getenv("AUTOMATION_SENDERS", _DEFAULT_AUTOMATION_SENDERS).split(",")
     if s.strip()
 ]
 
@@ -101,6 +110,7 @@ LABELS: dict[str, str] = {
     "Urgent": os.getenv("EMAIL_LABEL_URGENT", "Label_7"),
     "Junk": os.getenv("EMAIL_LABEL_JUNK", "Label_8"),
     "DNT": os.getenv("EMAIL_LABEL_DNT", "Label_9"),
+    "N8N": os.getenv("EMAIL_LABEL_N8N", "Label_10"),
 }
 
 _missing_labels = [name for name, value in LABELS.items() if not value]
@@ -316,8 +326,21 @@ for (const item of items) {
   };
 
   const fromLower = emailData.from.toLowerCase();
+  // n8n-specific domains, split out so we can apply a dedicated `n8n` Gmail
+  // label (and skip the AI call entirely). The broader BLOCKED_DOMAINS list
+  // still gates auto-replies for non-n8n noise (github, eftcorp, etc.).
+  const N8N_DOMAINS = [
+    '@n8n.io',
+    '@app.n8n.cloud',
+    '@ianimmelman89.app.n8n.cloud'
+  ];
+  const isN8nDomain = N8N_DOMAINS.some(d => fromLower.includes(d));
   const isBlockedDomain = BLOCKED_DOMAINS.some(d => fromLower.includes(d));
   const isN8nReport = N8N_REPORT_SUBJECT_PATTERNS.some(rx => rx.test(emailData.subject || ''));
+  // Either the message is from an n8n hostname, OR the subject pattern matches
+  // a workflow report — in both cases we route to the dedicated n8n label
+  // BEFORE the AI agent runs (saves tokens, gives clean Gmail filter view).
+  const isN8nOrigin = isN8nDomain || isN8nReport;
 
   const classificationPrompt = `Analyze this business email. Return ONLY valid JSON, no markdown, no backticks.
 
@@ -337,7 +360,7 @@ Return this exact JSON:
   "tone": "<formal|informal|urgent|angry|friendly|neutral>",
   "urgency": "<high|medium|low>",
   "action_required": true or false,
-  "department": "<ONE of: Accounting_Finance|Customer_Support|Sales|Management|Admin|Legal|Internal|Spam_Irrelevant>",
+  "department": "<ONE of: Accounting_Finance|Customer_Support|Sales|Management|Spam_Irrelevant>",
   "tags": ["<from: Invoice,Payment,Refund,Complaint,New_Lead,Contract,Meeting_Request,Follow_Up,Escalation,Urgent>"],
   "is_spam": true or false,
   "suggested_response": "<professional reply if action_required, else null>",
@@ -346,21 +369,35 @@ Return this exact JSON:
   "is_interested_reply": true or false
 }
 
-Rules:
-- Accounting_Finance: invoices, payments, billing, refunds
-- Customer_Support: complaints, technical issues, service support
-- Sales: new enquiries, pricing, leads
-- Management: strategy, legal, partnerships, high-level complaints
-- Spam_Irrelevant: suspicious links, phishing, irrelevant promos
-- Mark urgency HIGH if: urgent/ASAP in subject, legal threats, payment issues
-- Responses must be professional and concise`;
+Departments (pick exactly ONE — Admin, Legal, Internal, HR all fold into Management):
+- Accounting_Finance: invoices, payments, billing, refunds, VAT/SARS, bank notices
+- Customer_Support: complaints, technical issues, bug reports, account help, ticket follow-ups
+- Sales: new enquiries, pricing, partnerships, lead generation, RFPs, demo requests
+- Management: strategy, legal threats, contracts, NDAs, PR/media, escalations, admin/HR/internal, vendor setup
+- Spam_Irrelevant: USE SPARINGLY — only when MULTIPLE clear spam signals are present (see below)
+
+Spam rule (STRICT — defaults to NOT spam):
+- Mark is_spam=true and department=Spam_Irrelevant ONLY when 2+ of these are true:
+  * Sender domain is suspicious / spoofed / disposable
+  * Body is generic mass-blast (no personalisation, no real signature)
+  * Suspicious or shortened URLs / phishing indicators
+  * Unsolicited promo with unrealistic claims ("guaranteed first page", "90% off")
+- A personalised cold pitch from a real human/business → Sales (is_spam=false)
+- A transactional email from a known SaaS (Stripe, QuickBooks, GitHub, Google) → the relevant real department, NOT spam
+- When unsure between Spam_Irrelevant and a real department, choose the real department. False-spam is more costly than a misroute.
+
+Urgency: HIGH only if action_required AND not spam AND (real client + urgent language, OR legal threat, OR payment dispute, OR escalated complaint, OR warm reply with deadline). Default medium.
+
+Responses must be professional and concise.`;
 
   results.push({
     json: {
       ...emailData,
       classificationPrompt,
+      is_n8n_domain: isN8nDomain,
       is_blocked_domain: isBlockedDomain,
-      is_n8n_report: isN8nReport
+      is_n8n_report: isN8nReport,
+      is_n8n_origin: isN8nOrigin
     }
   });
 }
@@ -653,6 +690,28 @@ AI_SYSTEM_MESSAGE = (
     "pitching their services), classify it as Sales with is_spam=false only "
     "if it looks personalised; generic mass-mailer pitches are "
     "Spam_Irrelevant.\n\n"
+    "## Spam Classification (STRICT — bias toward NOT-spam)\n"
+    "Mark is_spam=true and department=Spam_Irrelevant ONLY when AT LEAST TWO "
+    "of these signals are present:\n"
+    "1. Sender domain looks suspicious, spoofed, disposable, or freshly-registered\n"
+    "2. Body is a generic mass-blast (no personalisation, no real signature, "
+    "no reference to AnyVision Media or Ian by name)\n"
+    "3. Suspicious / shortened URLs, phishing indicators, or attachment lures\n"
+    "4. Unrealistic claims (\"guaranteed first page\", \"90% off\", \"3x revenue\", "
+    "\"millions of leads\")\n"
+    "5. Heavy use of clickbait CAPS, multiple exclamation marks, or fake urgency\n\n"
+    "Default to NOT-spam when:\n"
+    "- A real human/business writes a personalised question or request, even "
+    "if you've never heard of them — route to Sales / Customer_Support / etc.\n"
+    "- Transactional emails from known SaaS providers (Stripe, QuickBooks, "
+    "GitHub, Google, Microsoft, OpenAI, Anthropic) — route to the matching "
+    "real department (usually Accounting_Finance for invoices/receipts, "
+    "Management for security alerts, Customer_Support for service notifications).\n"
+    "- A platform notification you'd want to see (e.g. payment received, "
+    "password change confirmation, new comment on a doc).\n\n"
+    "**Tie-breaker rule:** If you are uncertain whether something is spam vs a "
+    "real department, choose the real department. A misrouted real email is "
+    "easy to fix; a spam-buried real email is invisible.\n\n"
     "## Available Tags\n"
     "Invoice, Payment, Refund, Complaint, New_Lead, Contract, Meeting_Request, "
     "Follow_Up, Escalation, Urgent\n\n"
@@ -744,6 +803,43 @@ AI_SYSTEM_MESSAGE = (
     '"Spam_Irrelevant","tags":[],"is_spam":true,"suggested_response":null,'
     '"summary":"Cold outreach from an agency using fake urgency; not a '
     'real deadline.","escalation_needed":false,"is_interested_reply":false}\n\n'
+    "### Example 5 - Real Person, Unfamiliar Sender (NOT spam)\n"
+    "Input:\n"
+    "From: Jabu Khumalo <jabu@khumaloconsulting.co.za>\n"
+    "Subject: Quick question about your AI workflow services\n"
+    "Body: Hi Ian, I came across AnyVision Media via a LinkedIn post you "
+    "shared on automating client onboarding. I run a 3-person consulting firm "
+    "in Sandton and we're drowning in admin. Could you tell me a bit more "
+    "about what you do, and whether it'd be a fit for a small business? "
+    "Thanks, Jabu.\n\n"
+    "Output:\n"
+    '{"sender":"jabu@khumaloconsulting.co.za","sender_name":"Jabu Khumalo",'
+    '"subject":"Quick question about your AI workflow services","intent":'
+    '"Small-business owner asking whether AI workflow automation suits his '
+    'firm","tone":"friendly","urgency":"medium","action_required":true,'
+    '"department":"Sales","tags":["New_Lead"],"is_spam":false,'
+    '"suggested_response":"Hi Jabu,\\n\\nThanks for reaching out — glad the '
+    "LinkedIn post landed. Yes, we work with small consulting firms a lot; "
+    "the admin load is exactly what our automations are built for.\\n\\nHappy "
+    "to jump on a 20-minute call to understand your workflow and tell you "
+    "whether it's a fit honestly. Does this week or next work better for "
+    'you?\\n\\nBest,\\nIan","summary":"Personalised inbound from a Sandton '
+    "consultant who saw a LinkedIn post; small-firm fit question.\","
+    '"escalation_needed":false,"is_interested_reply":false}\n\n'
+    "### Example 6 - Transactional SaaS Notification (NOT spam)\n"
+    "Input:\n"
+    "From: Stripe <receipts@stripe.com>\n"
+    "Subject: Your receipt from AnyVision Media #1234-5678\n"
+    "Body: Thanks for your payment. Amount: ZAR 1,250.00. Card ending 4242. "
+    "View receipt online.\n\n"
+    "Output:\n"
+    '{"sender":"receipts@stripe.com","sender_name":"Stripe","subject":'
+    '"Your receipt from AnyVision Media #1234-5678","intent":"Stripe '
+    'payment receipt for ZAR 1,250.00","tone":"neutral","urgency":"low",'
+    '"action_required":false,"department":"Accounting_Finance",'
+    '"tags":["Payment"],"is_spam":false,"suggested_response":null,'
+    '"summary":"Transactional payment receipt from Stripe — file under '
+    'Accounting.","escalation_needed":false,"is_interested_reply":false}\n\n'
     "## Response Writing Rules (for suggested_response)\n"
     "When action_required is true, write a professional, well-structured reply:\n\n"
     "**STRUCTURE:**\n"
@@ -857,6 +953,34 @@ def build_nodes() -> list[dict]:
     # 6. Prepare Email Data
     nodes.append(code_node("Prepare Email Data", PREPARE_EMAIL_JS, [460, 432]))
 
+    # 6a. Is n8n Origin? — short-circuits the AI call for emails that come from
+    #     the n8n platform (own hostnames) or carry a workflow-report subject.
+    #     Saves ~1 LLM call per n8n notification and gives a clean Gmail
+    #     filter view (`label:n8n`).
+    nodes.append(if_node(
+        "Is n8n Origin?",
+        [cond_bool("={{ $json.is_n8n_origin }}", "true")],
+        [580, 432],
+    ))
+
+    # 6b. Label N8N — apply the dedicated n8n label.
+    nodes.append(gmail_node("Label N8N", [720, 320], params={
+        "operation": "addLabels",
+        "messageId": "={{ $json.messageId }}",
+        "labelIds": [LABELS["N8N"]],
+    }))
+
+    # 6c. Mark N8N Read — keep the inbox count honest.
+    # Note: n8n emails intentionally skip Parse AI Response → Enrich for Log →
+    # Email Log sheet. The originating workflows already log their own activity
+    # (SHM, ERR, ADS-NN, LI-NN, etc.); duplicating those rows in the Email Log
+    # would only add noise. If you ever want a diagnostic of n8n inbox volume,
+    # filter by `label:n8n` in Gmail directly.
+    nodes.append(gmail_node("Mark N8N Read", [880, 320], params={
+        "operation": "markAsRead",
+        "messageId": "={{ $('Prepare Email Data').first().json.messageId }}",
+    }))
+
     # 7. AI Agent (no buffer memory - one-shot classification)
     nodes.append({
         "parameters": {
@@ -870,7 +994,7 @@ def build_nodes() -> list[dict]:
         },
         "type": "@n8n/n8n-nodes-langchain.agent",
         "typeVersion": 3.1,
-        "position": [660, 432],
+        "position": [800, 432],
         "id": uid(),
         "name": "AI Agent",
     })
@@ -1412,8 +1536,20 @@ def build_connections() -> dict:
             ],
         },
         # Classification pipeline
+        # Prepare Email Data feeds an early n8n-origin gate — emails that match
+        # `is_n8n_origin` (n8n hostnames or workflow-report subject patterns)
+        # skip the AI Agent and go straight to the dedicated n8n label.
         "Prepare Email Data": {
-            "main": [[conn("AI Agent")]],
+            "main": [[conn("Is n8n Origin?")]],
+        },
+        "Is n8n Origin?": {
+            "main": [
+                [conn("Label N8N")],   # TRUE  → label + mark read
+                [conn("AI Agent")],    # FALSE → existing classification flow
+            ],
+        },
+        "Label N8N": {
+            "main": [[conn("Mark N8N Read")]],
         },
         "AI Agent": {
             "main": [[conn("Parse AI Response")]],

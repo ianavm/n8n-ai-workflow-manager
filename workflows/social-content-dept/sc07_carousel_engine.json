@@ -1,0 +1,578 @@
+{
+  "name": "Social Content - Carousel Engine (SC-07)",
+  "nodes": [
+    {
+      "id": "ce88f6d2-a4f5-40ed-9a51-969fb8647cd4",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        180,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "941ccb8a-a04e-4e8a-90b6-7eacbf287d9d",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        180,
+        380
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "4adc1698-8d5d-4676-a0e3-88086c73c396",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        560
+      ],
+      "webhookId": "sc07-carousel-trigger",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sc07-carousel-trigger",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "c1fc6456-8bee-42dc-bbe5-6fbe381e62f5",
+      "name": "Read Carousels Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        420,
+        380
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jWJ8mBGWticoocAhKV1_OJVxS0ZZUF-Atoazz6PPj0g"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Carousels"
+        },
+        "options": {
+          "range": "A:Z"
+        }
+      },
+      "onError": "stopWorkflow"
+    },
+    {
+      "id": "749786dc-3a8d-4d82-84b8-bce1fc9e95c6",
+      "name": "Filter Eligible Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        380
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map(i => i.json);\n\nconst eligible = rows\n  .filter(r =>\n    String(r['Status'] || '').trim() === 'Approved' &&\n    !String(r['Posted At'] || '').trim() &&\n    r['Scheduled At'] &&\n    !isNaN(new Date(r['Scheduled At']).getTime()) &&\n    Number(r['Retry Count'] || 0) < 3 &&\n    String(r['Carousel ID'] || '').trim() !== '' &&\n    String(r['Image URLs'] || '').trim() !== ''\n  )\n  .sort((a, b) => new Date(a['Scheduled At']) - new Date(b['Scheduled At']));\n\nif (eligible.length === 0) {\n  return [];\n}\n\nreturn [{ json: eligible[0] }];"
+      }
+    },
+    {
+      "id": "ae9909f8-4cd9-4eac-8709-e2571a771fda",
+      "name": "Carousel Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        380
+      ],
+      "parameters": {
+        "jsCode": "const row = $json;\n\nfunction splitUrls(s) {\n  return String(s || '')\n    .split(/[\\n,]+/)\n    .map(x => x.trim())\n    .filter(Boolean);\n}\n\nfunction splitTags(s) {\n  return String(s || '')\n    .split(/[\\s,]+/)\n    .map(x => x.trim())\n    .filter(Boolean)\n    .map(t => t.startsWith('#') ? t : '#' + t);\n}\n\nfunction joinCaption(caption, tags, maxTags) {\n  const limitedTags = maxTags ? tags.slice(0, maxTags) : tags;\n  if (limitedTags.length === 0) return caption;\n  return caption + '\\n\\n' + limitedTags.join(' ');\n}\n\nconst publicImageUrls = splitUrls(row['Image URLs']);\nconst hashtagsIg = splitTags(row['Hashtags IG']);\nconst hashtagsLi = splitTags(row['Hashtags LI']);\n\nreturn [{\n  json: {\n    carouselId: String(row['Carousel ID']).trim(),\n    title: String(row['Title'] || '').trim(),\n    scheduledAt: new Date(row['Scheduled At']).toISOString(),\n    publicImageUrls,\n    captionInstagram: joinCaption(String(row['IG Caption'] || ''), hashtagsIg, 5),\n    captionLinkedin: joinCaption(String(row['LI Caption'] || ''), hashtagsLi, null),\n    captionFacebook: String(row['FB Caption'] || ''),\n    retryCount: Number(row['Retry Count'] || 0),\n    approvedBy: String(row['Approved By'] || '').trim(),\n  }\n}];"
+      }
+    },
+    {
+      "id": "e9e69b34-1811-4a68-9440-a93bec5713f8",
+      "name": "Mark In-Progress",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1080,
+        380
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jWJ8mBGWticoocAhKV1_OJVxS0ZZUF-Atoazz6PPj0g"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Carousels"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Carousel ID": "={{ $json.carouselId }}",
+            "Status": "Posting",
+            "Approved At": "={{ new Date().toISOString() }}",
+            "Last Error": ""
+          },
+          "matchingColumns": [
+            "Carousel ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "caa5aa59-1669-46a5-b490-6926f03ebc9a",
+      "name": "Expand Images",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        380
+      ],
+      "parameters": {
+        "jsCode": "const cfgRef = $('Carousel Config').first();\nif (!cfgRef) return [];\nconst cfg = cfgRef.json;\nconst urls = Array.isArray(cfg.publicImageUrls)\n  ? cfg.publicImageUrls\n  : [];\n\nreturn urls.map((url, idx) => ({\n  json: {\n    index: idx,\n    url,\n    carouselId: cfg.carouselId,\n  }\n}));"
+      }
+    },
+    {
+      "id": "1b362133-8dea-4fa8-99fb-0e0b959f1f2e",
+      "name": "Upload to Blotato",
+      "type": "@blotato/n8n-nodes-blotato.blotato",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        380
+      ],
+      "parameters": {
+        "resource": "media",
+        "operation": "upload",
+        "useBinaryData": false,
+        "mediaUrl": "={{ $json.url }}"
+      },
+      "credentials": {
+        "blotatoApi": {
+          "id": "hhRiqZrWNlqvmYZR",
+          "name": "Blotato AVM"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "529d4c33-a3dc-4c83-908e-be5a2a8005a7",
+      "name": "Aggregate Blotato URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        380
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nif (items.length === 0) return [];\n\nconst uploadedUrls = items.map(i => {\n  const resp = i.json || {};\n  return resp.url || resp.mediaUrl || '';\n}).filter(Boolean);\n\nconst cfgRef = $('Carousel Config').first();\nif (!cfgRef) return [];\nconst cfg = cfgRef.json;\n\nreturn [{\n  json: {\n    ...cfg,\n    blotatoMediaUrls: uploadedUrls,\n    uploadedCount: uploadedUrls.length,\n  }\n}];"
+      }
+    },
+    {
+      "id": "addc3f5e-7c0c-4339-b00f-32b0ac4b98a1",
+      "name": "Fan Out Platforms",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        380
+      ],
+      "parameters": {
+        "jsCode": "const cfg = $json;\nconst media = cfg.blotatoMediaUrls || [];\nconst ACCOUNTS = {\"instagram\": {\"accountId\": \"35463\", \"name\": \"Instagram (anyvision.media)\"}, \"linkedin\": {\"accountId\": \"15167\", \"name\": \"LinkedIn (Ian Immelman)\"}, \"facebook\": {\"accountId\": \"27283\", \"pageId\": \"972448295960293\", \"name\": \"Facebook (Any Vision Media)\"}};\n\nfunction buildPost(platform, accountId, text, extraTarget) {\n  return {\n    post: {\n      accountId,\n      content: {\n        text,\n        mediaUrls: media,\n        platform,\n      },\n      target: {\n        targetType: platform,\n        ...(extraTarget || {}),\n      },\n    },\n    scheduledTime: cfg.scheduledAt,\n  };\n}\n\nreturn [\n  {\n    json: {\n      platform: 'instagram',\n      postBody: buildPost('instagram', ACCOUNTS.instagram.accountId, cfg.captionInstagram),\n      carouselId: cfg.carouselId,\n      scheduledAt: cfg.scheduledAt,\n    }\n  },\n  {\n    json: {\n      platform: 'linkedin',\n      postBody: buildPost('linkedin', ACCOUNTS.linkedin.accountId, cfg.captionLinkedin),\n      carouselId: cfg.carouselId,\n      scheduledAt: cfg.scheduledAt,\n    }\n  },\n  {\n    json: {\n      platform: 'facebook',\n      postBody: buildPost(\n        'facebook',\n        ACCOUNTS.facebook.accountId,\n        cfg.captionFacebook,\n        { pageId: ACCOUNTS.facebook.pageId }\n      ),\n      carouselId: cfg.carouselId,\n      scheduledAt: cfg.scheduledAt,\n    }\n  },\n];"
+      }
+    },
+    {
+      "id": "b665d43b-512c-4602-a5c0-7390ad4ea600",
+      "name": "Post Carousel to Blotato",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2180,
+        380
+      ],
+      "credentials": {
+        "blotatoApi": {
+          "id": "hhRiqZrWNlqvmYZR",
+          "name": "Blotato AVM"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://backend.blotato.com/v2/posts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "blotatoApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.postBody) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "4280ec1e-1b9d-4cbf-b194-484cc5862713",
+      "name": "Collect Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        380
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all();\nif (items.length === 0) return [];\n\nconst fanout = $('Fan Out Platforms').all();\nconst cfgRef = $('Aggregate Blotato URLs').first();\nif (!cfgRef) return [];\nconst cfg = cfgRef.json;\n\nfunction errString(err) {\n  if (!err) return null;\n  if (typeof err === 'string') return err;\n  return err.description || err.message || JSON.stringify(err);\n}\n\nconst results = items.map((item, idx) => {\n  const platform = fanout[idx]?.json?.platform || 'unknown';\n  const resp = item.json || {};\n  const scheduleId = resp.scheduleId || resp.id || null;\n  const submissionId = resp.postSubmissionId || null;\n  const error = errString(resp.error) || (resp.message && !submissionId ? resp.message : null);\n  return {\n    platform,\n    success: Boolean(submissionId) && !error,\n    submissionId,\n    scheduleId,\n    error,\n    responseSummary: JSON.stringify(resp).slice(0, 500),\n  };\n});\n\nreturn results.map(r => ({\n  json: {\n    ...r,\n    carouselId: cfg.carouselId,\n    title: cfg.title,\n    scheduledAt: cfg.scheduledAt,\n  }\n}));"
+      }
+    },
+    {
+      "id": "11732ab2-1ae3-41c0-b9a4-5f7b7f6037a0",
+      "name": "Log per Platform",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2620,
+        260
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jWJ8mBGWticoocAhKV1_OJVxS0ZZUF-Atoazz6PPj0g"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Post Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Log ID": "={{ 'sc07-' + $json.carouselId + '-' + $json.platform + '-' + Date.now() }}",
+            "Carousel ID": "={{ $json.carouselId }}",
+            "Platform": "={{ $json.platform }}",
+            "Status": "={{ $json.success ? 'success' : 'failure' }}",
+            "Blotato Schedule ID": "={{ $json.scheduleId || $json.submissionId || '' }}",
+            "Scheduled At": "={{ $json.scheduledAt }}",
+            "Response Summary": "={{ $json.responseSummary }}",
+            "Error": "={{ $json.error || '' }}",
+            "Created At": "={{ new Date().toISOString() }}"
+          },
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "f9169be4-73c8-4815-a137-d299f0ac67a2",
+      "name": "Aggregate Final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2620,
+        500
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const items = $input.all().map(i => i.json);\nif (items.length === 0) return [];\n\nconst cfgRef = $('Carousel Config').first();\nif (!cfgRef) return [];\nconst cfg = cfgRef.json;\nconst allSuccess = items.length > 0 && items.every(r => r.success);\nconst anyFail = items.some(r => !r.success);\n\nconst failedPlatforms = items.filter(r => !r.success).map(r => r.platform);\nconst lastError = items.filter(r => r.error).map(r => r.platform + ': ' + r.error).join(' | ');\n\nconst scheduleIds = {};\nfor (const r of items) {\n  scheduleIds[r.platform] = r.scheduleId || r.submissionId || null;\n}\n\nconst summary = items.map(r =>\n  r.success ? r.platform + ': OK (' + (r.scheduleId || r.submissionId) + ')'\n            : r.platform + ': FAIL (' + (r.error || 'no id') + ')'\n).join(' | ');\n\nreturn [{\n  json: {\n    carouselId: cfg.carouselId,\n    title: cfg.title,\n    scheduledAt: cfg.scheduledAt,\n    allSuccess,\n    anyFail,\n    failedPlatforms,\n    lastError,\n    scheduleIdsJson: JSON.stringify(scheduleIds),\n    retryCount: cfg.retryCount,\n    newRetryCount: allSuccess ? cfg.retryCount : cfg.retryCount + 1,\n    newStatus: allSuccess ? 'Posted' : 'Failed',\n    postedAt: allSuccess ? new Date().toISOString() : '',\n    summary,\n    timestamp: new Date().toISOString(),\n    platformsResults: items,\n  }\n}];"
+      }
+    },
+    {
+      "id": "6bdeabab-60c1-4712-88e5-74c8b09a9960",
+      "name": "Update Carousel Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2840,
+        500
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "OkpDXxwI8WcUJp4P",
+          "name": "Google Sheets AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jWJ8mBGWticoocAhKV1_OJVxS0ZZUF-Atoazz6PPj0g"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Carousels"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Carousel ID": "={{ $json.carouselId }}",
+            "Status": "={{ $json.newStatus }}",
+            "Posted At": "={{ $json.postedAt }}",
+            "Blotato Schedule IDs": "={{ $json.scheduleIdsJson }}",
+            "Last Error": "={{ $json.lastError || '' }}",
+            "Retry Count": "={{ $json.newRetryCount }}"
+          },
+          "matchingColumns": [
+            "Carousel ID"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "693c0072-a60d-4731-96bc-7bdf93ab9209",
+      "name": "Notify",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3060,
+        500
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "2IuycrTIgWJZEjBE",
+          "name": "Gmail account AVM Tutorial"
+        }
+      },
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "ian@anyvisionmedia.com",
+        "subject": "={{ 'SC-07 ' + ($('Aggregate Final').first().json.allSuccess ? '[OK]' : '[FAIL]') + ' ' + $('Aggregate Final').first().json.title }}",
+        "emailType": "html",
+        "message": "={{ '<h2>Carousel posting summary</h2>' + '<p><b>Title:</b> ' + $('Aggregate Final').first().json.title + '</p>' + '<p><b>Carousel ID:</b> ' + $('Aggregate Final').first().json.carouselId + '</p>' + '<p><b>Scheduled:</b> ' + $('Aggregate Final').first().json.scheduledAt + '</p>' + '<p><b>Status:</b> ' + $('Aggregate Final').first().json.newStatus + '</p>' + '<p><b>Retry count:</b> ' + $('Aggregate Final').first().json.newRetryCount + '</p>' + '<p><b>Per platform:</b><br/>' + $('Aggregate Final').first().json.summary + '</p>' + ($('Aggregate Final').first().json.lastError ? ('<p><b>Errors:</b> ' + $('Aggregate Final').first().json.lastError + '</p>') : '') }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Carousels Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Carousels Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Carousels Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Carousels Sheet": {
+      "main": [
+        [
+          {
+            "node": "Filter Eligible Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Eligible Rows": {
+      "main": [
+        [
+          {
+            "node": "Carousel Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Carousel Config": {
+      "main": [
+        [
+          {
+            "node": "Mark In-Progress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark In-Progress": {
+      "main": [
+        [
+          {
+            "node": "Expand Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Images": {
+      "main": [
+        [
+          {
+            "node": "Upload to Blotato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Blotato": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Blotato URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Blotato URLs": {
+      "main": [
+        [
+          {
+            "node": "Fan Out Platforms",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fan Out Platforms": {
+      "main": [
+        [
+          {
+            "node": "Post Carousel to Blotato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Carousel to Blotato": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Results": {
+      "main": [
+        [
+          {
+            "node": "Log per Platform",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Aggregate Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Final": {
+      "main": [
+        [
+          {
+            "node": "Update Carousel Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Carousel Row": {
+      "main": [
+        [
+          {
+            "node": "Notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "pinData": {},
+  "tags": []
+}

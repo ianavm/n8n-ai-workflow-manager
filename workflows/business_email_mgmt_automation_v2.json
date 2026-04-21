@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {},
-      "id": "92aa64e7-e214-4336-a617-f67034ed8fdc",
+      "id": "65f57255-abcb-4018-908c-973d8be1d4f9",
       "name": "When clicking 'Test workflow'",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -19,7 +19,7 @@
         },
         "options": {}
       },
-      "id": "b7174a29-32e1-42c9-bfdb-bdfec751f98c",
+      "id": "4263f16c-5cb3-469a-b46a-b250d87076b8",
       "name": "Gmail Trigger",
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.3,
@@ -36,7 +36,7 @@
     },
     {
       "parameters": {},
-      "id": "071a14ba-3f63-4f27-9793-5dfcb9fa5f57",
+      "id": "9d8a1ad8-00fa-400d-9096-8ee767f80a82",
       "name": "Error Trigger",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
@@ -68,7 +68,7 @@
         },
         "options": {}
       },
-      "id": "cd96dc86-4a10-4ae5-a854-7a5ca303f2f6",
+      "id": "f97ba710-85d1-4b28-ad66-5fee8c69c16f",
       "name": "Has DNT Label?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -79,7 +79,7 @@
     },
     {
       "parameters": {},
-      "id": "1febc990-efab-4027-8c0f-17167fb71aa9",
+      "id": "1a8d19f8-a449-4386-81d0-664ffb1c415f",
       "name": "Skip - DNT",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -90,9 +90,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst results = [];\n\n// Blocked domains - emails from these are classified but never auto-replied\nconst BLOCKED_DOMAINS = [\n  '@eftcorp.atlassian.net',\n  '@noreply.github.com',\n  '@notifications.google.com',\n  '@mailer-daemon.',\n  // n8n platform alerts (execution reports, workflow failures, billing)\n  '@n8n.io',\n  '@app.n8n.cloud',\n  '@ianimmelman89.app.n8n.cloud'\n];\n\n// Subject patterns for n8n-generated reports/updates - no drafts needed\n// Catches self-sent workflow reports even when 'from' is ian@anyvisionmedia.com\nconst N8N_REPORT_SUBJECT_PATTERNS = [\n  /\\bworkflow\\s+execution/i,\n  /\\bexecution\\s+(report|failed|error)/i,\n  /\\[n8n\\]/i,\n  /\\bn8n\\s+(alert|report|notification|update)/i,\n  /\\b(daily|weekly|monthly)\\s+report\\b/i,\n  /\\baudit\\s+report\\b/i,\n  /\\bbudget\\s+enforcer/i,\n  /\\[ADS-\\d+\\]/i,\n  /\\[SHM\\]/i,\n  /\\[ERR\\]/i,\n  /\\[LI-\\d+\\]/i,\n  /\\bSHM\\s+health\\s+check/i,\n  /\\bworkflow\\s+(update|summary)/i\n];\n\nfor (const item of items) {\n  const emailData = {\n    from: item.json.from || item.json.sender || '',\n    to: item.json.to || '',\n    subject: item.json.subject || '',\n    date: item.json.date || new Date().toISOString(),\n    body: (item.json.textPlain || item.json.snippet || item.json.text || '').substring(0, 3000),\n    hasAttachments: item.json.attachments ? item.json.attachments.length > 0 : false,\n    attachmentCount: item.json.attachments ? item.json.attachments.length : 0,\n    messageId: item.json.id || item.json.messageId || '',\n    threadId: item.json.threadId || '',\n    labelIds: item.json.labelIds || []\n  };\n\n  const fromLower = emailData.from.toLowerCase();\n  const isBlockedDomain = BLOCKED_DOMAINS.some(d => fromLower.includes(d));\n  const isN8nReport = N8N_REPORT_SUBJECT_PATTERNS.some(rx => rx.test(emailData.subject || ''));\n\n  const classificationPrompt = `Analyze this business email. Return ONLY valid JSON, no markdown, no backticks.\n\nFrom: ${emailData.from}\nSubject: ${emailData.subject}\nDate: ${emailData.date}\nBody:\n${emailData.body}\nHas Attachments: ${emailData.hasAttachments ? 'Yes (' + emailData.attachmentCount + ')' : 'No'}\n\nReturn this exact JSON:\n{\n  \"sender\": \"<email>\",\n  \"sender_name\": \"<name>\",\n  \"subject\": \"<subject>\",\n  \"intent\": \"<what sender wants>\",\n  \"tone\": \"<formal|informal|urgent|angry|friendly|neutral>\",\n  \"urgency\": \"<high|medium|low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance|Customer_Support|Sales|Management|Admin|Legal|Internal|Spam_Irrelevant>\",\n  \"tags\": [\"<from: Invoice,Payment,Refund,Complaint,New_Lead,Contract,Meeting_Request,Follow_Up,Escalation,Urgent>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<professional reply if action_required, else null>\",\n  \"summary\": \"<1-2 sentence summary>\",\n  \"escalation_needed\": true or false,\n  \"is_interested_reply\": true or false\n}\n\nRules:\n- Accounting_Finance: invoices, payments, billing, refunds\n- Customer_Support: complaints, technical issues, service support\n- Sales: new enquiries, pricing, leads\n- Management: strategy, legal, partnerships, high-level complaints\n- Spam_Irrelevant: suspicious links, phishing, irrelevant promos\n- Mark urgency HIGH if: urgent/ASAP in subject, legal threats, payment issues\n- Responses must be professional and concise`;\n\n  results.push({\n    json: {\n      ...emailData,\n      classificationPrompt,\n      is_blocked_domain: isBlockedDomain,\n      is_n8n_report: isN8nReport\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "const items = $input.all();\nconst results = [];\n\n// Blocked domains - emails from these are classified but never auto-replied\nconst BLOCKED_DOMAINS = [\n  '@eftcorp.atlassian.net',\n  '@noreply.github.com',\n  '@notifications.google.com',\n  '@mailer-daemon.',\n  // n8n platform alerts (execution reports, workflow failures, billing)\n  '@n8n.io',\n  '@app.n8n.cloud',\n  '@ianimmelman89.app.n8n.cloud'\n];\n\n// Subject patterns for n8n-generated reports/updates - no drafts needed\n// Catches self-sent workflow reports even when 'from' is ian@anyvisionmedia.com\nconst N8N_REPORT_SUBJECT_PATTERNS = [\n  /\\bworkflow\\s+execution/i,\n  /\\bexecution\\s+(report|failed|error)/i,\n  /\\[n8n\\]/i,\n  /\\bn8n\\s+(alert|report|notification|update)/i,\n  /\\b(daily|weekly|monthly)\\s+report\\b/i,\n  /\\baudit\\s+report\\b/i,\n  /\\bbudget\\s+enforcer/i,\n  /\\[ADS-\\d+\\]/i,\n  /\\[SHM\\]/i,\n  /\\[ERR\\]/i,\n  /\\[LI-\\d+\\]/i,\n  /\\bSHM\\s+health\\s+check/i,\n  /\\bworkflow\\s+(update|summary)/i\n];\n\nfor (const item of items) {\n  const emailData = {\n    from: item.json.from || item.json.sender || '',\n    to: item.json.to || '',\n    subject: item.json.subject || '',\n    date: item.json.date || new Date().toISOString(),\n    body: (item.json.textPlain || item.json.snippet || item.json.text || '').substring(0, 3000),\n    hasAttachments: item.json.attachments ? item.json.attachments.length > 0 : false,\n    attachmentCount: item.json.attachments ? item.json.attachments.length : 0,\n    messageId: item.json.id || item.json.messageId || '',\n    threadId: item.json.threadId || '',\n    labelIds: item.json.labelIds || []\n  };\n\n  const fromLower = emailData.from.toLowerCase();\n  // n8n-specific domains, split out so we can apply a dedicated `n8n` Gmail\n  // label (and skip the AI call entirely). The broader BLOCKED_DOMAINS list\n  // still gates auto-replies for non-n8n noise (github, eftcorp, etc.).\n  const N8N_DOMAINS = [\n    '@n8n.io',\n    '@app.n8n.cloud',\n    '@ianimmelman89.app.n8n.cloud'\n  ];\n  const isN8nDomain = N8N_DOMAINS.some(d => fromLower.includes(d));\n  const isBlockedDomain = BLOCKED_DOMAINS.some(d => fromLower.includes(d));\n  const isN8nReport = N8N_REPORT_SUBJECT_PATTERNS.some(rx => rx.test(emailData.subject || ''));\n  // Either the message is from an n8n hostname, OR the subject pattern matches\n  // a workflow report — in both cases we route to the dedicated n8n label\n  // BEFORE the AI agent runs (saves tokens, gives clean Gmail filter view).\n  const isN8nOrigin = isN8nDomain || isN8nReport;\n\n  const classificationPrompt = `Analyze this business email. Return ONLY valid JSON, no markdown, no backticks.\n\nFrom: ${emailData.from}\nSubject: ${emailData.subject}\nDate: ${emailData.date}\nBody:\n${emailData.body}\nHas Attachments: ${emailData.hasAttachments ? 'Yes (' + emailData.attachmentCount + ')' : 'No'}\n\nReturn this exact JSON:\n{\n  \"sender\": \"<email>\",\n  \"sender_name\": \"<name>\",\n  \"subject\": \"<subject>\",\n  \"intent\": \"<what sender wants>\",\n  \"tone\": \"<formal|informal|urgent|angry|friendly|neutral>\",\n  \"urgency\": \"<high|medium|low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance|Customer_Support|Sales|Management|Spam_Irrelevant>\",\n  \"tags\": [\"<from: Invoice,Payment,Refund,Complaint,New_Lead,Contract,Meeting_Request,Follow_Up,Escalation,Urgent>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<professional reply if action_required, else null>\",\n  \"summary\": \"<1-2 sentence summary>\",\n  \"escalation_needed\": true or false,\n  \"is_interested_reply\": true or false\n}\n\nDepartments (pick exactly ONE — Admin, Legal, Internal, HR all fold into Management):\n- Accounting_Finance: invoices, payments, billing, refunds, VAT/SARS, bank notices\n- Customer_Support: complaints, technical issues, bug reports, account help, ticket follow-ups\n- Sales: new enquiries, pricing, partnerships, lead generation, RFPs, demo requests\n- Management: strategy, legal threats, contracts, NDAs, PR/media, escalations, admin/HR/internal, vendor setup\n- Spam_Irrelevant: USE SPARINGLY — only when MULTIPLE clear spam signals are present (see below)\n\nSpam rule (STRICT — defaults to NOT spam):\n- Mark is_spam=true and department=Spam_Irrelevant ONLY when 2+ of these are true:\n  * Sender domain is suspicious / spoofed / disposable\n  * Body is generic mass-blast (no personalisation, no real signature)\n  * Suspicious or shortened URLs / phishing indicators\n  * Unsolicited promo with unrealistic claims (\"guaranteed first page\", \"90% off\")\n- A personalised cold pitch from a real human/business → Sales (is_spam=false)\n- A transactional email from a known SaaS (Stripe, QuickBooks, GitHub, Google) → the relevant real department, NOT spam\n- When unsure between Spam_Irrelevant and a real department, choose the real department. False-spam is more costly than a misroute.\n\nUrgency: HIGH only if action_required AND not spam AND (real client + urgent language, OR legal threat, OR payment dispute, OR escalated complaint, OR warm reply with deadline). Default medium.\n\nResponses must be professional and concise.`;\n\n  results.push({\n    json: {\n      ...emailData,\n      classificationPrompt,\n      is_n8n_domain: isN8nDomain,\n      is_blocked_domain: isBlockedDomain,\n      is_n8n_report: isN8nReport,\n      is_n8n_origin: isN8nOrigin\n    }\n  });\n}\n\nreturn results;"
       },
-      "id": "6a8701d7-d1fa-4490-864e-bc0a430cec7b",
+      "id": "98cd93a3-8c47-453a-9c99-e6119dacc101",
       "name": "Prepare Email Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -103,10 +103,87 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_n8n_origin }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "572c2d3c-3733-446c-9bbb-afa42f768481",
+      "name": "Is n8n Origin?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        580,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.messageId }}",
+        "labelIds": [
+          "Label_10"
+        ]
+      },
+      "id": "01fdc521-23fb-48c9-bf07-a2670cc877d6",
+      "name": "Label N8N",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        720,
+        320
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Prepare Email Data').first().json.messageId }}"
+      },
+      "id": "a6d32cd3-4ea3-4c77-a051-f3e57cd98ba5",
+      "name": "Mark N8N Read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        880,
+        320
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "EC2l4faLSdgePOM6",
+          "name": "Gmail AVM Tutorial"
+        }
+      }
+    },
+    {
+      "parameters": {
         "promptType": "define",
         "text": "={{ $json.classificationPrompt }}",
         "options": {
-          "systemMessage": "You are the AI Email Manager for AnyVision Media, a digital media and technology agency. Your job is to analyze incoming business emails and return a structured JSON classification.\n\n## Your Task\nFor every email you receive, analyze it and return ONLY a valid JSON object. No markdown formatting, no backticks, no explanation text - just the raw JSON.\n\n## Company Context\n- Company: AnyVision Media (digital media, AI solutions, web development)\n- Owner: Ian Immelman (ian@anyvisionmedia.com)\n- Services: AI workflow automation, web development, social media management, real estate tech solutions\n- Tone: Professional but approachable, tech-savvy\n\n## JSON Output Format\nReturn exactly this structure:\n{\n  \"sender\": \"<sender email address>\",\n  \"sender_name\": \"<sender display name>\",\n  \"subject\": \"<email subject line>\",\n  \"intent\": \"<1 sentence: what the sender wants or needs>\",\n  \"tone\": \"<one of: formal, informal, urgent, angry, friendly, neutral>\",\n  \"urgency\": \"<one of: high, medium, low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance, Customer_Support, Sales, Management, Spam_Irrelevant>\",\n  \"tags\": [\"<applicable tags from the list below>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<a professional draft reply if action_required is true, otherwise null>\",\n  \"summary\": \"<1-2 sentence summary of the email>\",\n  \"escalation_needed\": true or false,\n  \"is_interested_reply\": true or false\n}\n\n## Department Classification Rules\nChoose EXACTLY ONE of five departments. Admin, Legal, Internal, and HR-style emails all fold into Management.\n- **Accounting_Finance**: Invoices, payments, billing inquiries, refund requests, financial statements, tax documents, VAT / SARS, bank notices\n- **Customer_Support**: Service complaints, technical issues, bug reports, account help, feature requests, ticket follow-ups\n- **Sales**: New business enquiries, pricing requests, partnership proposals, lead generation, RFP responses, demo requests\n- **Management**: Strategic decisions, legal matters, contracts, legal threats, regulatory matters, NDAs, high-level partnerships, media / PR, executive communications, escalated complaints, documentation, compliance, vendor setup, office operations, admin tasks, team communications, internal updates, HR matters\n- **Spam_Irrelevant**: Unsolicited marketing, phishing, suspicious links, irrelevant promotions, newsletters not subscribed to\n\nIf an email is a legitimate cold sales pitch TO us (another vendor pitching their services), classify it as Sales with is_spam=false only if it looks personalised; generic mass-mailer pitches are Spam_Irrelevant.\n\n## Available Tags\nInvoice, Payment, Refund, Complaint, New_Lead, Contract, Meeting_Request, Follow_Up, Escalation, Urgent\n\n## Urgency Rules (STRICT)\nMark urgency HIGH only when ALL of these are true:\n- action_required is true\n- is_spam is false\n- AND one of:\n  * Sender is an existing client / known contact AND subject or body contains \"urgent\", \"ASAP\", \"immediate\", \"critical\", or \"deadline\"\n  * Legal threat, regulatory deadline, subpoena, or lawsuit language\n  * Payment dispute or overdue-invoice language from a real client\n  * Escalated complaint with a specific ticket reference or named harm\n  * Time-sensitive opportunity that is a reply in an ongoing conversation (warm contact)\n\nDo NOT mark urgency HIGH for:\n- Cold outreach with \"urgent\" clickbait in the subject\n- Newsletters, marketing, or product launches using urgency language\n- Automated service emails (build alerts, shipping notifications, etc.)\n- First-time unsolicited pitches, even with deadline wording\n\nDefault urgency is medium for legitimate business emails and low for spam / newsletters.\n\n## Few-Shot Examples\n\n### Example 1 - Sales Lead\nInput:\nFrom: Sarah Chen <sarah@techstartup.io>\nSubject: AI Automation Services Inquiry\nBody: Hi, we're a growing SaaS startup looking for help automating our customer onboarding workflows. Could you share pricing and availability?\n\nOutput:\n{\"sender\":\"sarah@techstartup.io\",\"sender_name\":\"Sarah Chen\",\"subject\":\"AI Automation Services Inquiry\",\"intent\":\"Requesting pricing and availability for AI workflow automation services\",\"tone\":\"friendly\",\"urgency\":\"medium\",\"action_required\":true,\"department\":\"Sales\",\"tags\":[\"New_Lead\"],\"is_spam\":false,\"suggested_response\":\"Hi Sarah,\\n\\nThank you for reaching out to AnyVision Media. We'd love to learn more about your onboarding workflows.\\n\\nWe specialise in AI workflow automation and have helped SaaS companies streamline their onboarding processes. Could we schedule a 30-minute discovery call this week to understand your needs and provide a tailored quote?\\n\\nBest regards,\\nAnyVision Media Team\",\"summary\":\"SaaS founder asking about AI automation for customer onboarding.\",\"escalation_needed\":false,\"is_interested_reply\":false}\n\n### Example 2 - Obvious Spam\nInput:\nFrom: deals@bulk-promo-offers.net\nSubject: EXCLUSIVE OFFER - 90% OFF SEO SERVICES!!!\nBody: Dear business owner, we guarantee first page Google rankings in 24 hours! Click here for our limited time offer...\n\nOutput:\n{\"sender\":\"deals@bulk-promo-offers.net\",\"sender_name\":\"Unknown\",\"subject\":\"EXCLUSIVE OFFER - 90% OFF SEO SERVICES!!!\",\"intent\":\"Unsolicited promotional email selling SEO services\",\"tone\":\"informal\",\"urgency\":\"low\",\"action_required\":false,\"department\":\"Spam_Irrelevant\",\"tags\":[],\"is_spam\":true,\"suggested_response\":null,\"summary\":\"Spam promoting unrealistic SEO results with clickbait subject.\",\"escalation_needed\":false,\"is_interested_reply\":false}\n\n### Example 3 - Urgent Finance (from real client)\nInput:\nFrom: Mike Torres <mike@clientcorp.co.za>\nSubject: URGENT - Invoice #4521 Payment Dispute\nBody: Hi Ian, we received invoice #4521 for R12,500 but the agreed amount was R10,000. Please resolve this ASAP as our accounts payable closes end of day Friday.\n\nOutput:\n{\"sender\":\"mike@clientcorp.co.za\",\"sender_name\":\"Mike Torres\",\"subject\":\"URGENT - Invoice #4521 Payment Dispute\",\"intent\":\"Disputing invoice amount before payment deadline\",\"tone\":\"urgent\",\"urgency\":\"high\",\"action_required\":true,\"department\":\"Accounting_Finance\",\"tags\":[\"Invoice\",\"Payment\",\"Urgent\"],\"is_spam\":false,\"suggested_response\":\"Hi Mike,\\n\\nThank you for flagging this. I'll review Invoice #4521 against our agreed terms and send a corrected invoice or clarification well before your Friday deadline.\\n\\nBest regards,\\nAnyVision Media Team\",\"summary\":\"Client disputing invoice (R12,500 vs agreed R10,000) with Friday deadline.\",\"escalation_needed\":true,\"is_interested_reply\":false}\n\n### Example 4 - Cold Outreach With 'URGENT' Clickbait\nInput:\nFrom: Growth Partners <hello@growth-bd.io>\nSubject: URGENT: We can 3x your revenue this quarter\nBody: Hi there, I saw AnyVision Media online and wanted to reach out immediately. Our agency has helped dozens of businesses scale. Can we jump on a quick call ASAP?\n\nOutput:\n{\"sender\":\"hello@growth-bd.io\",\"sender_name\":\"Growth Partners\",\"subject\":\"URGENT: We can 3x your revenue this quarter\",\"intent\":\"Cold pitch from a growth agency using urgency clickbait\",\"tone\":\"informal\",\"urgency\":\"low\",\"action_required\":false,\"department\":\"Spam_Irrelevant\",\"tags\":[],\"is_spam\":true,\"suggested_response\":null,\"summary\":\"Cold outreach from an agency using fake urgency; not a real deadline.\",\"escalation_needed\":false,\"is_interested_reply\":false}\n\n## Response Writing Rules (for suggested_response)\nWhen action_required is true, write a professional, well-structured reply:\n\n**STRUCTURE:**\n1. Greeting - Personalised with sender's name\n2. Acknowledgment - Thank them and acknowledge their specific concern\n3. Response - Address their question or request (1-2 paragraphs)\n4. Next Steps - What happens next (if applicable)\n5. Closing - Professional sign-off\n\n**CONTENT GUIDELINES:**\n- Acknowledge receipt of their email\n- Be professional, warm, and concise\n- Never promise specific timelines without verification\n- Never confirm financial or legal decisions\n- Never reveal that this is an automated system\n- Match their tone (formal vs casual) appropriately\n- Use proper line breaks (\\n\\n between paragraphs)\n\nWhen action_required is false or the email is spam, set suggested_response to null.\n\n## Interested Reply Detection Rules\nSet is_interested_reply to TRUE if ALL of these apply:\n- The email appears to be a REPLY to a previous outreach from AnyVision Media\n- The sender expresses positive interest (wants to learn more, schedule a call, get pricing, says 'interested', 'sounds good', 'tell me more')\n- The sender is NOT from AnyVision Media itself\n\nSet is_interested_reply to FALSE for:\n- First-time inbound emails (not replies to our outreach)\n- Negative responses ('not interested', 'unsubscribe', 'remove me')\n- Automated responses / out-of-office replies\n- Spam or irrelevant emails\n\nCRITICAL: Return ONLY the JSON object. No other text.",
+          "systemMessage": "You are the AI Email Manager for AnyVision Media, a digital media and technology agency. Your job is to analyze incoming business emails and return a structured JSON classification.\n\n## Your Task\nFor every email you receive, analyze it and return ONLY a valid JSON object. No markdown formatting, no backticks, no explanation text - just the raw JSON.\n\n## Company Context\n- Company: AnyVision Media (digital media, AI solutions, web development)\n- Owner: Ian Immelman (ian@anyvisionmedia.com)\n- Services: AI workflow automation, web development, social media management, real estate tech solutions\n- Tone: Professional but approachable, tech-savvy\n\n## JSON Output Format\nReturn exactly this structure:\n{\n  \"sender\": \"<sender email address>\",\n  \"sender_name\": \"<sender display name>\",\n  \"subject\": \"<email subject line>\",\n  \"intent\": \"<1 sentence: what the sender wants or needs>\",\n  \"tone\": \"<one of: formal, informal, urgent, angry, friendly, neutral>\",\n  \"urgency\": \"<one of: high, medium, low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance, Customer_Support, Sales, Management, Spam_Irrelevant>\",\n  \"tags\": [\"<applicable tags from the list below>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<a professional draft reply if action_required is true, otherwise null>\",\n  \"summary\": \"<1-2 sentence summary of the email>\",\n  \"escalation_needed\": true or false,\n  \"is_interested_reply\": true or false\n}\n\n## Department Classification Rules\nChoose EXACTLY ONE of five departments. Admin, Legal, Internal, and HR-style emails all fold into Management.\n- **Accounting_Finance**: Invoices, payments, billing inquiries, refund requests, financial statements, tax documents, VAT / SARS, bank notices\n- **Customer_Support**: Service complaints, technical issues, bug reports, account help, feature requests, ticket follow-ups\n- **Sales**: New business enquiries, pricing requests, partnership proposals, lead generation, RFP responses, demo requests\n- **Management**: Strategic decisions, legal matters, contracts, legal threats, regulatory matters, NDAs, high-level partnerships, media / PR, executive communications, escalated complaints, documentation, compliance, vendor setup, office operations, admin tasks, team communications, internal updates, HR matters\n- **Spam_Irrelevant**: Unsolicited marketing, phishing, suspicious links, irrelevant promotions, newsletters not subscribed to\n\nIf an email is a legitimate cold sales pitch TO us (another vendor pitching their services), classify it as Sales with is_spam=false only if it looks personalised; generic mass-mailer pitches are Spam_Irrelevant.\n\n## Spam Classification (STRICT — bias toward NOT-spam)\nMark is_spam=true and department=Spam_Irrelevant ONLY when AT LEAST TWO of these signals are present:\n1. Sender domain looks suspicious, spoofed, disposable, or freshly-registered\n2. Body is a generic mass-blast (no personalisation, no real signature, no reference to AnyVision Media or Ian by name)\n3. Suspicious / shortened URLs, phishing indicators, or attachment lures\n4. Unrealistic claims (\"guaranteed first page\", \"90% off\", \"3x revenue\", \"millions of leads\")\n5. Heavy use of clickbait CAPS, multiple exclamation marks, or fake urgency\n\nDefault to NOT-spam when:\n- A real human/business writes a personalised question or request, even if you've never heard of them — route to Sales / Customer_Support / etc.\n- Transactional emails from known SaaS providers (Stripe, QuickBooks, GitHub, Google, Microsoft, OpenAI, Anthropic) — route to the matching real department (usually Accounting_Finance for invoices/receipts, Management for security alerts, Customer_Support for service notifications).\n- A platform notification you'd want to see (e.g. payment received, password change confirmation, new comment on a doc).\n\n**Tie-breaker rule:** If you are uncertain whether something is spam vs a real department, choose the real department. A misrouted real email is easy to fix; a spam-buried real email is invisible.\n\n## Available Tags\nInvoice, Payment, Refund, Complaint, New_Lead, Contract, Meeting_Request, Follow_Up, Escalation, Urgent\n\n## Urgency Rules (STRICT)\nMark urgency HIGH only when ALL of these are true:\n- action_required is true\n- is_spam is false\n- AND one of:\n  * Sender is an existing client / known contact AND subject or body contains \"urgent\", \"ASAP\", \"immediate\", \"critical\", or \"deadline\"\n  * Legal threat, regulatory deadline, subpoena, or lawsuit language\n  * Payment dispute or overdue-invoice language from a real client\n  * Escalated complaint with a specific ticket reference or named harm\n  * Time-sensitive opportunity that is a reply in an ongoing conversation (warm contact)\n\nDo NOT mark urgency HIGH for:\n- Cold outreach with \"urgent\" clickbait in the subject\n- Newsletters, marketing, or product launches using urgency language\n- Automated service emails (build alerts, shipping notifications, etc.)\n- First-time unsolicited pitches, even with deadline wording\n\nDefault urgency is medium for legitimate business emails and low for spam / newsletters.\n\n## Few-Shot Examples\n\n### Example 1 - Sales Lead\nInput:\nFrom: Sarah Chen <sarah@techstartup.io>\nSubject: AI Automation Services Inquiry\nBody: Hi, we're a growing SaaS startup looking for help automating our customer onboarding workflows. Could you share pricing and availability?\n\nOutput:\n{\"sender\":\"sarah@techstartup.io\",\"sender_name\":\"Sarah Chen\",\"subject\":\"AI Automation Services Inquiry\",\"intent\":\"Requesting pricing and availability for AI workflow automation services\",\"tone\":\"friendly\",\"urgency\":\"medium\",\"action_required\":true,\"department\":\"Sales\",\"tags\":[\"New_Lead\"],\"is_spam\":false,\"suggested_response\":\"Hi Sarah,\\n\\nThank you for reaching out to AnyVision Media. We'd love to learn more about your onboarding workflows.\\n\\nWe specialise in AI workflow automation and have helped SaaS companies streamline their onboarding processes. Could we schedule a 30-minute discovery call this week to understand your needs and provide a tailored quote?\\n\\nBest regards,\\nAnyVision Media Team\",\"summary\":\"SaaS founder asking about AI automation for customer onboarding.\",\"escalation_needed\":false,\"is_interested_reply\":false}\n\n### Example 2 - Obvious Spam\nInput:\nFrom: deals@bulk-promo-offers.net\nSubject: EXCLUSIVE OFFER - 90% OFF SEO SERVICES!!!\nBody: Dear business owner, we guarantee first page Google rankings in 24 hours! Click here for our limited time offer...\n\nOutput:\n{\"sender\":\"deals@bulk-promo-offers.net\",\"sender_name\":\"Unknown\",\"subject\":\"EXCLUSIVE OFFER - 90% OFF SEO SERVICES!!!\",\"intent\":\"Unsolicited promotional email selling SEO services\",\"tone\":\"informal\",\"urgency\":\"low\",\"action_required\":false,\"department\":\"Spam_Irrelevant\",\"tags\":[],\"is_spam\":true,\"suggested_response\":null,\"summary\":\"Spam promoting unrealistic SEO results with clickbait subject.\",\"escalation_needed\":false,\"is_interested_reply\":false}\n\n### Example 3 - Urgent Finance (from real client)\nInput:\nFrom: Mike Torres <mike@clientcorp.co.za>\nSubject: URGENT - Invoice #4521 Payment Dispute\nBody: Hi Ian, we received invoice #4521 for R12,500 but the agreed amount was R10,000. Please resolve this ASAP as our accounts payable closes end of day Friday.\n\nOutput:\n{\"sender\":\"mike@clientcorp.co.za\",\"sender_name\":\"Mike Torres\",\"subject\":\"URGENT - Invoice #4521 Payment Dispute\",\"intent\":\"Disputing invoice amount before payment deadline\",\"tone\":\"urgent\",\"urgency\":\"high\",\"action_required\":true,\"department\":\"Accounting_Finance\",\"tags\":[\"Invoice\",\"Payment\",\"Urgent\"],\"is_spam\":false,\"suggested_response\":\"Hi Mike,\\n\\nThank you for flagging this. I'll review Invoice #4521 against our agreed terms and send a corrected invoice or clarification well before your Friday deadline.\\n\\nBest regards,\\nAnyVision Media Team\",\"summary\":\"Client disputing invoice (R12,500 vs agreed R10,000) with Friday deadline.\",\"escalation_needed\":true,\"is_interested_reply\":false}\n\n### Example 4 - Cold Outreach With 'URGENT' Clickbait\nInput:\nFrom: Growth Partners <hello@growth-bd.io>\nSubject: URGENT: We can 3x your revenue this quarter\nBody: Hi there, I saw AnyVision Media online and wanted to reach out immediately. Our agency has helped dozens of businesses scale. Can we jump on a quick call ASAP?\n\nOutput:\n{\"sender\":\"hello@growth-bd.io\",\"sender_name\":\"Growth Partners\",\"subject\":\"URGENT: We can 3x your revenue this quarter\",\"intent\":\"Cold pitch from a growth agency using urgency clickbait\",\"tone\":\"informal\",\"urgency\":\"low\",\"action_required\":false,\"department\":\"Spam_Irrelevant\",\"tags\":[],\"is_spam\":true,\"suggested_response\":null,\"summary\":\"Cold outreach from an agency using fake urgency; not a real deadline.\",\"escalation_needed\":false,\"is_interested_reply\":false}\n\n### Example 5 - Real Person, Unfamiliar Sender (NOT spam)\nInput:\nFrom: Jabu Khumalo <jabu@khumaloconsulting.co.za>\nSubject: Quick question about your AI workflow services\nBody: Hi Ian, I came across AnyVision Media via a LinkedIn post you shared on automating client onboarding. I run a 3-person consulting firm in Sandton and we're drowning in admin. Could you tell me a bit more about what you do, and whether it'd be a fit for a small business? Thanks, Jabu.\n\nOutput:\n{\"sender\":\"jabu@khumaloconsulting.co.za\",\"sender_name\":\"Jabu Khumalo\",\"subject\":\"Quick question about your AI workflow services\",\"intent\":\"Small-business owner asking whether AI workflow automation suits his firm\",\"tone\":\"friendly\",\"urgency\":\"medium\",\"action_required\":true,\"department\":\"Sales\",\"tags\":[\"New_Lead\"],\"is_spam\":false,\"suggested_response\":\"Hi Jabu,\\n\\nThanks for reaching out — glad the LinkedIn post landed. Yes, we work with small consulting firms a lot; the admin load is exactly what our automations are built for.\\n\\nHappy to jump on a 20-minute call to understand your workflow and tell you whether it's a fit honestly. Does this week or next work better for you?\\n\\nBest,\\nIan\",\"summary\":\"Personalised inbound from a Sandton consultant who saw a LinkedIn post; small-firm fit question.\",\"escalation_needed\":false,\"is_interested_reply\":false}\n\n### Example 6 - Transactional SaaS Notification (NOT spam)\nInput:\nFrom: Stripe <receipts@stripe.com>\nSubject: Your receipt from AnyVision Media #1234-5678\nBody: Thanks for your payment. Amount: ZAR 1,250.00. Card ending 4242. View receipt online.\n\nOutput:\n{\"sender\":\"receipts@stripe.com\",\"sender_name\":\"Stripe\",\"subject\":\"Your receipt from AnyVision Media #1234-5678\",\"intent\":\"Stripe payment receipt for ZAR 1,250.00\",\"tone\":\"neutral\",\"urgency\":\"low\",\"action_required\":false,\"department\":\"Accounting_Finance\",\"tags\":[\"Payment\"],\"is_spam\":false,\"suggested_response\":null,\"summary\":\"Transactional payment receipt from Stripe — file under Accounting.\",\"escalation_needed\":false,\"is_interested_reply\":false}\n\n## Response Writing Rules (for suggested_response)\nWhen action_required is true, write a professional, well-structured reply:\n\n**STRUCTURE:**\n1. Greeting - Personalised with sender's name\n2. Acknowledgment - Thank them and acknowledge their specific concern\n3. Response - Address their question or request (1-2 paragraphs)\n4. Next Steps - What happens next (if applicable)\n5. Closing - Professional sign-off\n\n**CONTENT GUIDELINES:**\n- Acknowledge receipt of their email\n- Be professional, warm, and concise\n- Never promise specific timelines without verification\n- Never confirm financial or legal decisions\n- Never reveal that this is an automated system\n- Match their tone (formal vs casual) appropriately\n- Use proper line breaks (\\n\\n between paragraphs)\n\nWhen action_required is false or the email is spam, set suggested_response to null.\n\n## Interested Reply Detection Rules\nSet is_interested_reply to TRUE if ALL of these apply:\n- The email appears to be a REPLY to a previous outreach from AnyVision Media\n- The sender expresses positive interest (wants to learn more, schedule a call, get pricing, says 'interested', 'sounds good', 'tell me more')\n- The sender is NOT from AnyVision Media itself\n\nSet is_interested_reply to FALSE for:\n- First-time inbound emails (not replies to our outreach)\n- Negative responses ('not interested', 'unsubscribe', 'remove me')\n- Automated responses / out-of-office replies\n- Spam or irrelevant emails\n\nCRITICAL: Return ONLY the JSON object. No other text.",
           "maxIterations": 1,
           "returnIntermediateSteps": false
         }
@@ -114,10 +191,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 3.1,
       "position": [
-        660,
+        800,
         432
       ],
-      "id": "43c29215-82a4-4c54-93f8-5842860fd013",
+      "id": "63da6c94-2724-4058-8fb8-a7fdb9dab1a0",
       "name": "AI Agent"
     },
     {
@@ -131,7 +208,7 @@
         660,
         680
       ],
-      "id": "64d750fa-2d6f-4976-857b-db1828ea7de9",
+      "id": "e564d7bf-b052-4efe-a25f-d33209ac1f23",
       "name": "OpenRouter Chat Model",
       "credentials": {
         "openRouterApi": {
@@ -142,9 +219,9 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst results = [];\n\n// Addresses n8n itself sends from — inbound messages from these are never\n// auto-drafted (prevents reply-to-self loops when a workflow-sent email\n// lands back in the inbox via Cc, auto-forward, or send-as alias).\nconst AUTOMATION_SENDERS = [\"ian@anyvisionmedia.com\"];\n\n// Opt-out phrases (case-insensitive)\nconst OPT_OUT_PHRASES = [\n  'unsubscribe', 'opt out', 'opt-out', 'remove me', 'stop emailing',\n  'not interested', 'no thanks', 'no thank you', \"i'll pass\", 'take me off',\n  'remove from list', 'stop sending', 'do not contact', \"don't contact\",\n  'leave me alone', 'stop messaging', 'reported as spam', 'block sender',\n  'cease and desist', 'gdpr removal', 'popia removal', 'remove my data'\n];\n\n// Ticket / reference number patterns\nconst TICKET_PATTERNS = [\n  /\\bTKT[-#]?\\s*\\d+/i,\n  /\\bTICKET\\s*[#:]?\\s*\\d+/i,\n  /\\bTICKET\\s+NUMBER\\s*:?\\s*\\w+/i,\n  /\\bREF\\s*[-:]\\s*#?\\s*[A-Z0-9]{3,}/i,\n  /\\bREFERENCE\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bENQ[-#]?\\s*\\d+/i,\n  /\\bENQUIRY\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*\\w+/i,\n  /\\bCASE\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bINCIDENT\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bSR[-#]\\s*\\d+/i,\n  /\\bINC[-#]\\s*\\d+/i,\n  /\\b[A-Z]{2,4}-\\d{4,}\\b/\n];\n\nconst SIGNATURE = `<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table>`;\n\nfor (const item of items) {\n  const emailData = $('Prepare Email Data').first().json;\n\n  let parsed;\n  let parsing_failed = false;\n  try {\n    let aiContent = item.json.output || '';\n    if (!aiContent && item.json.choices) {\n      aiContent = item.json.choices[0].message.content;\n    }\n    const cleaned = aiContent\n      .replace(/```json\\n?/g, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n    parsed = JSON.parse(cleaned);\n  } catch (e) {\n    parsing_failed = true;\n    // Route parse failures to Management (a real, wired department) so they\n    // do not silently land in the General fallback and disappear.\n    parsed = {\n      sender: emailData.from || 'unknown',\n      sender_name: 'Unknown',\n      subject: emailData.subject || 'No Subject',\n      intent: 'Classification failed - manual review required',\n      tone: 'neutral',\n      urgency: 'medium',\n      action_required: true,\n      department: 'Management',\n      tags: ['Escalation'],\n      is_spam: false,\n      suggested_response: null,\n      summary: 'Email could not be auto-classified. Manual review required.',\n      escalation_needed: true,\n      is_interested_reply: false\n    };\n  }\n\n  // Reference number detection\n  const subject = (emailData.subject || '').toUpperCase();\n  const body = (emailData.body || '').substring(0, 2000).toUpperCase();\n  const textToCheck = subject + ' ' + body;\n\n  let has_reference_number = false;\n  let matched_reference_pattern = '';\n  for (const pattern of TICKET_PATTERNS) {\n    const match = textToCheck.match(pattern);\n    if (match) {\n      has_reference_number = true;\n      matched_reference_pattern = match[0];\n      break;\n    }\n  }\n\n  // Opt-out detection\n  const bodyLower = (emailData.body || '').toLowerCase();\n  const subjectLower = (emailData.subject || '').toLowerCase();\n  const is_opt_out = OPT_OUT_PHRASES.some(phrase =>\n    bodyLower.includes(phrase) || subjectLower.includes(phrase)\n  );\n\n  // Automation-sender detection — extract the bare email address from the\n  // \"From\" header (which may be \"Display Name <addr@host>\") and check against\n  // the AUTOMATION_SENDERS blocklist. Equality match on the bare address so a\n  // legitimate client like iansomething@example.com is not blocked by a\n  // substring check.\n  const fromRaw = emailData.from || '';\n  const bracketMatch = fromRaw.match(/<([^>]+)>/);\n  const original_from_address = (bracketMatch ? bracketMatch[1] : fromRaw)\n    .trim()\n    .toLowerCase();\n  const is_automation_sender = AUTOMATION_SENDERS.includes(original_from_address);\n\n  // Build HTML response from suggested_response\n  const html_response = (() => {\n    const text = parsed.suggested_response || '';\n    if (!text) return '';\n    const paragraphs = text.split(/\\n\\n+/);\n    const htmlParagraphs = paragraphs\n      .map(p => p.replace(/\\n/g, '<br>'))\n      .map(p => '<p style=\"margin:0 0 12px 0;font-family:Segoe UI,Helvetica Neue,Arial,' +\n        'sans-serif;font-size:14px;line-height:1.5;color:#333333;\">' + p + '</p>')\n      .join('');\n    return '<div style=\"font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;\">' +\n      htmlParagraphs + '<br>' + SIGNATURE + '</div>';\n  })();\n\n  results.push({\n    json: {\n      original_from: emailData.from || '',\n      original_to: emailData.to || '',\n      original_subject: emailData.subject || '',\n      original_date: emailData.date || '',\n      original_body: emailData.body || '',\n      original_message_id: emailData.messageId || '',\n      original_thread_id: emailData.threadId || '',\n      has_original_attachments: emailData.hasAttachments || false,\n      sender: parsed.sender || emailData.from || '',\n      sender_name: parsed.sender_name || 'Unknown',\n      subject: parsed.subject || emailData.subject || '',\n      intent: parsed.intent || '',\n      tone: parsed.tone || 'neutral',\n      urgency: parsed.urgency || 'medium',\n      action_required: parsed.action_required || false,\n      department: parsed.department || 'Management',\n      tags: parsed.tags || [],\n      tags_string: (parsed.tags || []).join(', '),\n      is_spam: parsed.is_spam || false,\n      parsing_failed,\n      suggested_response: parsed.suggested_response || '',\n      html_response,\n      summary: parsed.summary || '',\n      escalation_needed: parsed.escalation_needed || false,\n      is_interested_reply: parsed.is_interested_reply || false,\n      has_reference_number,\n      matched_reference_pattern,\n      is_opt_out,\n      original_from_address,\n      is_automation_sender,\n      is_blocked_domain: emailData.is_blocked_domain || false,\n      is_n8n_report: emailData.is_n8n_report || false,\n      processed_at: new Date().toISOString(),\n      ticket_number: 'TKT-' + Date.now()\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "const items = $input.all();\nconst results = [];\n\n// Addresses n8n itself sends from — inbound messages from these are never\n// auto-drafted (prevents reply-to-self loops when a workflow-sent email\n// lands back in the inbox via Cc, auto-forward, or send-as alias).\nconst AUTOMATION_SENDERS = [\"ian@anyvisionmedia.com\", \"noreply@anyvisionmedia.com\", \"noreply@n8n.io\", \"no-reply@n8n.io\", \"notifications@n8n.cloud\"];\n\n// Opt-out phrases (case-insensitive)\nconst OPT_OUT_PHRASES = [\n  'unsubscribe', 'opt out', 'opt-out', 'remove me', 'stop emailing',\n  'not interested', 'no thanks', 'no thank you', \"i'll pass\", 'take me off',\n  'remove from list', 'stop sending', 'do not contact', \"don't contact\",\n  'leave me alone', 'stop messaging', 'reported as spam', 'block sender',\n  'cease and desist', 'gdpr removal', 'popia removal', 'remove my data'\n];\n\n// Ticket / reference number patterns\nconst TICKET_PATTERNS = [\n  /\\bTKT[-#]?\\s*\\d+/i,\n  /\\bTICKET\\s*[#:]?\\s*\\d+/i,\n  /\\bTICKET\\s+NUMBER\\s*:?\\s*\\w+/i,\n  /\\bREF\\s*[-:]\\s*#?\\s*[A-Z0-9]{3,}/i,\n  /\\bREFERENCE\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bENQ[-#]?\\s*\\d+/i,\n  /\\bENQUIRY\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*\\w+/i,\n  /\\bCASE\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bINCIDENT\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bSR[-#]\\s*\\d+/i,\n  /\\bINC[-#]\\s*\\d+/i,\n  /\\b[A-Z]{2,4}-\\d{4,}\\b/\n];\n\nconst SIGNATURE = `<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table>`;\n\nfor (const item of items) {\n  const emailData = $('Prepare Email Data').first().json;\n\n  let parsed;\n  let parsing_failed = false;\n  try {\n    let aiContent = item.json.output || '';\n    if (!aiContent && item.json.choices) {\n      aiContent = item.json.choices[0].message.content;\n    }\n    const cleaned = aiContent\n      .replace(/```json\\n?/g, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n    parsed = JSON.parse(cleaned);\n  } catch (e) {\n    parsing_failed = true;\n    // Route parse failures to Management (a real, wired department) so they\n    // do not silently land in the General fallback and disappear.\n    parsed = {\n      sender: emailData.from || 'unknown',\n      sender_name: 'Unknown',\n      subject: emailData.subject || 'No Subject',\n      intent: 'Classification failed - manual review required',\n      tone: 'neutral',\n      urgency: 'medium',\n      action_required: true,\n      department: 'Management',\n      tags: ['Escalation'],\n      is_spam: false,\n      suggested_response: null,\n      summary: 'Email could not be auto-classified. Manual review required.',\n      escalation_needed: true,\n      is_interested_reply: false\n    };\n  }\n\n  // Reference number detection\n  const subject = (emailData.subject || '').toUpperCase();\n  const body = (emailData.body || '').substring(0, 2000).toUpperCase();\n  const textToCheck = subject + ' ' + body;\n\n  let has_reference_number = false;\n  let matched_reference_pattern = '';\n  for (const pattern of TICKET_PATTERNS) {\n    const match = textToCheck.match(pattern);\n    if (match) {\n      has_reference_number = true;\n      matched_reference_pattern = match[0];\n      break;\n    }\n  }\n\n  // Opt-out detection\n  const bodyLower = (emailData.body || '').toLowerCase();\n  const subjectLower = (emailData.subject || '').toLowerCase();\n  const is_opt_out = OPT_OUT_PHRASES.some(phrase =>\n    bodyLower.includes(phrase) || subjectLower.includes(phrase)\n  );\n\n  // Automation-sender detection — extract the bare email address from the\n  // \"From\" header (which may be \"Display Name <addr@host>\") and check against\n  // the AUTOMATION_SENDERS blocklist. Equality match on the bare address so a\n  // legitimate client like iansomething@example.com is not blocked by a\n  // substring check.\n  const fromRaw = emailData.from || '';\n  const bracketMatch = fromRaw.match(/<([^>]+)>/);\n  const original_from_address = (bracketMatch ? bracketMatch[1] : fromRaw)\n    .trim()\n    .toLowerCase();\n  const is_automation_sender = AUTOMATION_SENDERS.includes(original_from_address);\n\n  // Build HTML response from suggested_response\n  const html_response = (() => {\n    const text = parsed.suggested_response || '';\n    if (!text) return '';\n    const paragraphs = text.split(/\\n\\n+/);\n    const htmlParagraphs = paragraphs\n      .map(p => p.replace(/\\n/g, '<br>'))\n      .map(p => '<p style=\"margin:0 0 12px 0;font-family:Segoe UI,Helvetica Neue,Arial,' +\n        'sans-serif;font-size:14px;line-height:1.5;color:#333333;\">' + p + '</p>')\n      .join('');\n    return '<div style=\"font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;\">' +\n      htmlParagraphs + '<br>' + SIGNATURE + '</div>';\n  })();\n\n  results.push({\n    json: {\n      original_from: emailData.from || '',\n      original_to: emailData.to || '',\n      original_subject: emailData.subject || '',\n      original_date: emailData.date || '',\n      original_body: emailData.body || '',\n      original_message_id: emailData.messageId || '',\n      original_thread_id: emailData.threadId || '',\n      has_original_attachments: emailData.hasAttachments || false,\n      sender: parsed.sender || emailData.from || '',\n      sender_name: parsed.sender_name || 'Unknown',\n      subject: parsed.subject || emailData.subject || '',\n      intent: parsed.intent || '',\n      tone: parsed.tone || 'neutral',\n      urgency: parsed.urgency || 'medium',\n      action_required: parsed.action_required || false,\n      department: parsed.department || 'Management',\n      tags: parsed.tags || [],\n      tags_string: (parsed.tags || []).join(', '),\n      is_spam: parsed.is_spam || false,\n      parsing_failed,\n      suggested_response: parsed.suggested_response || '',\n      html_response,\n      summary: parsed.summary || '',\n      escalation_needed: parsed.escalation_needed || false,\n      is_interested_reply: parsed.is_interested_reply || false,\n      has_reference_number,\n      matched_reference_pattern,\n      is_opt_out,\n      original_from_address,\n      is_automation_sender,\n      is_blocked_domain: emailData.is_blocked_domain || false,\n      is_n8n_report: emailData.is_n8n_report || false,\n      processed_at: new Date().toISOString(),\n      ticket_number: 'TKT-' + Date.now()\n    }\n  });\n}\n\nreturn results;"
       },
-      "id": "87311243-1703-417e-9f4b-4cac1bac0d85",
+      "id": "4745d6af-4fa0-4905-90cc-4e5fc62fca34",
       "name": "Parse AI Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -263,7 +340,7 @@
           "fallbackOutput": "extra"
         }
       },
-      "id": "342beed3-0f73-4b53-96c0-c6f133e9a9a7",
+      "id": "73cbfa91-8f44-44e4-9866-18feb02d1b37",
       "name": "Route by Department",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
@@ -280,7 +357,7 @@
           "Label_8"
         ]
       },
-      "id": "fc89a02d-5553-4165-8187-9b79ff582940",
+      "id": "6fd508ee-bd10-4a47-9699-48a80e1683ea",
       "name": "Label Junk",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -304,7 +381,7 @@
           "Label_1"
         ]
       },
-      "id": "cebc71ed-ede6-4c6a-9c3e-025bbc15a8c2",
+      "id": "4fc46f3e-8a18-4d48-867e-2f503ed51c77",
       "name": "Label Finance",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -328,7 +405,7 @@
           "Label_2"
         ]
       },
-      "id": "282db10c-47b4-4b92-8a3a-a80685489ea8",
+      "id": "a9ea8bb5-48a5-4186-870d-d897ad4a6cfc",
       "name": "Label Support",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -352,7 +429,7 @@
           "Label_3"
         ]
       },
-      "id": "7464a6d3-55b0-431e-a081-8e3f169a8d8a",
+      "id": "2ea070c9-3ea4-4b18-8e53-ba2ac9e22f4e",
       "name": "Label Sales",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -376,7 +453,7 @@
           "Label_4"
         ]
       },
-      "id": "197a5806-82bb-4707-87fd-51565a42a54c",
+      "id": "07f21989-21b8-4738-b4f1-37d4bc85d065",
       "name": "Label Management",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -400,7 +477,7 @@
           "Label_5"
         ]
       },
-      "id": "7329940f-cb0f-41e5-8d02-349b95e121dc",
+      "id": "faf4748c-85c7-4734-adc9-8b9092af5f93",
       "name": "Label General",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -421,7 +498,7 @@
         "operation": "markAsRead",
         "messageId": "={{ $('Parse AI Response').first().json.original_message_id }}"
       },
-      "id": "8cddfb53-cd20-430a-b08c-53966fccf66c",
+      "id": "0b0109a0-c08a-46f4-a60a-d338ab15a2ef",
       "name": "Mark Spam Read",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -476,7 +553,7 @@
         },
         "options": {}
       },
-      "id": "64dc749b-c429-4550-906c-a1e2682d2b8f",
+      "id": "ed520600-e6d3-4504-832e-8ce7fcf78316",
       "name": "Is Urgent?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -493,7 +570,7 @@
           "Label_7"
         ]
       },
-      "id": "6c2e07d8-091a-4d87-8ec7-b68305561941",
+      "id": "408bb233-52f0-46ee-8f1f-355b8d735d2f",
       "name": "Label Urgent",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -511,7 +588,7 @@
     },
     {
       "parameters": {},
-      "id": "9a3eb374-1c9a-4b62-b3c3-293f8dc937c7",
+      "id": "ff42dbe7-1230-4158-9dde-33edaf35fa24",
       "name": "Not Urgent",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -559,7 +636,7 @@
         },
         "options": {}
       },
-      "id": "9c2e1fc5-c246-460b-854a-4668877a9284",
+      "id": "89ae0a36-fcfd-450d-a47f-1dfdc962223b",
       "name": "Is No-Reply?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -573,7 +650,7 @@
         "operation": "markAsRead",
         "messageId": "={{ $json.original_message_id }}"
       },
-      "id": "18a1ecd2-9522-4234-a520-76a10cb91e30",
+      "id": "ab00970d-2d85-40b3-9e15-449756c6e8c8",
       "name": "Mark No-Reply Read",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -591,7 +668,7 @@
     },
     {
       "parameters": {},
-      "id": "82bb88db-2c65-4a5b-961f-dbf7783ae976",
+      "id": "4a8efe4e-1582-4722-95c8-0954ae6753f9",
       "name": "Not No-Reply",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -711,7 +788,7 @@
         },
         "options": {}
       },
-      "id": "aad93299-4f98-495c-b351-0ef253f1e6ea",
+      "id": "a2835180-6581-4c12-b031-26e24990620c",
       "name": "Reply Needed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -732,7 +809,7 @@
           "sendTo": "={{ $json.sender }}"
         }
       },
-      "id": "c9d3e63c-dcc8-4992-a490-154839fc15dc",
+      "id": "b9efbfbc-baab-4ff0-8b6f-913f18d151d5",
       "name": "Create Reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -750,7 +827,7 @@
     },
     {
       "parameters": {},
-      "id": "06ae5574-ede3-45be-8d43-59f045dacf1c",
+      "id": "e4c56c1f-81de-4184-9829-085aec595747",
       "name": "No Reply Needed",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -782,7 +859,7 @@
         },
         "options": {}
       },
-      "id": "d27dcc20-6060-471a-90ae-ad67be3d828f",
+      "id": "508f67ff-2339-4a69-8079-fa4896233bbc",
       "name": "Has Reference Number?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -839,7 +916,7 @@
         },
         "options": {}
       },
-      "id": "1d683d3d-e025-4ccc-9e6a-2d227eaa1e9e",
+      "id": "238374d8-2c29-481c-9ae6-4f66fb17334f",
       "name": "Update Lead - Stop Follow Up",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
@@ -857,7 +934,7 @@
     },
     {
       "parameters": {},
-      "id": "14e6bda0-d3d0-49ee-9f9b-38d8e567128b",
+      "id": "8c540bfa-32ba-430b-b151-ffe86742b9a3",
       "name": "Skip - Not Ticket Reply",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -870,7 +947,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\n\n// Mirror of the Switch \"Route by Department\" rules. Anything not in this\n// map falls through to the General label (Label_5) — matches the workflow's\n// fallbackOutput behaviour.\nconst DEPT_TO_LABEL = {\n  'Spam_Irrelevant': 'Junk',\n  'Accounting_Finance': 'Finance',\n  'Customer_Support': 'Support',\n  'Sales': 'Sales',\n  'Management': 'Management'\n};\n\nreturn items.map(item => {\n  const d = item.json;\n  const applied_dept_label = DEPT_TO_LABEL[d.department] || 'General';\n  // Same gate as the \"Is Urgent?\" If node. Keep these two in sync.\n  const urgent_label_applied = (\n    d.urgency === 'high' &&\n    d.is_spam === false &&\n    d.action_required === true\n  );\n  return {\n    json: {\n      ...d,\n      applied_dept_label,\n      urgent_label_applied\n    }\n  };\n});"
       },
-      "id": "e5c94667-87a0-424f-a3ca-bb1f315665b4",
+      "id": "f65c9b4f-32bb-4389-90c8-b5526620e3aa",
       "name": "Enrich for Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -914,7 +991,7 @@
         },
         "options": {}
       },
-      "id": "6e7770c0-43e6-415f-b734-02beee5feb76",
+      "id": "8d157ce2-980a-498a-891a-319cae9155d5",
       "name": "Log to Email Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -934,7 +1011,7 @@
       "parameters": {
         "jsCode": "const item = $input.first();\nconst d = item.json;\n\nif (d.department === 'Sales' && d.tags_string && d.tags_string.includes('New_Lead')) {\n  return [{\n    json: {\n      date: d.processed_at,\n      lead_name: d.sender_name,\n      email: d.sender,\n      subject: d.original_subject,\n      interest: d.intent,\n      summary: d.summary,\n      urgency: d.urgency,\n      status: 'New',\n      follow_up_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)\n        .toISOString().split('T')[0],\n      is_lead: true\n    }\n  }];\n}\n\nreturn [{ json: { is_lead: false } }];"
       },
-      "id": "7eb37b2b-4c6e-4131-9065-7d93a2efbfb4",
+      "id": "e7ed7db7-4bbd-40bf-a89b-6e79a3e537ae",
       "name": "Check If Lead",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -966,7 +1043,7 @@
         },
         "options": {}
       },
-      "id": "2846dd4d-aa72-46c4-8338-5bd940e588c0",
+      "id": "2592990d-936b-4505-b1eb-973e39ca0f1c",
       "name": "Is New Lead?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -1002,7 +1079,7 @@
         },
         "options": {}
       },
-      "id": "958dfa29-c803-433b-8552-290efe811561",
+      "id": "0c72124b-524b-4191-a074-ac50560fa037",
       "name": "Log New Lead",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -1028,7 +1105,7 @@
           "summary": "=Follow up: {{ $json.lead_name }}"
         }
       },
-      "id": "7b1fc90b-ca6b-40c7-b773-d25be5a95453",
+      "id": "0614f36c-4790-44aa-816f-2d929fe87206",
       "name": "Create Follow-Up",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1,
@@ -1046,7 +1123,7 @@
     },
     {
       "parameters": {},
-      "id": "4935115c-cb5f-4dca-a9ed-13af639db39e",
+      "id": "220d6735-77a5-481e-8df8-c623558a075a",
       "name": "Not a Lead",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -1086,7 +1163,7 @@
         },
         "options": {}
       },
-      "id": "1792a956-3932-44de-a376-e69eedf0a85f",
+      "id": "6dbae8c2-5f27-4f86-ac17-3b9d1f38e0f7",
       "name": "Is Interested Reply?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -1102,7 +1179,7 @@
         "message": "=<div style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.5;color:#333333;\"><p style=\"margin:0 0 12px 0;\">Hi {{ $json.sender_name }},</p><p style=\"margin:0 0 12px 0;\">Thank you so much for getting back to us! We really appreciate your interest.</p><p style=\"margin:0 0 12px 0;\">I'll be in touch shortly to discuss how AnyVision Media can help you further. In the meantime, if you have any questions, feel free to reply to this email.</p><p style=\"margin:0 0 12px 0;\">Looking forward to connecting!</p><br><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table></div>",
         "options": {}
       },
-      "id": "a921c8ca-fc40-4129-8c95-d4a0328bdb73",
+      "id": "3ee52900-2ce8-4ac5-964c-102c308fa8e5",
       "name": "Send Thank You",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -1126,7 +1203,7 @@
           "Label_9"
         ]
       },
-      "id": "8e64aec8-5b08-4ee5-938a-9bc3e0a03da4",
+      "id": "89d8666c-4151-4ecc-b2ad-0ead59a34c8d",
       "name": "Apply DNT Label",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -1167,7 +1244,7 @@
           "cellFormat": "USER_ENTERED"
         }
       },
-      "id": "e377c3f2-b8bc-4797-a3d0-97b02afc97ee",
+      "id": "90abfc53-863e-4d4b-bcb9-6699d6bbee9e",
       "name": "Update Lead Status",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -1185,7 +1262,7 @@
     },
     {
       "parameters": {},
-      "id": "f2300268-26af-49ab-86d1-38c78f28fd7a",
+      "id": "5db5d779-acfa-4224-a8f6-a2241c88c37b",
       "name": "Not Interested Reply",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -1217,7 +1294,7 @@
         },
         "options": {}
       },
-      "id": "2528e7b4-b89e-4ebb-b37f-222c87c8fcf6",
+      "id": "f5debe87-2712-4daa-ab9e-e1d7e105d5f0",
       "name": "Is Opt-Out?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -1278,7 +1355,7 @@
         },
         "options": {}
       },
-      "id": "70a9db04-cf27-46da-bcfc-41b12b659b6f",
+      "id": "2e12b4bd-96d6-402e-b72f-31349e5ef650",
       "name": "Mark Opt-Out Suppression",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
@@ -1302,7 +1379,7 @@
           "Label_9"
         ]
       },
-      "id": "f4252722-a1e0-424f-8aa0-6115154e6558",
+      "id": "0c9be4ac-d31b-4618-9bfb-32412c45fd02",
       "name": "Apply Opt-Out DNT",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -1320,7 +1397,7 @@
     },
     {
       "parameters": {},
-      "id": "fbd1991a-02cc-41a7-80a2-7d00f483a312",
+      "id": "df022c38-9ccf-4755-93bf-c8fd751627f4",
       "name": "Not Opt-Out",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -1352,7 +1429,7 @@
         },
         "options": {}
       },
-      "id": "617566b2-f84c-4a57-a68a-460e8d3c1614",
+      "id": "f3f65061-0721-4101-ab77-8faf2182c4b9",
       "name": "Log Error to Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -1414,7 +1491,36 @@
       "main": [
         [
           {
+            "node": "Is n8n Origin?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is n8n Origin?": {
+      "main": [
+        [
+          {
+            "node": "Label N8N",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
             "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Label N8N": {
+      "main": [
+        [
+          {
+            "node": "Mark N8N Read",
             "type": "main",
             "index": 0
           }

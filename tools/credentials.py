@@ -57,8 +57,10 @@ CREDENTIALS = {
     ),
 
     # ── Airtable ────────────────────────────────────────────
+    # airtableTokenApi (Personal Access Token). Legacy airtableApi keys are
+    # deprecated by Airtable since Feb 2024 — do not revert to API-key creds.
     "airtable": _cred(
-        "N8N_CRED_AIRTABLE", "ZyBrcAO6fps7YB3u", "Airtable account"
+        "N8N_CRED_AIRTABLE", "vPjIuQXz26XBX1r9", "Airtable PAT AVM"
     ),
     "airtable_lead_scraper": _cred(
         "N8N_CRED_AIRTABLE_LEAD_SCRAPER", "7TtMl7ZnJFpC4RGk", "Lead Scraper Airtable"

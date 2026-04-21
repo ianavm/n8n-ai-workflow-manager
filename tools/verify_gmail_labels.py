@@ -52,6 +52,7 @@ EXPECTED_LABELS: tuple[LabelSpec, ...] = (
     LabelSpec("Urgent", "EMAIL_LABEL_URGENT", "Label_7"),
     LabelSpec("Junk", "EMAIL_LABEL_JUNK", "Label_8"),
     LabelSpec("DNT", "EMAIL_LABEL_DNT", "Label_9"),
+    LabelSpec("n8n", "EMAIL_LABEL_N8N", "Label_10"),
 )
 
 
@@ -178,7 +179,7 @@ def main() -> int:
     if missing_count or drift_count:
         print(f"Result: {missing_count} missing, {drift_count} drifted.")
         return 2
-    print("Result: all 8 labels OK.")
+    print(f"Result: all {len(EXPECTED_LABELS)} labels OK.")
     return 0
 
 
