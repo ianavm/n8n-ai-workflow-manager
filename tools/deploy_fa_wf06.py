@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import json
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 import sys
 from pathlib import Path
 

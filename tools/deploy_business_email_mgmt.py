@@ -1244,8 +1244,8 @@ def build_nodes() -> list[dict]:
     nodes.append({
         "parameters": {
             "operation": "append",
-            "documentId": {"mode": "id", "value": EMAIL_LOG_SHEET_ID},
-            "sheetName": {"mode": "name", "value": "Email Log"},
+            "documentId": {"__rl": True, "mode": "id", "value": EMAIL_LOG_SHEET_ID},
+            "sheetName": {"__rl": True, "mode": "name", "value": "Email Log"},
             "columns": {
                 "mappingMode": "defineBelow",
                 "value": {
@@ -1267,6 +1267,7 @@ def build_nodes() -> list[dict]:
                     "urgent_label_applied": "={{ $json.urgent_label_applied }}",
                     "parsing_failed": "={{ $json.parsing_failed }}",
                 },
+                "schema": [],
             },
             "options": {},
         },
@@ -1296,8 +1297,8 @@ def build_nodes() -> list[dict]:
     nodes.append({
         "parameters": {
             "operation": "append",
-            "documentId": {"mode": "id", "value": LEADS_SHEET_ID},
-            "sheetName": {"mode": "name", "value": "Leads"},
+            "documentId": {"__rl": True, "mode": "id", "value": LEADS_SHEET_ID},
+            "sheetName": {"__rl": True, "mode": "name", "value": "Leads"},
             "columns": {
                 "mappingMode": "defineBelow",
                 "value": {
@@ -1311,6 +1312,7 @@ def build_nodes() -> list[dict]:
                     "status": "={{ $json.status }}",
                     "follow_up_date": "={{ $json.follow_up_date }}",
                 },
+                "schema": [],
             },
             "options": {},
         },
@@ -1387,8 +1389,8 @@ def build_nodes() -> list[dict]:
     nodes.append({
         "parameters": {
             "operation": "update",
-            "documentId": {"mode": "id", "value": LEADS_SHEET_ID},
-            "sheetName": {"mode": "name", "value": "Leads"},
+            "documentId": {"__rl": True, "mode": "id", "value": LEADS_SHEET_ID},
+            "sheetName": {"__rl": True, "mode": "name", "value": "Leads"},
             "columns": {
                 "mappingMode": "defineBelow",
                 "matchingColumns": ["email"],
@@ -1396,6 +1398,7 @@ def build_nodes() -> list[dict]:
                     "email": "={{ $json.sender }}",
                     "status": "Converted - Do Not Follow Up",
                 },
+                "schema": [],
             },
             "options": {
                 "cellFormat": "USER_ENTERED",
@@ -1486,8 +1489,8 @@ def build_nodes() -> list[dict]:
     nodes.append({
         "parameters": {
             "operation": "append",
-            "documentId": {"mode": "id", "value": EMAIL_LOG_SHEET_ID},
-            "sheetName": {"mode": "name", "value": "Error Log"},
+            "documentId": {"__rl": True, "mode": "id", "value": EMAIL_LOG_SHEET_ID},
+            "sheetName": {"__rl": True, "mode": "name", "value": "Error Log"},
             "columns": {
                 "mappingMode": "defineBelow",
                 "value": {
@@ -1497,6 +1500,7 @@ def build_nodes() -> list[dict]:
                     "node": "={{ $json.execution.lastNodeExecuted }}",
                     "execution_url": "={{ $json.execution.url }}",
                 },
+                "schema": [],
             },
             "options": {},
         },
@@ -1675,6 +1679,10 @@ def build_workflow() -> dict:
         "connections": build_connections(),
         "settings": {
             "executionOrder": "v1",
+            # Keep the workflow visible to the n8n-cloud MCP server so audits
+            # can inspect executions and node config. If stripped, subsequent
+            # tool calls return "not available in MCP".
+            "availableInMCP": True,
         },
         "pinData": {},
         "meta": {"templateCredsSetupCompleted": True},

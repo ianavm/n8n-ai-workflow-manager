@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {},
-      "id": "65f57255-abcb-4018-908c-973d8be1d4f9",
+      "id": "ed1580a3-1b12-4f3e-85ca-f1cd6a6f72f1",
       "name": "When clicking 'Test workflow'",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
@@ -19,7 +19,7 @@
         },
         "options": {}
       },
-      "id": "4263f16c-5cb3-469a-b46a-b250d87076b8",
+      "id": "778e4f32-54da-47cc-b9ac-73f44b3e2153",
       "name": "Gmail Trigger",
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.3,
@@ -36,7 +36,7 @@
     },
     {
       "parameters": {},
-      "id": "9d8a1ad8-00fa-400d-9096-8ee767f80a82",
+      "id": "0c28d053-73ba-47a3-8e40-cb188303905c",
       "name": "Error Trigger",
       "type": "n8n-nodes-base.errorTrigger",
       "typeVersion": 1,
@@ -68,7 +68,7 @@
         },
         "options": {}
       },
-      "id": "f97ba710-85d1-4b28-ad66-5fee8c69c16f",
+      "id": "158fc7af-c61d-4190-93b9-48b2a1d5915b",
       "name": "Has DNT Label?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -79,7 +79,7 @@
     },
     {
       "parameters": {},
-      "id": "1a8d19f8-a449-4386-81d0-664ffb1c415f",
+      "id": "0710ad9f-06bc-4e93-863a-779f194cc809",
       "name": "Skip - DNT",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -92,7 +92,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nconst results = [];\n\n// Blocked domains - emails from these are classified but never auto-replied\nconst BLOCKED_DOMAINS = [\n  '@eftcorp.atlassian.net',\n  '@noreply.github.com',\n  '@notifications.google.com',\n  '@mailer-daemon.',\n  // n8n platform alerts (execution reports, workflow failures, billing)\n  '@n8n.io',\n  '@app.n8n.cloud',\n  '@ianimmelman89.app.n8n.cloud'\n];\n\n// Subject patterns for n8n-generated reports/updates - no drafts needed\n// Catches self-sent workflow reports even when 'from' is ian@anyvisionmedia.com\nconst N8N_REPORT_SUBJECT_PATTERNS = [\n  /\\bworkflow\\s+execution/i,\n  /\\bexecution\\s+(report|failed|error)/i,\n  /\\[n8n\\]/i,\n  /\\bn8n\\s+(alert|report|notification|update)/i,\n  /\\b(daily|weekly|monthly)\\s+report\\b/i,\n  /\\baudit\\s+report\\b/i,\n  /\\bbudget\\s+enforcer/i,\n  /\\[ADS-\\d+\\]/i,\n  /\\[SHM\\]/i,\n  /\\[ERR\\]/i,\n  /\\[LI-\\d+\\]/i,\n  /\\bSHM\\s+health\\s+check/i,\n  /\\bworkflow\\s+(update|summary)/i\n];\n\nfor (const item of items) {\n  const emailData = {\n    from: item.json.from || item.json.sender || '',\n    to: item.json.to || '',\n    subject: item.json.subject || '',\n    date: item.json.date || new Date().toISOString(),\n    body: (item.json.textPlain || item.json.snippet || item.json.text || '').substring(0, 3000),\n    hasAttachments: item.json.attachments ? item.json.attachments.length > 0 : false,\n    attachmentCount: item.json.attachments ? item.json.attachments.length : 0,\n    messageId: item.json.id || item.json.messageId || '',\n    threadId: item.json.threadId || '',\n    labelIds: item.json.labelIds || []\n  };\n\n  const fromLower = emailData.from.toLowerCase();\n  // n8n-specific domains, split out so we can apply a dedicated `n8n` Gmail\n  // label (and skip the AI call entirely). The broader BLOCKED_DOMAINS list\n  // still gates auto-replies for non-n8n noise (github, eftcorp, etc.).\n  const N8N_DOMAINS = [\n    '@n8n.io',\n    '@app.n8n.cloud',\n    '@ianimmelman89.app.n8n.cloud'\n  ];\n  const isN8nDomain = N8N_DOMAINS.some(d => fromLower.includes(d));\n  const isBlockedDomain = BLOCKED_DOMAINS.some(d => fromLower.includes(d));\n  const isN8nReport = N8N_REPORT_SUBJECT_PATTERNS.some(rx => rx.test(emailData.subject || ''));\n  // Either the message is from an n8n hostname, OR the subject pattern matches\n  // a workflow report — in both cases we route to the dedicated n8n label\n  // BEFORE the AI agent runs (saves tokens, gives clean Gmail filter view).\n  const isN8nOrigin = isN8nDomain || isN8nReport;\n\n  const classificationPrompt = `Analyze this business email. Return ONLY valid JSON, no markdown, no backticks.\n\nFrom: ${emailData.from}\nSubject: ${emailData.subject}\nDate: ${emailData.date}\nBody:\n${emailData.body}\nHas Attachments: ${emailData.hasAttachments ? 'Yes (' + emailData.attachmentCount + ')' : 'No'}\n\nReturn this exact JSON:\n{\n  \"sender\": \"<email>\",\n  \"sender_name\": \"<name>\",\n  \"subject\": \"<subject>\",\n  \"intent\": \"<what sender wants>\",\n  \"tone\": \"<formal|informal|urgent|angry|friendly|neutral>\",\n  \"urgency\": \"<high|medium|low>\",\n  \"action_required\": true or false,\n  \"department\": \"<ONE of: Accounting_Finance|Customer_Support|Sales|Management|Spam_Irrelevant>\",\n  \"tags\": [\"<from: Invoice,Payment,Refund,Complaint,New_Lead,Contract,Meeting_Request,Follow_Up,Escalation,Urgent>\"],\n  \"is_spam\": true or false,\n  \"suggested_response\": \"<professional reply if action_required, else null>\",\n  \"summary\": \"<1-2 sentence summary>\",\n  \"escalation_needed\": true or false,\n  \"is_interested_reply\": true or false\n}\n\nDepartments (pick exactly ONE — Admin, Legal, Internal, HR all fold into Management):\n- Accounting_Finance: invoices, payments, billing, refunds, VAT/SARS, bank notices\n- Customer_Support: complaints, technical issues, bug reports, account help, ticket follow-ups\n- Sales: new enquiries, pricing, partnerships, lead generation, RFPs, demo requests\n- Management: strategy, legal threats, contracts, NDAs, PR/media, escalations, admin/HR/internal, vendor setup\n- Spam_Irrelevant: USE SPARINGLY — only when MULTIPLE clear spam signals are present (see below)\n\nSpam rule (STRICT — defaults to NOT spam):\n- Mark is_spam=true and department=Spam_Irrelevant ONLY when 2+ of these are true:\n  * Sender domain is suspicious / spoofed / disposable\n  * Body is generic mass-blast (no personalisation, no real signature)\n  * Suspicious or shortened URLs / phishing indicators\n  * Unsolicited promo with unrealistic claims (\"guaranteed first page\", \"90% off\")\n- A personalised cold pitch from a real human/business → Sales (is_spam=false)\n- A transactional email from a known SaaS (Stripe, QuickBooks, GitHub, Google) → the relevant real department, NOT spam\n- When unsure between Spam_Irrelevant and a real department, choose the real department. False-spam is more costly than a misroute.\n\nUrgency: HIGH only if action_required AND not spam AND (real client + urgent language, OR legal threat, OR payment dispute, OR escalated complaint, OR warm reply with deadline). Default medium.\n\nResponses must be professional and concise.`;\n\n  results.push({\n    json: {\n      ...emailData,\n      classificationPrompt,\n      is_n8n_domain: isN8nDomain,\n      is_blocked_domain: isBlockedDomain,\n      is_n8n_report: isN8nReport,\n      is_n8n_origin: isN8nOrigin\n    }\n  });\n}\n\nreturn results;"
       },
-      "id": "98cd93a3-8c47-453a-9c99-e6119dacc101",
+      "id": "0cbf9e8a-b950-47c1-be43-457c701e4ee7",
       "name": "Prepare Email Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -124,7 +124,7 @@
         },
         "options": {}
       },
-      "id": "572c2d3c-3733-446c-9bbb-afa42f768481",
+      "id": "2a90100e-c882-4fe1-a5cf-f9516abf0ad2",
       "name": "Is n8n Origin?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -141,7 +141,7 @@
           "Label_10"
         ]
       },
-      "id": "01fdc521-23fb-48c9-bf07-a2670cc877d6",
+      "id": "99e8e530-5c18-4cd7-9a98-2b240cc49bb0",
       "name": "Label N8N",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -162,7 +162,7 @@
         "operation": "markAsRead",
         "messageId": "={{ $('Prepare Email Data').first().json.messageId }}"
       },
-      "id": "a6d32cd3-4ea3-4c77-a051-f3e57cd98ba5",
+      "id": "c14c0e49-24bb-4707-b140-435ab8c51be6",
       "name": "Mark N8N Read",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -194,7 +194,7 @@
         800,
         432
       ],
-      "id": "63da6c94-2724-4058-8fb8-a7fdb9dab1a0",
+      "id": "cb86e2ed-4f24-4d30-85c6-1a89664276fd",
       "name": "AI Agent"
     },
     {
@@ -208,7 +208,7 @@
         660,
         680
       ],
-      "id": "e564d7bf-b052-4efe-a25f-d33209ac1f23",
+      "id": "ec0d9e43-3ae0-44bc-955d-3579104d17af",
       "name": "OpenRouter Chat Model",
       "credentials": {
         "openRouterApi": {
@@ -221,7 +221,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nconst results = [];\n\n// Addresses n8n itself sends from — inbound messages from these are never\n// auto-drafted (prevents reply-to-self loops when a workflow-sent email\n// lands back in the inbox via Cc, auto-forward, or send-as alias).\nconst AUTOMATION_SENDERS = [\"ian@anyvisionmedia.com\", \"noreply@anyvisionmedia.com\", \"noreply@n8n.io\", \"no-reply@n8n.io\", \"notifications@n8n.cloud\"];\n\n// Opt-out phrases (case-insensitive)\nconst OPT_OUT_PHRASES = [\n  'unsubscribe', 'opt out', 'opt-out', 'remove me', 'stop emailing',\n  'not interested', 'no thanks', 'no thank you', \"i'll pass\", 'take me off',\n  'remove from list', 'stop sending', 'do not contact', \"don't contact\",\n  'leave me alone', 'stop messaging', 'reported as spam', 'block sender',\n  'cease and desist', 'gdpr removal', 'popia removal', 'remove my data'\n];\n\n// Ticket / reference number patterns\nconst TICKET_PATTERNS = [\n  /\\bTKT[-#]?\\s*\\d+/i,\n  /\\bTICKET\\s*[#:]?\\s*\\d+/i,\n  /\\bTICKET\\s+NUMBER\\s*:?\\s*\\w+/i,\n  /\\bREF\\s*[-:]\\s*#?\\s*[A-Z0-9]{3,}/i,\n  /\\bREFERENCE\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bENQ[-#]?\\s*\\d+/i,\n  /\\bENQUIRY\\s*(NUMBER|NO\\.?|#)\\s*:?\\s*\\w+/i,\n  /\\bCASE\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bINCIDENT\\s*(ID|NUMBER|NO\\.?|#)\\s*:?\\s*[A-Z0-9-]+/i,\n  /\\bSR[-#]\\s*\\d+/i,\n  /\\bINC[-#]\\s*\\d+/i,\n  /\\b[A-Z]{2,4}-\\d{4,}\\b/\n];\n\nconst SIGNATURE = `<table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table>`;\n\nfor (const item of items) {\n  const emailData = $('Prepare Email Data').first().json;\n\n  let parsed;\n  let parsing_failed = false;\n  try {\n    let aiContent = item.json.output || '';\n    if (!aiContent && item.json.choices) {\n      aiContent = item.json.choices[0].message.content;\n    }\n    const cleaned = aiContent\n      .replace(/```json\\n?/g, '')\n      .replace(/```\\n?/g, '')\n      .trim();\n    parsed = JSON.parse(cleaned);\n  } catch (e) {\n    parsing_failed = true;\n    // Route parse failures to Management (a real, wired department) so they\n    // do not silently land in the General fallback and disappear.\n    parsed = {\n      sender: emailData.from || 'unknown',\n      sender_name: 'Unknown',\n      subject: emailData.subject || 'No Subject',\n      intent: 'Classification failed - manual review required',\n      tone: 'neutral',\n      urgency: 'medium',\n      action_required: true,\n      department: 'Management',\n      tags: ['Escalation'],\n      is_spam: false,\n      suggested_response: null,\n      summary: 'Email could not be auto-classified. Manual review required.',\n      escalation_needed: true,\n      is_interested_reply: false\n    };\n  }\n\n  // Reference number detection\n  const subject = (emailData.subject || '').toUpperCase();\n  const body = (emailData.body || '').substring(0, 2000).toUpperCase();\n  const textToCheck = subject + ' ' + body;\n\n  let has_reference_number = false;\n  let matched_reference_pattern = '';\n  for (const pattern of TICKET_PATTERNS) {\n    const match = textToCheck.match(pattern);\n    if (match) {\n      has_reference_number = true;\n      matched_reference_pattern = match[0];\n      break;\n    }\n  }\n\n  // Opt-out detection\n  const bodyLower = (emailData.body || '').toLowerCase();\n  const subjectLower = (emailData.subject || '').toLowerCase();\n  const is_opt_out = OPT_OUT_PHRASES.some(phrase =>\n    bodyLower.includes(phrase) || subjectLower.includes(phrase)\n  );\n\n  // Automation-sender detection — extract the bare email address from the\n  // \"From\" header (which may be \"Display Name <addr@host>\") and check against\n  // the AUTOMATION_SENDERS blocklist. Equality match on the bare address so a\n  // legitimate client like iansomething@example.com is not blocked by a\n  // substring check.\n  const fromRaw = emailData.from || '';\n  const bracketMatch = fromRaw.match(/<([^>]+)>/);\n  const original_from_address = (bracketMatch ? bracketMatch[1] : fromRaw)\n    .trim()\n    .toLowerCase();\n  const is_automation_sender = AUTOMATION_SENDERS.includes(original_from_address);\n\n  // Build HTML response from suggested_response\n  const html_response = (() => {\n    const text = parsed.suggested_response || '';\n    if (!text) return '';\n    const paragraphs = text.split(/\\n\\n+/);\n    const htmlParagraphs = paragraphs\n      .map(p => p.replace(/\\n/g, '<br>'))\n      .map(p => '<p style=\"margin:0 0 12px 0;font-family:Segoe UI,Helvetica Neue,Arial,' +\n        'sans-serif;font-size:14px;line-height:1.5;color:#333333;\">' + p + '</p>')\n      .join('');\n    return '<div style=\"font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;\">' +\n      htmlParagraphs + '<br>' + SIGNATURE + '</div>';\n  })();\n\n  results.push({\n    json: {\n      original_from: emailData.from || '',\n      original_to: emailData.to || '',\n      original_subject: emailData.subject || '',\n      original_date: emailData.date || '',\n      original_body: emailData.body || '',\n      original_message_id: emailData.messageId || '',\n      original_thread_id: emailData.threadId || '',\n      has_original_attachments: emailData.hasAttachments || false,\n      sender: parsed.sender || emailData.from || '',\n      sender_name: parsed.sender_name || 'Unknown',\n      subject: parsed.subject || emailData.subject || '',\n      intent: parsed.intent || '',\n      tone: parsed.tone || 'neutral',\n      urgency: parsed.urgency || 'medium',\n      action_required: parsed.action_required || false,\n      department: parsed.department || 'Management',\n      tags: parsed.tags || [],\n      tags_string: (parsed.tags || []).join(', '),\n      is_spam: parsed.is_spam || false,\n      parsing_failed,\n      suggested_response: parsed.suggested_response || '',\n      html_response,\n      summary: parsed.summary || '',\n      escalation_needed: parsed.escalation_needed || false,\n      is_interested_reply: parsed.is_interested_reply || false,\n      has_reference_number,\n      matched_reference_pattern,\n      is_opt_out,\n      original_from_address,\n      is_automation_sender,\n      is_blocked_domain: emailData.is_blocked_domain || false,\n      is_n8n_report: emailData.is_n8n_report || false,\n      processed_at: new Date().toISOString(),\n      ticket_number: 'TKT-' + Date.now()\n    }\n  });\n}\n\nreturn results;"
       },
-      "id": "4745d6af-4fa0-4905-90cc-4e5fc62fca34",
+      "id": "ebf5f8fe-64f5-41cb-9b45-fa7681dec31a",
       "name": "Parse AI Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -340,7 +340,7 @@
           "fallbackOutput": "extra"
         }
       },
-      "id": "73cbfa91-8f44-44e4-9866-18feb02d1b37",
+      "id": "4bd51aaa-eb60-4965-aff8-f4d96de04cbc",
       "name": "Route by Department",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
@@ -357,7 +357,7 @@
           "Label_8"
         ]
       },
-      "id": "6fd508ee-bd10-4a47-9699-48a80e1683ea",
+      "id": "6b32e5a8-4f03-4d61-b239-c0cb696d745d",
       "name": "Label Junk",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -381,7 +381,7 @@
           "Label_1"
         ]
       },
-      "id": "4fc46f3e-8a18-4d48-867e-2f503ed51c77",
+      "id": "3b45b428-26f9-462b-9812-6a3da413cb17",
       "name": "Label Finance",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -405,7 +405,7 @@
           "Label_2"
         ]
       },
-      "id": "a9ea8bb5-48a5-4186-870d-d897ad4a6cfc",
+      "id": "18b79197-ba21-4d7b-b4f5-99b461223cc5",
       "name": "Label Support",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -429,7 +429,7 @@
           "Label_3"
         ]
       },
-      "id": "2ea070c9-3ea4-4b18-8e53-ba2ac9e22f4e",
+      "id": "f8f812ca-e018-4ff1-974d-7635eba6fc58",
       "name": "Label Sales",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -453,7 +453,7 @@
           "Label_4"
         ]
       },
-      "id": "07f21989-21b8-4738-b4f1-37d4bc85d065",
+      "id": "55080e9b-ab74-49ca-b383-a4e091a4a4b0",
       "name": "Label Management",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -477,7 +477,7 @@
           "Label_5"
         ]
       },
-      "id": "faf4748c-85c7-4734-adc9-8b9092af5f93",
+      "id": "adc135b8-d0c4-4874-b8af-21d235903ff3",
       "name": "Label General",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -498,7 +498,7 @@
         "operation": "markAsRead",
         "messageId": "={{ $('Parse AI Response').first().json.original_message_id }}"
       },
-      "id": "0b0109a0-c08a-46f4-a60a-d338ab15a2ef",
+      "id": "23c60108-4866-45a8-a0b8-ccb35bacdc54",
       "name": "Mark Spam Read",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -553,7 +553,7 @@
         },
         "options": {}
       },
-      "id": "ed520600-e6d3-4504-832e-8ce7fcf78316",
+      "id": "a334355c-cd52-495b-87ec-302cc1c92a92",
       "name": "Is Urgent?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -570,7 +570,7 @@
           "Label_7"
         ]
       },
-      "id": "408bb233-52f0-46ee-8f1f-355b8d735d2f",
+      "id": "39d4dbba-4226-4043-9d66-5b0b528d9fbb",
       "name": "Label Urgent",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -588,7 +588,7 @@
     },
     {
       "parameters": {},
-      "id": "ff42dbe7-1230-4158-9dde-33edaf35fa24",
+      "id": "02c00de3-eaf9-4d3f-97ad-a9b2b3561962",
       "name": "Not Urgent",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -636,7 +636,7 @@
         },
         "options": {}
       },
-      "id": "89ae0a36-fcfd-450d-a47f-1dfdc962223b",
+      "id": "efbb30d5-4b05-4e30-8b5e-c34aef25da9c",
       "name": "Is No-Reply?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -650,7 +650,7 @@
         "operation": "markAsRead",
         "messageId": "={{ $json.original_message_id }}"
       },
-      "id": "ab00970d-2d85-40b3-9e15-449756c6e8c8",
+      "id": "eeadaaf7-a895-48a3-bb7e-b948534ae8eb",
       "name": "Mark No-Reply Read",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -668,7 +668,7 @@
     },
     {
       "parameters": {},
-      "id": "4a8efe4e-1582-4722-95c8-0954ae6753f9",
+      "id": "909a8c67-786c-44a8-8089-aad92b4ccc41",
       "name": "Not No-Reply",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -788,7 +788,7 @@
         },
         "options": {}
       },
-      "id": "a2835180-6581-4c12-b031-26e24990620c",
+      "id": "9d7c0acd-9806-407f-a17e-a4f3c620fc7f",
       "name": "Reply Needed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -809,7 +809,7 @@
           "sendTo": "={{ $json.sender }}"
         }
       },
-      "id": "b9efbfbc-baab-4ff0-8b6f-913f18d151d5",
+      "id": "1d5d202f-ae16-45dc-9147-489a2b9eb23e",
       "name": "Create Reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -827,7 +827,7 @@
     },
     {
       "parameters": {},
-      "id": "e4c56c1f-81de-4184-9829-085aec595747",
+      "id": "453b3bfb-d6fb-4783-a965-aeb488fa06b1",
       "name": "No Reply Needed",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -859,7 +859,7 @@
         },
         "options": {}
       },
-      "id": "508f67ff-2339-4a69-8079-fa4896233bbc",
+      "id": "956fcb3c-750a-4c51-bb50-8f38e1ef94d8",
       "name": "Has Reference Number?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -916,7 +916,7 @@
         },
         "options": {}
       },
-      "id": "238374d8-2c29-481c-9ae6-4f66fb17334f",
+      "id": "1ae5b36c-5fd7-46fb-87da-1f6499863915",
       "name": "Update Lead - Stop Follow Up",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
@@ -934,7 +934,7 @@
     },
     {
       "parameters": {},
-      "id": "8c540bfa-32ba-430b-b151-ffe86742b9a3",
+      "id": "24cf483a-29fa-4baa-9f02-7c67d8d3d5f0",
       "name": "Skip - Not Ticket Reply",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -947,7 +947,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\n\n// Mirror of the Switch \"Route by Department\" rules. Anything not in this\n// map falls through to the General label (Label_5) — matches the workflow's\n// fallbackOutput behaviour.\nconst DEPT_TO_LABEL = {\n  'Spam_Irrelevant': 'Junk',\n  'Accounting_Finance': 'Finance',\n  'Customer_Support': 'Support',\n  'Sales': 'Sales',\n  'Management': 'Management'\n};\n\nreturn items.map(item => {\n  const d = item.json;\n  const applied_dept_label = DEPT_TO_LABEL[d.department] || 'General';\n  // Same gate as the \"Is Urgent?\" If node. Keep these two in sync.\n  const urgent_label_applied = (\n    d.urgency === 'high' &&\n    d.is_spam === false &&\n    d.action_required === true\n  );\n  return {\n    json: {\n      ...d,\n      applied_dept_label,\n      urgent_label_applied\n    }\n  };\n});"
       },
-      "id": "f65c9b4f-32bb-4389-90c8-b5526620e3aa",
+      "id": "fdf713c4-dcb6-4b61-a8cd-6478ec979a55",
       "name": "Enrich for Log",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -960,10 +960,12 @@
       "parameters": {
         "operation": "append",
         "documentId": {
+          "__rl": true,
           "mode": "id",
           "value": "1Adp3x0ler5H69Cih5tbMLqWEgZMziebhnOEWbMPTvaA"
         },
         "sheetName": {
+          "__rl": true,
           "mode": "name",
           "value": "Email Log"
         },
@@ -987,11 +989,12 @@
             "applied_dept_label": "={{ $json.applied_dept_label }}",
             "urgent_label_applied": "={{ $json.urgent_label_applied }}",
             "parsing_failed": "={{ $json.parsing_failed }}"
-          }
+          },
+          "schema": []
         },
         "options": {}
       },
-      "id": "8d157ce2-980a-498a-891a-319cae9155d5",
+      "id": "15be61ea-4bf2-4f22-8b37-0910b55adf0e",
       "name": "Log to Email Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -1011,7 +1014,7 @@
       "parameters": {
         "jsCode": "const item = $input.first();\nconst d = item.json;\n\nif (d.department === 'Sales' && d.tags_string && d.tags_string.includes('New_Lead')) {\n  return [{\n    json: {\n      date: d.processed_at,\n      lead_name: d.sender_name,\n      email: d.sender,\n      subject: d.original_subject,\n      interest: d.intent,\n      summary: d.summary,\n      urgency: d.urgency,\n      status: 'New',\n      follow_up_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)\n        .toISOString().split('T')[0],\n      is_lead: true\n    }\n  }];\n}\n\nreturn [{ json: { is_lead: false } }];"
       },
-      "id": "e7ed7db7-4bbd-40bf-a89b-6e79a3e537ae",
+      "id": "2e9d1009-b178-4b0c-b158-304a55f4b475",
       "name": "Check If Lead",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1043,7 +1046,7 @@
         },
         "options": {}
       },
-      "id": "2592990d-936b-4505-b1eb-973e39ca0f1c",
+      "id": "cbadc063-addd-481e-91bd-cbba49ef59cf",
       "name": "Is New Lead?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -1056,10 +1059,12 @@
       "parameters": {
         "operation": "append",
         "documentId": {
+          "__rl": true,
           "mode": "id",
           "value": "1G2P9gYuPKtqhDkkJaTVLbuA_yxj_IqTI7vuCfhFLklM"
         },
         "sheetName": {
+          "__rl": true,
           "mode": "name",
           "value": "Leads"
         },
@@ -1075,11 +1080,12 @@
             "urgency": "={{ $json.urgency }}",
             "status": "={{ $json.status }}",
             "follow_up_date": "={{ $json.follow_up_date }}"
-          }
+          },
+          "schema": []
         },
         "options": {}
       },
-      "id": "0c72124b-524b-4191-a074-ac50560fa037",
+      "id": "a70e3c6a-8dcf-4880-b251-024a84cb2adb",
       "name": "Log New Lead",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -1105,7 +1111,7 @@
           "summary": "=Follow up: {{ $json.lead_name }}"
         }
       },
-      "id": "0614f36c-4790-44aa-816f-2d929fe87206",
+      "id": "90fbdf0e-cccd-4d2e-8a20-3ea5fb1059d2",
       "name": "Create Follow-Up",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1,
@@ -1123,7 +1129,7 @@
     },
     {
       "parameters": {},
-      "id": "220d6735-77a5-481e-8df8-c623558a075a",
+      "id": "34b1158c-dad2-4bbe-baeb-c41f00f84acf",
       "name": "Not a Lead",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -1163,7 +1169,7 @@
         },
         "options": {}
       },
-      "id": "6dbae8c2-5f27-4f86-ac17-3b9d1f38e0f7",
+      "id": "43c19b3a-2dba-44ba-ba8c-dc2ba62e1e0c",
       "name": "Is Interested Reply?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -1179,7 +1185,7 @@
         "message": "=<div style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.5;color:#333333;\"><p style=\"margin:0 0 12px 0;\">Hi {{ $json.sender_name }},</p><p style=\"margin:0 0 12px 0;\">Thank you so much for getting back to us! We really appreciate your interest.</p><p style=\"margin:0 0 12px 0;\">I'll be in touch shortly to discuss how AnyVision Media can help you further. In the meantime, if you have any questions, feel free to reply to this email.</p><p style=\"margin:0 0 12px 0;\">Looking forward to connecting!</p><br><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:1.4;color:#333333;\"><tr><td style=\"vertical-align:top;padding-right:18px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"text-decoration:none;\"><img src=\"https://www.anyvisionmedia.com/logo-icon.png\" alt=\"AnyVision Media\" width=\"70\" style=\"display:block;border:0;width:70px;height:70px;\" /></a></td><td style=\"vertical-align:top;padding-left:18px;border-left:3px solid #6C63FF;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr><td style=\"font-size:20px;font-weight:700;color:#0A0F1C;padding-bottom:2px;letter-spacing:-0.3px;\">Ian</td></tr><tr><td style=\"font-size:13px;font-weight:400;color:#6B7280;padding-bottom:10px;\">Founder&nbsp;&nbsp;&#183;&nbsp;&nbsp;<span style=\"color:#6C63FF;font-weight:600;\">AnyVision Media</span></td></tr><tr><td style=\"padding-bottom:10px;\"><table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"200\"><tr><td width=\"100\" style=\"height:2px;background-color:#6C63FF;font-size:0;line-height:0;\">&nbsp;</td><td width=\"100\" style=\"height:2px;background-color:#00D4AA;font-size:0;line-height:0;\">&nbsp;</td></tr></table></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"mailto:ian@anyvisionmedia.com\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">ian@anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:12px;color:#333333;padding-bottom:3px;\"><a href=\"https://www.anyvisionmedia.com\" target=\"_blank\" style=\"color:#6C63FF;text-decoration:none;font-weight:500;\">www.anyvisionmedia.com</a></td></tr><tr><td style=\"font-size:11px;color:#9CA3AF;padding-top:2px;\">Johannesburg, South Africa</td></tr></table></td></tr></table></div>",
         "options": {}
       },
-      "id": "3ee52900-2ce8-4ac5-964c-102c308fa8e5",
+      "id": "b863411f-69ad-4a12-abea-06e2b61b543b",
       "name": "Send Thank You",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -1203,7 +1209,7 @@
           "Label_9"
         ]
       },
-      "id": "89d8666c-4151-4ecc-b2ad-0ead59a34c8d",
+      "id": "7dba0ef6-dbc7-46f4-8e39-39a1c3d432c6",
       "name": "Apply DNT Label",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -1223,10 +1229,12 @@
       "parameters": {
         "operation": "update",
         "documentId": {
+          "__rl": true,
           "mode": "id",
           "value": "1G2P9gYuPKtqhDkkJaTVLbuA_yxj_IqTI7vuCfhFLklM"
         },
         "sheetName": {
+          "__rl": true,
           "mode": "name",
           "value": "Leads"
         },
@@ -1238,13 +1246,14 @@
           "value": {
             "email": "={{ $json.sender }}",
             "status": "Converted - Do Not Follow Up"
-          }
+          },
+          "schema": []
         },
         "options": {
           "cellFormat": "USER_ENTERED"
         }
       },
-      "id": "90abfc53-863e-4d4b-bcb9-6699d6bbee9e",
+      "id": "357102f8-2d82-4b7d-bb60-df17603e5b8f",
       "name": "Update Lead Status",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -1262,7 +1271,7 @@
     },
     {
       "parameters": {},
-      "id": "5db5d779-acfa-4224-a8f6-a2241c88c37b",
+      "id": "91fd7005-073c-40f4-ae79-85e5b6bc3fd4",
       "name": "Not Interested Reply",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -1294,7 +1303,7 @@
         },
         "options": {}
       },
-      "id": "f5debe87-2712-4daa-ab9e-e1d7e105d5f0",
+      "id": "065d91ce-38d8-4b56-9779-9fef2ff45a8b",
       "name": "Is Opt-Out?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
@@ -1355,7 +1364,7 @@
         },
         "options": {}
       },
-      "id": "2e12b4bd-96d6-402e-b72f-31349e5ef650",
+      "id": "1ec6effb-a638-4d85-9244-949aa7838506",
       "name": "Mark Opt-Out Suppression",
       "type": "n8n-nodes-base.airtable",
       "typeVersion": 2.2,
@@ -1379,7 +1388,7 @@
           "Label_9"
         ]
       },
-      "id": "0c9be4ac-d31b-4618-9bfb-32412c45fd02",
+      "id": "e1a7f333-f6f8-4498-86c0-756ec877dc56",
       "name": "Apply Opt-Out DNT",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
@@ -1397,7 +1406,7 @@
     },
     {
       "parameters": {},
-      "id": "df022c38-9ccf-4755-93bf-c8fd751627f4",
+      "id": "853c8672-c012-450f-9b2c-35b80c81037e",
       "name": "Not Opt-Out",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
@@ -1410,10 +1419,12 @@
       "parameters": {
         "operation": "append",
         "documentId": {
+          "__rl": true,
           "mode": "id",
           "value": "1Adp3x0ler5H69Cih5tbMLqWEgZMziebhnOEWbMPTvaA"
         },
         "sheetName": {
+          "__rl": true,
           "mode": "name",
           "value": "Error Log"
         },
@@ -1425,11 +1436,12 @@
             "error": "={{ $json.execution.error.message }}",
             "node": "={{ $json.execution.lastNodeExecuted }}",
             "execution_url": "={{ $json.execution.url }}"
-          }
+          },
+          "schema": []
         },
         "options": {}
       },
-      "id": "f3f65061-0721-4101-ab77-8faf2182c4b9",
+      "id": "b605ead5-d1f3-4cc7-9e46-1bcd41d63358",
       "name": "Log Error to Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
@@ -1862,7 +1874,8 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "availableInMCP": true
   },
   "pinData": {},
   "meta": {
