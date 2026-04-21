@@ -4,7 +4,11 @@
 # Exit 0 = allow, Exit 2 = block
 
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+if command -v jq >/dev/null 2>&1; then
+  FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+else
+  FILE_PATH=$(echo "$INPUT" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const j=JSON.parse(d);const v=j.tool_input&&j.tool_input.file_path;process.stdout.write(v==null?'':String(v))}catch(e){}})" 2>/dev/null)
+fi
 
 if [ -z "$FILE_PATH" ]; then
   exit 0

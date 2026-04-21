@@ -4,7 +4,11 @@
 # Logs to ~/.claude/audit-YYYY-MM-DD.log
 
 INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+if command -v jq >/dev/null 2>&1; then
+  COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+else
+  COMMAND=$(echo "$INPUT" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const j=JSON.parse(d);const v=j.tool_input&&j.tool_input.command;process.stdout.write(v==null?'':String(v))}catch(e){}})" 2>/dev/null)
+fi
 
 if [ -z "$COMMAND" ]; then
   exit 0
