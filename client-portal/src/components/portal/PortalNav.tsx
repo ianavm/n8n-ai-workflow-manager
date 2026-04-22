@@ -25,6 +25,7 @@ import {
   HeartPulse,
   Plug,
   Shield,
+  Target,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme-provider";
 
@@ -34,6 +35,7 @@ const navItems = [
   { label: "Finance", href: "/portal/accounting", icon: Receipt },
   { label: "Advisory", href: "/portal/advisory", icon: Briefcase },
   { label: "Marketing", href: "/portal/marketing", icon: Megaphone },
+  { label: "CRM", href: "/portal/crm", icon: Target },
   { label: "Connections", href: "/portal/connections", icon: Plug },
   { label: "Automations", href: "/portal/workflows", icon: Zap },
   { label: "AI Agents", href: "/portal/ai-agents", icon: Bot },
