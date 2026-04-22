@@ -2,7 +2,37 @@
 
 **Date:** 2026-04-22
 **Target:** `landing-pages/deploy/` (deployed to `www.anyvisionmedia.com` via Netlify)
-**Method:** Static HTML analysis across all 16 pages. Live PageSpeed Insights API blocked (unauthenticated rate limit; needs `GOOGLE_PAGESPEED_API_KEY`).
+**Method:** Static HTML analysis (16 pages) + live PageSpeed Insights API (3 representative URLs × mobile/desktop).
+
+## Live Lighthouse scores (PSI, pre-fix)
+
+| Page | Strategy | Perf | A11y | SEO | BP | LCP | CLS | TBT | FCP |
+|---|---|---:|---:|---:|---:|---|---|---|---|
+| homepage | mobile | **76** | 91 | 100 | 92 | 3.5 s | 0 | 410 ms | 2.7 s |
+| homepage | desktop | 76 | 91 | 100 | 92 | 1.0 s | 0.001 | 470 ms | 0.8 s |
+| location (JHB) | mobile | **75** | 94 | 100 | 100 | 3.8 s | 0 | 390 ms | 2.8 s |
+| location (JHB) | desktop | 70 | 94 | 100 | 100 | 1.0 s | 0.013 | 920 ms | 0.5 s |
+| pricing | mobile | **72** | 94 | 100 | 100 | 3.3 s | 0 | 620 ms | 2.6 s |
+| pricing | desktop | 97 | 94 | 100 | 100 | 0.9 s | 0.001 | 120 ms | 0.7 s |
+
+### Headlines
+
+- ✅ **SEO: 100/100** across every URL and strategy — nothing to fix structurally
+- ✅ **A11y: 91–94** — minor improvements possible (colour contrast, ARIA)
+- ✅ **BP: 92–100** — almost perfect
+- ✅ **CLS: ~0** — layout stability excellent
+- ❌ **Mobile Performance 72–76** — below the 90 target
+- ❌ **Mobile LCP 3.3–3.8 s** — above Google's "Good" threshold of **2.5 s**
+- ⚠️ **TBT 390–920 ms** — render-blocking scripts confirmed as predicted by static audit
+
+### Root cause
+
+Exactly what the static audit flagged: 3–4 render-blocking scripts per page pushing FCP/LCP into "Needs Improvement". No image/CSS issues — the HTML is clean.
+
+### Prediction for AstroWind port (Phase 4)
+
+**Not needed.** Once render-blocking scripts are deferred + fonts preconnect, mobile Performance should clear 90. No structural rewrite warranted.
+
 
 ## Scope
 

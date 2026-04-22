@@ -15,19 +15,35 @@
     </script>
     <!-- Meta Pixel Code -->
     <script>
-    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '2503365216786353');
-    fbq('track', 'PageView');
+    /* Facebook Pixel — lazy-loaded on first user interaction, idle, or 3s fallback.
+       Keeps TBT off the main thread during LCP. */
+    (function () {
+      var loaded = false;
+      function loadFbq() {
+        if (loaded) return;
+        loaded = true;
+        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        'https://connect.facebook.net/en_US/fbevents.js');
+        fbq('init', '2503365216786353');
+        fbq('track', 'PageView');
+      }
+      var opts = { once: true, passive: true, capture: true };
+      ['pointerdown','keydown','scroll','touchstart'].forEach(function(ev) {
+        window.addEventListener(ev, loadFbq, opts);
+      });
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(loadFbq, { timeout: 3000 });
+      } else {
+        setTimeout(loadFbq, 3000);
+      }
+    })();
     </script>
-    <noscript><img height="1" width="1" style="display:none"
-    src="https://www.facebook.com/tr?id=2503365216786353&ev=PageView&noscript=1"
-    /></noscript>
+    <noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=2503365216786353&ev=PageView&noscript=1" /></noscript>
     <!-- End Meta Pixel Code -->
     <meta name="description" content="AnyVision Media pricing plans — from R1,999/mo for solo founders to R29,999/mo for enterprise. AI automation workflows, agents, and modular add-ons. 14-day free trial.">
     <title>Pricing Plans | AnyVision Media — AI Automation for South African Businesses</title>
