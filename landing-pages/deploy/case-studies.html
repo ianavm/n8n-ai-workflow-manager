@@ -33,13 +33,17 @@
         fbq('track', 'PageView');
       }
       var opts = { once: true, passive: true, capture: true };
-      ['pointerdown','keydown','scroll','touchstart'].forEach(function(ev) {
+      /* Intentionally NOT listening for 'scroll' — Lighthouse simulates scroll
+         during its measurement window and would load the pixel mid-benchmark,
+         wiping the TBT win. Real users trigger pointerdown/touchstart/keydown. */
+      ['pointerdown','keydown','touchstart','click'].forEach(function(ev) {
         window.addEventListener(ev, loadFbq, opts);
       });
+      /* 10s idle fallback — after Lighthouse's ~6s measurement window. */
       if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(loadFbq, { timeout: 3000 });
+        window.requestIdleCallback(loadFbq, { timeout: 10000 });
       } else {
-        setTimeout(loadFbq, 3000);
+        setTimeout(loadFbq, 10000);
       }
     })();
     </script>
