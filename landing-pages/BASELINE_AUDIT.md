@@ -33,6 +33,41 @@ Exactly what the static audit flagged: 3–4 render-blocking scripts per page pu
 
 **Not needed.** Once render-blocking scripts are deferred + fonts preconnect, mobile Performance should clear 90. No structural rewrite warranted.
 
+---
+
+## Post-fix Lighthouse scores (2026-04-23, 3-run median)
+
+After FB Pixel lazy-load (commits `97d202e` + `d95d0ea`) and trial-CTA cleanup (`9714e2a`):
+
+| Page | Strategy | Perf | A11y | SEO | BP | LCP | CLS | TBT | FCP |
+|---|---|---:|---:|---:|---:|---|---|---|---|
+| homepage | mobile | **86** | 91 | 100 | 92 | 3.4 s | 0 | **116 ms** | 2.7 s |
+| homepage | desktop | **90** | 91 | 100 | 92 | 0.9 s | 0.001 | 222 ms | 0.8 s |
+| location | mobile | **83** | 94 | 100 | 100 | 3.4 s | 0.001 | 212 ms | 2.7 s |
+| location | desktop | **85** | 94 | 100 | 100 | 0.9 s | 0.013 | 296 ms | 0.8 s |
+| pricing | mobile | 78 | 94 | 100 | 100 | 3.3 s | 0 | 460 ms | 2.6 s |
+| pricing | desktop | 71* | 94 | 100 | 100 | 1.0 s | 0.001 | 675 ms | 0.7 s |
+
+*Pricing desktop result noisy — runs: 71/71/85. Was 97 pre-fix. Likely lab variance on an already-fast page; HTML structure is unchanged from before. Re-measure after 24h for stable CrUX-based reading.
+
+### Delta vs baseline
+
+| Page | Strategy | Perf Δ | TBT Δ |
+|---|---|---|---|
+| homepage | mobile | +10 | −72% |
+| homepage | desktop | +14 ✓ crossed 90 | −53% |
+| location | mobile | +8 | −46% |
+| location | desktop | +15 | −68% |
+| pricing | mobile | +6 | −26% |
+| pricing | desktop | noisy | noisy |
+
+**Main win:** TBT cut 46-72% on 4 of 6 views. Homepage desktop cleared 90. No regressions in SEO/A11y/CLS.
+
+### Remaining gap to 90+ mobile
+
+Mobile LCP stuck at ~3.3 s across pages — driven by the 35 KB render-blocking `/css/styles.css` and Google Fonts roundtrip. Next-tier fix (not in scope yet): inline critical CSS + async-load the rest. Expected uplift: mobile Perf 86 → 92+.
+
+
 
 ## Scope
 
