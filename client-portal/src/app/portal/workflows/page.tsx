@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { format } from "date-fns";
-import { Workflow } from "lucide-react";
+import { Workflow as WorkflowIcon } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { EmptyState } from "@/components/portal/EmptyState";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { Badge } from "@/components/ui-shadcn/badge";
+import { Card } from "@/components/ui-shadcn/card";
+import { cn } from "@/lib/utils";
 
 interface Workflow {
   id: string;
@@ -19,25 +23,42 @@ interface Workflow {
   updated_at: string;
 }
 
+function statusTone(status: string): "success" | "warning" | "danger" {
+  if (status === "active") return "success";
+  if (status === "paused") return "warning";
+  return "danger";
+}
+
+function statusDotColor(status: string): string {
+  if (status === "active") return "var(--accent-teal)";
+  if (status === "paused") return "var(--warning)";
+  return "var(--danger)";
+}
+
 export default function WorkflowsPage() {
   const supabase = createClient();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetch() {
+    async function load() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       const { data: profile } = await supabase
         .from("clients")
         .select("id")
         .eq("auth_user_id", user.id)
         .single();
-
-      if (!profile) return;
+      if (!profile) {
+        setLoading(false);
+        return;
+      }
 
       const { data } = await supabase
         .from("workflows")
@@ -48,72 +69,60 @@ export default function WorkflowsPage() {
       setWorkflows(data || []);
       setLoading(false);
     }
-    fetch();
+    load();
   }, [supabase]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin w-8 h-8 border-2 border-[#6C63FF] border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
-  const statusVariant = (s: string) =>
-    s === "active" ? "success" : s === "paused" ? "warning" : "danger";
-
   return (
-    <div className="space-y-8 max-w-5xl">
-      <div className="relative">
-        <div className="absolute -top-4 -left-4 w-32 h-32 rounded-full bg-[rgba(108,99,255,0.12)] blur-3xl pointer-events-none" />
-        <div className="relative">
-          <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
-            Your <span className="gradient-text">Workflows</span>
-          </h1>
-          <p className="text-base text-[#B0B8C8] mt-2">
-            {workflows.length} {workflows.length === 1 ? "workflow" : "workflows"} assigned
-          </p>
-        </div>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        eyebrow="Operations"
+        title="Workflows"
+        description={
+          loading
+            ? "Loading your workflows…"
+            : `${workflows.length} ${workflows.length === 1 ? "workflow" : "workflows"} assigned to your account.`
+        }
+      />
 
-      {workflows.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={<Workflow size={24} />}
-            title="No workflows yet"
-            description="Workflows will appear here once they're assigned to your account."
-          />
-        </Card>
+      {loading ? (
+        <LoadingState variant="list" rows={4} />
+      ) : workflows.length === 0 ? (
+        <EmptyState
+          icon={<WorkflowIcon className="size-5" />}
+          title="No workflows yet"
+          description="Workflows will appear here once they're assigned to your account."
+        />
       ) : (
-        <div className="space-y-4">
+        <div className="flex flex-col gap-3">
           {workflows.map((wf) => (
-            <Card key={wf.id}>
+            <Card key={wf.id} variant="interactive" padding="md">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                      wf.status === "active"
-                        ? "bg-emerald-400"
-                        : wf.status === "paused"
-                          ? "bg-amber-400"
-                          : "bg-red-400"
-                    }`}
+                <div className="flex items-center gap-4 min-w-0">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-2.5 rounded-full shrink-0",
+                      wf.status === "active" && "pulse-dot",
+                    )}
+                    style={{ background: statusDotColor(wf.status) }}
                   />
-                  <div>
-                    <h3 className="text-white font-medium">{wf.name}</h3>
-                    {wf.description && (
-                      <p className="text-xs text-[#6B7280] mt-1">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-foreground truncate">{wf.name}</h3>
+                    {wf.description ? (
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">
                         {wf.description}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
-                <div className="flex items-center gap-4 sm:flex-shrink-0">
-                  <Badge variant={statusVariant(wf.status)}>{wf.status}</Badge>
-                  <span className="text-xs text-[#6B7280]">
+                <div className="flex items-center gap-3 shrink-0">
+                  <Badge tone={statusTone(wf.status)} appearance="soft" size="sm" className="capitalize">
+                    {wf.status}
+                  </Badge>
+                  <Badge tone="neutral" appearance="outline" size="sm" className="capitalize">
                     {wf.platform}
-                  </span>
-                  <span className="text-xs text-[#6B7280]">
+                  </Badge>
+                  <span className="text-xs text-[var(--text-dim)] hidden md:inline">
                     Updated {format(new Date(wf.updated_at), "MMM d, yyyy")}
                   </span>
                 </div>

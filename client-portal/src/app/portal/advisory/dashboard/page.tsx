@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { Calendar, CheckSquare, Heart, Package, Plus, Upload } from "lucide-react";
+
 import { createClient } from "@/lib/supabase/client";
-import {
-  Calendar,
-  CheckSquare,
-  Package,
-  Heart,
-  Plus,
-  Upload,
-} from "lucide-react";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { KPIGrid } from "@/components/portal/KPIGrid";
+import { StatCard } from "@/components/portal/StatCard";
+import { EmptyState } from "@/components/portal/EmptyState";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { ErrorState } from "@/components/portal/ErrorState";
+import { Button } from "@/components/ui-shadcn/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui-shadcn/card";
 
 interface RpcDashboardData {
   upcoming_meetings: number;
@@ -43,53 +46,8 @@ interface DashboardData {
   recent_activity: FaCommunication[];
 }
 
-const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.03)",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.06)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  padding: "24px",
-};
-
-function StatCard({
-  title,
-  value,
-  icon,
-  color,
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-}) {
-  return (
-    <div style={glassCard}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-        <span style={{ fontSize: "13px", color: "#6B7280", fontWeight: 500 }}>{title}</span>
-        <div
-          style={{
-            width: "36px",
-            height: "36px",
-            borderRadius: "10px",
-            background: `${color}15`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color,
-          }}
-        >
-          {icon}
-        </div>
-      </div>
-      <div style={{ fontSize: "28px", fontWeight: 700, color: "#fff" }}>{value}</div>
-    </div>
-  );
-}
-
 function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-ZA", {
+  return new Date(dateStr).toLocaleDateString("en-ZA", {
     day: "numeric",
     month: "short",
     hour: "2-digit",
@@ -100,9 +58,7 @@ function formatDate(dateStr: string): string {
 function formatRelativeTime(dateStr: string): string {
   const now = new Date();
   const d = new Date(dateStr);
-  const diffMs = now.getTime() - d.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-
+  const diffMins = Math.floor((now.getTime() - d.getTime()) / 60000);
   if (diffMins < 1) return "just now";
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
@@ -111,11 +67,11 @@ function formatRelativeTime(dateStr: string): string {
   return `${diffDays}d ago`;
 }
 
-const channelColors: Record<string, string> = {
-  email: "#00A651",
-  whatsapp: "#25D366",
-  teams: "#5B5FC7",
-  portal: "#00D4AA",
+const CHANNEL_COLOR: Record<string, string> = {
+  email: "var(--accent-teal)",
+  whatsapp: "var(--accent-teal)",
+  teams: "var(--accent-purple)",
+  portal: "var(--accent-coral)",
 };
 
 export default function AdvisoryDashboard() {
@@ -135,13 +91,11 @@ export default function AdvisoryDashboard() {
       return;
     }
 
-    // Two-step lookup: clients -> fa_clients
     const { data: portalClient } = await supabase
       .from("clients")
       .select("id")
       .eq("auth_user_id", userData.user.id)
       .single();
-
     if (!portalClient) {
       setError("No portal account found");
       setLoading(false);
@@ -153,7 +107,6 @@ export default function AdvisoryDashboard() {
       .select("id, firm_id")
       .eq("portal_client_id", portalClient.id)
       .single();
-
     if (!faClient) {
       setError("No advisory profile linked to your account.");
       setLoading(false);
@@ -162,16 +115,14 @@ export default function AdvisoryDashboard() {
 
     const { data: rpcData, error: rpcError } = await supabase.rpc(
       "fa_get_client_dashboard",
-      { p_client_id: faClient.id }
+      { p_client_id: faClient.id },
     );
-
     if (rpcError) {
       setError(rpcError.message);
       setLoading(false);
       return;
     }
 
-    // Fetch upcoming meetings
     const { data: meetingsData } = await supabase
       .from("fa_meetings")
       .select("*,adviser:fa_advisers(full_name)")
@@ -180,7 +131,6 @@ export default function AdvisoryDashboard() {
       .order("scheduled_at", { ascending: true })
       .limit(3);
 
-    // Fetch recent activity
     const { data: activityData } = await supabase
       .from("fa_communications")
       .select("*")
@@ -202,25 +152,26 @@ export default function AdvisoryDashboard() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "40vh" }}>
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "2px solid #00A651",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }}
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow="Advisory"
+          title="Advisory dashboard"
+          description="Your financial advisory overview at a glance."
         />
+        <LoadingState variant="dashboard" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ ...glassCard, textAlign: "center", color: "#EF4444", marginTop: "24px" }}>
-        <p style={{ fontSize: "14px" }}>{error}</p>
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow="Advisory"
+          title="Advisory dashboard"
+          description="Your financial advisory overview at a glance."
+        />
+        <ErrorState title="Unable to load advisory data" description={error} onRetry={fetchDashboard} />
       </div>
     );
   }
@@ -228,193 +179,123 @@ export default function AdvisoryDashboard() {
   if (!data) return null;
 
   return (
-    <div>
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: 600, color: "#fff" }}>Advisory Dashboard</h1>
-        <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>
-          Your financial advisory overview at a glance.
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        eyebrow="Advisory"
+        title="Advisory dashboard"
+        description="Your financial advisory overview at a glance."
+        actions={
+          <>
+            <Button asChild variant="default" size="sm">
+              <Link href="/portal/advisory/meetings">
+                <Plus className="size-3.5" />
+                Request meeting
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/portal/advisory/documents">
+                <Upload className="size-3.5" />
+                Upload document
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
-      {/* Stat Cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "20px",
-          marginBottom: "28px",
-        }}
-      >
+      <KPIGrid cols={4}>
         <StatCard
-          title="Upcoming Meetings"
+          label="Upcoming meetings"
           value={data.rpc.upcoming_meetings}
-          icon={<Calendar size={18} />}
-          color="#00A651"
+          icon={<Calendar className="size-4" aria-hidden />}
+          accent="teal"
         />
         <StatCard
-          title="Pending Tasks"
+          label="Pending tasks"
           value={data.rpc.pending_tasks}
-          icon={<CheckSquare size={18} />}
-          color="#F59E0B"
+          icon={<CheckSquare className="size-4" aria-hidden />}
+          accent="warning"
         />
         <StatCard
-          title="Active Products"
+          label="Active products"
           value={data.rpc.active_products}
-          icon={<Package size={18} />}
-          color="#00D4AA"
+          icon={<Package className="size-4" aria-hidden />}
+          accent="teal"
         />
         <StatCard
-          title="Health Score"
-          value={`${data.rpc.health_score}%`}
-          icon={<Heart size={18} />}
-          color="#FF6D5A"
+          label="Health score"
+          value={data.rpc.health_score}
+          suffix="%"
+          icon={<Heart className="size-4" aria-hidden />}
+          accent="coral"
         />
-      </div>
+      </KPIGrid>
 
-      {/* Two-column layout: Meetings + Activity */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "28px" }}>
-        {/* Upcoming Meetings */}
-        <div style={glassCard}>
-          <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "16px" }}>
-            Upcoming Meetings
-          </h3>
-          {data.upcoming_meetings.length === 0 ? (
-            <p style={{ fontSize: "13px", color: "#6B7280" }}>No upcoming meetings.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {data.upcoming_meetings.slice(0, 3).map((m) => (
-                <div
-                  key={m.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    borderRadius: "10px",
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.04)",
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff" }}>
-                      {m.meeting_type}
+      <section className="grid gap-4 lg:grid-cols-2">
+        <Card variant="default" padding="lg">
+          <CardHeader>
+            <CardTitle className="text-base">Upcoming meetings</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {data.upcoming_meetings.length === 0 ? (
+              <EmptyState inline title="No upcoming meetings" description="Request a meeting from the action above." />
+            ) : (
+              <ul className="flex flex-col gap-2.5">
+                {data.upcoming_meetings.slice(0, 3).map((m) => (
+                  <li
+                    key={m.id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-[var(--radius-sm)] bg-[var(--bg-card)] border border-[var(--border-subtle)]"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground capitalize">
+                        {m.meeting_type.replace("_", " ")}
+                      </p>
+                      <p className="text-xs text-[var(--text-dim)] mt-0.5">
+                        {formatDate(m.scheduled_at)}
+                      </p>
                     </div>
-                    <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>
-                      {formatDate(m.scheduled_at)}
-                    </div>
-                  </div>
-                  {m.teams_meeting_url && (
-                    <a
-                      href={m.teams_meeting_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        color: "#00A651",
-                        textDecoration: "none",
-                        padding: "6px 12px",
-                        borderRadius: "8px",
-                        background: "rgba(108,99,255,0.1)",
-                        border: "1px solid rgba(108,99,255,0.2)",
-                      }}
-                    >
-                      Join
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                    {m.teams_meeting_url ? (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={m.teams_meeting_url} target="_blank" rel="noopener noreferrer">
+                          Join
+                        </a>
+                      </Button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
 
-        {/* Recent Activity */}
-        <div style={glassCard}>
-          <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "16px" }}>
-            Recent Activity
-          </h3>
-          {data.recent_activity.length === 0 ? (
-            <p style={{ fontSize: "13px", color: "#6B7280" }}>No recent activity.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {data.recent_activity.slice(0, 10).map((a) => (
-                <div
-                  key={a.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    padding: "8px 0",
-                    borderBottom: "1px solid rgba(255,255,255,0.04)",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: channelColors[a.channel] || "#6B7280",
-                      flexShrink: 0,
-                    }}
-                  />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "13px", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <Card variant="default" padding="lg">
+          <CardHeader>
+            <CardTitle className="text-base">Recent activity</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {data.recent_activity.length === 0 ? (
+              <EmptyState inline title="No recent activity" />
+            ) : (
+              <ul className="flex flex-col divide-y divide-[var(--border-subtle)]">
+                {data.recent_activity.slice(0, 10).map((a) => (
+                  <li key={a.id} className="flex items-center gap-3 py-2.5">
+                    <span
+                      aria-hidden
+                      className="size-2 rounded-full shrink-0"
+                      style={{ background: CHANNEL_COLOR[a.channel] || "var(--text-dim)" }}
+                    />
+                    <span className="flex-1 min-w-0 text-sm text-foreground truncate">
                       {a.subject || `${a.channel} ${a.direction}`}
-                    </div>
-                  </div>
-                  <span style={{ fontSize: "11px", color: "#6B7280", flexShrink: 0 }}>
-                    {formatRelativeTime(a.created_at)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div style={{ display: "flex", gap: "12px" }}>
-        <a
-          href="/portal/advisory/meetings"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "12px 20px",
-            borderRadius: "10px",
-            background: "linear-gradient(135deg, #00A651, #5B5FC7)",
-            color: "#fff",
-            fontSize: "14px",
-            fontWeight: 600,
-            textDecoration: "none",
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          <Plus size={16} />
-          Request Meeting
-        </a>
-        <a
-          href="/portal/advisory/documents"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "12px 20px",
-            borderRadius: "10px",
-            background: "rgba(255,255,255,0.05)",
-            color: "#B0B8C8",
-            fontSize: "14px",
-            fontWeight: 600,
-            textDecoration: "none",
-            border: "1px solid rgba(255,255,255,0.08)",
-            cursor: "pointer",
-          }}
-        >
-          <Upload size={16} />
-          Upload Document
-        </a>
-      </div>
+                    </span>
+                    <span className="text-xs text-[var(--text-dim)] shrink-0">
+                      {formatRelativeTime(a.created_at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }

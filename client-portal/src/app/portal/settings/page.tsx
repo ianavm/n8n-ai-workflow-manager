@@ -1,20 +1,36 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
-import { Settings, Check, Eye, EyeOff, Shield, FileText } from "lucide-react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  FileText,
+  Shield,
+} from "lucide-react";
 
-const PASSWORD_RULES = [
-  { test: (p: string) => p.length >= 8, label: "At least 8 characters" },
-  { test: (p: string) => /[A-Z]/.test(p), label: "One uppercase letter" },
-  { test: (p: string) => /[a-z]/.test(p), label: "One lowercase letter" },
-  { test: (p: string) => /[0-9]/.test(p), label: "One number" },
-  { test: (p: string) => /[!@#$%^&*(),.?":{}|<>]/.test(p), label: "One special character" },
+import { createClient } from "@/lib/supabase/client";
+
+import { PageHeader } from "@/components/portal/PageHeader";
+import { LoadingState } from "@/components/portal/LoadingState";
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui-shadcn/card";
+import { Button } from "@/components/ui-shadcn/button";
+import { Input } from "@/components/ui-shadcn/input";
+import { Badge } from "@/components/ui-shadcn/badge";
+import { Field } from "@/components/ui-shadcn/field";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui-shadcn/tabs";
+import { cn } from "@/lib/utils";
+
+const PASSWORD_RULES: Array<{ test: (p: string) => boolean; label: string }> = [
+  { test: (p) => p.length >= 8,               label: "At least 8 characters" },
+  { test: (p) => /[A-Z]/.test(p),             label: "One uppercase letter" },
+  { test: (p) => /[a-z]/.test(p),             label: "One lowercase letter" },
+  { test: (p) => /[0-9]/.test(p),             label: "One number" },
+  { test: (p) => /[!@#$%^&*(),.?":{}|<>]/.test(p), label: "One special character" },
 ];
 
 interface ClientProfile {
@@ -27,35 +43,36 @@ interface ClientProfile {
 }
 
 export default function SettingsPage() {
+  const supabase = createClient();
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [fullName, setFullName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
-  const [profileMessage, setProfileMessage] = useState("");
+  const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordMessage, setPasswordMessage] = useState("");
-  const [passwordError, setPasswordError] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const supabase = createClient();
-
   useEffect(() => {
     async function loadProfile() {
-      const res = await fetch("/api/portal/settings");
-      if (res.ok) {
-        const data = await res.json();
-        setProfile(data);
-        setFullName(data.full_name);
-        setCompanyName(data.company_name || "");
-        setPhoneNumber(data.phone_number || "");
+      try {
+        const res = await fetch("/api/portal/settings");
+        if (res.ok) {
+          const data = await res.json();
+          setProfile(data);
+          setFullName(data.full_name);
+          setCompanyName(data.company_name || "");
+          setPhoneNumber(data.phone_number || "");
+        }
+      } finally {
+        setProfileLoading(false);
       }
-      setProfileLoading(false);
     }
     loadProfile();
   }, []);
@@ -63,7 +80,7 @@ export default function SettingsPage() {
   async function handleProfileSave(e: React.FormEvent) {
     e.preventDefault();
     setProfileSaving(true);
-    setProfileMessage("");
+    setProfileMessage(null);
 
     const res = await fetch("/api/portal/settings", {
       method: "PATCH",
@@ -76,41 +93,43 @@ export default function SettingsPage() {
     });
 
     if (res.ok) {
-      setProfileMessage("Profile updated successfully");
+      setProfileMessage({ type: "success", text: "Profile updated successfully." });
       setProfile((prev) =>
-        prev ? { ...prev, full_name: fullName, company_name: companyName || null, phone_number: phoneNumber || null } : prev
+        prev
+          ? {
+              ...prev,
+              full_name: fullName,
+              company_name: companyName || null,
+              phone_number: phoneNumber || null,
+            }
+          : prev,
       );
     } else {
-      const data = await res.json();
-      setProfileMessage(data.error || "Failed to update profile");
+      const data = await res.json().catch(() => ({}));
+      setProfileMessage({ type: "error", text: data.error || "Failed to update profile." });
     }
     setProfileSaving(false);
   }
 
   async function handlePasswordChange(e: React.FormEvent) {
     e.preventDefault();
-    setPasswordError("");
-    setPasswordMessage("");
+    setPasswordMessage(null);
 
     if (newPassword !== confirmPassword) {
-      setPasswordError("Passwords do not match");
+      setPasswordMessage({ type: "error", text: "Passwords do not match." });
       return;
     }
-
-    const allRulesPassed = PASSWORD_RULES.every((r) => r.test(newPassword));
-    if (!allRulesPassed) {
-      setPasswordError("Password does not meet all requirements");
+    if (!PASSWORD_RULES.every((r) => r.test(newPassword))) {
+      setPasswordMessage({ type: "error", text: "Password does not meet all requirements." });
       return;
     }
 
     setPasswordLoading(true);
-
     const { error } = await supabase.auth.updateUser({ password: newPassword });
-
     if (error) {
-      setPasswordError("Failed to update password. Please try again.");
+      setPasswordMessage({ type: "error", text: "Failed to update password. Please try again." });
     } else {
-      setPasswordMessage("Password updated successfully");
+      setPasswordMessage({ type: "success", text: "Password updated successfully." });
       setNewPassword("");
       setConfirmPassword("");
     }
@@ -119,205 +138,327 @@ export default function SettingsPage() {
 
   if (profileLoading) {
     return (
-      <div className="max-w-3xl space-y-6">
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
-        <Card>
-          <div className="animate-pulse space-y-4 p-2">
-            <div className="h-4 bg-[rgba(255,255,255,0.05)] rounded w-1/3" />
-            <div className="h-10 bg-[rgba(255,255,255,0.05)] rounded" />
-            <div className="h-10 bg-[rgba(255,255,255,0.05)] rounded" />
-            <div className="h-10 bg-[rgba(255,255,255,0.05)] rounded" />
-          </div>
-        </Card>
+      <div className="flex flex-col gap-6 max-w-4xl">
+        <PageHeader eyebrow="Settings" title="Account settings" description="Manage your profile, security, and preferences." />
+        <LoadingState variant="card" rows={5} />
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <div className="flex items-center gap-3">
-        <Settings size={24} className="text-[#6366F1]" />
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
-      </div>
+    <div className="flex flex-col gap-8 max-w-4xl">
+      <PageHeader
+        eyebrow="Settings"
+        title="Account settings"
+        description="Manage your profile, security, and preferences."
+      />
 
-      {/* Account Information */}
-      <Card>
-        <h2 className="text-lg font-semibold text-white mb-6">Account Information</h2>
-        <form onSubmit={handleProfileSave} className="space-y-5">
-          <Input
-            label="Full Name"
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-          />
+      <Tabs defaultValue="profile">
+        <TabsList variant="line" className="overflow-x-auto no-scrollbar">
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="account">Account</TabsTrigger>
+          <TabsTrigger value="legal">Legal</TabsTrigger>
+        </TabsList>
 
-          <div>
-            <label className="block text-xs font-medium text-[#B0B8C8] mb-1.5">
-              Email
-            </label>
-            <div className="flex items-center gap-3">
-              <div className="flex-1 px-3 py-2.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] text-sm text-[#6B7280]">
-                {profile?.email}
-              </div>
-              <Badge variant={profile?.email_verified ? "success" : "warning"}>
-                {profile?.email_verified ? "Verified" : "Unverified"}
-              </Badge>
-            </div>
-          </div>
+        {/* Profile tab */}
+        <TabsContent value="profile" className="mt-6">
+          <Card variant="default" padding="lg">
+            <CardHeader>
+              <CardTitle className="text-base">Profile information</CardTitle>
+              <CardDescription>Update your personal and business details.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <form onSubmit={handleProfileSave} className="flex flex-col gap-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Full name" required>
+                    <Input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                    />
+                  </Field>
 
-          <Input
-            label="Company Name"
-            type="text"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            placeholder="Optional"
-          />
-
-          <Input
-            label="Phone Number"
-            type="tel"
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
-            placeholder="Optional"
-          />
-
-          {profileMessage && (
-            <p className={`text-sm px-3 py-2 rounded-lg ${
-              profileMessage.includes("success")
-                ? "text-[#00D4AA] bg-emerald-500/10 border border-emerald-500/20"
-                : "text-red-400 bg-red-500/10 border border-red-500/20"
-            }`}>
-              {profileMessage}
-            </p>
-          )}
-
-          <Button type="submit" variant="primary" loading={profileSaving}>
-            Save Changes
-          </Button>
-        </form>
-      </Card>
-
-      {/* Change Password */}
-      <Card>
-        <h2 className="text-lg font-semibold text-white mb-6">Change Password</h2>
-        <form onSubmit={handlePasswordChange} className="space-y-5">
-          <div className="relative">
-            <Input
-              label="New Password"
-              type={showPassword ? "text" : "password"}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Enter new password"
-              required
-              autoComplete="new-password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-[34px] text-[#6B7280] hover:text-[#B0B8C8] transition-colors"
-              tabIndex={-1}
-            >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-
-          {/* Password strength indicator */}
-          {newPassword && (
-            <div className="space-y-1.5 px-1">
-              {PASSWORD_RULES.map((rule) => {
-                const passed = rule.test(newPassword);
-                return (
-                  <div key={rule.label} className="flex items-center gap-2 text-xs">
-                    <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${passed ? "bg-emerald-500/20 text-[#00D4AA]" : "bg-[rgba(255,255,255,0.05)] text-[#6B7280]"}`}>
-                      {passed && <Check size={10} />}
+                  <Field label="Email">
+                    <div className="flex items-center gap-2 h-10 px-4 rounded-[10px] border border-[var(--border-subtle)] bg-[var(--input)] text-sm text-[var(--text-muted)]">
+                      <span className="truncate flex-1">{profile?.email ?? "—"}</span>
+                      <Badge
+                        tone={profile?.email_verified ? "success" : "warning"}
+                        appearance="soft"
+                        size="sm"
+                      >
+                        {profile?.email_verified ? "Verified" : "Unverified"}
+                      </Badge>
                     </div>
-                    <span className={passed ? "text-[#B0B8C8]" : "text-[#6B7280]"}>
-                      {rule.label}
-                    </span>
+                  </Field>
+                </div>
+
+                <Field label="Company name" hint="Optional. Shown on invoices and reports.">
+                  <Input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="e.g. AnyVision Media"
+                  />
+                </Field>
+
+                <Field label="Phone number" hint="Optional. Used for critical account alerts.">
+                  <Input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="+27 ..."
+                  />
+                </Field>
+
+                {profileMessage ? (
+                  <FormMessage type={profileMessage.type} text={profileMessage.text} />
+                ) : null}
+
+                <div className="flex justify-end">
+                  <Button type="submit" variant="default" loading={profileSaving}>
+                    Save changes
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Security tab */}
+        <TabsContent value="security" className="mt-6 flex flex-col gap-6">
+          <Card variant="default" padding="lg">
+            <CardHeader>
+              <CardTitle className="text-base">Change password</CardTitle>
+              <CardDescription>
+                Use a strong password you don&rsquo;t use anywhere else.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <form onSubmit={handlePasswordChange} className="flex flex-col gap-5">
+                <Field label="New password" required>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter new password"
+                      required
+                      autoComplete="new-password"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      tabIndex={-1}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)] hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </Field>
 
-          <div className="relative">
-            <Input
-              label="Confirm New Password"
-              type={showConfirm ? "text" : "password"}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
-              required
-              autoComplete="new-password"
-              error={confirmPassword && newPassword !== confirmPassword ? "Passwords do not match" : undefined}
+                {newPassword ? (
+                  <ul className="flex flex-col gap-1.5 px-1">
+                    {PASSWORD_RULES.map((rule) => {
+                      const passed = rule.test(newPassword);
+                      return (
+                        <li key={rule.label} className="flex items-center gap-2 text-xs">
+                          <span
+                            className={cn(
+                              "size-3.5 shrink-0 rounded-full grid place-items-center",
+                              passed
+                                ? "bg-[color-mix(in_srgb,var(--accent-teal)_20%,transparent)] text-[var(--accent-teal)]"
+                                : "bg-[color-mix(in_srgb,var(--text-white)_5%,transparent)] text-[var(--text-dim)]",
+                            )}
+                            aria-hidden
+                          >
+                            {passed ? <Check className="size-2.5" /> : null}
+                          </span>
+                          <span className={passed ? "text-foreground" : "text-[var(--text-dim)]"}>
+                            {rule.label}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+
+                <Field
+                  label="Confirm new password"
+                  required
+                  error={
+                    confirmPassword && newPassword !== confirmPassword
+                      ? "Passwords do not match"
+                      : undefined
+                  }
+                >
+                  <div className="relative">
+                    <Input
+                      type={showConfirm ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm new password"
+                      required
+                      autoComplete="new-password"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm((v) => !v)}
+                      tabIndex={-1}
+                      aria-label={showConfirm ? "Hide password" : "Show password"}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)] hover:text-foreground transition-colors"
+                    >
+                      {showConfirm ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
+                </Field>
+
+                {passwordMessage ? (
+                  <FormMessage type={passwordMessage.type} text={passwordMessage.text} />
+                ) : null}
+
+                <div className="flex justify-end">
+                  <Button type="submit" variant="default" loading={passwordLoading}>
+                    Update password
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card variant="default" padding="lg">
+            <SettingsLinkRow
+              href="/portal/settings/security"
+              icon={<Shield className="size-4" />}
+              iconColor="var(--accent-purple)"
+              title="Security settings"
+              description="Two-factor authentication, active sessions, and audit log."
             />
-            <button
-              type="button"
-              onClick={() => setShowConfirm(!showConfirm)}
-              className="absolute right-3 top-[34px] text-[#6B7280] hover:text-[#B0B8C8] transition-colors"
-              tabIndex={-1}
-            >
-              {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
+          </Card>
+        </TabsContent>
 
-          {passwordError && (
-            <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              {passwordError}
-            </p>
-          )}
+        {/* Account tab */}
+        <TabsContent value="account" className="mt-6">
+          <Card variant="default" padding="lg">
+            <CardHeader>
+              <CardTitle className="text-base">Account details</CardTitle>
+              <CardDescription>Read-only details about your account.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6 flex flex-col gap-3 text-sm">
+              <Row label="Member since">
+                {profile?.created_at
+                  ? new Date(profile.created_at).toLocaleDateString("en-ZA", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })
+                  : "—"}
+              </Row>
+              <Row label="Email status">
+                <Badge
+                  tone={profile?.email_verified ? "success" : "warning"}
+                  appearance="soft"
+                  size="sm"
+                >
+                  {profile?.email_verified ? "Verified" : "Unverified"}
+                </Badge>
+              </Row>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          {passwordMessage && (
-            <p className="text-sm text-[#00D4AA] bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
-              {passwordMessage}
-            </p>
-          )}
-
-          <Button type="submit" variant="primary" loading={passwordLoading}>
-            Update Password
-          </Button>
-        </form>
-      </Card>
-
-      {/* Account Info */}
-      <Card>
-        <h2 className="text-lg font-semibold text-white mb-3">Account Details</h2>
-        <div className="text-sm text-[#71717A] space-y-2">
-          <p>Member since: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-ZA", { year: "numeric", month: "long", day: "numeric" }) : "N/A"}</p>
-        </div>
-      </Card>
-
-      {/* Security & Legal */}
-      <Card>
-        <h2 className="text-lg font-semibold text-white mb-4">Security & Legal</h2>
-        <div className="space-y-3">
-          <Link
-            href="/portal/settings/security"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-colors text-sm text-[#A1A1AA] hover:text-white no-underline"
-          >
-            <Shield size={18} className="text-[#6366F1]" />
-            Security Settings
-            <span className="ml-auto text-[#52525B]">&rarr;</span>
-          </Link>
-          <Link
-            href="/portal/legal/privacy"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-colors text-sm text-[#A1A1AA] hover:text-white no-underline"
-          >
-            <FileText size={18} className="text-[#71717A]" />
-            Privacy Policy
-            <span className="ml-auto text-[#52525B]">&rarr;</span>
-          </Link>
-          <Link
-            href="/portal/legal/terms"
-            className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)] transition-colors text-sm text-[#A1A1AA] hover:text-white no-underline"
-          >
-            <FileText size={18} className="text-[#71717A]" />
-            Terms of Service
-            <span className="ml-auto text-[#52525B]">&rarr;</span>
-          </Link>
-        </div>
-      </Card>
+        {/* Legal tab */}
+        <TabsContent value="legal" className="mt-6">
+          <Card variant="default" padding="none">
+            <ul className="divide-y divide-[var(--border-subtle)]">
+              <li>
+                <SettingsLinkRow
+                  href="/portal/legal/privacy"
+                  icon={<FileText className="size-4" />}
+                  title="Privacy policy"
+                  description="How we collect and protect your data."
+                />
+              </li>
+              <li>
+                <SettingsLinkRow
+                  href="/portal/legal/terms"
+                  icon={<FileText className="size-4" />}
+                  title="Terms of service"
+                  description="Rules for using the AnyVision platform."
+                />
+              </li>
+            </ul>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
+  );
+}
+
+function FormMessage({ type, text }: { type: "success" | "error"; text: string }) {
+  return (
+    <p
+      role={type === "error" ? "alert" : undefined}
+      className={cn(
+        "flex items-center gap-2 text-sm px-3 py-2 rounded-[var(--radius-sm)]",
+        type === "success"
+          ? "text-[var(--accent-teal)] bg-[color-mix(in_srgb,var(--accent-teal)_10%,transparent)] border border-[color-mix(in_srgb,var(--accent-teal)_30%,transparent)]"
+          : "text-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)]",
+      )}
+    >
+      {type === "success" ? (
+        <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+      ) : null}
+      {text}
+    </p>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2 border-b border-[var(--border-subtle)] last:border-0">
+      <span className="text-[var(--text-muted)]">{label}</span>
+      <span className="font-medium text-foreground">{children}</span>
+    </div>
+  );
+}
+
+function SettingsLinkRow({
+  href,
+  icon,
+  title,
+  description,
+  iconColor = "var(--text-muted)",
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  iconColor?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-center gap-4 px-5 py-4 hover:bg-[var(--bg-card-hover)] transition-colors rounded-[var(--radius-sm)]"
+    >
+      <span
+        className="grid place-items-center size-10 rounded-[var(--radius-sm)] shrink-0"
+        style={{
+          background: `color-mix(in srgb, ${iconColor} 12%, transparent)`,
+          color: iconColor,
+        }}
+      >
+        {icon}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-foreground">{title}</p>
+        <p className="text-xs text-[var(--text-muted)] mt-0.5">{description}</p>
+      </div>
+      <ArrowRight className="size-4 text-[var(--text-dim)] group-hover:text-foreground group-hover:translate-x-0.5 transition-all" aria-hidden />
+    </Link>
   );
 }

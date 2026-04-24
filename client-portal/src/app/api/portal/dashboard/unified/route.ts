@@ -148,9 +148,18 @@ export async function GET(req: NextRequest) {
     return events.filter((e) => e.event_type === type).length;
   }
 
-  function changePct(current: number, previous: number): number {
-    if (previous === 0) return current > 0 ? 100 : 0;
-    return Math.round(((current - previous) / previous) * 100);
+  /**
+   * Percentage change from `previous` to `current`.
+   *
+   *   prev = 0, cur = 0   → 0       (genuinely flat at zero — both empty)
+   *   prev = 0, cur > 0   → null    (no baseline; UI renders "—" / "new")
+   *   cur  = 0, prev > 0  → -100    (honestly: fully declined)
+   *   otherwise           → ((cur - prev) / prev) * 100, to 1 decimal
+   */
+  function changePct(current: number, previous: number): number | null {
+    if (previous === 0) return current === 0 ? 0 : null;
+    const raw = ((current - previous) / previous) * 100;
+    return Math.round(raw * 10) / 10;
   }
 
   const curLeads = countType(currentEvents, "lead_created");
@@ -235,12 +244,16 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     profile: profile ?? { full_name: "User", company_name: null, logo_url: null, brand_color: "#6C63FF", dashboard_config: {} },
     kpis: {
-      total_revenue: { value: totalRevenue, change_pct: 0, sparkline: buildSparkline(totalRevenue / 100) },
-      new_leads: { value: curLeads, change_pct: changePct(curLeads, prevLeads), sparkline: buildSparkline(curLeads) },
-      ad_spend: { value: adSpend, change_pct: 0, sparkline: buildSparkline(adSpend / 100) },
-      active_campaigns: { value: activeCampaigns, change_pct: 0, sparkline: buildSparkline(activeCampaigns) },
-      messages_sent: { value: curMsgSent, change_pct: changePct(curMsgSent, prevMsgSent), sparkline: buildSparkline(curMsgSent) },
-      success_rate: { value: successRate, change_pct: 0, sparkline: buildSparkline(successRate) },
+      // Prior-period revenue / ad_spend / active_campaigns / success_rate aren't
+      // currently tracked by the RPCs — emit null instead of a fabricated 0 so
+      // the UI renders "no comparison available" honestly. Wire real deltas in
+      // once mkt/acct RPCs return previous-period totals.
+      total_revenue:    { value: totalRevenue,    change_pct: null,                              sparkline: buildSparkline(totalRevenue / 100) },
+      new_leads:        { value: curLeads,        change_pct: changePct(curLeads, prevLeads),    sparkline: buildSparkline(curLeads) },
+      ad_spend:         { value: adSpend,         change_pct: null,                              sparkline: buildSparkline(adSpend / 100) },
+      active_campaigns: { value: activeCampaigns, change_pct: null,                              sparkline: buildSparkline(activeCampaigns) },
+      messages_sent:    { value: curMsgSent,      change_pct: changePct(curMsgSent, prevMsgSent),sparkline: buildSparkline(curMsgSent) },
+      success_rate:     { value: successRate,     change_pct: null,                              sparkline: buildSparkline(successRate) },
     },
     health: healthScore
       ? {

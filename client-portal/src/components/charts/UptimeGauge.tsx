@@ -1,5 +1,8 @@
 "use client";
 
+import { Card } from "@/components/ui-shadcn/card";
+import { useChartTheme } from "@/lib/charts/useChartTheme";
+
 interface UptimeGaugeProps {
   successRate: number;
   totalExecutions: number;
@@ -13,97 +16,96 @@ export function UptimeGauge({
   successful,
   failed,
 }: UptimeGaugeProps) {
-  // Match V1 preview: r=58, circumference = 2*PI*58 = 364.42
+  const theme = useChartTheme();
+
+  // r=58, circumference = 2π·58 ≈ 364.42
   const radius = 58;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (successRate / 100) * circumference;
 
   return (
-    <div className="glass-card" style={{ padding: "24px" }}>
-      <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#fff", marginBottom: "16px" }}>
-        System Uptime
-      </h3>
-      <div className="gauge-wrap">
-        {/* SVG gauge -- 140px, matching V1 preview exactly */}
+    <Card variant="default" padding="lg" className="flex flex-col gap-4">
+      <h3 className="text-sm font-semibold text-foreground">System Uptime</h3>
+
+      <div className="flex flex-col items-center gap-3">
         <svg
-          className="gauge-svg"
           viewBox="0 0 140 140"
-          style={{ width: "140px", height: "140px", marginBottom: "12px" }}
+          style={{ width: 140, height: 140 }}
+          aria-label={`Uptime: ${successRate}%`}
         >
           <defs>
-            <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#00D4AA" />
-              <stop offset="100%" stopColor="#6C63FF" />
+            <linearGradient id="uptime-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%"   stopColor={theme.colors.teal} />
+              <stop offset="100%" stopColor={theme.colors.purple} />
             </linearGradient>
           </defs>
-          {/* Background track */}
+
           <circle
             cx="70"
             cy="70"
             r={radius}
             fill="none"
-            stroke="rgba(255,255,255,0.06)"
-            strokeWidth="10"
+            stroke={theme.grid.stroke}
+            strokeWidth={10}
             strokeLinecap="round"
           />
-          {/* Active arc */}
           <circle
             cx="70"
             cy="70"
             r={radius}
             fill="none"
-            stroke="url(#gaugeGrad)"
-            strokeWidth="10"
+            stroke="url(#uptime-grad)"
+            strokeWidth={10}
             strokeLinecap="round"
             strokeDasharray={circumference}
             strokeDashoffset={offset}
             transform="rotate(-90 70 70)"
             style={{ transition: "stroke-dashoffset 1.5s cubic-bezier(0.16, 1, 0.3, 1)" }}
           />
-          {/* Center text */}
+
           <text
-            x="70"
-            y="66"
+            x="70" y="66"
             textAnchor="middle"
-            fill="white"
+            fill={theme.text.foreground}
             fontSize="28"
-            fontWeight="700"
-            fontFamily="Inter, sans-serif"
+            fontWeight={700}
+            fontFamily={theme.axis.fontFamily}
           >
             {successRate}
           </text>
           <text
-            x="70"
-            y="84"
+            x="70" y="84"
             textAnchor="middle"
-            fill="#B0B8C8"
+            fill={theme.text.muted}
             fontSize="12"
-            fontWeight="400"
-            fontFamily="Inter, sans-serif"
+            fontWeight={400}
+            fontFamily={theme.axis.fontFamily}
           >
             percent
           </text>
         </svg>
-        <div style={{ fontSize: "13px", color: "#B0B8C8" }}>
-          Last 30 days average
-        </div>
+
+        <p className="text-xs text-[var(--text-muted)]">Last 30 days average</p>
       </div>
 
-      {/* Stats below gauge */}
-      <div style={{ display: "flex", justifyContent: "center", gap: "32px", marginTop: "16px", fontSize: "13px" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ color: "#6B7280" }}>Total</div>
-          <div style={{ color: "#fff", fontWeight: 600 }}>{totalExecutions.toLocaleString()}</div>
-        </div>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ color: "#10B981" }}>Successful</div>
-          <div style={{ color: "#fff", fontWeight: 600 }}>{successful.toLocaleString()}</div>
-        </div>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ color: "#EF4444" }}>Failed</div>
-          <div style={{ color: "#fff", fontWeight: 600 }}>{failed.toLocaleString()}</div>
-        </div>
+      <div className="grid grid-cols-3 gap-3 text-center pt-1">
+        <Stat label="Total"      value={totalExecutions} labelColor="var(--text-dim)" />
+        <Stat label="Successful" value={successful}      labelColor={theme.colors.teal} />
+        <Stat label="Failed"     value={failed}          labelColor={theme.colors.danger} />
       </div>
+    </Card>
+  );
+}
+
+function Stat({ label, value, labelColor }: { label: string; value: number; labelColor: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: labelColor }}>
+        {label}
+      </span>
+      <span className="text-sm font-semibold text-foreground tabular-nums">
+        {value.toLocaleString()}
+      </span>
     </div>
   );
 }

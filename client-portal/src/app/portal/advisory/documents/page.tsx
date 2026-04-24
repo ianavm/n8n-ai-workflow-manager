@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Download, File, FolderOpen, Upload } from "lucide-react";
+
 import { createClient } from "@/lib/supabase/client";
-import {
-  FileText,
-  Upload,
-  Download,
-  File,
-  FolderOpen,
-} from "lucide-react";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { EmptyState } from "@/components/portal/EmptyState";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { ErrorState } from "@/components/portal/ErrorState";
+import { Button } from "@/components/ui-shadcn/button";
+import { Card } from "@/components/ui-shadcn/card";
 
 interface FaDocument {
   id: string;
@@ -19,22 +20,13 @@ interface FaDocument {
   created_at: string;
 }
 
-const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.03)",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.06)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  padding: "24px",
-};
-
-const typeColors: Record<string, string> = {
-  identity: "#00A651",
-  financial: "#00D4AA",
-  insurance: "#F59E0B",
-  tax: "#EF4444",
-  compliance: "#8B5CF6",
-  other: "#6B7280",
+const TYPE_COLOR: Record<string, string> = {
+  identity: "var(--accent-teal)",
+  financial: "var(--accent-teal)",
+  insurance: "var(--warning)",
+  tax: "var(--danger)",
+  compliance: "var(--accent-purple)",
+  other: "var(--text-dim)",
 };
 
 function formatFileSize(bytes: number | null): string {
@@ -48,10 +40,7 @@ function groupByType(docs: FaDocument[]): Record<string, FaDocument[]> {
   const groups: Record<string, FaDocument[]> = {};
   for (const doc of docs) {
     const type = doc.document_type || "other";
-    if (!groups[type]) {
-      groups[type] = [];
-    }
-    groups[type] = [...groups[type], doc];
+    groups[type] = [...(groups[type] ?? []), doc];
   }
   return groups;
 }
@@ -62,7 +51,7 @@ export default function AdvisoryDocuments() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const [uploadMsg, setUploadMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchDocuments = useCallback(async () => {
@@ -79,7 +68,6 @@ export default function AdvisoryDocuments() {
       .select("id")
       .eq("auth_user_id", userData.user.id)
       .single();
-
     if (!portalClient) {
       setError("No portal account found");
       setLoading(false);
@@ -91,7 +79,6 @@ export default function AdvisoryDocuments() {
       .select("id, firm_id")
       .eq("portal_client_id", portalClient.id)
       .single();
-
     if (!client) {
       setError("No advisory profile found.");
       setLoading(false);
@@ -131,50 +118,37 @@ export default function AdvisoryDocuments() {
     }
 
     try {
-      const res = await fetch("/api/advisory/documents", {
-        method: "POST",
-        body: formData,
-      });
-
+      const res = await fetch("/api/advisory/documents", { method: "POST", body: formData });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setUploadMsg(body.error || "Upload failed.");
+        setUploadMsg({ type: "error", text: body.error || "Upload failed." });
       } else {
-        setUploadMsg("Documents uploaded successfully.");
+        setUploadMsg({ type: "success", text: "Documents uploaded successfully." });
         fetchDocuments();
         setTimeout(() => setUploadMsg(null), 3000);
       }
     } catch {
-      setUploadMsg("Upload failed. Please try again.");
+      setUploadMsg({ type: "error", text: "Upload failed. Please try again." });
     }
 
     setUploading(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "40vh" }}>
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "2px solid #00A651",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }}
-        />
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow="Advisory" title="Documents" description="Your FICA documents, policies, and financial records." />
+        <LoadingState variant="list" rows={4} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ ...glassCard, textAlign: "center", color: "#EF4444", marginTop: "24px" }}>
-        <p style={{ fontSize: "14px" }}>{error}</p>
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow="Advisory" title="Documents" description="Your FICA documents, policies, and financial records." />
+        <ErrorState title="Unable to load documents" description={error} onRetry={fetchDocuments} />
       </div>
     );
   }
@@ -182,127 +156,96 @@ export default function AdvisoryDocuments() {
   const grouped = groupByType(documents);
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
-        <div>
-          <h1 style={{ fontSize: "24px", fontWeight: 600, color: "#fff" }}>Documents</h1>
-          <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>
-            Your FICA documents, policies, and financial records.
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {uploadMsg && (
-            <span style={{ fontSize: "13px", color: uploadMsg.includes("failed") ? "#EF4444" : "#10B981" }}>
-              {uploadMsg}
-            </span>
-          )}
-          <label
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "10px 18px",
-              borderRadius: "10px",
-              background: "linear-gradient(135deg, #00A651, #5B5FC7)",
-              color: "#fff",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: uploading ? "not-allowed" : "pointer",
-              opacity: uploading ? 0.6 : 1,
-            }}
-          >
-            <Upload size={16} />
-            {uploading ? "Uploading..." : "Upload"}
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              onChange={handleUpload}
-              style={{ display: "none" }}
-              disabled={uploading}
-            />
-          </label>
-        </div>
-      </div>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        eyebrow="Advisory"
+        title="Documents"
+        description="Your FICA documents, policies, and financial records."
+        actions={
+          <>
+            {uploadMsg ? (
+              <span
+                className="text-sm font-medium"
+                style={{
+                  color:
+                    uploadMsg.type === "error" ? "var(--danger)" : "var(--accent-teal)",
+                }}
+              >
+                {uploadMsg.text}
+              </span>
+            ) : null}
+            <label>
+              <Button
+                variant="default"
+                size="md"
+                loading={uploading}
+                disabled={uploading}
+                asChild
+              >
+                <span className="cursor-pointer">
+                  <Upload className="size-4" />
+                  {uploading ? "Uploading…" : "Upload"}
+                </span>
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={handleUpload}
+                className="hidden"
+                disabled={uploading}
+              />
+            </label>
+          </>
+        }
+      />
 
       {documents.length === 0 ? (
-        <div style={{ ...glassCard, textAlign: "center" }}>
-          <FolderOpen size={32} style={{ color: "#6B7280", margin: "0 auto 12px" }} />
-          <p style={{ fontSize: "14px", color: "#6B7280" }}>No documents yet.</p>
-        </div>
+        <EmptyState icon={<FolderOpen className="size-5" />} title="No documents yet" description="Upload FICA documents, insurance policies, or tax records to keep them at your fingertips." />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {Object.entries(grouped).map(([type, docs]) => (
-            <div key={type}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                <div
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    background: typeColors[type.toLowerCase()] || typeColors.other,
-                  }}
-                />
-                <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#B0B8C8", textTransform: "capitalize" }}>
-                  {type.replace(/_/g, " ")}
-                </h3>
-                <span style={{ fontSize: "12px", color: "#6B7280" }}>({docs.length})</span>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {docs.map((doc) => (
-                  <div
-                    key={doc.id}
-                    style={{
-                      ...glassCard,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "14px 18px",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <File size={18} style={{ color: typeColors[type.toLowerCase()] || typeColors.other, flexShrink: 0 }} />
-                      <div>
-                        <div style={{ fontSize: "14px", fontWeight: 500, color: "#fff" }}>
-                          {doc.file_name}
+        <div className="flex flex-col gap-6">
+          {Object.entries(grouped).map(([type, docs]) => {
+            const color = TYPE_COLOR[type.toLowerCase()] || TYPE_COLOR.other;
+            return (
+              <section key={type}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span aria-hidden className="size-2 rounded-full shrink-0" style={{ background: color }} />
+                  <h3 className="text-sm font-semibold text-[var(--text-muted)] capitalize">
+                    {type.replace(/_/g, " ")}
+                  </h3>
+                  <span className="text-xs text-[var(--text-dim)]">({docs.length})</span>
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {docs.map((doc) => (
+                    <li key={doc.id}>
+                      <Card variant="default" padding="md">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <File className="size-4 shrink-0" style={{ color }} aria-hidden />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{doc.file_name}</p>
+                              <p className="text-xs text-[var(--text-dim)] mt-0.5">
+                                {new Date(doc.created_at).toLocaleDateString("en-ZA")}
+                                {doc.file_size != null ? ` · ${formatFileSize(doc.file_size)}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                          {doc.storage_url ? (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={doc.storage_url} target="_blank" rel="noopener noreferrer">
+                                <Download className="size-3.5" />
+                                Download
+                              </a>
+                            </Button>
+                          ) : null}
                         </div>
-                        <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px" }}>
-                          {new Date(doc.created_at).toLocaleDateString("en-ZA")}
-                          {doc.file_size != null && ` - ${formatFileSize(doc.file_size)}`}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      {doc.storage_url && (
-                        <a
-                          href={doc.storage_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            padding: "6px 10px",
-                            borderRadius: "6px",
-                            background: "rgba(255,255,255,0.05)",
-                            color: "#B0B8C8",
-                            fontSize: "12px",
-                            textDecoration: "none",
-                            border: "1px solid rgba(255,255,255,0.08)",
-                          }}
-                        >
-                          <Download size={12} />
-                          Download
-                        </a>
-                      )}
-                      </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
         </div>
       )}
     </div>

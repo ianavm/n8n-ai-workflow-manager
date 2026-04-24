@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { ArrowLeft, Loader2, MessageCircle } from "lucide-react";
+
 import { ConversationList } from "@/components/marketing/ConversationList";
 import { MessageThread } from "@/components/marketing/MessageThread";
 import { ComposeBar } from "@/components/marketing/ComposeBar";
-import { ArrowLeft, MessageCircle, Loader2 } from "lucide-react";
+import { PageHeader } from "@/components/portal/PageHeader";
 
 interface ConversationLead {
   first_name: string | null;
@@ -207,20 +209,17 @@ export default function ConversationsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Conversations</h1>
-        <p className="text-sm text-[#B0B8C8] mt-1">
-          {conversations.length} conversation{conversations.length !== 1 ? "s" : ""}
-        </p>
-      </div>
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        eyebrow="Marketing"
+        title="Conversations"
+        description={`${conversations.length} conversation${conversations.length !== 1 ? "s" : ""} across every channel.`}
+      />
 
       {/* Split Panel Layout */}
       <div
-        className="rounded-xl border overflow-hidden"
+        className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] overflow-hidden bg-[var(--bg-card)]"
         style={{
-          background: "rgba(255,255,255,0.02)",
-          borderColor: "rgba(255,255,255,0.06)",
           height: "calc(100vh - 260px)",
           minHeight: 500,
         }}

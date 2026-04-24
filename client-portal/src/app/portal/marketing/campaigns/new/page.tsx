@@ -494,11 +494,17 @@ export default function NewCampaignPage() {
       <div className="flex items-center gap-3">
         <Link
           href="/portal/marketing/campaigns"
-          className="p-2 rounded-lg hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+          className="grid place-items-center size-9 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-foreground hover:bg-[var(--bg-card-hover)] transition-colors"
+          aria-label="Back to campaigns"
         >
-          <ArrowLeft size={18} className="text-[#B0B8C8]" />
+          <ArrowLeft className="size-4" />
         </Link>
-        <h1 className="text-2xl font-bold text-white">New Campaign</h1>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+            Marketing · Campaign
+          </p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">New campaign</h1>
+        </div>
       </div>
 
       {/* Step Indicator */}

@@ -1,11 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { InvoiceStatusBadge } from "@/components/accounting/InvoiceStatusBadge";
-import { FileText, ArrowLeft, CreditCard, Upload } from "lucide-react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
+import { ArrowLeft, CreditCard, FileText, Upload } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { EmptyState } from "@/components/portal/EmptyState";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { InvoiceStatusBadge } from "@/components/accounting/InvoiceStatusBadge";
+import { Button } from "@/components/ui-shadcn/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui-shadcn/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui-shadcn/table";
 
 interface LineItem {
   description: string;
@@ -37,7 +52,9 @@ function formatCurrency(cents: number): string {
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-ZA", {
-    year: "numeric", month: "short", day: "numeric",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 }
 
@@ -61,105 +78,144 @@ export default function ClientInvoiceDetailPage() {
     load();
   }, [supabase, invoiceId]);
 
-  if (loading) {
-    return <div className="h-64 rounded-xl bg-[rgba(0,0,0,0.2)] animate-pulse" />;
-  }
+  if (loading) return <LoadingState variant="card" rows={6} />;
 
   if (!invoice) {
     return (
-      <div className="text-center py-12">
-        <FileText className="mx-auto mb-4 text-gray-600" size={48} />
-        <p className="text-gray-400">Invoice not found</p>
+      <div className="flex flex-col gap-6 max-w-3xl">
+        <Button asChild variant="ghost" size="sm" className="self-start">
+          <Link href="/portal/accounting/invoices">
+            <ArrowLeft className="size-3.5" />
+            Back to invoices
+          </Link>
+        </Button>
+        <EmptyState
+          icon={<FileText className="size-5" />}
+          title="Invoice not found"
+          description="The invoice you're looking for may have been removed or is still being prepared."
+        />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/portal/accounting/invoices" className="text-gray-400 hover:text-white">
-          <ArrowLeft size={20} />
+    <div className="flex flex-col gap-8">
+      <Button asChild variant="ghost" size="sm" className="self-start">
+        <Link href="/portal/accounting/invoices" className="gap-1.5">
+          <ArrowLeft className="size-3.5" />
+          Back to invoices
         </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-white">{invoice.invoice_number}</h1>
-          <p className="text-sm text-gray-400">Due: {formatDate(invoice.due_date)}</p>
-        </div>
-        <InvoiceStatusBadge status={invoice.status} />
-      </div>
+      </Button>
 
-      {/* Payment Actions */}
-      {invoice.balance_due > 0 && (
-        <div className="rounded-xl border border-[rgba(255,109,90,0.3)] bg-[rgba(255,109,90,0.05)] p-5 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-white">Balance Due: {formatCurrency(invoice.balance_due)}</p>
-            <p className="text-xs text-gray-400">Pay online or upload proof of payment</p>
-          </div>
-          <div className="flex gap-2">
-            {invoice.payment_link && (
-              <a
-                href={invoice.payment_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#FF6D5A] text-white text-sm font-medium hover:bg-[#e85d4a]"
-              >
-                <CreditCard size={16} /> Pay Now
-              </a>
-            )}
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[rgba(255,255,255,0.1)] text-white text-sm hover:bg-[rgba(255,255,255,0.05)]">
-              <Upload size={16} /> Upload POP
-            </button>
-          </div>
-        </div>
-      )}
+      <PageHeader
+        eyebrow="Finance · Invoice"
+        title={invoice.invoice_number}
+        description={`Due ${formatDate(invoice.due_date)}`}
+        actions={<InvoiceStatusBadge status={invoice.status} />}
+      />
 
-      {/* Line Items */}
-      <div className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.2)] overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[rgba(255,255,255,0.06)]">
-              <th className="text-left px-5 py-3 text-xs text-gray-400">Description</th>
-              <th className="text-right px-5 py-3 text-xs text-gray-400">Qty</th>
-              <th className="text-right px-5 py-3 text-xs text-gray-400">Price</th>
-              <th className="text-right px-5 py-3 text-xs text-gray-400">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {invoice.line_items.map((item, i) => (
-              <tr key={i} className="border-b border-[rgba(255,255,255,0.03)]">
-                <td className="px-5 py-3 text-sm text-white">{item.description}</td>
-                <td className="px-5 py-3 text-sm text-gray-300 text-right">{item.qty}</td>
-                <td className="px-5 py-3 text-sm text-gray-300 text-right">{formatCurrency(item.unit_price)}</td>
-                <td className="px-5 py-3 text-sm text-white text-right font-medium">{formatCurrency(item.line_total)}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t border-[rgba(255,255,255,0.06)]">
-              <td colSpan={3} className="px-5 py-2 text-sm text-gray-400 text-right">Subtotal</td>
-              <td className="px-5 py-2 text-sm text-white text-right">{formatCurrency(invoice.subtotal)}</td>
-            </tr>
-            <tr>
-              <td colSpan={3} className="px-5 py-2 text-sm text-gray-400 text-right">VAT</td>
-              <td className="px-5 py-2 text-sm text-white text-right">{formatCurrency(invoice.vat_amount)}</td>
-            </tr>
-            <tr className="border-t border-[rgba(255,255,255,0.06)]">
-              <td colSpan={3} className="px-5 py-3 text-sm font-semibold text-white text-right">Total</td>
-              <td className="px-5 py-3 text-lg font-bold text-white text-right">{formatCurrency(invoice.total)}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
-      {invoice.pdf_url && (
-        <a
-          href={invoice.pdf_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-sm text-[#FF6D5A] hover:underline"
+      {/* Payment banner */}
+      {invoice.balance_due > 0 ? (
+        <Card
+          variant="default"
+          accent="coral"
+          padding="lg"
+          className="border-[color-mix(in_srgb,var(--accent-coral)_30%,transparent)] bg-[color-mix(in_srgb,var(--accent-coral)_6%,transparent)]"
         >
-          <FileText size={14} /> Download PDF
-        </a>
-      )}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Balance due: <span className="gradient-text-coral">{formatCurrency(invoice.balance_due)}</span>
+              </p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">
+                Pay online or upload proof of payment.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {invoice.payment_link ? (
+                <Button asChild variant="default">
+                  <a href={invoice.payment_link} target="_blank" rel="noopener noreferrer">
+                    <CreditCard className="size-4" />
+                    Pay now
+                  </a>
+                </Button>
+              ) : null}
+              <Button variant="outline">
+                <Upload className="size-4" />
+                Upload POP
+              </Button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {/* Line items */}
+      <Card variant="default" padding="lg">
+        <CardHeader>
+          <CardTitle className="text-base">Line items</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Description</TableHead>
+                <TableHead className="text-right">Qty</TableHead>
+                <TableHead className="text-right">Price</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {invoice.line_items.map((item, i) => (
+                <TableRow key={i}>
+                  <TableCell className="font-medium text-foreground">{item.description}</TableCell>
+                  <TableCell className="text-right text-[var(--text-muted)]">{item.qty}</TableCell>
+                  <TableCell className="text-right text-[var(--text-muted)] tabular-nums">
+                    {formatCurrency(item.unit_price)}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {formatCurrency(item.line_total)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell colSpan={3} className="text-right text-[var(--text-muted)]">
+                  Subtotal
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatCurrency(invoice.subtotal)}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell colSpan={3} className="text-right text-[var(--text-muted)]">
+                  VAT
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatCurrency(invoice.vat_amount)}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell colSpan={3} className="text-right font-semibold text-foreground">
+                  Total
+                </TableCell>
+                <TableCell className="text-right text-lg font-bold text-foreground tabular-nums">
+                  {formatCurrency(invoice.total)}
+                </TableCell>
+              </TableRow>
+            </TableFooter>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {invoice.pdf_url ? (
+        <Button asChild variant="outline" size="sm" className="self-start">
+          <a href={invoice.pdf_url} target="_blank" rel="noopener noreferrer">
+            <FileText className="size-3.5" />
+            Download PDF
+          </a>
+        </Button>
+      ) : null}
     </div>
   );
 }

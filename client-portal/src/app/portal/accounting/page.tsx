@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { InvoiceStatusBadge } from "@/components/accounting/InvoiceStatusBadge";
-import { DollarSign, FileText, Clock, CreditCard } from "lucide-react";
 import Link from "next/link";
+import { ArrowUpRight, Clock, DollarSign } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { KPIGrid } from "@/components/portal/KPIGrid";
+import { StatCard } from "@/components/portal/StatCard";
+import { EmptyState } from "@/components/portal/EmptyState";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { InvoiceStatusBadge } from "@/components/accounting/InvoiceStatusBadge";
+import { Button } from "@/components/ui-shadcn/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui-shadcn/card";
 
 interface Invoice {
   id: string;
@@ -21,7 +29,9 @@ function formatCurrency(cents: number): string {
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-ZA", {
-    year: "numeric", month: "short", day: "numeric",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 }
 
@@ -48,72 +58,78 @@ export default function ClientFinanceDashboard() {
   const overdueCount = invoices.filter((inv) => inv.status === "overdue").length;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-white">Finance</h1>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        eyebrow="Finance"
+        title="Accounting overview"
+        description="Outstanding invoices, overdue balances, and recent transactions."
+      />
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.2)] p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg p-2 bg-yellow-500/20">
-              <DollarSign className="h-5 w-5 text-yellow-400" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Outstanding Balance</p>
-              <p className="text-lg font-semibold text-white">{formatCurrency(totalOutstanding)}</p>
-            </div>
-          </div>
-        </div>
-        <div className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.2)] p-4">
-          <div className="flex items-center gap-3">
-            <div className="rounded-lg p-2 bg-red-500/20">
-              <Clock className="h-5 w-5 text-red-400" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400">Overdue Invoices</p>
-              <p className="text-lg font-semibold text-white">{overdueCount}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <KPIGrid cols={2}>
+        <StatCard
+          label="Outstanding balance"
+          value={totalOutstanding / 100}
+          prefix="R"
+          decimals={2}
+          icon={<DollarSign className="size-4" aria-hidden />}
+          accent="warning"
+          cardAccent="coral"
+          loading={loading}
+          gradientNumber
+        />
+        <StatCard
+          label="Overdue invoices"
+          value={overdueCount}
+          icon={<Clock className="size-4" aria-hidden />}
+          accent="danger"
+          loading={loading}
+        />
+      </KPIGrid>
 
-      {/* Outstanding Invoices */}
-      <div className="rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.2)] p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-white">Outstanding Invoices</h2>
-          <Link href="/portal/accounting/invoices" className="text-xs text-[#FF6D5A] hover:underline">
-            View all
-          </Link>
-        </div>
-        {loading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-16 rounded-lg bg-[rgba(255,255,255,0.03)] animate-pulse" />
-            ))}
-          </div>
-        ) : invoices.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-8">No outstanding invoices</p>
-        ) : (
-          <div className="space-y-2">
-            {invoices.map((inv) => (
-              <Link
-                key={inv.id}
-                href={`/portal/accounting/invoices/${inv.id}`}
-                className="flex items-center justify-between p-3 rounded-lg hover:bg-[rgba(255,255,255,0.03)] transition-colors"
-              >
-                <div>
-                  <p className="text-sm font-medium text-white">{inv.invoice_number}</p>
-                  <p className="text-xs text-gray-400">Due: {formatDate(inv.due_date)}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-white">{formatCurrency(inv.balance_due)}</span>
-                  <InvoiceStatusBadge status={inv.status} />
-                </div>
+      <Card variant="default" padding="lg">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Outstanding invoices</CardTitle>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/portal/accounting/invoices">
+                View all
+                <ArrowUpRight className="size-3.5" />
               </Link>
-            ))}
+            </Button>
           </div>
-        )}
-      </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {loading ? (
+            <LoadingState variant="list" rows={3} />
+          ) : invoices.length === 0 ? (
+            <EmptyState inline title="No outstanding invoices" description="You're all caught up." />
+          ) : (
+            <ul className="flex flex-col divide-y divide-[var(--border-subtle)]">
+              {invoices.map((inv) => (
+                <li key={inv.id}>
+                  <Link
+                    href={`/portal/accounting/invoices/${inv.id}`}
+                    className="flex items-center justify-between gap-3 py-3 group"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground group-hover:text-[var(--brand-primary)] transition-colors truncate">
+                        {inv.invoice_number}
+                      </p>
+                      <p className="text-xs text-[var(--text-dim)]">Due {formatDate(inv.due_date)}</p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-sm font-semibold text-foreground tabular-nums">
+                        {formatCurrency(inv.balance_due)}
+                      </span>
+                      <InvoiceStatusBadge status={inv.status} />
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

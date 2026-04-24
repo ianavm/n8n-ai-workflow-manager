@@ -1,19 +1,26 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
+  CheckCircle,
   Clock,
+  ListChecks,
+  Mic,
   User,
   Video,
-  Mic,
-  CheckCircle,
-  ListChecks,
 } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { ErrorState } from "@/components/portal/ErrorState";
+import { Badge } from "@/components/ui-shadcn/badge";
+import { Button } from "@/components/ui-shadcn/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui-shadcn/card";
 
 interface MeetingDetail {
   id: string;
@@ -35,32 +42,21 @@ interface MeetingInsight {
   next_steps: string | null;
 }
 
-const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.03)",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.06)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  padding: "24px",
-};
-
-function statusBadge(status: string) {
-  const map: Record<string, { color: string; bg: string }> = {
-    scheduled: { color: "#00A651", bg: "rgba(108,99,255,0.1)" },
-    confirmed: { color: "#00D4AA", bg: "rgba(0,212,170,0.1)" },
-    completed: { color: "#10B981", bg: "rgba(16,185,129,0.1)" },
-    cancelled: { color: "#EF4444", bg: "rgba(239,68,68,0.1)" },
-    no_show: { color: "#F59E0B", bg: "rgba(245,158,11,0.1)" },
-  };
-  return map[status.toLowerCase()] || { color: "#6B7280", bg: "rgba(107,114,128,0.1)" };
+function statusTone(status: string): "info" | "success" | "danger" | "warning" | "neutral" {
+  const s = status.toLowerCase();
+  if (s === "scheduled") return "info";
+  if (s === "confirmed" || s === "completed") return "success";
+  if (s === "cancelled") return "danger";
+  if (s === "no_show") return "warning";
+  return "neutral";
 }
 
-function recordingBadge(status: string | null) {
+function recordingDisplay(status: string | null): { tone: "success" | "warning" | "neutral"; label: string } | null {
   if (!status) return null;
   const s = status.toLowerCase();
-  if (s === "available") return { color: "#10B981", label: "Recording Available" };
-  if (s === "processing") return { color: "#F59E0B", label: "Processing" };
-  return { color: "#6B7280", label: status };
+  if (s === "available") return { tone: "success", label: "Recording available" };
+  if (s === "processing") return { tone: "warning", label: "Processing" };
+  return { tone: "neutral", label: status };
 }
 
 export default function MeetingDetailPage() {
@@ -74,7 +70,6 @@ export default function MeetingDetailPage() {
 
   const fetchMeeting = useCallback(async () => {
     setLoading(true);
-
     const { data: meetingData, error: meetingErr } = await supabase
       .from("fa_meetings")
       .select("*,adviser:fa_advisers(full_name),insights:fa_meeting_insights(*)")
@@ -88,15 +83,10 @@ export default function MeetingDetailPage() {
     }
 
     setMeeting(meetingData);
-
     const insightData = Array.isArray(meetingData.insights) && meetingData.insights.length > 0
       ? meetingData.insights[0]
       : null;
-
-    if (insightData) {
-      setInsights(insightData);
-    }
-
+    if (insightData) setInsights(insightData);
     setLoading(false);
   }, [supabase, meetingId]);
 
@@ -106,220 +96,187 @@ export default function MeetingDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "40vh" }}>
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "2px solid #00A651",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }}
-        />
+      <div className="flex flex-col gap-6">
+        <Button asChild variant="ghost" size="sm" className="self-start">
+          <Link href="/portal/advisory/meetings" className="gap-1.5">
+            <ArrowLeft className="size-3.5" />
+            Back to meetings
+          </Link>
+        </Button>
+        <LoadingState variant="card" rows={5} />
       </div>
     );
   }
 
   if (error || !meeting) {
     return (
-      <div style={{ ...glassCard, textAlign: "center", color: "#EF4444", marginTop: "24px" }}>
-        <p style={{ fontSize: "14px" }}>{error || "Meeting not found."}</p>
-        <Link href="/portal/advisory/meetings" style={{ color: "#00A651", fontSize: "13px", marginTop: "8px", display: "inline-block" }}>
-          Back to Meetings
-        </Link>
+      <div className="flex flex-col gap-6">
+        <Button asChild variant="ghost" size="sm" className="self-start">
+          <Link href="/portal/advisory/meetings" className="gap-1.5">
+            <ArrowLeft className="size-3.5" />
+            Back to meetings
+          </Link>
+        </Button>
+        <ErrorState title="Meeting not found" description={error ?? "The meeting may have been removed."} />
       </div>
     );
   }
 
-  const badge = statusBadge(meeting.status);
-  const recording = recordingBadge(meeting.recording_status);
+  const recording = recordingDisplay(meeting.recording_status);
   const isUpcoming = new Date(meeting.scheduled_at) > new Date() && meeting.status !== "completed";
 
   return (
-    <div>
-      {/* Back link */}
-      <Link
-        href="/portal/advisory/meetings"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
-          color: "#6B7280",
-          fontSize: "13px",
-          textDecoration: "none",
-          marginBottom: "20px",
-        }}
-      >
-        <ArrowLeft size={14} />
-        Back to Meetings
-      </Link>
+    <div className="flex flex-col gap-6">
+      <Button asChild variant="ghost" size="sm" className="self-start">
+        <Link href="/portal/advisory/meetings" className="gap-1.5">
+          <ArrowLeft className="size-3.5" />
+          Back to meetings
+        </Link>
+      </Button>
 
-      {/* Meeting Header */}
-      <div style={{ ...glassCard, marginBottom: "20px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-          <div>
-            <h1 style={{ fontSize: "22px", fontWeight: 600, color: "#fff", marginBottom: "8px" }}>
-              {meeting.meeting_type}
-            </h1>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#B0B8C8", fontSize: "14px" }}>
-                <Calendar size={14} />
-                {new Date(meeting.scheduled_at).toLocaleDateString("en-ZA", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#B0B8C8", fontSize: "14px" }}>
-                <Clock size={14} />
-                {new Date(meeting.scheduled_at).toLocaleTimeString("en-ZA", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-                {meeting.duration_minutes && ` (${meeting.duration_minutes} minutes)`}
-              </div>
-              {meeting.adviser?.full_name && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#B0B8C8", fontSize: "14px" }}>
-                  <User size={14} />
-                  Adviser: {meeting.adviser.full_name}
-                </div>
-              )}
-            </div>
+      <PageHeader
+        eyebrow="Advisory · Meeting"
+        title={meeting.meeting_type.replace(/_/g, " ")}
+        description={`${new Date(meeting.scheduled_at).toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}`}
+        actions={
+          <Badge tone={statusTone(meeting.status)} appearance="soft" className="capitalize">
+            {meeting.status.replace(/_/g, " ")}
+          </Badge>
+        }
+      />
+
+      {/* Meeting details card */}
+      <Card variant="default" padding="lg">
+        <CardContent className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
+          <div className="flex flex-col gap-2">
+            <Row
+              icon={<Calendar className="size-4" />}
+              text={new Date(meeting.scheduled_at).toLocaleDateString("en-ZA", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            />
+            <Row
+              icon={<Clock className="size-4" />}
+              text={`${new Date(meeting.scheduled_at).toLocaleTimeString("en-ZA", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}${meeting.duration_minutes ? ` · ${meeting.duration_minutes} min` : ""}`}
+            />
+            {meeting.adviser?.full_name ? (
+              <Row icon={<User className="size-4" />} text={`Adviser: ${meeting.adviser.full_name}`} />
+            ) : null}
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "8px" }}>
-            <span
-              style={{
-                padding: "4px 12px",
-                borderRadius: "6px",
-                fontSize: "12px",
-                fontWeight: 600,
-                background: badge.bg,
-                color: badge.color,
-                textTransform: "capitalize",
-              }}
-            >
-              {meeting.status.replace(/_/g, " ")}
-            </span>
-
-            {recording && (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: recording.color }}>
-                <Mic size={12} />
+          <div className="flex flex-col items-start md:items-end gap-3">
+            {recording ? (
+              <Badge tone={recording.tone} appearance="soft" size="sm">
+                <Mic className="size-3" />
                 {recording.label}
-              </div>
-            )}
-
-            {isUpcoming && meeting.teams_meeting_url && (
-              <a
-                href={meeting.teams_meeting_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "10px 18px",
-                  borderRadius: "10px",
-                  background: "linear-gradient(135deg, #00A651, #5B5FC7)",
-                  color: "#fff",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  textDecoration: "none",
-                }}
-              >
-                <Video size={16} />
-                Join Meeting
-              </a>
-            )}
+              </Badge>
+            ) : null}
+            {isUpcoming && meeting.teams_meeting_url ? (
+              <Button asChild variant="default">
+                <a href={meeting.teams_meeting_url} target="_blank" rel="noopener noreferrer">
+                  <Video className="size-4" />
+                  Join meeting
+                </a>
+              </Button>
+            ) : null}
           </div>
-        </div>
+        </CardContent>
 
-        {meeting.notes && (
-          <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#B0B8C8", marginBottom: "8px" }}>Notes</h3>
-            <p style={{ fontSize: "14px", color: "#9CA3AF", lineHeight: "1.6" }}>{meeting.notes}</p>
-          </div>
-        )}
-      </div>
+        {meeting.notes ? (
+          <CardContent className="pt-4 border-t border-[var(--border-subtle)] mt-5">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-2">
+              Notes
+            </h3>
+            <p className="text-sm text-[var(--text-muted)] leading-relaxed">{meeting.notes}</p>
+          </CardContent>
+        ) : null}
+      </Card>
 
       {/* Insights */}
-      {insights && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {insights.summary && (
-            <div style={glassCard}>
-              <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "12px" }}>
-                Meeting Summary
-              </h3>
-              <p style={{ fontSize: "14px", color: "#B0B8C8", lineHeight: "1.7" }}>{insights.summary}</p>
-            </div>
-          )}
+      {insights ? (
+        <div className="flex flex-col gap-4">
+          {insights.summary ? (
+            <InsightCard title="Meeting summary">
+              <p className="text-sm text-[var(--text-muted)] leading-relaxed">{insights.summary}</p>
+            </InsightCard>
+          ) : null}
 
-          {insights.priorities && insights.priorities.length > 0 && (
-            <div style={glassCard}>
-              <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <ListChecks size={16} style={{ color: "#F59E0B" }} />
-                Priorities
-              </h3>
-              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "8px" }}>
+          {insights.priorities && insights.priorities.length > 0 ? (
+            <InsightCard
+              title="Priorities"
+              icon={<ListChecks className="size-4 text-[var(--warning)]" />}
+            >
+              <ul className="flex flex-col gap-2">
                 {insights.priorities.map((p, i) => (
-                  <li
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "10px",
-                      fontSize: "14px",
-                      color: "#B0B8C8",
-                    }}
-                  >
-                    <span style={{ color: "#F59E0B", fontWeight: 700, flexShrink: 0 }}>{i + 1}.</span>
+                  <li key={i} className="flex items-start gap-2 text-sm text-[var(--text-muted)]">
+                    <span className="text-[var(--warning)] font-bold shrink-0">{i + 1}.</span>
                     {p}
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            </InsightCard>
+          ) : null}
 
-          {insights.action_items && insights.action_items.length > 0 && (
-            <div style={glassCard}>
-              <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <CheckCircle size={16} style={{ color: "#00D4AA" }} />
-                Action Items
-              </h3>
-              <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "8px" }}>
+          {insights.action_items && insights.action_items.length > 0 ? (
+            <InsightCard
+              title="Action items"
+              icon={<CheckCircle className="size-4 text-[var(--accent-teal)]" />}
+            >
+              <ul className="flex flex-col gap-2">
                 {insights.action_items.map((item, i) => (
-                  <li
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      fontSize: "14px",
-                      color: "#B0B8C8",
-                    }}
-                  >
-                    <CheckCircle size={14} style={{ color: "#00D4AA", flexShrink: 0 }} />
+                  <li key={i} className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+                    <CheckCircle className="size-3.5 text-[var(--accent-teal)] shrink-0" />
                     {item}
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
+            </InsightCard>
+          ) : null}
 
-          {insights.next_steps && (
-            <div style={glassCard}>
-              <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "12px" }}>
-                Next Steps
-              </h3>
-              <p style={{ fontSize: "14px", color: "#B0B8C8", lineHeight: "1.7" }}>
-                {insights.next_steps}
-              </p>
-            </div>
-          )}
+          {insights.next_steps ? (
+            <InsightCard title="Next steps">
+              <p className="text-sm text-[var(--text-muted)] leading-relaxed">{insights.next_steps}</p>
+            </InsightCard>
+          ) : null}
         </div>
-      )}
+      ) : null}
     </div>
+  );
+}
+
+function Row({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+      <span className="text-[var(--text-dim)]">{icon}</span>
+      {text}
+    </div>
+  );
+}
+
+function InsightCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card variant="default" padding="lg">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          {icon}
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-3">{children}</CardContent>
+    </Card>
   );
 }

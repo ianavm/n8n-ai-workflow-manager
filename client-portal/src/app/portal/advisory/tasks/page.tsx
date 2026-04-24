@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { CheckCircle, CheckSquare, Circle, Clock } from "lucide-react";
+
 import { createClient } from "@/lib/supabase/client";
-import {
-  CheckSquare,
-  Circle,
-  CheckCircle,
-  Clock,
-  Filter,
-} from "lucide-react";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { EmptyState } from "@/components/portal/EmptyState";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { ErrorState } from "@/components/portal/ErrorState";
+import { Badge } from "@/components/ui-shadcn/badge";
+import { Card } from "@/components/ui-shadcn/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui-shadcn/tabs";
+import { cn } from "@/lib/utils";
 
 interface FaTask {
   id: string;
@@ -20,23 +23,14 @@ interface FaTask {
   created_at: string;
 }
 
-const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.03)",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.06)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  padding: "24px",
-};
-
 type TaskFilter = "all" | "pending" | "completed";
 
-function priorityColor(priority: string | null): string {
-  if (!priority) return "#6B7280";
+function priorityTone(priority: string | null): "danger" | "warning" | "success" | "neutral" {
+  if (!priority) return "neutral";
   const p = priority.toLowerCase();
-  if (p === "high" || p === "urgent") return "#EF4444";
-  if (p === "medium") return "#F59E0B";
-  return "#10B981";
+  if (p === "high" || p === "urgent") return "danger";
+  if (p === "medium") return "warning";
+  return "success";
 }
 
 function isOverdue(dueDate: string | null, status: string): boolean {
@@ -66,7 +60,6 @@ export default function AdvisoryTasks() {
       .select("id")
       .eq("auth_user_id", userData.user.id)
       .single();
-
     if (!portalClient) {
       setError("No portal account found");
       setLoading(false);
@@ -78,7 +71,6 @@ export default function AdvisoryTasks() {
       .select("id, firm_id")
       .eq("portal_client_id", portalClient.id)
       .single();
-
     if (!client) {
       setError("No advisory profile found.");
       setLoading(false);
@@ -111,11 +103,8 @@ export default function AdvisoryTasks() {
       .from("fa_tasks")
       .update({ status: "completed" })
       .eq("id", taskId);
-
     if (!updateErr) {
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, status: "completed" } : t))
-      );
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: "completed" } : t)));
     }
     setCompletingId(null);
   }
@@ -126,156 +115,110 @@ export default function AdvisoryTasks() {
     return true;
   });
 
-  const filterBtnStyle = (active: boolean): React.CSSProperties => ({
-    padding: "6px 14px",
-    borderRadius: "8px",
-    fontSize: "13px",
-    fontWeight: 500,
-    border: "1px solid",
-    borderColor: active ? "rgba(108,99,255,0.3)" : "rgba(255,255,255,0.08)",
-    background: active ? "rgba(108,99,255,0.15)" : "transparent",
-    color: active ? "#fff" : "#6B7280",
-    cursor: "pointer",
-    fontFamily: "inherit",
-  });
-
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "40vh" }}>
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "2px solid #00A651",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }}
-        />
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow="Advisory" title="Tasks" description="Action items from your advisory meetings." />
+        <LoadingState variant="list" rows={4} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ ...glassCard, textAlign: "center", color: "#EF4444", marginTop: "24px" }}>
-        <p style={{ fontSize: "14px" }}>{error}</p>
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow="Advisory" title="Tasks" description="Action items from your advisory meetings." />
+        <ErrorState title="Unable to load tasks" description={error} onRetry={fetchTasks} />
       </div>
     );
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
-        <div>
-          <h1 style={{ fontSize: "24px", fontWeight: 600, color: "#fff" }}>Tasks</h1>
-          <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>
-            Action items from your advisory meetings.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <Filter size={14} style={{ color: "#6B7280" }} />
-          <button style={filterBtnStyle(filter === "all")} onClick={() => setFilter("all")}>All</button>
-          <button style={filterBtnStyle(filter === "pending")} onClick={() => setFilter("pending")}>Pending</button>
-          <button style={filterBtnStyle(filter === "completed")} onClick={() => setFilter("completed")}>Completed</button>
-        </div>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Advisory"
+        title="Tasks"
+        description="Action items from your advisory meetings."
+        actions={
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as TaskFilter)}>
+            <TabsList>
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="pending">Pending</TabsTrigger>
+              <TabsTrigger value="completed">Completed</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+      />
 
       {filtered.length === 0 ? (
-        <div style={{ ...glassCard, textAlign: "center" }}>
-          <CheckSquare size={32} style={{ color: "#6B7280", margin: "0 auto 12px" }} />
-          <p style={{ fontSize: "14px", color: "#6B7280" }}>No tasks found.</p>
-        </div>
+        <EmptyState icon={<CheckSquare className="size-5" />} title="No tasks found" />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <ul className="flex flex-col gap-2.5">
           {filtered.map((t) => {
             const done = t.status === "completed";
             const overdue = isOverdue(t.due_date, t.status);
-
             return (
-              <div
-                key={t.id}
-                style={{
-                  ...glassCard,
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "14px",
-                  padding: "16px 20px",
-                  opacity: done ? 0.6 : 1,
-                }}
-              >
-                {/* Status icon / complete button */}
-                <button
-                  onClick={() => !done && markComplete(t.id)}
-                  disabled={done || completingId === t.id}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: done ? "default" : "pointer",
-                    padding: "2px",
-                    flexShrink: 0,
-                    marginTop: "2px",
-                    color: done ? "#10B981" : "#6B7280",
-                  }}
-                  title={done ? "Completed" : "Mark as complete"}
-                >
-                  {done ? <CheckCircle size={20} /> : <Circle size={20} />}
-                </button>
+              <li key={t.id}>
+                <Card variant="default" padding="md" className={cn(done && "opacity-60")}>
+                  <div className="flex items-start gap-3">
+                    <button
+                      onClick={() => !done && markComplete(t.id)}
+                      disabled={done || completingId === t.id}
+                      title={done ? "Completed" : "Mark as complete"}
+                      className={cn(
+                        "shrink-0 mt-0.5 transition-colors",
+                        done
+                          ? "text-[var(--accent-teal)] cursor-default"
+                          : "text-[var(--text-dim)] hover:text-[var(--accent-teal)]",
+                      )}
+                    >
+                      {done ? <CheckCircle className="size-5" /> : <Circle className="size-5" />}
+                    </button>
 
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
-                    <span
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: 600,
-                        color: done ? "#6B7280" : "#fff",
-                        textDecoration: done ? "line-through" : "none",
-                      }}
-                    >
-                      {t.title}
-                    </span>
-                    {t.priority && (
-                      <span
-                        style={{
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          padding: "2px 8px",
-                          borderRadius: "4px",
-                          background: `${priorityColor(t.priority)}15`,
-                          color: priorityColor(t.priority),
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        {t.priority}
-                      </span>
-                    )}
-                  </div>
-                  {t.description && (
-                    <p style={{ fontSize: "13px", color: "#6B7280", margin: "4px 0 0", lineHeight: "1.5" }}>
-                      {t.description}
-                    </p>
-                  )}
-                  {t.due_date && (
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        marginTop: "8px",
-                        fontSize: "12px",
-                        color: overdue ? "#EF4444" : "#6B7280",
-                      }}
-                    >
-                      <Clock size={12} />
-                      Due {new Date(t.due_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
-                      {overdue && <span style={{ fontWeight: 600 }}>(Overdue)</span>}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={cn(
+                            "text-sm font-semibold",
+                            done ? "line-through text-[var(--text-dim)]" : "text-foreground",
+                          )}
+                        >
+                          {t.title}
+                        </span>
+                        {t.priority ? (
+                          <Badge tone={priorityTone(t.priority)} appearance="soft" size="sm" className="uppercase">
+                            {t.priority}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      {t.description ? (
+                        <p className="text-sm text-[var(--text-muted)] mt-1 leading-relaxed">
+                          {t.description}
+                        </p>
+                      ) : null}
+                      {t.due_date ? (
+                        <p
+                          className={cn(
+                            "mt-2 inline-flex items-center gap-1.5 text-xs",
+                            overdue ? "text-[var(--danger)]" : "text-[var(--text-dim)]",
+                          )}
+                        >
+                          <Clock className="size-3" />
+                          Due {new Date(t.due_date).toLocaleDateString("en-ZA", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                          {overdue ? <span className="font-semibold">(Overdue)</span> : null}
+                        </p>
+                      ) : null}
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                </Card>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
     </div>
   );

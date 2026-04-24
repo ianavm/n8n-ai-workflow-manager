@@ -1,23 +1,25 @@
 import type { ReactNode } from "react";
 
+import { PageHeader as PortalPageHeader } from "@/components/portal/PageHeader";
+
 interface PageHeaderProps {
   title: string;
   description?: string;
   action?: ReactNode;
 }
 
+/**
+ * Thin adapter: CRM pages keep their `<PageHeader title description action>`
+ * API while rendering the portal-wide PageHeader (eyebrow, gradient accent,
+ * consistent spacing).
+ */
 export function PageHeader({ title, description, action }: PageHeaderProps) {
   return (
-    <div className="flex items-start justify-between gap-6">
-      <div>
-        <h1 className="text-[22px] font-semibold tracking-tight text-white">
-          {title}
-        </h1>
-        {description && (
-          <p className="mt-1 text-sm text-[#B0B8C8] max-w-2xl">{description}</p>
-        )}
-      </div>
-      {action && <div className="flex-shrink-0">{action}</div>}
-    </div>
+    <PortalPageHeader
+      eyebrow="CRM"
+      title={title}
+      description={description}
+      actions={action}
+    />
   );
 }

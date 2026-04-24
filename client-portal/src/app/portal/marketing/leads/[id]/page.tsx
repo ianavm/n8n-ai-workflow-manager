@@ -195,11 +195,11 @@ export default function LeadDetailPage() {
       </button>
 
       {/* Lead Header */}
-      <div className="floating-card p-6">
+      <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-white">{displayName}</h1>
+              <h1 className="text-2xl font-bold text-foreground tracking-tight">{displayName}</h1>
               {lead.score != null && <LeadScoreBadge score={lead.score} />}
             </div>
 

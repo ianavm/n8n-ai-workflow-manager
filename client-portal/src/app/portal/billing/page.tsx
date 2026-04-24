@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
+
 import { createClient } from "@/lib/supabase/client";
 import { PricingCard } from "@/components/billing/PricingCard";
 import { BillingToggle } from "@/components/billing/BillingToggle";
@@ -12,7 +15,12 @@ import { PaymentMethodCard } from "@/components/billing/PaymentMethodCard";
 import { TrialBanner } from "@/components/billing/TrialBanner";
 import { AddOnCard } from "@/components/billing/AddOnCard";
 import { OverageWarning } from "@/components/billing/OverageWarning";
-import { toast } from "sonner";
+
+import { PageHeader } from "@/components/portal/PageHeader";
+import { LoadingState } from "@/components/portal/LoadingState";
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui-shadcn/card";
+import { Button } from "@/components/ui-shadcn/button";
 
 interface Plan {
   id: string;
@@ -74,7 +82,7 @@ interface Addon {
 
 function getWarningLevel(
   used: number,
-  limit: number
+  limit: number,
 ): "normal" | "warning" | "critical" | null {
   if (limit === -1) return null;
   if (limit === 0) return null;
@@ -82,6 +90,21 @@ function getWarningLevel(
   if (used >= limit) return "critical";
   if (pct >= 80) return "warning";
   return null;
+}
+
+function submitPaymentForm(paymentUrl: string, paymentData: Record<string, unknown>): void {
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = paymentUrl;
+  for (const [key, value] of Object.entries(paymentData)) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = key;
+    input.value = value as string;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
 }
 
 export default function BillingPage() {
@@ -108,7 +131,6 @@ export default function BillingPage() {
   const [showPlanPicker, setShowPlanPicker] = useState(false);
   const [addonLoading, setAddonLoading] = useState<string | null>(null);
 
-  // Filter plans and add-ons by subscription currency
   const subscriptionCurrency = useMemo(() => {
     if (!subscription?.plan_slug) return "ZAR";
     const currentPlan = plans.find((p) => p.slug === subscription.plan_slug);
@@ -117,11 +139,10 @@ export default function BillingPage() {
 
   const currencyPlans = useMemo(
     () => plans.filter((p) => (p.currency || "ZAR") === subscriptionCurrency),
-    [plans, subscriptionCurrency]
+    [plans, subscriptionCurrency],
   );
 
   const currencyAddons = useMemo(() => {
-    // Match add-ons by slug suffix: ZAR has no suffix, USD ends with -usd, etc.
     const suffixMap: Record<string, string> = {
       ZAR: "",
       USD: "-usd",
@@ -130,12 +151,9 @@ export default function BillingPage() {
     };
     const suffix = suffixMap[subscriptionCurrency] ?? "";
     if (!suffix) {
-      // ZAR: filter out add-ons that end with -usd, -eur, -gbp
       return addons.filter(
         (a) =>
-          !a.slug.endsWith("-usd") &&
-          !a.slug.endsWith("-eur") &&
-          !a.slug.endsWith("-gbp")
+          !a.slug.endsWith("-usd") && !a.slug.endsWith("-eur") && !a.slug.endsWith("-gbp"),
       );
     }
     return addons.filter((a) => a.slug.endsWith(suffix));
@@ -144,7 +162,6 @@ export default function BillingPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
 
-    // Fetch plans
     const { data: plansData } = await supabase
       .from("plans")
       .select("*")
@@ -152,7 +169,6 @@ export default function BillingPage() {
       .order("sort_order");
     if (plansData) setPlans(plansData);
 
-    // Fetch subscription + usage via API
     const subRes = await fetch("/api/billing/subscription");
     if (subRes.ok) {
       const subData = await subRes.json();
@@ -160,14 +176,12 @@ export default function BillingPage() {
       setUsage(subData.usage);
     }
 
-    // Fetch invoices
     const invRes = await fetch("/api/billing/invoices?limit=10");
     if (invRes.ok) {
       const invData = await invRes.json();
       setInvoices(invData.invoices || []);
     }
 
-    // Fetch add-ons
     const addonsRes = await fetch("/api/billing/addons");
     if (addonsRes.ok) {
       const addonsData = await addonsRes.json();
@@ -175,8 +189,9 @@ export default function BillingPage() {
       setActiveAddonSlugs(addonsData.activeAddonSlugs || []);
     }
 
-    // Fetch payment method
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
       const { data: client } = await supabase
         .from("clients")
@@ -211,7 +226,6 @@ export default function BillingPage() {
   async function handleSelectPlan(planSlug: string, interval: "monthly" | "yearly") {
     setCheckoutLoading(planSlug);
     try {
-      // PayFast Checkout — submit form to PayFast's hosted payment page
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -222,18 +236,7 @@ export default function BillingPage() {
         toast.error(data.error || "Failed to create checkout");
         return;
       }
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = data.paymentUrl;
-      for (const [key, value] of Object.entries(data.paymentData)) {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = key;
-        input.value = value as string;
-        form.appendChild(input);
-      }
-      document.body.appendChild(form);
-      form.submit();
+      submitPaymentForm(data.paymentUrl, data.paymentData);
     } catch {
       toast.error("Something went wrong. Please try again.");
     } finally {
@@ -242,7 +245,12 @@ export default function BillingPage() {
   }
 
   async function handleCancel() {
-    if (!confirm("Are you sure you want to cancel your subscription? You'll retain access until the end of your current billing period.")) return;
+    if (
+      !confirm(
+        "Are you sure you want to cancel your subscription? You'll retain access until the end of your current billing period.",
+      )
+    )
+      return;
     try {
       const res = await fetch("/api/billing/cancel", { method: "POST" });
       if (res.ok) {
@@ -269,18 +277,7 @@ export default function BillingPage() {
         toast.error(data.error || "Failed to change plan");
         return;
       }
-      const form = document.createElement("form");
-      form.method = "POST";
-      form.action = data.paymentUrl;
-      for (const [key, value] of Object.entries(data.paymentData)) {
-        const input = document.createElement("input");
-        input.type = "hidden";
-        input.name = key;
-        input.value = value as string;
-        form.appendChild(input);
-      }
-      document.body.appendChild(form);
-      form.submit();
+      submitPaymentForm(data.paymentUrl, data.paymentData);
     } catch {
       toast.error("Something went wrong.");
     } finally {
@@ -301,24 +298,10 @@ export default function BillingPage() {
         toast.error(data.error || `Failed to ${action} add-on`);
         return;
       }
-
-      // Handle PayFast checkout redirect for purchase
       if (action === "purchase" && data.paymentData) {
-        const form = document.createElement("form");
-        form.method = "POST";
-        form.action = data.paymentUrl;
-        for (const [key, value] of Object.entries(data.paymentData)) {
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.name = key;
-          input.value = value as string;
-          form.appendChild(input);
-        }
-        document.body.appendChild(form);
-        form.submit();
+        submitPaymentForm(data.paymentUrl, data.paymentData);
         return;
       }
-
       toast.success(data.message);
       fetchData();
     } catch {
@@ -330,17 +313,13 @@ export default function BillingPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "2px solid #6C63FF",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }}
+      <div className="flex flex-col gap-6">
+        <PageHeader
+          eyebrow="Billing"
+          title="Billing & subscription"
+          description="Manage your plan, add-ons, and payment method."
         />
+        <LoadingState variant="dashboard" />
       </div>
     );
   }
@@ -351,7 +330,6 @@ export default function BillingPage() {
   const isCanceled = !hasSubscription || subscription?.status === "canceled";
   const showPricing = isGated || isCanceled || showPlanPicker;
 
-  // Build overage warnings
   const warnings: Array<{
     feature: string;
     used: number;
@@ -367,7 +345,6 @@ export default function BillingPage() {
       { feature: "workflows", used: usage.workflows_count, limit: subscription.limits.workflows },
       { feature: "agents", used: usage.agents_count, limit: subscription.limits.agents },
     ];
-
     for (const check of checks) {
       const level = getWarningLevel(check.used, check.limit);
       if (level === "warning" || level === "critical") {
@@ -383,65 +360,54 @@ export default function BillingPage() {
   }
 
   return (
-    <div>
-      {/* Page header */}
-      <div
-        style={{
-          marginBottom: "28px",
-          animation: "fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both",
-        }}
-      >
-        <h1 style={{ fontSize: "24px", fontWeight: 600, color: "#fff" }}>
-          {showPricing && !hasSubscription ? "Choose Your Plan" : "Billing & Subscription"}
-        </h1>
-        <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>
-          {showPricing && !hasSubscription
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        eyebrow="Billing"
+        title={showPricing && !hasSubscription ? "Choose your plan" : "Billing & subscription"}
+        description={
+          showPricing && !hasSubscription
             ? "Select a plan to get started with your AI workforce."
-            : "Manage your subscription, add-ons, and usage."}
-        </p>
-      </div>
+            : "Manage your subscription, add-ons, and usage."
+        }
+      />
 
       {/* Trial banner */}
-      {isTrialing && subscription.trial_end && (
-        <div style={{ marginBottom: "28px" }}>
-          <TrialBanner
-            trialEnd={subscription.trial_end}
-            planName={subscription.plan_name}
-            amount={
-              subscription.billing_interval === "monthly"
-                ? subscription.price_monthly
-                : subscription.price_yearly
-            }
-          />
-        </div>
-      )}
+      {isTrialing && subscription.trial_end ? (
+        <TrialBanner
+          trialEnd={subscription.trial_end}
+          planName={subscription.plan_name}
+          amount={
+            subscription.billing_interval === "monthly"
+              ? subscription.price_monthly
+              : subscription.price_yearly
+          }
+        />
+      ) : null}
 
-      {/* Past due warning */}
-      {isPastDue && (
-        <div
-          style={{
-            marginBottom: "28px",
-            padding: "16px 20px",
-            borderRadius: "12px",
-            background: "rgba(255,109,90,0.08)",
-            border: "1px solid rgba(255,109,90,0.2)",
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            fontSize: "14px",
-            color: "#FF6D5A",
-          }}
+      {/* Past due */}
+      {isPastDue ? (
+        <Card
+          variant="default"
+          padding="md"
+          className="border-[color-mix(in_srgb,var(--accent-coral)_30%,transparent)] bg-[color-mix(in_srgb,var(--accent-coral)_8%,transparent)]"
         >
-          <span style={{ fontWeight: 600 }}>Payment Failed</span>
-          <span style={{ color: "#B0B8C8" }}>
-            Your last payment was unsuccessful. Please update your payment method to avoid service interruption.
-          </span>
-        </div>
-      )}
+          <div className="flex items-start gap-3">
+            <span className="grid place-items-center size-10 rounded-full bg-[color-mix(in_srgb,var(--accent-coral)_15%,transparent)] text-[var(--accent-coral)] shrink-0">
+              <AlertTriangle className="size-4" aria-hidden />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-[var(--accent-coral)]">Payment failed</p>
+              <p className="text-sm text-[var(--text-muted)] mt-0.5">
+                Your last payment was unsuccessful. Please update your payment method to avoid service interruption.
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
-      {/* Overage warnings */}
-      {warnings.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "28px" }}>
+      {/* Overages */}
+      {warnings.length > 0 ? (
+        <div className="flex flex-col gap-3">
           {warnings.map((w) => (
             <OverageWarning
               key={w.feature}
@@ -454,11 +420,11 @@ export default function BillingPage() {
             />
           ))}
         </div>
-      )}
+      ) : null}
 
-      {/* Subscription status + usage (when subscribed) */}
-      {hasSubscription && subscription.status !== "canceled" && !showPricing && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "28px", marginBottom: "28px" }}>
+      {/* Subscription + usage */}
+      {hasSubscription && subscription.status !== "canceled" && !showPricing ? (
+        <div className="flex flex-col gap-6">
           <SubscriptionStatus
             planName={subscription.plan_name}
             planSlug={subscription.plan_slug}
@@ -480,28 +446,28 @@ export default function BillingPage() {
             }}
           />
 
-          {/* Usage bars */}
-          {usage && (
-            <div className="glass-card" style={{ padding: "28px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "20px" }}>
-                Usage This Period
-              </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          {usage ? (
+            <Card variant="default" padding="lg">
+              <CardHeader>
+                <CardTitle className="text-base">Usage this period</CardTitle>
+                <CardDescription>Tracks against the limits of your current plan.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-5 pt-4">
                 <UsageBar label="Messages" used={usage.messages_used} limit={subscription.limits.messages} unit="messages" />
                 <UsageBar label="Leads" used={usage.leads_used} limit={subscription.limits.leads} unit="leads" />
                 <UsageBar label="Workflows" used={usage.workflows_count} limit={subscription.limits.workflows} unit="workflows" />
                 <UsageBar label="AI Agents" used={usage.agents_count} limit={subscription.limits.agents} unit="agents" />
-              </div>
-            </div>
-          )}
+              </CardContent>
+            </Card>
+          ) : null}
 
-          {/* Active add-ons */}
-          {activeAddonSlugs.length > 0 && (
-            <div className="glass-card" style={{ padding: "28px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "20px" }}>
-                Active Add-Ons
-              </h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "16px" }}>
+          {activeAddonSlugs.length > 0 ? (
+            <Card variant="default" padding="lg">
+              <CardHeader>
+                <CardTitle className="text-base">Active add-ons</CardTitle>
+                <CardDescription>Modular capabilities extending your plan.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                 {addons
                   .filter((a) => activeAddonSlugs.includes(a.slug))
                   .map((addon) => (
@@ -518,20 +484,17 @@ export default function BillingPage() {
                       loading={addonLoading === addon.slug}
                     />
                   ))}
-              </div>
-            </div>
-          )}
+              </CardContent>
+            </Card>
+          ) : null}
 
-          {/* Add-on marketplace */}
-          {currencyAddons.filter((a) => !activeAddonSlugs.includes(a.slug)).length > 0 && (
-            <div className="glass-card" style={{ padding: "28px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#fff", marginBottom: "4px" }}>
-                Available Add-Ons
-              </h3>
-              <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 20px 0" }}>
-                Extend your plan with modular capabilities
-              </p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "16px" }}>
+          {currencyAddons.filter((a) => !activeAddonSlugs.includes(a.slug)).length > 0 ? (
+            <Card variant="default" padding="lg">
+              <CardHeader>
+                <CardTitle className="text-base">Available add-ons</CardTitle>
+                <CardDescription>Extend your plan with modular capabilities.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                 {currencyAddons
                   .filter((a) => !activeAddonSlugs.includes(a.slug))
                   .map((addon) => (
@@ -548,11 +511,10 @@ export default function BillingPage() {
                       loading={addonLoading === addon.slug}
                     />
                   ))}
-              </div>
-            </div>
-          )}
+              </CardContent>
+            </Card>
+          ) : null}
 
-          {/* Payment method */}
           <PaymentMethodCard
             cardBrand={paymentMethod?.card_brand}
             cardLast4={paymentMethod?.card_last4}
@@ -563,21 +525,19 @@ export default function BillingPage() {
             }}
           />
         </div>
-      )}
+      ) : null}
 
-      {/* Pricing cards (when gated, canceled, or changing plan) */}
-      {showPricing && (
-        <div style={{ marginBottom: "28px" }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: "32px" }}>
+      {/* Pricing cards */}
+      {showPricing ? (
+        <div className="flex flex-col gap-6">
+          <div className="flex justify-center">
             <BillingToggle value={billingInterval} onChange={setBillingInterval} />
           </div>
 
           <div
+            className="grid gap-5"
             style={{
-              display: "grid",
               gridTemplateColumns: `repeat(${Math.min(currencyPlans.length, 4)}, 1fr)`,
-              gap: "20px",
-              marginBottom: "28px",
             }}
           >
             {currencyPlans.map((plan) => (
@@ -600,24 +560,20 @@ export default function BillingPage() {
             ))}
           </div>
 
-          {showPlanPicker && hasSubscription && (
-            <div style={{ textAlign: "center" }}>
-              <button
-                onClick={() => setShowPlanPicker(false)}
-                className="btn-outline"
-                style={{ fontSize: "13px" }}
-              >
+          {showPlanPicker && hasSubscription ? (
+            <div className="flex justify-center">
+              <Button variant="outline" size="sm" onClick={() => setShowPlanPicker(false)}>
                 Cancel
-              </button>
+              </Button>
             </div>
-          )}
+          ) : null}
         </div>
-      )}
+      ) : null}
 
       {/* Invoice history */}
-      {hasSubscription && subscription.status !== "canceled" && (
+      {hasSubscription && subscription.status !== "canceled" ? (
         <InvoiceTable invoices={invoices} loading={loading} />
-      )}
+      ) : null}
     </div>
   );
 }

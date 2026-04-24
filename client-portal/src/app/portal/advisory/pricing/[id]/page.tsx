@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  DollarSign,
-  Lock,
-  CheckCircle,
-  Clock,
-} from "lucide-react";
+import { useParams } from "next/navigation";
+import { ArrowLeft, CheckCircle, Clock, Lock } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { ErrorState } from "@/components/portal/ErrorState";
+import { Badge } from "@/components/ui-shadcn/badge";
+import { Button } from "@/components/ui-shadcn/button";
+import { Card, CardContent } from "@/components/ui-shadcn/card";
 
 interface PricingDetail {
   id: string;
@@ -25,30 +26,20 @@ interface PricingDetail {
   accepted_at: string | null;
 }
 
-const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.03)",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.06)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  padding: "24px",
-};
-
-function statusConfig(status: string) {
+function statusDisplay(status: string): {
+  tone: "success" | "info" | "warning" | "danger" | "neutral";
+  label: string;
+} {
   const s = status.toLowerCase();
-  if (s === "accepted" || s === "active")
-    return { color: "#10B981", bg: "rgba(16,185,129,0.1)", label: "Accepted" };
-  if (s === "approved")
-    return { color: "#00A651", bg: "rgba(108,99,255,0.1)", label: "Approved" };
-  if (s === "draft")
-    return { color: "#F59E0B", bg: "rgba(245,158,11,0.1)", label: "Draft" };
-  if (s === "expired")
-    return { color: "#EF4444", bg: "rgba(239,68,68,0.1)", label: "Expired" };
-  return { color: "#6B7280", bg: "rgba(107,114,128,0.1)", label: status };
+  if (s === "accepted" || s === "active") return { tone: "success", label: "Accepted" };
+  if (s === "approved") return { tone: "info", label: "Approved" };
+  if (s === "draft") return { tone: "warning", label: "Draft" };
+  if (s === "expired") return { tone: "danger", label: "Expired" };
+  return { tone: "neutral", label: status };
 }
 
 function formatCurrency(amount: number | null): string {
-  if (amount == null) return "---";
+  if (amount == null) return "—";
   return `R${amount.toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
 }
 
@@ -60,11 +51,10 @@ export default function PricingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
-  const [acceptMsg, setAcceptMsg] = useState<string | null>(null);
+  const [acceptMsg, setAcceptMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const fetchPricing = useCallback(async () => {
     setLoading(true);
-
     const { data: pricingData, error: pricingErr } = await supabase
       .from("fa_pricing")
       .select("*")
@@ -91,20 +81,17 @@ export default function PricingDetailPage() {
     setAcceptMsg(null);
 
     try {
-      const res = await fetch(`/api/advisory/pricing/${pricingId}/accept`, {
-        method: "POST",
-      });
-
+      const res = await fetch(`/api/advisory/pricing/${pricingId}/accept`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setAcceptMsg(body.error || "Failed to accept agreement.");
+        setAcceptMsg({ type: "error", text: body.error || "Failed to accept agreement." });
       } else {
-        setAcceptMsg("Agreement accepted successfully.");
+        setAcceptMsg({ type: "success", text: "Agreement accepted successfully." });
         setPricing({ ...pricing, status: "accepted", accepted_at: new Date().toISOString() });
         setTimeout(() => setAcceptMsg(null), 3000);
       }
     } catch {
-      setAcceptMsg("Failed to accept. Please try again.");
+      setAcceptMsg({ type: "error", text: "Failed to accept. Please try again." });
     }
 
     setAccepting(false);
@@ -112,171 +99,129 @@ export default function PricingDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "40vh" }}>
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "2px solid #00A651",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }}
-        />
+      <div className="flex flex-col gap-6">
+        <Button asChild variant="ghost" size="sm" className="self-start">
+          <Link href="/portal/advisory/pricing" className="gap-1.5">
+            <ArrowLeft className="size-3.5" />
+            Back to fee agreements
+          </Link>
+        </Button>
+        <LoadingState variant="card" rows={4} />
       </div>
     );
   }
 
   if (error || !pricing) {
     return (
-      <div style={{ ...glassCard, textAlign: "center", color: "#EF4444", marginTop: "24px" }}>
-        <p style={{ fontSize: "14px" }}>{error || "Not found."}</p>
-        <Link href="/portal/advisory/pricing" style={{ color: "#00A651", fontSize: "13px", marginTop: "8px", display: "inline-block" }}>
-          Back to Fee Agreements
-        </Link>
+      <div className="flex flex-col gap-6">
+        <Button asChild variant="ghost" size="sm" className="self-start">
+          <Link href="/portal/advisory/pricing" className="gap-1.5">
+            <ArrowLeft className="size-3.5" />
+            Back to fee agreements
+          </Link>
+        </Button>
+        <ErrorState title="Fee agreement not found" description={error ?? "The agreement may have been removed."} />
       </div>
     );
   }
 
-  const sc = statusConfig(pricing.status);
+  const sc = statusDisplay(pricing.status);
   const canAccept = pricing.status.toLowerCase() === "approved";
-  const isLocked = pricing.status.toLowerCase() === "accepted" || pricing.status.toLowerCase() === "active";
+  const isLocked =
+    pricing.status.toLowerCase() === "accepted" || pricing.status.toLowerCase() === "active";
 
   return (
-    <div>
-      {/* Back link */}
-      <Link
-        href="/portal/advisory/pricing"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
-          color: "#6B7280",
-          fontSize: "13px",
-          textDecoration: "none",
-          marginBottom: "20px",
-        }}
-      >
-        <ArrowLeft size={14} />
-        Back to Fee Agreements
-      </Link>
+    <div className="flex flex-col gap-6">
+      <Button asChild variant="ghost" size="sm" className="self-start">
+        <Link href="/portal/advisory/pricing" className="gap-1.5">
+          <ArrowLeft className="size-3.5" />
+          Back to fee agreements
+        </Link>
+      </Button>
 
-      {/* Header card */}
-      <div style={{ ...glassCard, marginBottom: "20px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-          <div>
-            <h1 style={{ fontSize: "22px", fontWeight: 600, color: "#fff", marginBottom: "8px" }}>
-              {pricing.fee_type.replace(/_/g, " ")}
-            </h1>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
-              {pricing.amount != null && (
-                <div>
-                  <label style={{ fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    Amount
-                  </label>
-                  <div style={{ fontSize: "20px", fontWeight: 700, color: "#00D4AA", marginTop: "4px" }}>
-                    {formatCurrency(pricing.amount)}
-                  </div>
-                </div>
-              )}
-              {pricing.percentage != null && (
-                <div>
-                  <label style={{ fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    Percentage
-                  </label>
-                  <div style={{ fontSize: "20px", fontWeight: 700, color: "#00A651", marginTop: "4px" }}>
-                    {pricing.percentage}%
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {pricing.description && (
-              <div style={{ marginTop: "16px" }}>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Description
-                </label>
-                <p style={{ fontSize: "14px", color: "#B0B8C8", marginTop: "6px", lineHeight: "1.6" }}>
-                  {pricing.description}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "8px" }}>
-            <span
-              style={{
-                padding: "4px 12px",
-                borderRadius: "6px",
-                fontSize: "12px",
-                fontWeight: 600,
-                background: sc.bg,
-                color: sc.color,
-              }}
-            >
+      <PageHeader
+        eyebrow="Advisory · Fee agreement"
+        title={pricing.fee_type.replace(/_/g, " ")}
+        actions={
+          <div className="flex flex-col items-end gap-1">
+            <Badge tone={sc.tone} appearance="soft">
               {sc.label}
-            </span>
-
-            {isLocked && (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#10B981" }}>
-                <Lock size={12} />
+            </Badge>
+            {isLocked ? (
+              <span className="inline-flex items-center gap-1 text-xs text-[var(--accent-teal)]">
+                <Lock className="size-3" />
                 Locked
-              </div>
-            )}
-
-            {pricing.accepted_at && (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#6B7280" }}>
-                <CheckCircle size={12} />
+              </span>
+            ) : null}
+            {pricing.accepted_at ? (
+              <span className="inline-flex items-center gap-1 text-xs text-[var(--text-dim)]">
+                <CheckCircle className="size-3" />
                 Accepted {new Date(pricing.accepted_at).toLocaleDateString("en-ZA")}
-              </div>
-            )}
+              </span>
+            ) : null}
           </div>
-        </div>
+        }
+      />
 
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "20px", fontSize: "12px", color: "#6B7280" }}>
-          <Clock size={12} />
-          Created {new Date(pricing.created_at).toLocaleDateString("en-ZA")}
-          {pricing.version != null && ` - Version ${pricing.version}`}
-        </div>
-
-        {/* Accept button */}
-        {canAccept && (
-          <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <button
-                onClick={handleAccept}
-                disabled={accepting}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  padding: "10px 20px",
-                  borderRadius: "10px",
-                  background: "linear-gradient(135deg, #10B981, #059669)",
-                  color: "#fff",
-                  fontSize: "14px",
-                  fontWeight: 600,
-                  border: "none",
-                  cursor: accepting ? "not-allowed" : "pointer",
-                  opacity: accepting ? 0.6 : 1,
-                  fontFamily: "inherit",
-                }}
-              >
-                <CheckCircle size={16} />
-                {accepting ? "Accepting..." : "Accept Agreement"}
-              </button>
-              {acceptMsg && (
-                <span style={{ fontSize: "13px", color: acceptMsg.includes("Failed") ? "#EF4444" : "#10B981" }}>
-                  {acceptMsg}
-                </span>
-              )}
+      <Card variant="default" accent="gradient-static" padding="lg">
+        <CardContent className="flex flex-col gap-5">
+          {pricing.amount != null || pricing.percentage != null ? (
+            <div className="grid gap-5 md:grid-cols-2">
+              {pricing.amount != null ? (
+                <AmountBlock label="Amount" value={formatCurrency(pricing.amount)} color="var(--accent-teal)" />
+              ) : null}
+              {pricing.percentage != null ? (
+                <AmountBlock label="Percentage" value={`${pricing.percentage}%`} color="var(--accent-purple)" />
+              ) : null}
             </div>
-          </div>
-        )}
-      </div>
+          ) : null}
 
-      {/* Version info shown inline above */}
+          {pricing.description ? (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-1">
+                Description
+              </p>
+              <p className="text-sm text-[var(--text-muted)] leading-relaxed">{pricing.description}</p>
+            </div>
+          ) : null}
+
+          <p className="flex items-center gap-1.5 text-xs text-[var(--text-dim)]">
+            <Clock className="size-3" />
+            Created {new Date(pricing.created_at).toLocaleDateString("en-ZA")}
+            {pricing.version != null ? ` · Version ${pricing.version}` : ""}
+          </p>
+
+          {canAccept ? (
+            <div className="pt-4 border-t border-[var(--border-subtle)] flex items-center gap-3">
+              <Button variant="default" onClick={handleAccept} loading={accepting}>
+                <CheckCircle className="size-4" />
+                Accept agreement
+              </Button>
+              {acceptMsg ? (
+                <span
+                  className="text-sm font-medium"
+                  style={{ color: acceptMsg.type === "success" ? "var(--accent-teal)" : "var(--danger)" }}
+                >
+                  {acceptMsg.text}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function AmountBlock({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-1">
+        {label}
+      </p>
+      <p className="text-2xl font-bold tabular-nums" style={{ color }}>
+        {value}
+      </p>
     </div>
   );
 }

@@ -17,6 +17,8 @@ import {
   Loader2,
 } from "lucide-react";
 
+import { PageHeader } from "@/components/portal/PageHeader";
+
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
@@ -298,47 +300,45 @@ export default function ReportsPage() {
   }, [report]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">Performance Reports</h1>
-        <p className="text-sm text-[#B0B8C8] mt-1">
-          Analyze campaign performance across platforms and time periods
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Marketing"
+        title="Performance reports"
+        description="Analyze campaign performance across platforms and time periods."
+      />
 
       {/* Controls */}
-      <div className="floating-card p-5">
+      <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-5">
         <div className="flex flex-wrap items-end gap-4">
           {/* Start date */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[#6B7280]">Start Date</label>
+            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Start Date</label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="px-3 py-2 rounded-lg text-sm bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[#B0B8C8] focus:outline-none focus:border-[#10B981]"
+              className="h-9 px-3 rounded-[var(--radius-sm)] text-sm bg-[var(--input)] border border-[var(--border-subtle)] text-foreground focus:outline-none focus:border-[var(--accent-teal)]"
             />
           </div>
 
           {/* End date */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[#6B7280]">End Date</label>
+            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">End Date</label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="px-3 py-2 rounded-lg text-sm bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[#B0B8C8] focus:outline-none focus:border-[#10B981]"
+              className="h-9 px-3 rounded-[var(--radius-sm)] text-sm bg-[var(--input)] border border-[var(--border-subtle)] text-foreground focus:outline-none focus:border-[var(--accent-teal)]"
             />
           </div>
 
           {/* Report Type */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[#6B7280]">Report Type</label>
+            <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Report Type</label>
             <select
               value={reportType}
               onChange={(e) => setReportType(e.target.value as ReportType)}
-              className="px-3 py-2 rounded-lg text-sm bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[#B0B8C8] focus:outline-none focus:border-[#10B981]"
+              className="h-9 px-3 rounded-[var(--radius-sm)] text-sm bg-[var(--input)] border border-[var(--border-subtle)] text-foreground focus:outline-none focus:border-[var(--accent-teal)]"
             >
               {REPORT_TYPES.map((rt) => (
                 <option key={rt.value} value={rt.value}>
@@ -351,7 +351,7 @@ export default function ReportsPage() {
           {/* Campaign selector (shown only for campaign type) */}
           {reportType === "campaign" && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-medium text-[#6B7280]">Campaign</label>
+              <label className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-dim)]">Campaign</label>
               <select
                 value={campaignId}
                 onChange={(e) => setCampaignId(e.target.value)}

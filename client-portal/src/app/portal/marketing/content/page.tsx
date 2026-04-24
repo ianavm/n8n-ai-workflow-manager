@@ -2,8 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { PlatformIcon } from "@/components/marketing/PlatformIcon";
 import { Plus, Sparkles } from "lucide-react";
+
+import { PlatformIcon } from "@/components/marketing/PlatformIcon";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { Button } from "@/components/ui-shadcn/button";
 
 interface ContentItem {
   id: string;
@@ -140,25 +143,18 @@ export default function ContentPage() {
   }, [loadContent]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Content</h1>
-          <p className="text-sm text-[#B0B8C8] mt-1">
-            {loading ? "Loading..." : `${content.length} items`}
-          </p>
-        </div>
-        <button
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-all hover:opacity-90"
-          style={{
-            background: "linear-gradient(135deg, #10B981, #059669)",
-          }}
-        >
-          <Plus size={16} />
-          New Content
-        </button>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Marketing"
+        title="Content"
+        description={loading ? "Loading…" : `${content.length} ${content.length === 1 ? "item" : "items"} across drafts, scheduled, and published.`}
+        actions={
+          <Button variant="default" size="md">
+            <Plus className="size-4" />
+            New content
+          </Button>
+        }
+      />
 
       {/* Status Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">

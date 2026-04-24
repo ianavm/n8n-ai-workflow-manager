@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
+import { Plus, Filter } from "lucide-react";
+
 import { CampaignStatusBadge } from "@/components/marketing/CampaignStatusBadge";
 import { PlatformIcon } from "@/components/marketing/PlatformIcon";
 import { SpendProgressBar } from "@/components/marketing/SpendProgressBar";
-import Link from "next/link";
-import { Plus, Filter } from "lucide-react";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { Button } from "@/components/ui-shadcn/button";
 
 interface Campaign {
   id: string;
@@ -72,32 +75,28 @@ export default function CampaignsPage() {
   }, [supabase, statusFilter, platformFilter]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Campaigns</h1>
-          <p className="text-sm text-[#B0B8C8] mt-1">{campaigns.length} campaigns</p>
-        </div>
-        <Link
-          href="/portal/marketing/campaigns/new"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-all"
-          style={{
-            background: "linear-gradient(135deg, #10B981, #059669)",
-          }}
-        >
-          <Plus size={16} />
-          New Campaign
-        </Link>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Marketing"
+        title="Campaigns"
+        description={`${campaigns.length} ${campaigns.length === 1 ? "campaign" : "campaigns"} across all platforms.`}
+        actions={
+          <Button asChild variant="default" size="md">
+            <Link href="/portal/marketing/campaigns/new">
+              <Plus className="size-4" />
+              New campaign
+            </Link>
+          </Button>
+        }
+      />
 
       {/* Filters */}
       <div className="flex items-center gap-3">
-        <Filter size={16} className="text-[#6B7280]" />
+        <Filter className="size-4 text-[var(--text-dim)]" />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-1.5 rounded-lg text-sm bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[#B0B8C8] focus:outline-none focus:border-[#10B981]"
+          className="h-9 px-3 rounded-[var(--radius-sm)] text-sm bg-[var(--input)] border border-[var(--border-subtle)] text-foreground focus:outline-none focus:border-[var(--accent-teal)]"
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -106,7 +105,7 @@ export default function CampaignsPage() {
         <select
           value={platformFilter}
           onChange={(e) => setPlatformFilter(e.target.value)}
-          className="px-3 py-1.5 rounded-lg text-sm bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-[#B0B8C8] focus:outline-none focus:border-[#10B981]"
+          className="h-9 px-3 rounded-[var(--radius-sm)] text-sm bg-[var(--input)] border border-[var(--border-subtle)] text-foreground focus:outline-none focus:border-[var(--accent-teal)]"
         >
           {PLATFORM_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -115,28 +114,28 @@ export default function CampaignsPage() {
       </div>
 
       {/* Campaign Table */}
-      <div className="floating-card overflow-hidden">
+      <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-card)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[rgba(255,255,255,0.06)]">
-                <th className="text-left px-4 py-3 text-[#6B7280] font-medium">Campaign</th>
-                <th className="text-left px-4 py-3 text-[#6B7280] font-medium">Platform</th>
-                <th className="text-left px-4 py-3 text-[#6B7280] font-medium">Status</th>
-                <th className="text-left px-4 py-3 text-[#6B7280] font-medium">Budget</th>
-                <th className="text-left px-4 py-3 text-[#6B7280] font-medium">Dates</th>
+              <tr className="border-b border-[var(--border-subtle)]">
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Campaign</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Platform</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Status</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Budget</th>
+                <th className="text-left px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-dim)]">Dates</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-[#6B7280]">
+                  <td colSpan={5} className="px-4 py-12 text-center text-[var(--text-muted)]">
                     Loading campaigns...
                   </td>
                 </tr>
               ) : campaigns.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-[#6B7280]">
+                  <td colSpan={5} className="px-4 py-12 text-center text-[var(--text-muted)]">
                     No campaigns found. Create your first campaign to get started.
                   </td>
                 </tr>
@@ -144,16 +143,16 @@ export default function CampaignsPage() {
                 campaigns.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-b border-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                    className="border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-card-hover)] transition-colors"
                   >
                     <td className="px-4 py-3">
                       <Link
                         href={`/portal/marketing/campaigns/${c.id}`}
-                        className="text-white hover:text-[#10B981] font-medium transition-colors"
+                        className="text-foreground hover:text-[var(--accent-teal)] font-semibold transition-colors"
                       >
                         {c.name}
                       </Link>
-                      <p className="text-xs text-[#6B7280] mt-0.5 capitalize">
+                      <p className="text-xs text-[var(--text-dim)] mt-0.5 capitalize">
                         {c.campaign_type.replace("_", " ")}
                       </p>
                     </td>
@@ -168,23 +167,23 @@ export default function CampaignsPage() {
                         spent={c.budget_spent}
                         budget={c.budget_total}
                       />
-                      <p className="text-xs text-[#6B7280] mt-1">
+                      <p className="text-xs text-[var(--text-dim)] mt-1">
                         {formatZAR(c.budget_spent)} / {formatZAR(c.budget_total)}
                         {c.budget_daily > 0 && (
                           <span> &middot; {formatZAR(c.budget_daily)}/day</span>
                         )}
                       </p>
                     </td>
-                    <td className="px-4 py-3 text-[#B0B8C8]">
+                    <td className="px-4 py-3 text-[var(--text-muted)]">
                       {c.start_date ? (
                         <span className="text-xs">
                           {new Date(c.start_date).toLocaleDateString("en-ZA")}
                           {c.end_date && (
-                            <> &rarr; {new Date(c.end_date).toLocaleDateString("en-ZA")}</>
+                            <> → {new Date(c.end_date).toLocaleDateString("en-ZA")}</>
                           )}
                         </span>
                       ) : (
-                        <span className="text-xs text-[#6B7280]">Not set</span>
+                        <span className="text-xs text-[var(--text-dim)]">Not set</span>
                       )}
                     </td>
                   </tr>

@@ -104,19 +104,22 @@ export default function CampaignDetailPage() {
       <div className="flex items-start gap-4">
         <Link
           href="/portal/marketing/campaigns"
-          className="mt-1 p-2 rounded-lg hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+          className="mt-1 grid place-items-center size-8 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-foreground hover:bg-[var(--bg-card-hover)] transition-colors"
+          aria-label="Back to campaigns"
         >
-          <ArrowLeft size={18} className="text-[#B0B8C8]" />
+          <ArrowLeft className="size-4" />
         </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             <PlatformIcon platform={campaign.platform} size={32} />
-            <div>
-              <h1 className="text-2xl font-bold text-white">{campaign.name}</h1>
-              <p className="text-sm text-[#6B7280] capitalize">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-foreground tracking-tight truncate">
+                {campaign.name}
+              </h1>
+              <p className="text-sm text-[var(--text-muted)] capitalize mt-0.5">
                 {campaign.campaign_type.replace("_", " ")}
                 {campaign.platform_campaign_id && (
-                  <span> &middot; ID: {campaign.platform_campaign_id}</span>
+                  <span> · ID: {campaign.platform_campaign_id}</span>
                 )}
               </p>
             </div>
@@ -126,7 +129,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Budget + Dates */}
-      <div className="floating-card p-6">
+      <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h3 className="text-sm font-medium text-[#B0B8C8] mb-3">Budget</h3>
@@ -152,7 +155,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Performance Summary (30 days) */}
-      <div className="floating-card p-6">
+      <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6">
         <h3 className="text-sm font-medium text-[#B0B8C8] mb-4">Performance (Last 30 Days)</h3>
         {perf.length === 0 ? (
           <p className="text-sm text-[#6B7280]">No performance data yet</p>
@@ -175,7 +178,7 @@ export default function CampaignDetailPage() {
       </div>
 
       {/* Ads Table */}
-      <div className="floating-card p-6">
+      <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6">
         <h3 className="text-sm font-medium text-[#B0B8C8] mb-4">
           Ads ({ads.length})
         </h3>
@@ -216,7 +219,7 @@ export default function CampaignDetailPage() {
 
       {/* Notes */}
       {campaign.notes && (
-        <div className="floating-card p-6">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6">
           <h3 className="text-sm font-medium text-[#B0B8C8] mb-2">Notes</h3>
           <p className="text-sm text-[#B0B8C8] whitespace-pre-wrap">{campaign.notes}</p>
         </div>

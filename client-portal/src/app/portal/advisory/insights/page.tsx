@@ -1,14 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Calendar, CheckCircle, Lightbulb, ListChecks } from "lucide-react";
+
 import { createClient } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { EmptyState } from "@/components/portal/EmptyState";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { ErrorState } from "@/components/portal/ErrorState";
 import {
-  Lightbulb,
-  Calendar,
-  ListChecks,
-  CheckCircle,
-  ArrowRight,
-} from "lucide-react";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui-shadcn/accordion";
+import { Card } from "@/components/ui-shadcn/card";
 
 interface MeetingInsight {
   id: string;
@@ -24,21 +30,11 @@ interface MeetingInsight {
   };
 }
 
-const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.03)",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.06)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  padding: "24px",
-};
-
 export default function AdvisoryInsights() {
   const supabase = createClient();
   const [insights, setInsights] = useState<MeetingInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchInsights = useCallback(async () => {
     setLoading(true);
@@ -54,7 +50,6 @@ export default function AdvisoryInsights() {
       .select("id")
       .eq("auth_user_id", userData.user.id)
       .single();
-
     if (!portalClient) {
       setError("No portal account found");
       setLoading(false);
@@ -66,14 +61,12 @@ export default function AdvisoryInsights() {
       .select("id, firm_id")
       .eq("portal_client_id", portalClient.id)
       .single();
-
     if (!client) {
       setError("No advisory profile found.");
       setLoading(false);
       return;
     }
 
-    // Query meetings with insights, filtered by client_id
     const { data: meetingData, error: insightErr } = await supabase
       .from("fa_meetings")
       .select("*,insights:fa_meeting_insights(*),adviser:fa_advisers(full_name)")
@@ -86,7 +79,6 @@ export default function AdvisoryInsights() {
       return;
     }
 
-    // Flatten: extract insights and attach meeting context
     const normalized: MeetingInsight[] = [];
     for (const m of meetingData || []) {
       const meetingInsights = Array.isArray(m.insights) ? m.insights : [];
@@ -112,173 +104,150 @@ export default function AdvisoryInsights() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "40vh" }}>
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "2px solid #00A651",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }}
-        />
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow="Advisory" title="Meeting insights" description="Key takeaways and action items from your advisory meetings." />
+        <LoadingState variant="card" rows={4} />
       </div>
     );
   }
-
   if (error) {
     return (
-      <div style={{ ...glassCard, textAlign: "center", color: "#EF4444", marginTop: "24px" }}>
-        <p style={{ fontSize: "14px" }}>{error}</p>
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow="Advisory" title="Meeting insights" description="Key takeaways and action items from your advisory meetings." />
+        <ErrorState title="Unable to load insights" description={error} onRetry={fetchInsights} />
       </div>
     );
   }
 
   return (
-    <div>
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: 600, color: "#fff" }}>Meeting Insights</h1>
-        <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>
-          Key takeaways and action items from your advisory meetings.
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Advisory"
+        title="Meeting insights"
+        description="Key takeaways and action items from your advisory meetings."
+      />
 
       {insights.length === 0 ? (
-        <div style={{ ...glassCard, textAlign: "center" }}>
-          <Lightbulb size={32} style={{ color: "#6B7280", margin: "0 auto 12px" }} />
-          <p style={{ fontSize: "14px", color: "#6B7280" }}>No meeting insights available yet.</p>
-        </div>
+        <EmptyState
+          icon={<Lightbulb className="size-5" />}
+          title="No insights yet"
+          description="Insights from your advisory meetings will appear here once they're published."
+        />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {insights.map((insight) => {
-            const isExpanded = expandedId === insight.id;
-            const meeting = insight.meeting;
-
-            return (
-              <div key={insight.id} style={glassCard}>
-                {/* Header - clickable to expand */}
-                <button
-                  onClick={() => setExpandedId(isExpanded ? null : insight.id)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    width: "100%",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 0,
-                    fontFamily: "inherit",
-                    textAlign: "left",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                    <div
-                      style={{
-                        width: "40px",
-                        height: "40px",
-                        borderRadius: "10px",
-                        background: "rgba(108,99,255,0.1)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Lightbulb size={18} style={{ color: "#00A651" }} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: "14px", fontWeight: 600, color: "#fff" }}>
-                        {meeting?.meeting_type || "Meeting"}
-                      </div>
-                      <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "2px", display: "flex", alignItems: "center", gap: "6px" }}>
-                        <Calendar size={11} />
-                        {meeting?.scheduled_at
-                          ? new Date(meeting.scheduled_at).toLocaleDateString("en-ZA", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "---"}
-                        {meeting?.adviser?.full_name && ` - ${meeting.adviser.full_name}`}
-                      </div>
-                    </div>
-                  </div>
-                  <ArrowRight
-                    size={16}
-                    style={{
-                      color: "#6B7280",
-                      transition: "transform 0.2s ease",
-                      transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
-                    }}
-                  />
-                </button>
-
-                {/* Expanded content */}
-                {isExpanded && (
-                  <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                    {insight.summary && (
-                      <div style={{ marginBottom: "16px" }}>
-                        <h4 style={{ fontSize: "13px", fontWeight: 600, color: "#B0B8C8", marginBottom: "8px" }}>
-                          Summary
-                        </h4>
-                        <p style={{ fontSize: "14px", color: "#9CA3AF", lineHeight: "1.7" }}>
-                          {insight.summary}
+        <Card variant="default" padding="none">
+          <Accordion type="single" collapsible className="divide-y divide-[var(--border-subtle)]">
+            {insights.map((insight) => {
+              const meeting = insight.meeting;
+              return (
+                <AccordionItem key={insight.id} value={insight.id} className="border-b-0 px-5">
+                  <AccordionTrigger className="py-4 hover:no-underline">
+                    <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                      <span className="grid place-items-center size-10 rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--accent-purple)_12%,transparent)] text-[var(--accent-purple)] shrink-0">
+                        <Lightbulb className="size-4" aria-hidden />
+                      </span>
+                      <div className="min-w-0 text-left">
+                        <p className="text-sm font-semibold text-foreground capitalize">
+                          {meeting?.meeting_type?.replace(/_/g, " ") || "Meeting"}
+                        </p>
+                        <p className="flex items-center gap-1.5 text-xs text-[var(--text-dim)] mt-0.5">
+                          <Calendar className="size-3" />
+                          {meeting?.scheduled_at
+                            ? new Date(meeting.scheduled_at).toLocaleDateString("en-ZA", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "—"}
+                          {meeting?.adviser?.full_name ? ` · ${meeting.adviser.full_name}` : ""}
                         </p>
                       </div>
-                    )}
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-5 pt-0">
+                    <div className="flex flex-col gap-4">
+                      {insight.summary ? (
+                        <InsightSection title="Summary">
+                          <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                            {insight.summary}
+                          </p>
+                        </InsightSection>
+                      ) : null}
 
-                    {insight.priorities && insight.priorities.length > 0 && (
-                      <div style={{ marginBottom: "16px" }}>
-                        <h4 style={{ fontSize: "13px", fontWeight: 600, color: "#B0B8C8", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                          <ListChecks size={13} style={{ color: "#F59E0B" }} />
-                          Priorities
-                        </h4>
-                        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "6px" }}>
-                          {insight.priorities.map((p, i) => (
-                            <li key={i} style={{ fontSize: "13px", color: "#B0B8C8", display: "flex", alignItems: "flex-start", gap: "8px" }}>
-                              <span style={{ color: "#F59E0B", fontWeight: 700, flexShrink: 0 }}>{i + 1}.</span>
-                              {p}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                      {insight.priorities && insight.priorities.length > 0 ? (
+                        <InsightSection
+                          title="Priorities"
+                          icon={<ListChecks className="size-3.5 text-[var(--warning)]" />}
+                        >
+                          <ul className="flex flex-col gap-1.5">
+                            {insight.priorities.map((p, i) => (
+                              <li
+                                key={i}
+                                className="flex items-start gap-2 text-sm text-[var(--text-muted)]"
+                              >
+                                <span className="font-bold text-[var(--warning)] shrink-0">
+                                  {i + 1}.
+                                </span>
+                                {p}
+                              </li>
+                            ))}
+                          </ul>
+                        </InsightSection>
+                      ) : null}
 
-                    {insight.action_items && insight.action_items.length > 0 && (
-                      <div style={{ marginBottom: "16px" }}>
-                        <h4 style={{ fontSize: "13px", fontWeight: 600, color: "#B0B8C8", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                          <CheckCircle size={13} style={{ color: "#00D4AA" }} />
-                          Action Items
-                        </h4>
-                        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "6px" }}>
-                          {insight.action_items.map((item, i) => (
-                            <li key={i} style={{ fontSize: "13px", color: "#B0B8C8", display: "flex", alignItems: "center", gap: "8px" }}>
-                              <CheckCircle size={12} style={{ color: "#00D4AA", flexShrink: 0 }} />
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                      {insight.action_items && insight.action_items.length > 0 ? (
+                        <InsightSection
+                          title="Action items"
+                          icon={<CheckCircle className="size-3.5 text-[var(--accent-teal)]" />}
+                        >
+                          <ul className="flex flex-col gap-1.5">
+                            {insight.action_items.map((item, i) => (
+                              <li
+                                key={i}
+                                className="flex items-center gap-2 text-sm text-[var(--text-muted)]"
+                              >
+                                <CheckCircle className="size-3 text-[var(--accent-teal)] shrink-0" />
+                                {item}
+                              </li>
+                            ))}
+                          </ul>
+                        </InsightSection>
+                      ) : null}
 
-                    {insight.next_steps && (
-                      <div>
-                        <h4 style={{ fontSize: "13px", fontWeight: 600, color: "#B0B8C8", marginBottom: "8px" }}>
-                          Next Steps
-                        </h4>
-                        <p style={{ fontSize: "13px", color: "#B0B8C8", lineHeight: "1.7" }}>
-                          {insight.next_steps}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                      {insight.next_steps ? (
+                        <InsightSection title="Next steps">
+                          <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                            {insight.next_steps}
+                          </p>
+                        </InsightSection>
+                      ) : null}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
+          </Accordion>
+        </Card>
       )}
+    </div>
+  );
+}
+
+function InsightSection({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)] mb-2">
+        {icon}
+        {title}
+      </h4>
+      {children}
     </div>
   );
 }

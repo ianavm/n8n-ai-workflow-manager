@@ -2,9 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { LeadCard } from "@/components/marketing/LeadCard";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Loader2, Plus, Search } from "lucide-react";
+
+import { LeadCard } from "@/components/marketing/LeadCard";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { Button } from "@/components/ui-shadcn/button";
 
 interface Lead {
   id: string;
@@ -116,46 +119,38 @@ export default function LeadsPipelinePage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Lead Pipeline</h1>
-          <p className="text-sm text-[#B0B8C8] mt-1">
-            {leads.length} total leads
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]"
-            />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search leads..."
-              className="pl-8 pr-3 py-2 rounded-lg text-sm bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-white placeholder:text-[#6B7280] focus:outline-none focus:border-[#10B981] w-56"
-            />
-          </div>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-white transition-all"
-            style={{
-              background: "linear-gradient(135deg, #10B981, #059669)",
-            }}
-          >
-            <Plus size={16} />
-            Add Lead
-          </button>
-        </div>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Marketing"
+        title="Lead pipeline"
+        description={`${leads.length} total leads across every stage.`}
+        actions={
+          <>
+            <div className="relative">
+              <Search
+                className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
+                aria-hidden
+              />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search leads..."
+                className="h-9 pl-9 pr-3 rounded-[var(--radius-sm)] text-sm bg-[var(--input)] border border-[var(--border-subtle)] text-foreground placeholder:text-[var(--text-dim)] focus:outline-none focus:border-[var(--accent-teal)] w-56"
+              />
+            </div>
+            <Button variant="default" size="md" onClick={() => setShowAddForm(true)}>
+              <Plus className="size-4" />
+              Add lead
+            </Button>
+          </>
+        }
+      />
 
       {/* Kanban Board */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 size={24} className="animate-spin text-[#10B981]" />
+          <Loader2 className="size-6 animate-spin text-[var(--accent-teal)]" />
         </div>
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">

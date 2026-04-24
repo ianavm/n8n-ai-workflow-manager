@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useCallback, useEffect, useState } from "react";
 import {
-  MessageCircle,
-  Mail,
-  Video,
-  Globe,
-  ArrowUpRight,
   ArrowDownLeft,
+  ArrowUpRight,
+  Globe,
+  Mail,
+  MessageCircle,
+  Video,
+  type LucideIcon,
 } from "lucide-react";
+
+import { createClient } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { EmptyState } from "@/components/portal/EmptyState";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { ErrorState } from "@/components/portal/ErrorState";
+import { Badge } from "@/components/ui-shadcn/badge";
+import { Card } from "@/components/ui-shadcn/card";
 
 interface FaCommunication {
   id: string;
@@ -21,32 +29,12 @@ interface FaCommunication {
   status: string | null;
 }
 
-const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.03)",
-  borderRadius: "16px",
-  border: "1px solid rgba(255,255,255,0.06)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-  padding: "24px",
+const CHANNEL: Record<string, { icon: LucideIcon; color: string; label: string }> = {
+  email:    { icon: Mail,          color: "var(--accent-teal)",   label: "Email" },
+  whatsapp: { icon: MessageCircle, color: "var(--accent-teal)",   label: "WhatsApp" },
+  teams:    { icon: Video,         color: "var(--accent-purple)", label: "Teams" },
+  portal:   { icon: Globe,         color: "var(--accent-coral)",  label: "Portal" },
 };
-
-const channelConfig: Record<string, { icon: typeof Mail; color: string; label: string }> = {
-  email: { icon: Mail, color: "#00A651", label: "Email" },
-  whatsapp: { icon: MessageCircle, color: "#25D366", label: "WhatsApp" },
-  teams: { icon: Video, color: "#5B5FC7", label: "Teams" },
-  portal: { icon: Globe, color: "#00D4AA", label: "Portal" },
-};
-
-function formatDateTime(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-ZA", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function formatRelativeDay(dateStr: string): string {
   const d = new Date(dateStr);
@@ -54,7 +42,6 @@ function formatRelativeDay(dateStr: string): string {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const targetDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const diffDays = Math.floor((today.getTime() - targetDay.getTime()) / (1000 * 60 * 60 * 24));
-
   if (diffDays === 0) return "Today";
   if (diffDays === 1) return "Yesterday";
   return d.toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "short" });
@@ -64,10 +51,7 @@ function groupByDay(comms: FaCommunication[]): Record<string, FaCommunication[]>
   const groups: Record<string, FaCommunication[]> = {};
   for (const c of comms) {
     const dayKey = new Date(c.created_at).toISOString().split("T")[0];
-    if (!groups[dayKey]) {
-      groups[dayKey] = [];
-    }
-    groups[dayKey] = [...groups[dayKey], c];
+    groups[dayKey] = [...(groups[dayKey] ?? []), c];
   }
   return groups;
 }
@@ -92,7 +76,6 @@ export default function AdvisoryCommunications() {
       .select("id")
       .eq("auth_user_id", userData.user.id)
       .single();
-
     if (!portalClient) {
       setError("No portal account found");
       setLoading(false);
@@ -104,7 +87,6 @@ export default function AdvisoryCommunications() {
       .select("id, firm_id")
       .eq("portal_client_id", portalClient.id)
       .single();
-
     if (!client) {
       setError("No advisory profile found.");
       setLoading(false);
@@ -134,25 +116,17 @@ export default function AdvisoryCommunications() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "40vh" }}>
-        <div
-          style={{
-            width: "32px",
-            height: "32px",
-            border: "2px solid #00A651",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-          }}
-        />
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow="Advisory" title="Communications" description="Your communication history with your advisory team." />
+        <LoadingState variant="list" rows={4} />
       </div>
     );
   }
-
   if (error) {
     return (
-      <div style={{ ...glassCard, textAlign: "center", color: "#EF4444", marginTop: "24px" }}>
-        <p style={{ fontSize: "14px" }}>{error}</p>
+      <div className="flex flex-col gap-6">
+        <PageHeader eyebrow="Advisory" title="Communications" description="Your communication history with your advisory team." />
+        <ErrorState title="Unable to load communications" description={error} onRetry={fetchCommunications} />
       </div>
     );
   }
@@ -161,156 +135,83 @@ export default function AdvisoryCommunications() {
   const sortedDays = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
 
   return (
-    <div>
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: 600, color: "#fff" }}>Communications</h1>
-        <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>
-          Your communication history with your advisory team.
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Advisory"
+        title="Communications"
+        description="Your communication history with your advisory team."
+      />
 
       {communications.length === 0 ? (
-        <div style={{ ...glassCard, textAlign: "center" }}>
-          <MessageCircle size={32} style={{ color: "#6B7280", margin: "0 auto 12px" }} />
-          <p style={{ fontSize: "14px", color: "#6B7280" }}>No communications yet.</p>
-        </div>
+        <EmptyState icon={<MessageCircle className="size-5" />} title="No communications yet" />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        <div className="flex flex-col gap-8">
           {sortedDays.map((day) => {
             const dayComms = grouped[day];
-
             return (
-              <div key={day}>
-                {/* Day header */}
-                <div
-                  style={{
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    color: "#6B7280",
-                    textTransform: "uppercase",
-                    letterSpacing: "1px",
-                    marginBottom: "12px",
-                    paddingBottom: "8px",
-                    borderBottom: "1px solid rgba(255,255,255,0.04)",
-                  }}
-                >
+              <section key={day}>
+                <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)] pb-2 mb-3 border-b border-[var(--border-subtle)]">
                   {formatRelativeDay(dayComms[0].created_at)}
-                </div>
-
-                {/* Timeline items */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-                  {dayComms.map((comm, idx) => {
-                    const config = channelConfig[comm.channel.toLowerCase()] || channelConfig.portal;
-                    const ChannelIcon = config.icon;
-                    const isSent = comm.direction.toLowerCase() === "sent" || comm.direction.toLowerCase() === "outbound";
-                    const isLast = idx === dayComms.length - 1;
-
-                    return (
-                      <div
-                        key={comm.id}
-                        style={{
-                          display: "flex",
-                          gap: "16px",
-                          paddingBottom: isLast ? "0" : "0",
-                        }}
-                      >
-                        {/* Timeline indicator */}
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            flexShrink: 0,
-                            width: "32px",
-                          }}
-                        >
-                          <div
+                </h3>
+                <Card variant="default" padding="md">
+                  <ul className="relative pl-8">
+                    <span
+                      aria-hidden
+                      className="absolute left-[15px] top-3 bottom-3 w-px bg-[var(--border-subtle)]"
+                    />
+                    {dayComms.map((comm) => {
+                      const config = CHANNEL[comm.channel.toLowerCase()] || CHANNEL.portal;
+                      const Icon = config.icon;
+                      const isSent =
+                        comm.direction.toLowerCase() === "sent" ||
+                        comm.direction.toLowerCase() === "outbound";
+                      return (
+                        <li key={comm.id} className="relative py-3">
+                          <span
+                            aria-hidden
+                            className="absolute -left-[17px] top-3 grid place-items-center size-8 rounded-[var(--radius-sm)] ring-4 ring-[var(--bg-card)]"
                             style={{
-                              width: "32px",
-                              height: "32px",
-                              borderRadius: "8px",
-                              background: `${config.color}15`,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0,
+                              background: `color-mix(in srgb, ${config.color} 12%, transparent)`,
+                              color: config.color,
                             }}
                           >
-                            <ChannelIcon size={14} style={{ color: config.color }} />
-                          </div>
-                          {!isLast && (
-                            <div
-                              style={{
-                                width: "2px",
-                                flex: 1,
-                                background: "rgba(255,255,255,0.06)",
-                                minHeight: "16px",
-                              }}
-                            />
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div
-                          style={{
-                            flex: 1,
-                            paddingBottom: isLast ? "0" : "16px",
-                            minWidth: 0,
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                            <span style={{ fontSize: "13px", fontWeight: 600, color: "#fff" }}>
-                              {comm.subject || `${config.label} ${comm.direction}`}
-                            </span>
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "4px",
-                                fontSize: "11px",
-                                fontWeight: 500,
-                                color: isSent ? "#00A651" : "#00D4AA",
-                                padding: "1px 6px",
-                                borderRadius: "4px",
-                                background: isSent ? "rgba(108,99,255,0.1)" : "rgba(0,212,170,0.1)",
-                              }}
-                            >
-                              {isSent ? <ArrowUpRight size={10} /> : <ArrowDownLeft size={10} />}
-                              {isSent ? "Sent" : "Received"}
-                            </span>
-                          </div>
-
-                          {comm.content && (
-                            <p
-                              style={{
-                                fontSize: "13px",
-                                color: "#6B7280",
-                                lineHeight: "1.5",
-                                margin: "0 0 4px 0",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                                maxWidth: "500px",
-                              }}
-                            >
-                              {comm.content}
-                            </p>
-                          )}
-
-                          <span style={{ fontSize: "11px", color: "#4B5563" }}>
-                            {new Date(comm.created_at).toLocaleTimeString("en-ZA", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                            {" via "}
-                            {config.label}
+                            <Icon className="size-3.5" aria-hidden />
                           </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-semibold text-foreground">
+                                  {comm.subject || `${config.label} ${comm.direction}`}
+                                </span>
+                                <Badge
+                                  tone={isSent ? "info" : "success"}
+                                  appearance="soft"
+                                  size="sm"
+                                >
+                                  {isSent ? <ArrowUpRight className="size-3" /> : <ArrowDownLeft className="size-3" />}
+                                  {isSent ? "Sent" : "Received"}
+                                </Badge>
+                              </div>
+                              {comm.content ? (
+                                <p className="text-sm text-[var(--text-muted)] mt-1 line-clamp-1">
+                                  {comm.content}
+                                </p>
+                              ) : null}
+                              <p className="text-xs text-[var(--text-dim)] mt-1">
+                                {new Date(comm.created_at).toLocaleTimeString("en-ZA", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}{" "}
+                                · via {config.label}
+                              </p>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </Card>
+              </section>
             );
           })}
         </div>

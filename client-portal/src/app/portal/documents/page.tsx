@@ -1,23 +1,21 @@
-"use client";
-
-import { Card } from "@/components/ui/Card";
 import { FileText } from "lucide-react";
+
+import { PageHeader } from "@/components/portal/PageHeader";
+import { EmptyState } from "@/components/portal/EmptyState";
 
 export default function DocumentsPage() {
   return (
-    <div className="max-w-7xl space-y-6">
-      <h1 className="text-2xl font-bold text-white">Documents</h1>
-      <Card>
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-[rgba(0,212,170,0.1)] border border-[rgba(0,212,170,0.2)] flex items-center justify-center mb-5">
-            <FileText size={28} className="text-[#00D4AA]" />
-          </div>
-          <h2 className="text-lg font-semibold text-white mb-3">Documents Coming Soon</h2>
-          <p className="text-sm text-[#6B7280] max-w-md">
-            Upload, manage, and share documents with your team. Access contracts, reports, and automated document workflows.
-          </p>
-        </div>
-      </Card>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        eyebrow="Operations"
+        title="Documents"
+        description="Upload, manage, and share documents with your team."
+      />
+      <EmptyState
+        icon={<FileText className="size-5" />}
+        title="Documents coming soon"
+        description="Contracts, reports, and automated document workflows. Let us know if you need this sooner — we can move it up the roadmap."
+      />
     </div>
   );
 }

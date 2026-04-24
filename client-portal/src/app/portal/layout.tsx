@@ -1,5 +1,6 @@
-import { PortalNav } from "@/components/portal/PortalNav";
-import { ThemeProvider } from "@/lib/theme-provider";
+import { PortalProviders } from "@/lib/providers/PortalProviders";
+import { PortalShell } from "@/components/portal/shell/PortalShell";
+import { DotMatrix } from "@/components/portal/DotMatrix";
 
 export default function PortalLayout({
   children,
@@ -7,19 +8,9 @@ export default function PortalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ThemeProvider>
-      <PortalNav />
-      <main
-        className="portal-main"
-        style={{
-          marginLeft: "264px",
-          minHeight: "100vh",
-        }}
-      >
-        <div style={{ padding: "32px", maxWidth: "1400px" }}>
-          {children}
-        </div>
-      </main>
-    </ThemeProvider>
+    <PortalProviders>
+      <DotMatrix />
+      <PortalShell>{children}</PortalShell>
+    </PortalProviders>
   );
 }

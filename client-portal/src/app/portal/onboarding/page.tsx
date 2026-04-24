@@ -177,33 +177,30 @@ export default function OnboardingPage() {
   if (initialLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-[#6C63FF] border-t-transparent rounded-full animate-spin" />
+        <div className="size-8 border-2 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-8">
       {/* Progress indicator */}
       <div className="flex items-center justify-between">
         {Array.from({ length: TOTAL_STEPS }).map((_, i) => {
           const stepNum = i + 1;
           const isActive = stepNum === currentStep;
-          const isDone =
-            completedSteps.includes(stepNum) ||
-            skippedSteps.includes(stepNum);
+          const isDone = completedSteps.includes(stepNum) || skippedSteps.includes(stepNum);
           const isPast = stepNum < currentStep;
           return (
             <div key={stepNum} className="flex items-center flex-1">
-              {/* Step dot */}
               <div className="flex flex-col items-center">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-300 ${
+                  className={`size-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all duration-[var(--dur-med)] ${
                     isActive
-                      ? "bg-[#6C63FF] text-white ring-4 ring-[#6C63FF]/20"
+                      ? "bg-[var(--brand-primary)] text-white ring-4 ring-[var(--brand-glow)]"
                       : isDone || isPast
-                      ? "bg-[#00D4AA]/20 text-[#00D4AA] border border-[#00D4AA]/30"
-                      : "bg-white/[0.04] text-[#4B5563] border border-white/[0.08]"
+                        ? "bg-[color-mix(in_srgb,var(--accent-teal)_20%,transparent)] text-[var(--accent-teal)] border border-[color-mix(in_srgb,var(--accent-teal)_30%,transparent)]"
+                        : "bg-[color-mix(in_srgb,var(--text-white)_4%,transparent)] text-[var(--text-dim)] border border-[var(--border-subtle)]"
                   }`}
                 >
                   {isDone || isPast ? (
@@ -225,51 +222,44 @@ export default function OnboardingPage() {
                 </div>
                 <span
                   className={`text-[10px] mt-1.5 whitespace-nowrap ${
-                    isActive
-                      ? "text-[#B0B8C8] font-medium"
-                      : "text-[#4B5563]"
+                    isActive ? "text-foreground font-medium" : "text-[var(--text-dim)]"
                   }`}
                 >
                   {STEP_LABELS[i]}
                 </span>
               </div>
 
-              {/* Connector line */}
-              {stepNum < TOTAL_STEPS && (
+              {stepNum < TOTAL_STEPS ? (
                 <div
-                  className={`flex-1 h-px mx-2 mt-[-18px] transition-colors duration-300 ${
+                  className={`flex-1 h-px mx-2 mt-[-18px] transition-colors duration-[var(--dur-med)] ${
                     isPast || isDone
-                      ? "bg-[#00D4AA]/30"
-                      : "bg-white/[0.06]"
+                      ? "bg-[color-mix(in_srgb,var(--accent-teal)_30%,transparent)]"
+                      : "bg-[var(--border-subtle)]"
                   }`}
                 />
-              )}
+              ) : null}
             </div>
           );
         })}
       </div>
 
       {/* Step content */}
-      <div className="glass-card-static p-6 sm:p-8">
+      <div className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--bg-card)] p-6 sm:p-8 backdrop-blur-sm">
         {currentStep === 1 && <StepBusinessProfile {...stepProps} />}
         {currentStep === 2 && <StepConnectTools {...stepProps} />}
         {currentStep === 3 && <StepChooseAutomation {...stepProps} />}
         {currentStep === 4 && <StepPreview {...stepProps} />}
-        {currentStep === 5 && (
-          <StepActivate loading={loading} onActivate={handleNext} />
-        )}
+        {currentStep === 5 && <StepActivate loading={loading} onActivate={handleNext} />}
 
-        {/* Error message */}
-        {error && (
-          <div className="flex items-start gap-2 text-sm text-red-400 bg-red-500/5 border border-red-500/15 rounded-xl px-4 py-3 mt-4">
-            <span className="flex-shrink-0 mt-0.5">!</span>
+        {error ? (
+          <div className="flex items-start gap-2 text-sm text-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_25%,transparent)] rounded-[var(--radius-md)] px-4 py-3 mt-4">
+            <span className="shrink-0 mt-0.5 font-bold">!</span>
             <span>{error}</span>
           </div>
-        )}
+        ) : null}
       </div>
 
-      {/* Step counter */}
-      <p className="text-center text-xs text-[#4B5563]">
+      <p className="text-center text-xs text-[var(--text-dim)]">
         Step {currentStep} of {TOTAL_STEPS}
       </p>
     </div>

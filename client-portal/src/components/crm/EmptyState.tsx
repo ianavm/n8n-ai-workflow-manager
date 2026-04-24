@@ -17,20 +17,22 @@ export function EmptyState({
   secondaryAction,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center text-center py-14 px-6 rounded-xl border border-dashed border-[rgba(255,255,255,0.08)]">
-      <div className="w-12 h-12 rounded-full grid place-items-center bg-[rgba(255,109,90,0.1)] border border-[rgba(255,109,90,0.25)]">
-        <Icon size={20} color="#FF6D5A" />
+    <div className="flex flex-col items-center justify-center text-center py-14 px-6 rounded-[var(--radius-lg)] border border-dashed border-[var(--border-subtle)] bg-[var(--bg-card)]">
+      <div className="size-12 rounded-full grid place-items-center bg-[color-mix(in_srgb,var(--accent-coral)_12%,transparent)] border border-[color-mix(in_srgb,var(--accent-coral)_25%,transparent)]">
+        <Icon className="size-5 text-[var(--accent-coral)]" aria-hidden />
       </div>
-      <h3 className="mt-4 text-[15px] font-semibold text-white">{title}</h3>
-      {description && (
-        <p className="mt-1 max-w-md text-sm text-[#B0B8C8]">{description}</p>
-      )}
-      {(primaryAction || secondaryAction) && (
+      <h3 className="mt-4 text-base font-semibold text-foreground">{title}</h3>
+      {description ? (
+        <p className="mt-1 max-w-md text-sm text-[var(--text-muted)] leading-relaxed">
+          {description}
+        </p>
+      ) : null}
+      {primaryAction || secondaryAction ? (
         <div className="mt-5 flex items-center gap-3">
           {primaryAction}
           {secondaryAction}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

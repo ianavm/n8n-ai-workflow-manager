@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { PlatformIcon } from "@/components/marketing/PlatformIcon";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+
+import { PlatformIcon } from "@/components/marketing/PlatformIcon";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { Button } from "@/components/ui-shadcn/button";
 import {
   startOfMonth,
   endOfMonth,
@@ -178,25 +181,25 @@ export default function CalendarPage() {
   }, [visibleDays]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={handlePrevMonth}
-            className="p-2 rounded-lg text-[#B0B8C8] hover:text-white hover:bg-[rgba(255,255,255,0.05)] transition-colors"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <h1 className="text-2xl font-bold text-white min-w-[200px] text-center">
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        eyebrow="Marketing"
+        title="Content calendar"
+        description="Plan and publish across every channel."
+      />
+
+      {/* Month nav + view toggle */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="icon-sm" onClick={handlePrevMonth} aria-label="Previous month">
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="text-lg font-semibold text-foreground min-w-[180px] text-center">
             {format(currentMonth, "MMMM yyyy")}
-          </h1>
-          <button
-            onClick={handleNextMonth}
-            className="p-2 rounded-lg text-[#B0B8C8] hover:text-white hover:bg-[rgba(255,255,255,0.05)] transition-colors"
-          >
-            <ChevronRight size={20} />
-          </button>
+          </span>
+          <Button variant="ghost" size="icon-sm" onClick={handleNextMonth} aria-label="Next month">
+            <ChevronRight className="size-4" />
+          </Button>
         </div>
 
         {/* View Toggle */}

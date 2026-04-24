@@ -1,21 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
+  ArrowLeft,
+  Clock,
+  Key,
+  LogOut,
+  MapPin,
+  Monitor,
   Shield,
   ShieldCheck,
-  Monitor,
-  LogOut,
-  Clock,
-  MapPin,
   Smartphone,
-  Key,
 } from "lucide-react";
-import Link from "next/link";
+
+import { createClient } from "@/lib/supabase/client";
+import { PageHeader } from "@/components/portal/PageHeader";
+import { LoadingState } from "@/components/portal/LoadingState";
+import { Badge } from "@/components/ui-shadcn/badge";
+import { Button } from "@/components/ui-shadcn/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui-shadcn/card";
 
 interface SecurityInfo {
   last_login_at: string | null;
@@ -25,18 +29,16 @@ interface SecurityInfo {
 }
 
 export default function SecuritySettingsPage() {
+  const supabase = createClient();
   const [info, setInfo] = useState<SecurityInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
-  const [signOutMessage, setSignOutMessage] = useState("");
-  const supabase = createClient();
+  const [signOutError, setSignOutError] = useState("");
 
   useEffect(() => {
     async function loadSecurity() {
       const res = await fetch("/api/portal/settings/security");
-      if (res.ok) {
-        setInfo(await res.json());
-      }
+      if (res.ok) setInfo(await res.json());
       setLoading(false);
     }
     loadSecurity();
@@ -44,10 +46,10 @@ export default function SecuritySettingsPage() {
 
   async function handleSignOutAll() {
     setSigningOut(true);
-    setSignOutMessage("");
+    setSignOutError("");
     const { error } = await supabase.auth.signOut({ scope: "global" });
     if (error) {
-      setSignOutMessage("Failed to sign out all devices. Please try again.");
+      setSignOutError("Failed to sign out all devices. Please try again.");
       setSigningOut(false);
     } else {
       window.location.href = "/portal/login";
@@ -56,153 +58,198 @@ export default function SecuritySettingsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl space-y-6">
-        <h1 className="text-2xl font-bold text-white">Security</h1>
-        <Card>
-          <div className="animate-pulse space-y-4 p-2">
-            <div className="h-4 bg-[rgba(255,255,255,0.05)] rounded w-1/3" />
-            <div className="h-10 bg-[rgba(255,255,255,0.05)] rounded" />
-            <div className="h-10 bg-[rgba(255,255,255,0.05)] rounded" />
-          </div>
-        </Card>
+      <div className="flex flex-col gap-6 max-w-3xl">
+        <PageHeader
+          eyebrow="Settings"
+          title="Security"
+          description="Manage your account security, review recent activity, and control your sessions."
+        />
+        <LoadingState variant="card" rows={5} />
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <div className="flex items-center gap-3">
-        <Shield size={24} className="text-[#6366F1]" />
-        <h1 className="text-2xl font-bold text-white">Security</h1>
-      </div>
+    <div className="flex flex-col gap-8 max-w-3xl">
+      <PageHeader
+        eyebrow="Settings"
+        title="Security"
+        description="Manage your account security, review recent activity, and control your sessions."
+      />
 
-      <p className="text-sm text-[#71717A]">
-        Manage your account security, review recent activity, and control your sessions.
-      </p>
-
-      {/* Last Login Activity */}
-      <Card>
-        <h2 className="text-lg font-semibold text-white mb-5">Recent Login Activity</h2>
-        <div className="space-y-4">
+      {/* Recent login activity */}
+      <Card variant="default" padding="lg">
+        <CardHeader>
+          <CardTitle className="text-base">Recent login activity</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4 flex flex-col gap-3">
           {info?.last_login_at ? (
             <>
-              <div className="flex items-center gap-3 text-sm">
-                <Clock size={16} className="text-[#71717A] flex-shrink-0" />
-                <span className="text-[#A1A1AA]">Last login:</span>
-                <span className="text-white">
-                  {new Date(info.last_login_at).toLocaleDateString("en-ZA", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              </div>
-              {info.last_login_device && (
-                <div className="flex items-center gap-3 text-sm">
-                  <Monitor size={16} className="text-[#71717A] flex-shrink-0" />
-                  <span className="text-[#A1A1AA]">Device:</span>
-                  <span className="text-white">{info.last_login_device}</span>
-                </div>
-              )}
-              {info.last_login_ip && (
-                <div className="flex items-center gap-3 text-sm">
-                  <MapPin size={16} className="text-[#71717A] flex-shrink-0" />
-                  <span className="text-[#A1A1AA]">IP Address:</span>
-                  <span className="text-white font-mono text-xs">{info.last_login_ip}</span>
-                </div>
-              )}
+              <Row
+                icon={<Clock className="size-4" />}
+                label="Last login"
+                value={new Date(info.last_login_at).toLocaleDateString("en-ZA", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              />
+              {info.last_login_device ? (
+                <Row
+                  icon={<Monitor className="size-4" />}
+                  label="Device"
+                  value={info.last_login_device}
+                />
+              ) : null}
+              {info.last_login_ip ? (
+                <Row
+                  icon={<MapPin className="size-4" />}
+                  label="IP address"
+                  value={<span className="font-mono text-xs">{info.last_login_ip}</span>}
+                />
+              ) : null}
             </>
           ) : (
-            <p className="text-sm text-[#71717A]">No login activity recorded yet.</p>
+            <p className="text-sm text-[var(--text-muted)]">No login activity recorded yet.</p>
           )}
-        </div>
+        </CardContent>
       </Card>
 
-      {/* Two-Factor Authentication */}
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">Two-Factor Authentication</h2>
-          <Badge variant="warning">Coming Soon</Badge>
-        </div>
-        <div className="flex items-start gap-3">
-          <Key size={18} className="text-[#71717A] mt-0.5 flex-shrink-0" />
+      {/* 2FA */}
+      <Card variant="default" padding="lg">
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base">Two-factor authentication</CardTitle>
+            <Badge tone="warning" appearance="soft" size="sm">
+              Coming soon
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <div className="flex items-start gap-3">
+            <span className="grid place-items-center size-10 rounded-[var(--radius-sm)] bg-[var(--bg-card-hover)] text-[var(--text-muted)] shrink-0">
+              <Key className="size-4" aria-hidden />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                Add an extra layer of security to your account by enabling two-factor authentication
+                with an authenticator app (Google Authenticator, Authy, etc.).
+              </p>
+              <p className="text-xs text-[var(--text-dim)] mt-2">
+                This feature is being rolled out and will be available shortly.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Active sessions */}
+      <Card variant="default" padding="lg">
+        <CardHeader>
+          <CardTitle className="text-base">Session management</CardTitle>
+          <CardDescription>
+            If you suspect unauthorized access, sign out everywhere and log back in.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 flex flex-col gap-4">
+          <div className="flex items-start gap-3">
+            <span className="grid place-items-center size-10 rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--accent-purple)_12%,transparent)] text-[var(--accent-purple)] shrink-0">
+              <Smartphone className="size-4" aria-hidden />
+            </span>
+            <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+              Signing out all devices ends every active session (browsers, mobile, tablets) and
+              requires you to log in again on this device.
+            </p>
+          </div>
+
+          {signOutError ? (
+            <p
+              role="alert"
+              className="text-sm text-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_25%,transparent)] rounded-[var(--radius-sm)] px-3 py-2"
+            >
+              {signOutError}
+            </p>
+          ) : null}
+
           <div>
-            <p className="text-sm text-[#A1A1AA]">
-              Add an extra layer of security to your account by enabling two-factor authentication
-              with an authenticator app (Google Authenticator, Authy, etc.).
-            </p>
-            <p className="text-xs text-[#52525B] mt-2">
-              This feature is being rolled out and will be available shortly.
-            </p>
+            <Button variant="destructive" onClick={handleSignOutAll} loading={signingOut}>
+              <LogOut className="size-4" />
+              Sign out all devices
+            </Button>
           </div>
-        </div>
+        </CardContent>
       </Card>
 
-      {/* Active Sessions */}
-      <Card>
-        <h2 className="text-lg font-semibold text-white mb-4">Session Management</h2>
-        <div className="flex items-start gap-3 mb-5">
-          <Smartphone size={18} className="text-[#71717A] mt-0.5 flex-shrink-0" />
-          <div>
-            <p className="text-sm text-[#A1A1AA]">
-              If you suspect unauthorized access, sign out of all devices immediately.
-              You will need to log in again on this device.
-            </p>
-          </div>
-        </div>
-
-        {signOutMessage && (
-          <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-4">
-            {signOutMessage}
-          </p>
-        )}
-
-        <Button
-          variant="danger"
-          onClick={handleSignOutAll}
-          loading={signingOut}
-        >
-          <LogOut size={16} />
-          Sign Out All Devices
-        </Button>
+      {/* Security status */}
+      <Card variant="default" padding="lg">
+        <CardHeader>
+          <CardTitle className="text-base">Security status</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-4 flex flex-col gap-3">
+          <StatusRow
+            icon={<ShieldCheck className="size-4 text-[var(--accent-teal)]" />}
+            label="Password authentication"
+            badge={<Badge tone="success" appearance="soft" size="sm">Active</Badge>}
+          />
+          <StatusRow
+            icon={<Shield className="size-4 text-[var(--text-dim)]" />}
+            label="Two-factor authentication"
+            badge={<Badge tone="neutral" appearance="soft" size="sm">Not enabled</Badge>}
+          />
+          <StatusRow
+            icon={<Clock className="size-4 text-[var(--accent-teal)]" />}
+            label="Auto-logout (30 min inactivity)"
+            badge={<Badge tone="success" appearance="soft" size="sm">Active</Badge>}
+          />
+        </CardContent>
       </Card>
 
-      {/* Security Status */}
-      <Card>
-        <h2 className="text-lg font-semibold text-white mb-4">Security Status</h2>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2 text-[#A1A1AA]">
-              <ShieldCheck size={16} className="text-emerald-400" />
-              Password authentication
-            </div>
-            <Badge variant="success">Active</Badge>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2 text-[#A1A1AA]">
-              <Shield size={16} className="text-[#71717A]" />
-              Two-factor authentication
-            </div>
-            <Badge variant="default">Not enabled</Badge>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2 text-[#A1A1AA]">
-              <Clock size={16} className="text-emerald-400" />
-              Auto-logout (30 min inactivity)
-            </div>
-            <Badge variant="success">Active</Badge>
-          </div>
-        </div>
-      </Card>
-
-      {/* Back link */}
-      <div className="pt-2">
-        <Link href="/portal/settings" className="text-sm text-[#71717A] hover:text-[#A1A1AA] no-underline">
-          &larr; Back to Settings
+      <Button asChild variant="ghost" size="sm" className="self-start">
+        <Link href="/portal/settings" className="gap-1.5">
+          <ArrowLeft className="size-3.5" />
+          Back to settings
         </Link>
-      </div>
+      </Button>
+    </div>
+  );
+}
+
+function Row({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <span className="text-[var(--text-dim)] shrink-0">{icon}</span>
+      <span className="text-[var(--text-muted)]">{label}</span>
+      <span className="ml-auto font-medium text-foreground">{value}</span>
+    </div>
+  );
+}
+
+function StatusRow({
+  icon,
+  label,
+  badge,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  badge: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span className="flex items-center gap-2 text-[var(--text-muted)]">
+        {icon}
+        {label}
+      </span>
+      {badge}
     </div>
   );
 }

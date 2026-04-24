@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { Toaster } from "sonner";
+import { ThemedToaster } from "@/components/ThemedToaster";
 import "./globals.css";
 
 const inter = Inter({
@@ -15,26 +15,33 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg" },
 };
 
+// Runs before React hydrates so the correct color scheme is applied
+// synchronously — prevents a flash of the wrong theme on refresh.
+const colorSchemeInitScript = `
+(function () {
+  try {
+    var stored = localStorage.getItem('portal-theme');
+    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var useLight = stored === 'light' || (!stored && !prefersDark);
+    if (useLight) document.documentElement.classList.add('light');
+    document.documentElement.style.colorScheme = useLight ? 'light' : 'dark';
+  } catch (e) {}
+})();
+`.trim();
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: colorSchemeInitScript }} />
+      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
         <div className="relative min-h-screen">{children}</div>
-        <Toaster
-          theme="dark"
-          position="bottom-right"
-          toastOptions={{
-            style: {
-              background: "#1C1C22",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-              color: "#A1A1AA",
-            },
-          }}
-        />
+        <ThemedToaster />
       </body>
     </html>
   );
