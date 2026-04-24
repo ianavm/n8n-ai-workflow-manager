@@ -48,7 +48,7 @@ export default function AccountingLayout({
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
                 isActive
                   ? "bg-[rgba(255,109,90,0.15)] text-[#FF6D5A] border border-[rgba(255,109,90,0.3)]"
-                  : "text-[#B0B8C8] hover:text-white hover:bg-[rgba(255,255,255,0.05)]"
+                  : "text-[var(--text-muted)] hover:text-white hover:bg-[rgba(255,255,255,0.05)]"
               }`}
             >
               <Icon size={16} />

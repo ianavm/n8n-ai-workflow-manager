@@ -253,16 +253,16 @@ export default function OnboardingWizard() {
         return (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-white">Select Client</h2>
-            <p className="text-sm text-[#6B7280]">
+            <p className="text-sm text-[var(--text-dim)]">
               Choose a client that does not yet have marketing configured.
             </p>
             {loadingClients ? (
-              <div className="flex items-center gap-2 text-[#6B7280] py-8">
+              <div className="flex items-center gap-2 text-[var(--text-dim)] py-8">
                 <Loader2 size={16} className="animate-spin" /> Loading clients...
               </div>
             ) : clients.length === 0 ? (
               <div className="floating-card p-6 text-center">
-                <p className="text-[#6B7280]">All clients already have marketing configured.</p>
+                <p className="text-[var(--text-dim)]">All clients already have marketing configured.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -278,7 +278,7 @@ export default function OnboardingWizard() {
                   >
                     <div>
                       <p className="text-sm font-medium text-white">{client.full_name}</p>
-                      <p className="text-xs text-[#6B7280]">{client.email}</p>
+                      <p className="text-xs text-[var(--text-dim)]">{client.email}</p>
                     </div>
                     {state.client_id === client.id && (
                       <Check size={18} className="text-[#10B981]" />
@@ -295,7 +295,7 @@ export default function OnboardingWizard() {
         return (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-white">Enable Platforms</h2>
-            <p className="text-sm text-[#6B7280]">
+            <p className="text-sm text-[var(--text-dim)]">
               Select which advertising and content platforms to activate.
             </p>
             <div className="space-y-2">
@@ -335,11 +335,11 @@ export default function OnboardingWizard() {
         return (
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-white">Platform Configuration</h2>
-            <p className="text-sm text-[#6B7280]">
+            <p className="text-sm text-[var(--text-dim)]">
               Enter platform-specific account identifiers. Leave blank to configure later.
             </p>
             {adPlatforms.length === 0 ? (
-              <p className="text-sm text-[#6B7280]">
+              <p className="text-sm text-[var(--text-dim)]">
                 No ad platforms selected that require configuration. You can proceed.
               </p>
             ) : (
@@ -350,7 +350,7 @@ export default function OnboardingWizard() {
                   </h3>
                   {PLATFORM_FIELDS[platform].map((field) => (
                     <div key={field.key}>
-                      <label className="block text-xs text-[#6B7280] mb-1">
+                      <label className="block text-xs text-[var(--text-dim)] mb-1">
                         {field.label}
                       </label>
                       <input
@@ -381,17 +381,17 @@ export default function OnboardingWizard() {
         return (
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-white">n8n Credential IDs</h2>
-            <p className="text-sm text-[#6B7280]">
+            <p className="text-sm text-[var(--text-dim)]">
               Enter the n8n credential ID for each platform. These are used by workflows at runtime.
             </p>
             {adPlatforms.length === 0 ? (
-              <p className="text-sm text-[#6B7280]">
+              <p className="text-sm text-[var(--text-dim)]">
                 No ad platforms require n8n credentials. You can proceed.
               </p>
             ) : (
               adPlatforms.map((platform) => (
                 <div key={platform}>
-                  <label className="block text-xs text-[#6B7280] mb-1">
+                  <label className="block text-xs text-[var(--text-dim)] mb-1">
                     {PLATFORMS.find((p) => p.value === platform)?.label} Credential ID
                   </label>
                   <input
@@ -415,11 +415,11 @@ export default function OnboardingWizard() {
             <h2 className="text-lg font-semibold text-white">Budget & Content</h2>
 
             <div>
-              <label className="block text-xs text-[#6B7280] mb-1">
+              <label className="block text-xs text-[var(--text-dim)] mb-1">
                 Monthly Budget Cap (ZAR)
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280] text-sm">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)] text-sm">
                   R
                 </span>
                 <input
@@ -441,7 +441,7 @@ export default function OnboardingWizard() {
             </div>
 
             <div>
-              <label className="block text-xs text-[#6B7280] mb-1">
+              <label className="block text-xs text-[var(--text-dim)] mb-1">
                 Alert Threshold ({state.budget_alert_threshold}%)
               </label>
               <input
@@ -462,7 +462,7 @@ export default function OnboardingWizard() {
             </div>
 
             <div>
-              <label className="block text-xs text-[#6B7280] mb-1">AI Model</label>
+              <label className="block text-xs text-[var(--text-dim)] mb-1">AI Model</label>
               <select
                 value={state.ai_model}
                 onChange={(e) => updateState("ai_model", e.target.value)}
@@ -500,7 +500,7 @@ export default function OnboardingWizard() {
             </div>
 
             <div>
-              <label className="block text-xs text-[#6B7280] mb-1">
+              <label className="block text-xs text-[var(--text-dim)] mb-1">
                 Lead Assignment Mode
               </label>
               <select
@@ -529,23 +529,23 @@ export default function OnboardingWizard() {
         return (
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-white">Review & Create</h2>
-            <p className="text-sm text-[#6B7280]">
+            <p className="text-sm text-[var(--text-dim)]">
               Verify all settings before creating the marketing configuration.
             </p>
 
             <div className="space-y-4">
               {/* Client */}
               <div className="p-4 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)]">
-                <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-1">Client</p>
+                <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-1">Client</p>
                 <p className="text-sm text-white font-medium">
                   {selectedClient?.full_name ?? "Unknown"}
                 </p>
-                <p className="text-xs text-[#6B7280]">{selectedClient?.email}</p>
+                <p className="text-xs text-[var(--text-dim)]">{selectedClient?.email}</p>
               </div>
 
               {/* Platforms */}
               <div className="p-4 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)]">
-                <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-2">
+                <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-2">
                   Platforms
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -562,7 +562,7 @@ export default function OnboardingWizard() {
 
               {/* Budget */}
               <div className="p-4 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)]">
-                <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-1">
+                <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-1">
                   Budget
                 </p>
                 <p className="text-sm text-white">
@@ -575,7 +575,7 @@ export default function OnboardingWizard() {
 
               {/* Content */}
               <div className="p-4 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)]">
-                <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-1">
+                <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-1">
                   Content & Leads
                 </p>
                 <p className="text-sm text-white">
@@ -610,7 +610,7 @@ export default function OnboardingWizard() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-white">Client Onboarding</h1>
-          <p className="text-sm text-[#B0B8C8]">
+          <p className="text-sm text-[var(--text-muted)]">
             Configure marketing for a new client
           </p>
         </div>
@@ -658,7 +658,7 @@ export default function OnboardingWizard() {
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
             step === 0
               ? "text-[#4B5563] cursor-not-allowed"
-              : "text-[#B0B8C8] hover:text-white hover:bg-[rgba(255,255,255,0.05)]"
+              : "text-[var(--text-muted)] hover:text-white hover:bg-[rgba(255,255,255,0.05)]"
           }`}
         >
           <ChevronLeft size={16} />

@@ -99,33 +99,33 @@ export default function AdminSupportPage() {
           <HeadphonesIcon className="text-[#6C63FF]" size={28} />
           Support Tickets
         </h1>
-        <p className="text-[#6B7280] mt-1">AI-powered ticket management and SLA monitoring</p>
+        <p className="text-[var(--text-dim)] mt-1">AI-powered ticket management and SLA monitoring</p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="p-4 text-center">
-          <div className={`text-2xl font-bold ${openCount > 0 ? "text-red-400" : "text-[#6B7280]"}`}>{openCount}</div>
-          <div className="text-xs text-[#6B7280] mt-1">Open</div>
+          <div className={`text-2xl font-bold ${openCount > 0 ? "text-red-400" : "text-[var(--text-dim)]"}`}>{openCount}</div>
+          <div className="text-xs text-[var(--text-dim)] mt-1">Open</div>
         </Card>
         <Card className="p-4 text-center">
           <div className="text-2xl font-bold text-yellow-400">{inProgressCount}</div>
-          <div className="text-xs text-[#6B7280] mt-1">In Progress</div>
+          <div className="text-xs text-[var(--text-dim)] mt-1">In Progress</div>
         </Card>
         <Card className="p-4 text-center">
           <div className="text-2xl font-bold text-emerald-400">{resolvedToday}</div>
-          <div className="text-xs text-[#6B7280] mt-1">Resolved Today</div>
+          <div className="text-xs text-[var(--text-dim)] mt-1">Resolved Today</div>
         </Card>
         <Card className="p-4 text-center">
-          <div className={`text-2xl font-bold ${slaBreach > 0 ? "text-red-400 animate-pulse" : "text-[#6B7280]"}`}>{slaBreach}</div>
-          <div className="text-xs text-[#6B7280] mt-1">SLA Breached</div>
+          <div className={`text-2xl font-bold ${slaBreach > 0 ? "text-red-400 animate-pulse" : "text-[var(--text-dim)]"}`}>{slaBreach}</div>
+          <div className="text-xs text-[var(--text-dim)] mt-1">SLA Breached</div>
         </Card>
       </div>
 
       {/* Filters */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
           <input
             type="text"
             placeholder="Search tickets..."
@@ -142,7 +142,7 @@ export default function AdminSupportPage() {
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 filter === f
                   ? "bg-[#6C63FF]/20 text-[#6C63FF]"
-                  : "text-[#6B7280] hover:text-white hover:bg-[rgba(255,255,255,0.03)]"
+                  : "text-[var(--text-dim)] hover:text-white hover:bg-[rgba(255,255,255,0.03)]"
               }`}
             >
               {f === "all" ? "All" : f.replace("_", " ")}
@@ -167,7 +167,7 @@ export default function AdminSupportPage() {
                       </span>
                       <h3 className="text-sm font-medium text-white truncate">{ticket.subject}</h3>
                     </div>
-                    <p className="text-xs text-[#6B7280]">{ticket.client_email}</p>
+                    <p className="text-xs text-[var(--text-dim)]">{ticket.client_email}</p>
                     {ticket.ai_summary && (
                       <p className="text-xs text-[#9CA3AF] mt-1 line-clamp-2">{ticket.ai_summary}</p>
                     )}
@@ -179,7 +179,7 @@ export default function AdminSupportPage() {
                     <Badge variant={statusConfig[ticket.status] || "default"}>
                       {ticket.status.replace("_", " ")}
                     </Badge>
-                    <p className="text-[10px] text-[#6B7280] mt-1">
+                    <p className="text-[10px] text-[var(--text-dim)] mt-1">
                       {formatDistanceToNow(new Date(ticket.created_at), { addSuffix: true })}
                     </p>
                     {isBreached && (

@@ -87,13 +87,13 @@ export default function ClientsPage() {
             <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
               All <span className="gradient-text">Clients</span>
             </h1>
-            <p className="text-sm text-[#B0B8C8] mt-2">
+            <p className="text-sm text-[var(--text-muted)] mt-2">
               {clients.length} {clients.length === 1 ? "client" : "clients"} registered
             </p>
           </div>
         </div>
         <div className="relative max-w-xs w-full">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]" />
           <input
             type="text"
             placeholder="Search clients..."
@@ -120,8 +120,8 @@ export default function ClientsPage() {
       {/* Client Card Grid */}
       {filtered.length === 0 ? (
         <div className="glass-card p-12 text-center">
-          <Users size={32} className="text-[#6B7280] mx-auto mb-3 opacity-50" />
-          <p className="text-sm text-[#6B7280]">
+          <Users size={32} className="text-[var(--text-dim)] mx-auto mb-3 opacity-50" />
+          <p className="text-sm text-[var(--text-dim)]">
             {search ? "No clients match your search" : "No clients yet"}
           </p>
         </div>
@@ -156,9 +156,9 @@ export default function ClientsPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold text-white truncate">{c.full_name}</div>
-                  <div className="text-xs text-[#6B7280] truncate">{c.email}</div>
+                  <div className="text-xs text-[var(--text-dim)] truncate">{c.email}</div>
                   {c.company_name && (
-                    <div className="text-xs text-[#6B7280] truncate">{c.company_name}</div>
+                    <div className="text-xs text-[var(--text-dim)] truncate">{c.company_name}</div>
                   )}
                 </div>
                 <Badge variant={statusVariant(c.status)}>{c.status}</Badge>
@@ -171,7 +171,7 @@ export default function ClientsPage() {
               <div className="mini-metrics mt-3">
                 <div>
                   <div className="text-lg font-bold text-white">{c.active_workflows}</div>
-                  <div className="text-[11px] text-[#6B7280] uppercase mt-0.5">Workflows</div>
+                  <div className="text-[11px] text-[var(--text-dim)] uppercase mt-0.5">Workflows</div>
                   <div className="mini-bar">
                     <div
                       className="mini-bar-fill"
@@ -186,7 +186,7 @@ export default function ClientsPage() {
                   <div className="text-lg font-bold text-white">
                     {(c.messages_sent + c.messages_received).toLocaleString()}
                   </div>
-                  <div className="text-[11px] text-[#6B7280] uppercase mt-0.5">Messages</div>
+                  <div className="text-[11px] text-[var(--text-dim)] uppercase mt-0.5">Messages</div>
                   <div className="mini-bar">
                     <div
                       className="mini-bar-fill"
@@ -199,7 +199,7 @@ export default function ClientsPage() {
                 </div>
                 <div>
                   <div className="text-lg font-bold text-white">{c.leads_created}</div>
-                  <div className="text-[11px] text-[#6B7280] uppercase mt-0.5">Leads</div>
+                  <div className="text-[11px] text-[var(--text-dim)] uppercase mt-0.5">Leads</div>
                   <div className="mini-bar">
                     <div
                       className="mini-bar-fill"
@@ -214,7 +214,7 @@ export default function ClientsPage() {
                   <div className={`text-lg font-bold ${c.total_crashes > 0 ? "text-[#EF4444]" : "text-white"}`}>
                     {c.total_crashes}
                   </div>
-                  <div className="text-[11px] text-[#6B7280] uppercase mt-0.5">Crashes</div>
+                  <div className="text-[11px] text-[var(--text-dim)] uppercase mt-0.5">Crashes</div>
                   <div className="mini-bar">
                     <div
                       className="mini-bar-fill"
@@ -229,7 +229,7 @@ export default function ClientsPage() {
 
               {/* Footer */}
               <div className="flex items-center justify-between mt-4">
-                <span className="text-[11px] text-[#6B7280]">
+                <span className="text-[11px] text-[var(--text-dim)]">
                   Last: {c.last_login_at ? format(new Date(c.last_login_at), "MMM d, yyyy") : "Never"}
                 </span>
                 <span className="text-xs text-[#6C63FF]">View Details &rarr;</span>

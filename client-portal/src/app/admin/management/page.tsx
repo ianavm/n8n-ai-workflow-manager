@@ -118,7 +118,7 @@ export default function ManagementPage() {
           <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
             Client <span className="gradient-text">Management</span>
           </h1>
-          <p className="text-base text-[#B0B8C8] mt-2">
+          <p className="text-base text-[var(--text-muted)] mt-2">
             Create, manage, and configure client accounts
           </p>
         </div>
@@ -145,7 +145,7 @@ export default function ManagementPage() {
               <UserPlus size={20} />
             </div>
             <h3 className="text-sm font-medium text-white">Create Client</h3>
-            <p className="text-xs text-[#6B7280] mt-1">Set up a new client account</p>
+            <p className="text-xs text-[var(--text-dim)] mt-1">Set up a new client account</p>
           </button>
         </Card>
         <Card className="cursor-pointer" hover>
@@ -154,7 +154,7 @@ export default function ManagementPage() {
               <Lock size={20} />
             </div>
             <h3 className="text-sm font-medium text-white">Reset Password</h3>
-            <p className="text-xs text-[#6B7280] mt-1">Reset a client&apos;s password</p>
+            <p className="text-xs text-[var(--text-dim)] mt-1">Reset a client&apos;s password</p>
           </button>
         </Card>
         <Card>

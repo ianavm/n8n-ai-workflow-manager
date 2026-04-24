@@ -107,6 +107,8 @@ export function rateLimit(
 /**
  * Async rate limit using Upstash Redis when available.
  * Falls back to in-memory when Upstash is not configured.
+ *
+ * CONSUMES a slot. Use `peekRateLimit` for read-only inspection.
  */
 export async function rateLimitAsync(
   ip: string,
@@ -124,4 +126,48 @@ export async function rateLimitAsync(
 
   const config = RATE_LIMITS[profile];
   return memoryRateLimit(ip, config.maxAttempts, config.windowMs);
+}
+
+/**
+ * Passive (read-only) inspection of a rate-limit bucket. Does NOT
+ * consume a slot. Use this for pre-action lockout checks.
+ *
+ * Upstash has `getRemaining` on Ratelimit which is non-consuming.
+ * In-memory fallback reads current count without incrementing.
+ */
+export async function peekRateLimit(
+  ip: string,
+  profile: ProfileName = "strict",
+): Promise<{ locked: boolean; remaining: number; resetAt: number }> {
+  if (upstashLimiters) {
+    const limiter = upstashLimiters[profile];
+    const result = await limiter.getRemaining(ip);
+    const maxAttempts = RATE_LIMITS[profile].maxAttempts;
+    // `getRemaining` returns { remaining, reset } in upstash@^2.
+    const remaining = typeof result === "number" ? result : result.remaining;
+    const resetAt =
+      typeof result === "number" ? Date.now() + RATE_LIMITS[profile].windowMs : result.reset;
+    return {
+      locked: remaining <= 0,
+      remaining: Math.max(0, remaining),
+      resetAt,
+    };
+  }
+
+  const now = Date.now();
+  const key = `rl:${ip}`;
+  const entry = memoryStore.get(key);
+  if (!entry || entry.resetAt < now) {
+    return {
+      locked: false,
+      remaining: RATE_LIMITS[profile].maxAttempts,
+      resetAt: now + RATE_LIMITS[profile].windowMs,
+    };
+  }
+  const remaining = Math.max(0, RATE_LIMITS[profile].maxAttempts - entry.count);
+  return {
+    locked: remaining <= 0,
+    remaining,
+    resetAt: entry.resetAt,
+  };
 }

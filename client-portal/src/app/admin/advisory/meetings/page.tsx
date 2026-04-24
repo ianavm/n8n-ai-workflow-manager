@@ -95,7 +95,7 @@ export default function MeetingsPage() {
           <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
             Advisory <span className="gradient-text">Meetings</span>
           </h1>
-          <p className="text-sm text-[#B0B8C8] mt-2">
+          <p className="text-sm text-[var(--text-muted)] mt-2">
             {meetings.length} meetings
           </p>
         </div>
@@ -125,9 +125,9 @@ export default function MeetingsPage() {
         <div className="glass-card p-12 text-center">
           <Calendar
             size={32}
-            className="text-[#6B7280] mx-auto mb-3 opacity-50"
+            className="text-[var(--text-dim)] mx-auto mb-3 opacity-50"
           />
-          <p className="text-sm text-[#6B7280]">No meetings found</p>
+          <p className="text-sm text-[var(--text-dim)]">No meetings found</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -160,7 +160,7 @@ export default function MeetingsPage() {
                       </Badge>
                     </div>
 
-                    <div className="flex items-center gap-4 text-xs text-[#6B7280]">
+                    <div className="flex items-center gap-4 text-xs text-[var(--text-dim)]">
                       <span className="flex items-center gap-1">
                         <Calendar size={12} />
                         {typeLabel(m.meeting_type)}
@@ -187,7 +187,7 @@ export default function MeetingsPage() {
                 </div>
 
                 <div className="text-right">
-                  <span className="text-xs text-[#6B7280]">
+                  <span className="text-xs text-[var(--text-dim)]">
                     {m.adviser?.full_name ?? "Unassigned"}
                   </span>
                 </div>

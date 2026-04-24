@@ -77,7 +77,7 @@ export default function MarketingClientsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Marketing Clients</h1>
-          <p className="text-sm text-[#B0B8C8] mt-1">
+          <p className="text-sm text-[var(--text-muted)] mt-1">
             {configs.length} client{configs.length !== 1 ? "s" : ""} with marketing configured
           </p>
         </div>
@@ -94,7 +94,7 @@ export default function MarketingClientsPage() {
       <div className="relative max-w-sm">
         <Search
           size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
         />
         <input
           type="text"
@@ -107,13 +107,13 @@ export default function MarketingClientsPage() {
 
       {/* Client Cards */}
       {loading ? (
-        <div className="flex items-center justify-center py-12 text-[#6B7280]">
+        <div className="flex items-center justify-center py-12 text-[var(--text-dim)]">
           <Loader2 size={20} className="animate-spin mr-2" />
           Loading clients...
         </div>
       ) : filtered.length === 0 ? (
         <div className="floating-card p-8 text-center">
-          <p className="text-[#6B7280]">
+          <p className="text-[var(--text-dim)]">
             {search
               ? "No clients match your search."
               : "No marketing clients configured yet."}
@@ -132,11 +132,11 @@ export default function MarketingClientsPage() {
                   <p className="text-sm font-medium text-white group-hover:text-[#10B981] transition-colors">
                     {cfg.clients?.full_name ?? "Unknown"}
                   </p>
-                  <p className="text-xs text-[#6B7280]">
+                  <p className="text-xs text-[var(--text-dim)]">
                     {cfg.clients?.email ?? ""}
                   </p>
                 </div>
-                <span className="text-xs text-[#6B7280]">
+                <span className="text-xs text-[var(--text-dim)]">
                   {new Date(cfg.created_at).toLocaleDateString("en-ZA")}
                 </span>
               </div>
@@ -154,7 +154,7 @@ export default function MarketingClientsPage() {
               </div>
 
               {/* Details */}
-              <div className="flex items-center gap-4 text-xs text-[#6B7280]">
+              <div className="flex items-center gap-4 text-xs text-[var(--text-dim)]">
                 <span>
                   Budget:{" "}
                   {cfg.budget_monthly_cap > 0

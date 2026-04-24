@@ -75,7 +75,7 @@ function BentoStat({
       <div className="stat-number-shimmer mb-1.5">
         {typeof value === "number" ? value.toLocaleString() : value}
       </div>
-      <div className="text-sm text-[#B0B8C8]">{label}</div>
+      <div className="text-sm text-[var(--text-muted)]">{label}</div>
       {change && (
         <span
           className={`inline-flex items-center gap-1 mt-2.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -198,14 +198,14 @@ export default function AdminDashboard() {
                 <h1 className="text-2xl font-bold text-white mb-1">
                   {greeting}, {adminName || "Admin"}
                 </h1>
-                <p className="text-sm text-[#B0B8C8]">
+                <p className="text-sm text-[var(--text-muted)]">
                   {format(today, "EEEE, d MMMM yyyy")}
                 </p>
-                <p className="text-[13px] text-[#6B7280] mt-3">
+                <p className="text-[13px] text-[var(--text-dim)] mt-3">
                   {stats.activeClients} clients active, {stats.totalCrashes === 0 ? "0 critical alerts" : `${stats.totalCrashes} errors detected`}
                 </p>
                 <div className="flex gap-2 mt-4 flex-wrap">
-                  <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.1)] text-[#B0B8C8]">
+                  <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.1)] text-[var(--text-muted)]">
                     <span className="w-2 h-2 rounded-full bg-[#10B981] pulse-dot" />
                     All Systems Nominal
                   </span>
@@ -230,7 +230,7 @@ export default function AdminDashboard() {
             ].map((s) => (
               <div key={s.name} className="health-row">
                 <span className="w-2 h-2 rounded-full bg-[#10B981] pulse-dot mr-2 flex-shrink-0" />
-                <span className="text-[#B0B8C8] text-[13px] min-w-[80px]">{s.name}</span>
+                <span className="text-[var(--text-muted)] text-[13px] min-w-[80px]">{s.name}</span>
                 <div className="health-bar">
                   <div className="health-fill" style={{ width: `${s.pct}%` }} />
                 </div>
@@ -239,7 +239,7 @@ export default function AdminDashboard() {
                 </span>
               </div>
             ))}
-            <div className="text-center mt-3 text-xs text-[#6B7280]">
+            <div className="text-center mt-3 text-xs text-[var(--text-dim)]">
               Overall: <span className="text-[#00D4AA] font-bold">99.4%</span>
             </div>
           </div>
@@ -280,7 +280,7 @@ export default function AdminDashboard() {
             <div className="stat-number-shimmer" style={{ fontSize: 40 }}>
               {stats.totalMessages.toLocaleString()}
             </div>
-            <div className="text-sm text-[#B0B8C8]">Total Messages</div>
+            <div className="text-sm text-[var(--text-muted)]">Total Messages</div>
             <span className="inline-flex items-center gap-1 mt-2.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[rgba(16,185,129,0.12)] text-[#10B981]">
               <TrendingUp size={12} /> +23%
             </span>
@@ -339,7 +339,7 @@ export default function AdminDashboard() {
           </div>
           <div className="scrollable-section-sm">
             {recentClients.length === 0 ? (
-              <p className="text-sm text-[#6B7280]">No recent activity</p>
+              <p className="text-sm text-[var(--text-dim)]">No recent activity</p>
             ) : (
               recentClients.map((c) => (
                 <Link
@@ -358,7 +358,7 @@ export default function AdminDashboard() {
                             : "#F59E0B",
                     }}
                   />
-                  <span className="flex-1 text-[#B0B8C8]">
+                  <span className="flex-1 text-[var(--text-muted)]">
                     <span className="text-white font-medium">{c.full_name}</span>
                     {c.company_name ? ` (${c.company_name})` : ""}
                     {" — "}
@@ -366,7 +366,7 @@ export default function AdminDashboard() {
                       ? `${(c.messages_received + c.messages_sent).toLocaleString()} messages`
                       : "No messages yet"}
                   </span>
-                  <span className="text-[11px] text-[#6B7280] flex-shrink-0">
+                  <span className="text-[11px] text-[var(--text-dim)] flex-shrink-0">
                     {c.last_login_at
                       ? format(new Date(c.last_login_at), "MMM d")
                       : "Never"}
@@ -395,7 +395,7 @@ export default function AdminDashboard() {
             {flaggedClients.length === 0 ? (
               <div className="text-center py-8">
                 <CheckCircle size={32} className="text-[#10B981] mx-auto mb-3 opacity-50" />
-                <p className="text-sm text-[#6B7280]">All clients healthy</p>
+                <p className="text-sm text-[var(--text-dim)]">All clients healthy</p>
                 <p className="text-xs text-[#4B5563] mt-1">No crashes detected</p>
               </div>
             ) : (
@@ -412,9 +412,9 @@ export default function AdminDashboard() {
                     </span>
                   </div>
                   {c.company_name && (
-                    <span className="text-xs text-[#6B7280]">{c.company_name}</span>
+                    <span className="text-xs text-[var(--text-dim)]">{c.company_name}</span>
                   )}
-                  <div className="flex items-center gap-3 mt-2 text-xs text-[#6B7280]">
+                  <div className="flex items-center gap-3 mt-2 text-xs text-[var(--text-dim)]">
                     <span>{c.active_workflows} workflows</span>
                     <span>{(c.messages_sent + c.messages_received).toLocaleString()} msgs</span>
                     <span className="ml-auto">
@@ -444,14 +444,14 @@ export default function AdminDashboard() {
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-[rgba(255,255,255,0.08)]">
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Client</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Status</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Workflows</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Messages</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Leads</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Crashes</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Last Login</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]"></th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Client</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Status</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Workflows</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Messages</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Leads</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Crashes</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Last Login</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]"></th>
                 </tr>
               </thead>
               <tbody>
@@ -463,7 +463,7 @@ export default function AdminDashboard() {
                   >
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-white">{client.full_name}</p>
-                      <p className="text-xs text-[#6B7280]">{client.email}</p>
+                      <p className="text-xs text-[var(--text-dim)]">{client.email}</p>
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={statusVariant(client.status)}>{client.status}</Badge>
@@ -478,7 +478,7 @@ export default function AdminDashboard() {
                         {client.total_crashes}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#6B7280]">
+                    <td className="px-4 py-3 text-xs text-[var(--text-dim)]">
                       {client.last_login_at
                         ? format(new Date(client.last_login_at), "MMM d, yyyy")
                         : "Never"}

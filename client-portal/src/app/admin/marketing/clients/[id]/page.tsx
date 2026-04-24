@@ -119,7 +119,7 @@ export default function ClientMarketingDetail() {
   if (error) {
     return (
       <div className="space-y-4">
-        <Link href="/admin/marketing/clients" className="flex items-center gap-2 text-sm text-[#B0B8C8] hover:text-white">
+        <Link href="/admin/marketing/clients" className="flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-white">
           <ArrowLeft size={16} /> Back to Clients
         </Link>
         <div className="floating-card p-6 text-center">
@@ -136,7 +136,7 @@ export default function ClientMarketingDetail() {
         <div>
           <Link
             href="/admin/marketing"
-            className="flex items-center gap-2 text-sm text-[#B0B8C8] hover:text-white mb-2"
+            className="flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-white mb-2"
           >
             <ArrowLeft size={16} /> Back to Overview
           </Link>
@@ -144,7 +144,7 @@ export default function ClientMarketingDetail() {
             {loading ? "Loading..." : config?.client_name ?? config?.company_name ?? "Client Marketing"}
           </h1>
           {config?.industry && (
-            <p className="text-sm text-[#6B7280] mt-1">{config.industry}</p>
+            <p className="text-sm text-[var(--text-dim)] mt-1">{config.industry}</p>
           )}
         </div>
         <button
@@ -210,12 +210,12 @@ export default function ClientMarketingDetail() {
             <h2 className="text-base font-semibold text-white">Configuration</h2>
 
             <div>
-              <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-2">
+              <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-2">
                 Platforms Enabled
               </p>
               <div className="flex flex-wrap gap-2">
                 {config.platforms_enabled.length === 0 ? (
-                  <span className="text-sm text-[#6B7280]">None</span>
+                  <span className="text-sm text-[var(--text-dim)]">None</span>
                 ) : (
                   config.platforms_enabled.map((p) => (
                     <span
@@ -230,7 +230,7 @@ export default function ClientMarketingDetail() {
             </div>
 
             <div>
-              <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-2">
+              <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-2">
                 Monthly Budget Cap
               </p>
               <p className="text-sm text-white">
@@ -241,7 +241,7 @@ export default function ClientMarketingDetail() {
             </div>
 
             <div>
-              <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-2">
+              <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-2">
                 Alert Threshold
               </p>
               <p className="text-sm text-white">
@@ -250,7 +250,7 @@ export default function ClientMarketingDetail() {
             </div>
 
             <div>
-              <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-2">
+              <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-2">
                 Lead Assignment
               </p>
               <p className="text-sm text-white capitalize">
@@ -259,7 +259,7 @@ export default function ClientMarketingDetail() {
             </div>
 
             <div>
-              <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-2">
+              <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-2">
                 AI Model
               </p>
               <p className="text-sm text-white font-mono text-xs">
@@ -268,7 +268,7 @@ export default function ClientMarketingDetail() {
             </div>
 
             <div>
-              <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-2">
+              <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-2">
                 Auto-Approve Content
               </p>
               <p className="text-sm text-white">
@@ -287,7 +287,7 @@ export default function ClientMarketingDetail() {
                   key={key}
                   className="flex items-center justify-between py-2 px-3 rounded-lg bg-[rgba(255,255,255,0.02)]"
                 >
-                  <span className="text-sm text-[#B0B8C8]">
+                  <span className="text-sm text-[var(--text-muted)]">
                     {MODULE_LABELS[key] ?? key}
                   </span>
                   {enabled ? (
@@ -295,7 +295,7 @@ export default function ClientMarketingDetail() {
                       <Check size={14} /> Enabled
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1 text-xs text-[#6B7280]">
+                    <span className="flex items-center gap-1 text-xs text-[var(--text-dim)]">
                       <X size={14} /> Disabled
                     </span>
                   )}
@@ -304,30 +304,30 @@ export default function ClientMarketingDetail() {
             </div>
 
             <div className="pt-4 border-t border-[rgba(255,255,255,0.06)]">
-              <p className="text-xs text-[#6B7280] uppercase tracking-wider mb-2">
+              <p className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-2">
                 Additional KPIs
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-lg bg-[rgba(255,255,255,0.02)]">
-                  <p className="text-xs text-[#6B7280]">Scheduled Posts</p>
+                  <p className="text-xs text-[var(--text-dim)]">Scheduled Posts</p>
                   <p className="text-lg font-semibold text-white">
                     {kpis?.scheduled_posts ?? 0}
                   </p>
                 </div>
                 <div className="p-3 rounded-lg bg-[rgba(255,255,255,0.02)]">
-                  <p className="text-xs text-[#6B7280]">Open Tasks</p>
+                  <p className="text-xs text-[var(--text-dim)]">Open Tasks</p>
                   <p className="text-lg font-semibold text-white">
                     {kpis?.open_tasks ?? 0}
                   </p>
                 </div>
                 <div className="p-3 rounded-lg bg-[rgba(255,255,255,0.02)]">
-                  <p className="text-xs text-[#6B7280]">Pipeline Value</p>
+                  <p className="text-xs text-[var(--text-dim)]">Pipeline Value</p>
                   <p className="text-lg font-semibold text-white">
                     {kpis ? formatZAR(kpis.pipeline_value) : "..."}
                   </p>
                 </div>
                 <div className="p-3 rounded-lg bg-[rgba(255,255,255,0.02)]">
-                  <p className="text-xs text-[#6B7280]">Unread Messages</p>
+                  <p className="text-xs text-[var(--text-dim)]">Unread Messages</p>
                   <p className="text-lg font-semibold text-white">
                     {kpis?.unread_conversations ?? 0}
                   </p>
@@ -335,7 +335,7 @@ export default function ClientMarketingDetail() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-[rgba(255,255,255,0.06)] text-xs text-[#6B7280]">
+            <div className="pt-4 border-t border-[rgba(255,255,255,0.06)] text-xs text-[var(--text-dim)]">
               <p>Created: {new Date(config.created_at).toLocaleDateString("en-ZA")}</p>
               <p>Updated: {new Date(config.updated_at).toLocaleDateString("en-ZA")}</p>
             </div>

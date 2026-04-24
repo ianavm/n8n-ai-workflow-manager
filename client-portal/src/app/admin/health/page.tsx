@@ -207,7 +207,7 @@ export default function AdminHealthDashboard() {
           <HeartPulse className="text-[#FF6D5A]" size={28} />
           Client Health Dashboard
         </h1>
-        <p className="text-[#6B7280] mt-1">
+        <p className="text-[var(--text-dim)] mt-1">
           Monitor client health, identify churn risk, and manage interventions
         </p>
       </div>
@@ -242,7 +242,7 @@ export default function AdminHealthDashboard() {
 
       {/* Filter Pills */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Filter size={14} className="text-[#6B7280]" />
+        <Filter size={14} className="text-[var(--text-dim)]" />
         {filters.map((f) => (
           <button
             key={f.value}
@@ -250,7 +250,7 @@ export default function AdminHealthDashboard() {
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
               filter === f.value
                 ? "bg-[rgba(108,99,255,0.15)] text-[#6C63FF]"
-                : "bg-[rgba(255,255,255,0.04)] text-[#6B7280] hover:text-white hover:bg-[rgba(255,255,255,0.08)]"
+                : "bg-[rgba(255,255,255,0.04)] text-[var(--text-dim)] hover:text-white hover:bg-[rgba(255,255,255,0.08)]"
             }`}
           >
             {f.label}
@@ -271,13 +271,13 @@ export default function AdminHealthDashboard() {
         </div>
       ) : (
         <div className="glass-card p-12 text-center space-y-3">
-          <HeartPulse size={48} className="mx-auto text-[#6B7280]" />
+          <HeartPulse size={48} className="mx-auto text-[var(--text-dim)]" />
           <p className="text-white font-medium">
             {filter === "all"
               ? "No health data yet"
               : `No clients matching "${filter}" filter`}
           </p>
-          <p className="text-sm text-[#6B7280]">
+          <p className="text-sm text-[var(--text-dim)]">
             {filter === "all"
               ? "Client health scores will populate once the health scorer runs."
               : "Try a different filter to see other clients."}
@@ -310,13 +310,13 @@ export default function AdminHealthDashboard() {
                     <p className="text-sm text-white font-medium truncate">
                       {info?.full_name ?? iv.client_id.slice(0, 8)}
                     </p>
-                    <p className="text-xs text-[#6B7280] truncate">
+                    <p className="text-xs text-[var(--text-dim)] truncate">
                       {iv.intervention_type} &middot;{" "}
                       {iv.notes ?? "No notes"}
                     </p>
                   </div>
                   <RiskBadge level="high" size="sm" pulse={false} />
-                  <span className="text-[11px] text-[#6B7280] shrink-0">
+                  <span className="text-[11px] text-[var(--text-dim)] shrink-0">
                     {new Date(iv.created_at).toLocaleDateString("en-ZA", {
                       day: "2-digit",
                       month: "short",

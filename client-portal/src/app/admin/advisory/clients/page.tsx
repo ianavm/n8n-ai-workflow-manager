@@ -100,7 +100,7 @@ export default function AdvisoryClientsPage() {
             <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
               Advisory <span className="gradient-text">Clients</span>
             </h1>
-            <p className="text-sm text-[#B0B8C8] mt-2">
+            <p className="text-sm text-[var(--text-muted)] mt-2">
               {clients.length} {clients.length === 1 ? "client" : "clients"}{" "}
               total
             </p>
@@ -111,7 +111,7 @@ export default function AdvisoryClientsPage() {
           <div className="relative max-w-xs w-full">
             <Search
               size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B7280]"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]"
             />
             <input
               type="text"
@@ -152,9 +152,9 @@ export default function AdvisoryClientsPage() {
         <div className="glass-card p-12 text-center">
           <Users
             size={32}
-            className="text-[#6B7280] mx-auto mb-3 opacity-50"
+            className="text-[var(--text-dim)] mx-auto mb-3 opacity-50"
           />
-          <p className="text-sm text-[#6B7280]">
+          <p className="text-sm text-[var(--text-dim)]">
             {search || stageFilter
               ? "No clients match your filters"
               : "No advisory clients yet"}
@@ -165,19 +165,19 @@ export default function AdvisoryClientsPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[rgba(255,255,255,0.06)]">
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Client
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Email
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Stage
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Health
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Adviser
                 </th>
                 <th className="w-10" />
@@ -206,7 +206,7 @@ export default function AdvisoryClientsPage() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-[#B0B8C8]">
+                  <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
                     {c.email}
                   </td>
                   <td className="px-4 py-3">
@@ -230,11 +230,11 @@ export default function AdvisoryClientsPage() {
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-[#B0B8C8]">
+                  <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
                     {c.assigned_adviser?.full_name ?? "Unassigned"}
                   </td>
                   <td className="px-4 py-3">
-                    <ChevronRight size={16} className="text-[#6B7280]" />
+                    <ChevronRight size={16} className="text-[var(--text-dim)]" />
                   </td>
                 </tr>
               ))}

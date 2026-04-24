@@ -122,7 +122,7 @@ export default function OfficesPage() {
             <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
               Office <span className="gradient-text">Management</span>
             </h1>
-            <p className="text-sm text-[#B0B8C8] mt-2">
+            <p className="text-sm text-[var(--text-muted)] mt-2">
               {offices.length} {offices.length === 1 ? "office" : "offices"}{" "}
               across all firms
             </p>
@@ -143,9 +143,9 @@ export default function OfficesPage() {
         <div className="glass-card p-12 text-center">
           <Building2
             size={32}
-            className="text-[#6B7280] mx-auto mb-3 opacity-50"
+            className="text-[var(--text-dim)] mx-auto mb-3 opacity-50"
           />
-          <p className="text-sm text-[#6B7280]">
+          <p className="text-sm text-[var(--text-dim)]">
             No offices configured yet. Add your first office to get started.
           </p>
         </div>
@@ -170,7 +170,7 @@ export default function OfficesPage() {
                   <h3 className="text-white font-semibold text-sm truncate group-hover:text-[#00A651] transition-colors">
                     {office.firm_name}
                   </h3>
-                  <p className="text-xs text-[#6B7280]">
+                  <p className="text-xs text-[var(--text-dim)]">
                     {office.active_clients} active of {office.total_clients}{" "}
                     clients
                   </p>
@@ -182,7 +182,7 @@ export default function OfficesPage() {
                 <div className="bg-[rgba(255,255,255,0.03)] rounded-lg p-3">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Users size={12} className="text-[#00A651]" />
-                    <span className="text-[10px] text-[#6B7280] uppercase tracking-wider">
+                    <span className="text-[10px] text-[var(--text-dim)] uppercase tracking-wider">
                       Advisers
                     </span>
                   </div>
@@ -194,7 +194,7 @@ export default function OfficesPage() {
                 <div className="bg-[rgba(255,255,255,0.03)] rounded-lg p-3">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Calendar size={12} className="text-[#00D4AA]" />
-                    <span className="text-[10px] text-[#6B7280] uppercase tracking-wider">
+                    <span className="text-[10px] text-[var(--text-dim)] uppercase tracking-wider">
                       Meetings
                     </span>
                   </div>
@@ -206,7 +206,7 @@ export default function OfficesPage() {
                 <div className="bg-[rgba(255,255,255,0.03)] rounded-lg p-3">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Users size={12} className="text-[#F59E0B]" />
-                    <span className="text-[10px] text-[#6B7280] uppercase tracking-wider">
+                    <span className="text-[10px] text-[var(--text-dim)] uppercase tracking-wider">
                       Clients
                     </span>
                   </div>
@@ -221,7 +221,7 @@ export default function OfficesPage() {
                       size={12}
                       style={{ color: complianceColor(office.compliance_score) }}
                     />
-                    <span className="text-[10px] text-[#6B7280] uppercase tracking-wider">
+                    <span className="text-[10px] text-[var(--text-dim)] uppercase tracking-wider">
                       Compliance
                     </span>
                   </div>
@@ -251,7 +251,7 @@ export default function OfficesPage() {
                   setShowModal(false);
                   setFormError(null);
                 }}
-                className="text-[#6B7280] hover:text-white transition-colors"
+                className="text-[var(--text-dim)] hover:text-white transition-colors"
               >
                 <X size={20} />
               </button>
@@ -259,7 +259,7 @@ export default function OfficesPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs text-[#B0B8C8] mb-1.5">
+                <label className="block text-xs text-[var(--text-muted)] mb-1.5">
                   Firm Name *
                 </label>
                 <input
@@ -272,7 +272,7 @@ export default function OfficesPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[#B0B8C8] mb-1.5">
+                <label className="block text-xs text-[var(--text-muted)] mb-1.5">
                   FSP Number
                 </label>
                 <input
@@ -285,7 +285,7 @@ export default function OfficesPage() {
               </div>
 
               <div>
-                <label className="block text-xs text-[#B0B8C8] mb-1.5">
+                <label className="block text-xs text-[var(--text-muted)] mb-1.5">
                   Contact Email *
                 </label>
                 <input
@@ -308,7 +308,7 @@ export default function OfficesPage() {
                   setShowModal(false);
                   setFormError(null);
                 }}
-                className="px-4 py-2 text-sm text-[#B0B8C8] hover:text-white transition-colors"
+                className="px-4 py-2 text-sm text-[var(--text-muted)] hover:text-white transition-colors"
               >
                 Cancel
               </button>

@@ -136,7 +136,7 @@ export default function AnalyticsPage() {
             <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
               Global <span className="gradient-text">Analytics</span>
             </h1>
-            <p className="text-base text-[#B0B8C8] mt-2">
+            <p className="text-base text-[var(--text-muted)] mt-2">
               Aggregate metrics across all clients
             </p>
           </div>
@@ -188,7 +188,7 @@ export default function AnalyticsPage() {
                 <span className="text-sm text-emerald-400 font-medium">{c.count} leads</span>
               </div>
             ))}
-            {topLeadClients.length === 0 && <p className="text-sm text-[#6B7280]">No lead data yet.</p>}
+            {topLeadClients.length === 0 && <p className="text-sm text-[var(--text-dim)]">No lead data yet.</p>}
           </div>
         </Card>
         <Card>
@@ -200,7 +200,7 @@ export default function AnalyticsPage() {
                 <span className="text-sm text-red-400 font-medium">{c.count} crashes</span>
               </div>
             ))}
-            {topCrashClients.length === 0 && <p className="text-sm text-[#6B7280]">No crashes recorded.</p>}
+            {topCrashClients.length === 0 && <p className="text-sm text-[var(--text-dim)]">No crashes recorded.</p>}
           </div>
         </Card>
       </div>

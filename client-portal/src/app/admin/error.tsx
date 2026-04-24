@@ -36,7 +36,7 @@ export default function AdminError({
       <h1 className="text-2xl font-bold text-white mb-2">
         Admin Error
       </h1>
-      <p className="text-sm text-[#6B7280] mb-8 max-w-md">
+      <p className="text-sm text-[var(--text-dim)] mb-8 max-w-md">
         {error.message || "Something went wrong in the admin panel."}
       </p>
       <div className="flex items-center gap-4">
@@ -49,7 +49,7 @@ export default function AdminError({
         </button>
         <Link
           href="/"
-          className="px-6 py-3 rounded-xl text-sm font-medium text-[#B0B8C8] transition-colors hover:text-white"
+          className="px-6 py-3 rounded-xl text-sm font-medium text-[var(--text-muted)] transition-colors hover:text-white"
           style={{
             background: "rgba(255,255,255,0.05)",
             border: "1px solid rgba(255,255,255,0.1)",

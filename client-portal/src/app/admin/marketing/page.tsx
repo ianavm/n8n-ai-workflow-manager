@@ -98,7 +98,7 @@ export default function MarketingAdminOverview() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white">Marketing Overview</h1>
-        <p className="text-sm text-[#B0B8C8] mt-1">
+        <p className="text-sm text-[var(--text-muted)] mt-1">
           Cross-client marketing performance at a glance
         </p>
       </div>
@@ -143,7 +143,7 @@ export default function MarketingAdminOverview() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[#6B7280] text-xs uppercase tracking-wider border-b border-[rgba(255,255,255,0.04)]">
+              <tr className="text-left text-[var(--text-dim)] text-xs uppercase tracking-wider border-b border-[rgba(255,255,255,0.04)]">
                 <th className="px-5 py-3">Client</th>
                 <th className="px-5 py-3">Spend (Month)</th>
                 <th className="px-5 py-3">Leads</th>
@@ -166,7 +166,7 @@ export default function MarketingAdminOverview() {
                 ))
               ) : data?.clients.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-8 text-center text-[#6B7280]">
+                  <td colSpan={7} className="px-5 py-8 text-center text-[var(--text-dim)]">
                     No clients with marketing configured yet.{" "}
                     <Link href="/admin/marketing/onboarding" className="text-[#10B981] hover:underline">
                       Onboard a client
@@ -210,12 +210,12 @@ export default function MarketingAdminOverview() {
                               }}
                             />
                           </div>
-                          <span className="text-xs text-[#6B7280]">
+                          <span className="text-xs text-[var(--text-dim)]">
                             {Math.round(client.budget_usage_pct)}%
                           </span>
                         </div>
                       ) : (
-                        <span className="text-xs text-[#6B7280]">No cap</span>
+                        <span className="text-xs text-[var(--text-dim)]">No cap</span>
                       )}
                     </td>
                     <td className="px-5 py-3">
@@ -223,7 +223,7 @@ export default function MarketingAdminOverview() {
                         className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                           client.active_campaigns > 0
                             ? "bg-[rgba(16,185,129,0.1)] text-[#10B981]"
-                            : "bg-[rgba(107,114,128,0.1)] text-[#6B7280]"
+                            : "bg-[rgba(107,114,128,0.1)] text-[var(--text-dim)]"
                         }`}
                       >
                         {client.active_campaigns > 0 ? "Active" : "Config Only"}
@@ -259,7 +259,7 @@ export default function MarketingAdminOverview() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-white font-medium">{alert.client_name}</p>
-                    <p className="text-xs text-[#6B7280]">{alert.message}</p>
+                    <p className="text-xs text-[var(--text-dim)]">{alert.message}</p>
                   </div>
                 </Link>
               );

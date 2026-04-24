@@ -236,13 +236,13 @@ export default function ClientDetailPage() {
                         {client?.status}
                       </Badge>
                     </div>
-                    <div className="text-sm text-[#B0B8C8] mt-1">
+                    <div className="text-sm text-[var(--text-muted)] mt-1">
                       {client?.email}
                       {client?.company_name && (
-                        <span className="text-[#6B7280]"> | {client.company_name}</span>
+                        <span className="text-[var(--text-dim)]"> | {client.company_name}</span>
                       )}
                     </div>
-                    <div className="text-xs text-[#6B7280] mt-1">
+                    <div className="text-xs text-[var(--text-dim)] mt-1">
                       Member since {client?.created_at ? format(new Date(client.created_at), "MMM yyyy") : "—"}
                     </div>
                   </div>
@@ -258,8 +258,8 @@ export default function ClientDetailPage() {
                       customStart={customStart}
                       customEnd={customEnd}
                     />
-                    <div className="text-[11px] text-[#6B7280]">
-                      API Key: <code className="text-[#B0B8C8] bg-[rgba(255,255,255,0.05)] px-1 py-0.5 rounded text-[10px]">{client?.api_key}</code>
+                    <div className="text-[11px] text-[var(--text-dim)]">
+                      API Key: <code className="text-[var(--text-muted)] bg-[rgba(255,255,255,0.05)] px-1 py-0.5 rounded text-[10px]">{client?.api_key}</code>
                     </div>
                   </div>
                 </div>
@@ -274,7 +274,7 @@ export default function ClientDetailPage() {
             <MessageSquare size={20} />
           </div>
           <div className="stat-number-shimmer mb-1.5">{stats.message_received.toLocaleString()}</div>
-          <div className="text-sm text-[#B0B8C8]">Messages Received</div>
+          <div className="text-sm text-[var(--text-muted)]">Messages Received</div>
           {stats.message_received > 0 && (
             <span className="inline-flex items-center gap-1 mt-2.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[rgba(16,185,129,0.12)] text-[#10B981]">
               <TrendingUp size={12} /> +12%
@@ -287,7 +287,7 @@ export default function ClientDetailPage() {
             <Send size={20} />
           </div>
           <div className="stat-number-shimmer mb-1.5">{stats.message_sent.toLocaleString()}</div>
-          <div className="text-sm text-[#B0B8C8]">Messages Sent</div>
+          <div className="text-sm text-[var(--text-muted)]">Messages Sent</div>
           {stats.message_sent > 0 && (
             <span className="inline-flex items-center gap-1 mt-2.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[rgba(16,185,129,0.12)] text-[#10B981]">
               <TrendingUp size={12} /> +8%
@@ -300,7 +300,7 @@ export default function ClientDetailPage() {
             <UserPlus size={16} />
           </div>
           <div className="stat-number-shimmer mb-1" style={{ fontSize: 24 }}>{stats.lead_created.toLocaleString()}</div>
-          <div className="text-[11px] text-[#B0B8C8]">Leads</div>
+          <div className="text-[11px] text-[var(--text-muted)]">Leads</div>
           {stats.lead_created > 0 && (
             <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[rgba(16,185,129,0.12)] text-[#10B981]">
               +24%
@@ -313,7 +313,7 @@ export default function ClientDetailPage() {
             <AlertTriangle size={16} />
           </div>
           <div className="stat-number-shimmer mb-1" style={{ fontSize: 24 }}>{stats.workflow_crash}</div>
-          <div className="text-[11px] text-[#B0B8C8]">Crashes</div>
+          <div className="text-[11px] text-[var(--text-muted)]">Crashes</div>
           {stats.workflow_crash > 0 && (
             <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[rgba(239,68,68,0.12)] text-[#EF4444]">
               <TrendingDown size={10} /> {stats.workflow_crash}
@@ -365,7 +365,7 @@ export default function ClientDetailPage() {
           </div>
           <div className="scrollable-section-sm space-y-2">
             {workflows.length === 0 ? (
-              <p className="text-sm text-[#6B7280]">No workflows assigned.</p>
+              <p className="text-sm text-[var(--text-dim)]">No workflows assigned.</p>
             ) : (
               workflows.map((wf) => (
                 <div
@@ -397,7 +397,7 @@ export default function ClientDetailPage() {
           </div>
           <div className="scrollable-section-sm space-y-2">
             {agentProfiles.length === 0 ? (
-              <p className="text-sm text-[#6B7280]">No agents assigned.</p>
+              <p className="text-sm text-[var(--text-dim)]">No agents assigned.</p>
             ) : (
               agentProfiles.map((agent) => {
                 const hasOverride = agent.manual_override && (!agent.manual_override_expiry || new Date(agent.manual_override_expiry).getTime() > Date.now());
@@ -421,7 +421,7 @@ export default function ClientDetailPage() {
                         </Badge>
                       </span>
                     </div>
-                    <div className="text-[11px] text-[#6B7280] flex items-center gap-2">
+                    <div className="text-[11px] text-[var(--text-dim)] flex items-center gap-2">
                       <span>{agent.business_hours_start} - {agent.business_hours_end}</span>
                       {hasOverride ? (
                         <Badge variant="warning">{agent.manual_override}</Badge>
@@ -448,16 +448,16 @@ export default function ClientDetailPage() {
               </div>
               <div className="scrollable-section">
                 {notes.length === 0 ? (
-                  <p className="text-sm text-[#6B7280]">No notes yet.</p>
+                  <p className="text-sm text-[var(--text-dim)]">No notes yet.</p>
                 ) : (
                   <div className="notes-timeline">
                     {notes.map((note) => (
                       <div key={note.id} className="timeline-item">
                         <div className="timeline-note">
-                          <div className="text-xs text-[#6B7280] mb-1.5">
+                          <div className="text-xs text-[var(--text-dim)] mb-1.5">
                             {format(new Date(note.created_at), "MMM d, yyyy 'at' h:mm a")}
                           </div>
-                          <div className="text-[13px] text-[#B0B8C8] leading-relaxed">
+                          <div className="text-[13px] text-[var(--text-muted)] leading-relaxed">
                             {note.content}
                           </div>
                         </div>

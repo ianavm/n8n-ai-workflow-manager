@@ -78,7 +78,7 @@ export default function PipelinePage() {
           <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
             Client <span className="gradient-text">Pipeline</span>
           </h1>
-          <p className="text-sm text-[#B0B8C8] mt-2">
+          <p className="text-sm text-[var(--text-muted)] mt-2">
             {clients.length} clients across {PIPELINE_STAGES.length} stages
           </p>
         </div>
@@ -118,7 +118,7 @@ export default function PipelinePage() {
             {/* Cards */}
             <div className="p-2 space-y-2 max-h-[600px] overflow-y-auto">
               {stage.clients.length === 0 ? (
-                <div className="text-center py-8 text-xs text-[#6B7280]">
+                <div className="text-center py-8 text-xs text-[var(--text-dim)]">
                   No clients
                 </div>
               ) : (
@@ -150,10 +150,10 @@ export default function PipelinePage() {
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-[#6B7280] truncate">
+                      <span className="text-xs text-[var(--text-dim)] truncate">
                         {client.assigned_adviser?.full_name ?? "Unassigned"}
                       </span>
-                      <div className="flex items-center gap-1 text-xs text-[#6B7280]">
+                      <div className="flex items-center gap-1 text-xs text-[var(--text-dim)]">
                         <Clock size={10} />
                         {daysInStage(client.pipeline_stage_changed_at)}d
                       </div>

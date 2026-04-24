@@ -77,7 +77,7 @@ function HealthGaugeLarge({ score }: { score: number }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-3xl font-bold text-white">{score}</span>
-        <span className="text-xs text-[#6B7280]">health score</span>
+        <span className="text-xs text-[var(--text-dim)]">health score</span>
       </div>
     </div>
   );
@@ -125,9 +125,9 @@ export default function AgentDetailPage() {
           <ArrowLeft size={14} /> Back to Agents
         </button>
         <Card className="p-8 text-center">
-          <Bot size={48} className="mx-auto text-[#6B7280] mb-3" />
+          <Bot size={48} className="mx-auto text-[var(--text-dim)] mb-3" />
           <p className="text-white font-medium">Agent not found</p>
-          <p className="text-sm text-[#6B7280]">No agent with ID &quot;{agentId}&quot;</p>
+          <p className="text-sm text-[var(--text-dim)]">No agent with ID &quot;{agentId}&quot;</p>
         </Card>
       </div>
     );
@@ -156,7 +156,7 @@ export default function AgentDetailPage() {
               {config.label}
             </Badge>
           </div>
-          <div className="flex items-center gap-3 text-sm text-[#6B7280]">
+          <div className="flex items-center gap-3 text-sm text-[var(--text-dim)]">
             <span>{agent.department}</span>
             <span className="text-[10px] px-2 py-0.5 rounded bg-[rgba(108,99,255,0.15)] text-[#6C63FF]">
               Tier {agent.tier} - {tierLabel}
@@ -164,15 +164,15 @@ export default function AgentDetailPage() {
           </div>
           <div className="mt-3 flex items-center gap-6 text-sm">
             <div>
-              <span className="text-[#6B7280]">Workflows: </span>
+              <span className="text-[var(--text-dim)]">Workflows: </span>
               <span className="text-white font-medium">{agent.workflows_monitored}</span>
             </div>
             <div>
-              <span className="text-[#6B7280]">Errors: </span>
+              <span className="text-[var(--text-dim)]">Errors: </span>
               <span className={`font-medium ${agent.error_count > 0 ? "text-red-400" : "text-emerald-400"}`}>{agent.error_count}</span>
             </div>
             <div>
-              <span className="text-[#6B7280]">Last Heartbeat: </span>
+              <span className="text-[var(--text-dim)]">Last Heartbeat: </span>
               <span className="text-white">
                 {agent.last_heartbeat ? formatDistanceToNow(new Date(agent.last_heartbeat), { addSuffix: true }) : "Never"}
               </span>
@@ -198,7 +198,7 @@ export default function AgentDetailPage() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-[#6B7280]">No workflows assigned yet</p>
+            <p className="text-sm text-[var(--text-dim)]">No workflows assigned yet</p>
           )}
         </Card>
 
@@ -212,13 +212,13 @@ export default function AgentDetailPage() {
             <div className="space-y-3">
               {kpiEntries.map(([key, value]) => (
                 <div key={key} className="flex items-center justify-between">
-                  <span className="text-sm text-[#6B7280] capitalize">{key.replace(/_/g, " ")}</span>
+                  <span className="text-sm text-[var(--text-dim)] capitalize">{key.replace(/_/g, " ")}</span>
                   <span className="text-sm text-white font-medium">{typeof value === "number" ? value.toLocaleString() : value}</span>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-[#6B7280]">No KPI data yet. KPIs will populate once the orchestrator starts running.</p>
+            <p className="text-sm text-[var(--text-dim)]">No KPI data yet. KPIs will populate once the orchestrator starts running.</p>
           )}
         </Card>
       </div>
@@ -228,19 +228,19 @@ export default function AgentDetailPage() {
         <h2 className="text-sm font-semibold text-white mb-4">Agent Details</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
-            <span className="text-[#6B7280] block">Agent ID</span>
+            <span className="text-[var(--text-dim)] block">Agent ID</span>
             <span className="text-white font-mono text-xs">{agent.agent_id}</span>
           </div>
           <div>
-            <span className="text-[#6B7280] block">Department</span>
+            <span className="text-[var(--text-dim)] block">Department</span>
             <span className="text-white">{agent.department}</span>
           </div>
           <div>
-            <span className="text-[#6B7280] block">Tier</span>
+            <span className="text-[var(--text-dim)] block">Tier</span>
             <span className="text-white">{agent.tier} - {tierLabel}</span>
           </div>
           <div>
-            <span className="text-[#6B7280] block">Updated</span>
+            <span className="text-[var(--text-dim)] block">Updated</span>
             <span className="text-white">
               {agent.updated_at ? formatDistanceToNow(new Date(agent.updated_at), { addSuffix: true }) : "N/A"}
             </span>

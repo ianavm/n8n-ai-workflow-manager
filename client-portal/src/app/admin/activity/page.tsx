@@ -72,7 +72,7 @@ export default function ActivityPage() {
             <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
               Activity <span className="gradient-text">Log</span>
             </h1>
-            <p className="text-base text-[#B0B8C8] mt-2">
+            <p className="text-base text-[var(--text-muted)] mt-2">
               Audit trail of all system events
             </p>
           </div>
@@ -85,7 +85,7 @@ export default function ActivityPage() {
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                 filter === f
                   ? "bg-[rgba(108,99,255,0.15)] text-[#6C63FF] border border-[rgba(108,99,255,0.3)]"
-                  : "bg-[rgba(255,255,255,0.05)] text-[#6B7280] border border-transparent hover:text-[#B0B8C8]"
+                  : "bg-[rgba(255,255,255,0.05)] text-[var(--text-dim)] border border-transparent hover:text-[var(--text-muted)]"
               }`}
             >
               {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
@@ -99,29 +99,29 @@ export default function ActivityPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[rgba(255,255,255,0.08)]">
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Time</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Actor</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Action</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Target</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280]">Details</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Time</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Actor</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Action</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Target</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Details</th>
               </tr>
             </thead>
             <tbody>
               {activities.map((a) => (
                 <tr key={a.id} className="border-b border-[rgba(255,255,255,0.04)]">
-                  <td className="px-4 py-3 text-xs text-[#6B7280] whitespace-nowrap">
+                  <td className="px-4 py-3 text-xs text-[var(--text-dim)] whitespace-nowrap">
                     {format(new Date(a.created_at), "MMM d, h:mm a")}
                   </td>
                   <td className="px-4 py-3">{actorBadge(a.actor_type)}</td>
                   <td className="px-4 py-3 text-sm text-white">
                     {formatAction(a.action)}
                   </td>
-                  <td className="px-4 py-3 text-xs text-[#6B7280]">
+                  <td className="px-4 py-3 text-xs text-[var(--text-dim)]">
                     {a.target_type
                       ? `${a.target_type}${a.target_id ? `: ${a.target_id.slice(0, 8)}...` : ""}`
                       : "-"}
                   </td>
-                  <td className="px-4 py-3 text-xs text-[#6B7280] max-w-[200px] truncate">
+                  <td className="px-4 py-3 text-xs text-[var(--text-dim)] max-w-[200px] truncate">
                     {Object.keys(a.details).length > 0
                       ? JSON.stringify(a.details)
                       : "-"}
@@ -130,7 +130,7 @@ export default function ActivityPage() {
               ))}
               {activities.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-[#6B7280]">
+                  <td colSpan={5} className="px-4 py-12 text-center text-[var(--text-dim)]">
                     No activity logged yet.
                   </td>
                 </tr>

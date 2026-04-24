@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Check, Lock, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Check, Lock, Mail, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useBrand } from "@/lib/providers/BrandProvider";
@@ -40,12 +40,66 @@ export default function PortalLoginPage() {
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
+  // Lockout state: after N failed attempts (server-enforced), form is
+  // disabled until `lockoutExpiresAt` has passed.
+  const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
+  const [lockoutExpiresAt, setLockoutExpiresAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const emailDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const errParam = searchParams?.get("error");
     if (errParam && LOGIN_ERROR_MESSAGES[errParam]) {
       setError(LOGIN_ERROR_MESSAGES[errParam]);
     }
   }, [searchParams]);
+
+  // Tick the clock while locked out so the countdown updates each second.
+  useEffect(() => {
+    if (!lockoutExpiresAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [lockoutExpiresAt]);
+
+  // Passive lockout check whenever the email field stabilizes (debounced).
+  const checkLockout = useCallback(async (value: string) => {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || !normalized.includes("@")) {
+      setAttemptsRemaining(null);
+      setLockoutExpiresAt(null);
+      return;
+    }
+    try {
+      const res = await fetch("/api/auth/lockout-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalized }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!data) return;
+      setAttemptsRemaining(typeof data.remaining === "number" ? data.remaining : null);
+      if (data.locked && typeof data.retryAfterSeconds === "number") {
+        setLockoutExpiresAt(Date.now() + data.retryAfterSeconds * 1000);
+      } else {
+        setLockoutExpiresAt(null);
+      }
+    } catch {
+      /* silent — worst case, server will still enforce on submit */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (emailDebounce.current) clearTimeout(emailDebounce.current);
+    emailDebounce.current = setTimeout(() => checkLockout(email), 400);
+    return () => {
+      if (emailDebounce.current) clearTimeout(emailDebounce.current);
+    };
+  }, [email, checkLockout]);
+
+  const lockoutSecondsLeft = lockoutExpiresAt
+    ? Math.max(0, Math.ceil((lockoutExpiresAt - now) / 1000))
+    : 0;
+  const isLockedOut = lockoutSecondsLeft > 0;
 
   const companyDisplay = isCustomBranded ? companyName.toUpperCase() : "ANYVISION MEDIA";
 
@@ -89,17 +143,42 @@ export default function PortalLoginPage() {
     setLoading(false);
   }
 
+  async function recordFailedLogin(): Promise<void> {
+    try {
+      const res = await fetch("/api/auth/record-failed-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!data) return;
+      if (typeof data.remaining === "number") setAttemptsRemaining(data.remaining);
+      if (data.locked && typeof data.retryAfterSeconds === "number") {
+        setLockoutExpiresAt(Date.now() + data.retryAfterSeconds * 1000);
+      }
+    } catch {
+      /* silent */
+    }
+  }
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (isLockedOut) return;
     setError("");
     setLoading(true);
 
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
     if (authError) {
+      await recordFailedLogin();
       setError("Invalid email or password");
       setLoading(false);
       return;
     }
+
+    // Success — clear lockout state (the rate-limit bucket auto-expires,
+    // but the UI shouldn't keep warning about prior attempts).
+    setAttemptsRemaining(null);
+    setLockoutExpiresAt(null);
 
     try {
       const res = await fetch("/api/auth/check-role");
@@ -277,6 +356,37 @@ export default function PortalLoginPage() {
                   </div>
                 ) : null}
 
+                {/* Lockout banner — shown when account/IP is locked after too many failures */}
+                {mode === "password" && isLockedOut ? (
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2 text-sm text-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_25%,transparent)] rounded-[var(--radius-sm)] px-3 py-2.5"
+                  >
+                    <ShieldAlert className="size-4 shrink-0 mt-0.5" aria-hidden />
+                    <div>
+                      <p className="font-semibold">Too many failed attempts</p>
+                      <p className="text-[var(--text-muted)] mt-0.5">
+                        Try again in {formatCountdown(lockoutSecondsLeft)}. If you&rsquo;ve forgotten your
+                        password, use the reset link instead.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Attempts-remaining warning (shown after 1+ failures, before lockout) */}
+                {mode === "password" &&
+                !isLockedOut &&
+                attemptsRemaining !== null &&
+                attemptsRemaining <= 2 &&
+                attemptsRemaining > 0 ? (
+                  <p className="text-xs text-[var(--warning)] inline-flex items-center gap-1.5">
+                    <ShieldAlert className="size-3.5" aria-hidden />
+                    {attemptsRemaining === 1
+                      ? "1 attempt remaining before lockout."
+                      : `${attemptsRemaining} attempts remaining before lockout.`}
+                  </p>
+                ) : null}
+
                 {error ? (
                   <p
                     role="alert"
@@ -286,7 +396,14 @@ export default function PortalLoginPage() {
                   </p>
                 ) : null}
 
-                <Button type="submit" variant="default" size="lg" loading={loading} className="w-full">
+                <Button
+                  type="submit"
+                  variant="default"
+                  size="lg"
+                  loading={loading}
+                  disabled={mode === "password" && isLockedOut}
+                  className="w-full"
+                >
                   {mode === "reset"
                     ? "Send reset link"
                     : mode === "magic"
@@ -348,6 +465,14 @@ export default function PortalLoginPage() {
       </div>
     </div>
   );
+}
+
+function formatCountdown(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes <= 0) return `${seconds}s`;
+  if (seconds === 0) return `${minutes}m`;
+  return `${minutes}m ${seconds}s`;
 }
 
 function ConfirmationView({

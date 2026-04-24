@@ -86,7 +86,7 @@ function HealthGauge({ score }: { score: number }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-xl font-bold text-white">{score}</span>
-        <span className="text-[10px] text-[#6B7280]">health</span>
+        <span className="text-[10px] text-[var(--text-dim)]">health</span>
       </div>
     </div>
   );
@@ -173,13 +173,13 @@ export default function AgentsDashboard() {
             <Bot className="text-[#6C63FF]" size={28} />
             AI Agent Operations
           </h1>
-          <p className="text-[#6B7280] mt-1">
+          <p className="text-[var(--text-dim)] mt-1">
             Real-time health monitoring across all autonomous agents
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${downCount > 0 ? "bg-red-500 animate-pulse" : "bg-emerald-500"}`} />
-          <span className="text-sm text-[#6B7280]">
+          <span className="text-sm text-[var(--text-dim)]">
             {downCount > 0 ? `${downCount} agent(s) down` : "All systems operational"}
           </span>
         </div>
@@ -189,27 +189,27 @@ export default function AgentsDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card className="p-4 text-center">
           <div className="text-2xl font-bold text-white">{agents.length}</div>
-          <div className="text-xs text-[#6B7280] mt-1">Total Agents</div>
+          <div className="text-xs text-[var(--text-dim)] mt-1">Total Agents</div>
         </Card>
         <Card className="p-4 text-center">
           <div className="text-2xl font-bold text-emerald-400">{activeCount}</div>
-          <div className="text-xs text-[#6B7280] mt-1">Active</div>
+          <div className="text-xs text-[var(--text-dim)] mt-1">Active</div>
         </Card>
         <Card className="p-4 text-center">
-          <div className={`text-2xl font-bold ${degradedCount > 0 ? "text-yellow-400" : "text-[#6B7280]"}`}>{degradedCount}</div>
-          <div className="text-xs text-[#6B7280] mt-1">Degraded</div>
+          <div className={`text-2xl font-bold ${degradedCount > 0 ? "text-yellow-400" : "text-[var(--text-dim)]"}`}>{degradedCount}</div>
+          <div className="text-xs text-[var(--text-dim)] mt-1">Degraded</div>
         </Card>
         <Card className="p-4 text-center">
-          <div className={`text-2xl font-bold ${inactiveCount > 0 ? "text-gray-400" : "text-[#6B7280]"}`}>{inactiveCount}</div>
-          <div className="text-xs text-[#6B7280] mt-1">Inactive</div>
+          <div className={`text-2xl font-bold ${inactiveCount > 0 ? "text-gray-400" : "text-[var(--text-dim)]"}`}>{inactiveCount}</div>
+          <div className="text-xs text-[var(--text-dim)] mt-1">Inactive</div>
         </Card>
         <Card className="p-4 text-center">
           <div className="text-2xl font-bold text-[#FF6D5A]">{totalWorkflows}</div>
-          <div className="text-xs text-[#6B7280] mt-1">Workflows</div>
+          <div className="text-xs text-[var(--text-dim)] mt-1">Workflows</div>
         </Card>
         <Card className="p-4 text-center">
           <div className="text-2xl font-bold text-[#6C63FF]">{avgHealth}%</div>
-          <div className="text-xs text-[#6B7280] mt-1">Avg Health</div>
+          <div className="text-xs text-[var(--text-dim)] mt-1">Avg Health</div>
         </Card>
       </div>
 
@@ -218,7 +218,7 @@ export default function AgentsDashboard() {
         <button
           onClick={() => setFilterDept("all")}
           className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-            filterDept === "all" ? "bg-[#6C63FF] text-white" : "bg-[rgba(255,255,255,0.06)] text-[#6B7280] hover:text-white"
+            filterDept === "all" ? "bg-[#6C63FF] text-white" : "bg-[rgba(255,255,255,0.06)] text-[var(--text-dim)] hover:text-white"
           }`}
         >
           All ({agents.length})
@@ -230,7 +230,7 @@ export default function AgentsDashboard() {
               key={dept}
               onClick={() => setFilterDept(dept)}
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                filterDept === dept ? "bg-[#6C63FF] text-white" : "bg-[rgba(255,255,255,0.06)] text-[#6B7280] hover:text-white"
+                filterDept === dept ? "bg-[#6C63FF] text-white" : "bg-[rgba(255,255,255,0.06)] text-[var(--text-dim)] hover:text-white"
               }`}
             >
               {dept} ({count})
@@ -254,7 +254,7 @@ export default function AgentsDashboard() {
                     <h3 className="text-sm font-semibold text-white">{agent.agent_name}</h3>
                   </div>
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs text-[#6B7280]">{agent.department}</span>
+                    <span className="text-xs text-[var(--text-dim)]">{agent.department}</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[rgba(108,99,255,0.15)] text-[#6C63FF]">
                       T{agent.tier} {tierLabel}
                     </span>
@@ -262,17 +262,17 @@ export default function AgentsDashboard() {
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#6B7280]">Status</span>
+                      <span className="text-[var(--text-dim)]">Status</span>
                       <Badge variant={agent.status === "active" ? "success" : agent.status === "degraded" ? "warning" : agent.status === "inactive" ? "default" : "danger"}>
                         {config.label}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#6B7280]">Workflows</span>
+                      <span className="text-[var(--text-dim)]">Workflows</span>
                       <span className="text-white">{agent.workflows_monitored}</span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#6B7280]">Last Heartbeat</span>
+                      <span className="text-[var(--text-dim)]">Last Heartbeat</span>
                       <span className="text-white">
                         {agent.last_heartbeat
                           ? formatDistanceToNow(new Date(agent.last_heartbeat), { addSuffix: true })
@@ -316,7 +316,7 @@ export default function AgentsDashboard() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white font-medium">{alert.title}</p>
-                    <p className="text-xs text-[#6B7280] mt-0.5 truncate">{alert.description}</p>
+                    <p className="text-xs text-[var(--text-dim)] mt-0.5 truncate">{alert.description}</p>
                     {alert.recommended_action && (
                       <p className="text-xs text-[#6C63FF] mt-1">Recommended: {alert.recommended_action}</p>
                     )}
@@ -325,7 +325,7 @@ export default function AgentsDashboard() {
                     <Badge variant={alert.status === "open" ? "danger" : alert.status === "acknowledged" ? "warning" : "success"}>
                       {alert.status}
                     </Badge>
-                    <p className="text-[10px] text-[#6B7280] mt-1">
+                    <p className="text-[10px] text-[var(--text-dim)] mt-1">
                       {formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}
                     </p>
                   </div>

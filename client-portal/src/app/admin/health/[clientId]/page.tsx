@@ -203,7 +203,7 @@ export default function AdminHealthDetailPage() {
       {/* Back Button */}
       <button
         onClick={() => router.push("/admin/health")}
-        className="flex items-center gap-2 text-sm text-[#6B7280] hover:text-white transition-colors"
+        className="flex items-center gap-2 text-sm text-[var(--text-dim)] hover:text-white transition-colors"
       >
         <ArrowLeft size={16} />
         Back to Health Dashboard
@@ -214,10 +214,10 @@ export default function AdminHealthDetailPage() {
         <div className="flex-1 space-y-2">
           <h1 className="text-2xl font-bold text-white">{displayName}</h1>
           {client?.company_name && (
-            <p className="text-sm text-[#6B7280]">{client.company_name}</p>
+            <p className="text-sm text-[var(--text-dim)]">{client.company_name}</p>
           )}
           {client?.email && (
-            <p className="text-xs text-[#6B7280]">{client.email}</p>
+            <p className="text-xs text-[var(--text-dim)]">{client.email}</p>
           )}
           {current && (
             <div className="flex items-center gap-3 pt-2">
@@ -248,7 +248,7 @@ export default function AdminHealthDetailPage() {
             />
           ) : (
             <div className="w-[200px] h-[200px] flex items-center justify-center">
-              <HeartPulse size={56} className="text-[#6B7280]" />
+              <HeartPulse size={56} className="text-[var(--text-dim)]" />
             </div>
           )}
         </div>
@@ -265,13 +265,13 @@ export default function AdminHealthDetailPage() {
                 <div key={dim.key} className="glass-card p-4 space-y-2">
                   <div className="flex items-center gap-2">
                     {dim.icon}
-                    <span className="text-xs font-medium text-[#B0B8C8]">
+                    <span className="text-xs font-medium text-[var(--text-muted)]">
                       {dim.label}
                     </span>
                   </div>
                   <HealthGauge score={score} size="sm" />
                   {typeof detail === "string" ? (
-                    <p className="text-[10px] text-[#6B7280]">{detail}</p>
+                    <p className="text-[10px] text-[var(--text-dim)]">{detail}</p>
                   ) : null}
                 </div>
               );
@@ -332,15 +332,15 @@ export default function AdminHealthDetailPage() {
                       </span>
                     </div>
                     {iv.notes && (
-                      <p className="text-xs text-[#6B7280]">{iv.notes}</p>
+                      <p className="text-xs text-[var(--text-dim)]">{iv.notes}</p>
                     )}
                     {iv.result && (
-                      <p className="text-xs text-[#B0B8C8]">
+                      <p className="text-xs text-[var(--text-muted)]">
                         Result: {iv.result}
                       </p>
                     )}
                   </div>
-                  <span className="text-[11px] text-[#6B7280] shrink-0">
+                  <span className="text-[11px] text-[var(--text-dim)] shrink-0">
                     {new Date(iv.created_at).toLocaleDateString("en-ZA", {
                       day: "2-digit",
                       month: "short",
@@ -353,8 +353,8 @@ export default function AdminHealthDetailPage() {
           </div>
         ) : (
           <div className="glass-card p-8 text-center">
-            <ClipboardList size={36} className="mx-auto text-[#6B7280] mb-2" />
-            <p className="text-sm text-[#6B7280]">No interventions recorded yet</p>
+            <ClipboardList size={36} className="mx-auto text-[var(--text-dim)] mb-2" />
+            <p className="text-sm text-[var(--text-dim)]">No interventions recorded yet</p>
           </div>
         )}
       </div>
@@ -389,12 +389,12 @@ export default function AdminHealthDetailPage() {
                         {alert.severity}
                       </span>
                     </div>
-                    <p className="text-xs text-[#6B7280]">
+                    <p className="text-xs text-[var(--text-dim)]">
                       Type: {alert.alert_type}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-[11px] text-[#6B7280]">
+                    <span className="text-[11px] text-[var(--text-dim)]">
                       {new Date(alert.created_at).toLocaleDateString("en-ZA", {
                         day: "2-digit",
                         month: "short",
@@ -416,8 +416,8 @@ export default function AdminHealthDetailPage() {
           </div>
         ) : (
           <div className="glass-card p-8 text-center">
-            <AlertTriangle size={36} className="mx-auto text-[#6B7280] mb-2" />
-            <p className="text-sm text-[#6B7280]">No alerts recorded</p>
+            <AlertTriangle size={36} className="mx-auto text-[var(--text-dim)] mb-2" />
+            <p className="text-sm text-[var(--text-dim)]">No alerts recorded</p>
           </div>
         )}
       </div>

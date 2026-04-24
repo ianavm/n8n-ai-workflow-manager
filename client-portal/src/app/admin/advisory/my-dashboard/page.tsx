@@ -237,7 +237,7 @@ export default function MyDashboardPage() {
           <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
             My <span className="gradient-text">Dashboard</span>
           </h1>
-          <p className="text-sm text-[#B0B8C8] mt-2">
+          <p className="text-sm text-[var(--text-muted)] mt-2">
             {data.meetings_completed_this_month} meetings completed this month
           </p>
         </div>
@@ -279,13 +279,13 @@ export default function MyDashboardPage() {
             <h2 className="text-sm font-semibold text-white">
               Upcoming Meetings
             </h2>
-            <span className="text-xs text-[#6B7280] ml-auto">
+            <span className="text-xs text-[var(--text-dim)] ml-auto">
               {data.meetings_this_week} this week
             </span>
           </div>
 
           {data.upcoming_meetings_list.length === 0 ? (
-            <p className="text-xs text-[#6B7280] text-center py-6">
+            <p className="text-xs text-[var(--text-dim)] text-center py-6">
               No upcoming meetings scheduled.
             </p>
           ) : (
@@ -296,7 +296,7 @@ export default function MyDashboardPage() {
                   className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.03)] rounded-lg"
                 >
                   <div className="flex-shrink-0 w-12 text-center">
-                    <p className="text-xs text-[#6B7280]">
+                    <p className="text-xs text-[var(--text-dim)]">
                       {formatDate(m.scheduled_at)}
                     </p>
                     <p className="text-sm font-bold text-white">
@@ -307,7 +307,7 @@ export default function MyDashboardPage() {
                     <p className="text-sm text-white truncate">
                       {m.fa_clients.first_name} {m.fa_clients.last_name}
                     </p>
-                    <p className="text-xs text-[#6B7280] truncate">
+                    <p className="text-xs text-[var(--text-dim)] truncate">
                       {m.title} - {m.meeting_type}
                     </p>
                   </div>
@@ -338,13 +338,13 @@ export default function MyDashboardPage() {
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp size={16} className="text-[#00A651]" />
             <h2 className="text-sm font-semibold text-white">My Pipeline</h2>
-            <span className="text-xs text-[#6B7280] ml-auto">
+            <span className="text-xs text-[var(--text-dim)] ml-auto">
               {totalPipelineClients} clients
             </span>
           </div>
 
           {pipelineStages.length === 0 ? (
-            <p className="text-xs text-[#6B7280] text-center py-6">
+            <p className="text-xs text-[var(--text-dim)] text-center py-6">
               No clients in pipeline yet.
             </p>
           ) : (
@@ -360,7 +360,7 @@ export default function MyDashboardPage() {
                 return (
                   <div key={stage} className="space-y-1">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-[#B0B8C8] capitalize">
+                      <span className="text-xs text-[var(--text-muted)] capitalize">
                         {stage}
                       </span>
                       <span className="text-xs font-medium text-white">
@@ -409,7 +409,7 @@ export default function MyDashboardPage() {
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-white truncate">{t.title}</p>
-                    <p className="text-xs text-[#6B7280]">
+                    <p className="text-xs text-[var(--text-dim)]">
                       {t.fa_clients.first_name} {t.fa_clients.last_name} -{" "}
                       <span className="text-[#EF4444]">
                         {daysOverdue(t.due_date)}d overdue
@@ -428,14 +428,14 @@ export default function MyDashboardPage() {
         {/* Recent Activity */}
         <div className="glass-card p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Clock size={16} className="text-[#B0B8C8]" />
+            <Clock size={16} className="text-[var(--text-muted)]" />
             <h2 className="text-sm font-semibold text-white">
               Recent Activity
             </h2>
           </div>
 
           {data.recent_meetings.length === 0 ? (
-            <p className="text-xs text-[#6B7280] text-center py-6">
+            <p className="text-xs text-[var(--text-dim)] text-center py-6">
               No recent meeting activity.
             </p>
           ) : (
@@ -445,14 +445,14 @@ export default function MyDashboardPage() {
                   key={m.id}
                   className="flex items-center gap-3 p-3 bg-[rgba(255,255,255,0.03)] rounded-lg"
                 >
-                  <div className="flex-shrink-0 text-xs text-[#6B7280] w-16">
+                  <div className="flex-shrink-0 text-xs text-[var(--text-dim)] w-16">
                     {formatRelativeDate(m.scheduled_at)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-white truncate">
                       {m.fa_clients.first_name} {m.fa_clients.last_name}
                     </p>
-                    <p className="text-xs text-[#6B7280] truncate">
+                    <p className="text-xs text-[var(--text-dim)] truncate">
                       {m.title} - {m.meeting_type}
                     </p>
                   </div>
@@ -481,7 +481,7 @@ function StatCard({ icon, label, value, color }: StatCardProps) {
     <div className="glass-card p-4">
       <div className="flex items-center gap-2 mb-2">
         <div style={{ color }}>{icon}</div>
-        <span className="text-xs text-[#6B7280] uppercase tracking-wider">
+        <span className="text-xs text-[var(--text-dim)] uppercase tracking-wider">
           {label}
         </span>
       </div>

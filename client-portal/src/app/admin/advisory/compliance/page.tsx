@@ -130,7 +130,7 @@ export default function CompliancePage() {
           <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
             <span className="gradient-text">Compliance</span> Dashboard
           </h1>
-          <p className="text-sm text-[#B0B8C8] mt-2">
+          <p className="text-sm text-[var(--text-muted)] mt-2">
             Regulatory compliance overview for your firm
           </p>
         </div>
@@ -143,7 +143,7 @@ export default function CompliancePage() {
             <h2 className="text-lg font-semibold text-white mb-1">
               Overall Compliance Rate
             </h2>
-            <p className="text-sm text-[#6B7280]">
+            <p className="text-sm text-[var(--text-dim)]">
               {data.total_clients} total clients, {totalIssuesCount} outstanding issues
             </p>
           </div>
@@ -205,7 +205,7 @@ export default function CompliancePage() {
               >
                 {card.value}
               </div>
-              <div className="text-xs text-[#6B7280]">{card.label}</div>
+              <div className="text-xs text-[var(--text-dim)]">{card.label}</div>
             </div>
           );
         })}

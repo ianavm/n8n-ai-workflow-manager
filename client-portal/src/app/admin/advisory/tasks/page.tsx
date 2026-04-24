@@ -101,7 +101,7 @@ export default function TasksPage() {
           <h1 className="text-3xl lg:text-4xl font-bold text-white tracking-tight">
             Advisory <span className="gradient-text">Tasks</span>
           </h1>
-          <p className="text-sm text-[#B0B8C8] mt-2">
+          <p className="text-sm text-[var(--text-muted)] mt-2">
             {tasks.length} tasks across all clients
           </p>
         </div>
@@ -110,7 +110,7 @@ export default function TasksPage() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div>
-          <span className="text-xs text-[#6B7280] uppercase tracking-wider mb-1 block">
+          <span className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-1 block">
             Status
           </span>
           <div className="filter-pills">
@@ -132,7 +132,7 @@ export default function TasksPage() {
           </div>
         </div>
         <div>
-          <span className="text-xs text-[#6B7280] uppercase tracking-wider mb-1 block">
+          <span className="text-xs text-[var(--text-dim)] uppercase tracking-wider mb-1 block">
             Priority
           </span>
           <div className="filter-pills">
@@ -160,31 +160,31 @@ export default function TasksPage() {
         <div className="glass-card p-12 text-center">
           <CheckSquare
             size={32}
-            className="text-[#6B7280] mx-auto mb-3 opacity-50"
+            className="text-[var(--text-dim)] mx-auto mb-3 opacity-50"
           />
-          <p className="text-sm text-[#6B7280]">No tasks found</p>
+          <p className="text-sm text-[var(--text-dim)]">No tasks found</p>
         </div>
       ) : (
         <div className="glass-card overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-[rgba(255,255,255,0.06)]">
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Task
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Client
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Priority
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Status
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Due Date
                 </th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-[#6B7280] uppercase tracking-wider">
+                <th className="text-left px-4 py-3 text-xs font-medium text-[var(--text-dim)] uppercase tracking-wider">
                   Assigned To
                 </th>
               </tr>
@@ -211,13 +211,13 @@ export default function TasksPage() {
                           <span className="text-sm font-medium text-white block">
                             {t.title}
                           </span>
-                          <span className="text-xs text-[#6B7280]">
+                          <span className="text-xs text-[var(--text-dim)]">
                             {t.source.replace("_", " ")}
                           </span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-[#B0B8C8]">
+                    <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
                       {t.client
                         ? `${t.client.first_name} ${t.client.last_name}`
                         : "--"}
@@ -236,21 +236,21 @@ export default function TasksPage() {
                       <div className="flex items-center gap-1 text-sm">
                         {t.due_date ? (
                           <>
-                            <Clock size={12} className="text-[#6B7280]" />
+                            <Clock size={12} className="text-[var(--text-dim)]" />
                             <span
                               className={
-                                overdue ? "text-red-400" : "text-[#B0B8C8]"
+                                overdue ? "text-red-400" : "text-[var(--text-muted)]"
                               }
                             >
                               {format(new Date(t.due_date), "MMM d, yyyy")}
                             </span>
                           </>
                         ) : (
-                          <span className="text-[#6B7280]">No due date</span>
+                          <span className="text-[var(--text-dim)]">No due date</span>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-[#B0B8C8]">
+                    <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
                       {t.assignee?.full_name ?? "Unassigned"}
                     </td>
                   </tr>
