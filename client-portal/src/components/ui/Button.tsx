@@ -1,7 +1,11 @@
 "use client";
 
-import { ButtonHTMLAttributes } from "react";
-import { Loader2 } from "lucide-react";
+import type { ButtonHTMLAttributes } from "react";
+
+import {
+  Button as ShadcnButton,
+  type ButtonProps as ShadcnButtonProps,
+} from "@/components/ui-shadcn/button";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "danger" | "ghost" | "coral";
@@ -9,43 +13,42 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
 }
 
+const VARIANT_MAP: Record<NonNullable<ButtonProps["variant"]>, ShadcnButtonProps["variant"]> = {
+  primary:   "default",      // coral gradient (brand-primary)
+  secondary: "secondary",    // transparent w/ purple border
+  danger:    "destructive",
+  ghost:     "ghost",
+  coral:     "default",      // legacy alias — same as primary
+};
+
+const SIZE_MAP: Record<NonNullable<ButtonProps["size"]>, ShadcnButtonProps["size"]> = {
+  sm: "sm",
+  md: "md",
+  lg: "lg",
+};
+
+/**
+ * Legacy Button API preserved for admin pages. Maps old variants
+ * (primary/secondary/danger/ghost/coral) onto the new CVA button so admin
+ * inherits coral gradients, glow on hover, and modern state styling.
+ */
 export function Button({
   children,
   variant = "primary",
   size = "md",
   loading = false,
-  className = "",
   disabled,
   ...props
 }: ButtonProps) {
-  const base =
-    "inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#09090B]";
-
-  const variants = {
-    primary: "btn-gradient focus:ring-[#6366F1]",
-    secondary:
-      "bg-[#1C1C22] border border-[rgba(255,255,255,0.08)] text-[#A1A1AA] hover:bg-[#27272A] hover:border-[rgba(255,255,255,0.12)] focus:ring-[#6366F1]",
-    danger:
-      "bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 focus:ring-red-500",
-    ghost:
-      "text-[#A1A1AA] hover:text-white hover:bg-[rgba(255,255,255,0.05)] focus:ring-[#6366F1]",
-    coral: "btn-gradient focus:ring-[#6366F1]",
-  };
-
-  const sizes = {
-    sm: "px-3.5 py-2 text-xs gap-1.5",
-    md: "px-5 py-3 text-sm gap-2",
-    lg: "px-7 py-3.5 text-base gap-2.5",
-  };
-
   return (
-    <button
-      className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
-      disabled={disabled || loading}
+    <ShadcnButton
+      variant={VARIANT_MAP[variant]}
+      size={SIZE_MAP[size]}
+      loading={loading}
+      disabled={disabled}
       {...props}
     >
-      {loading && <Loader2 className="animate-spin h-4 w-4" />}
       {children}
-    </button>
+    </ShadcnButton>
   );
 }

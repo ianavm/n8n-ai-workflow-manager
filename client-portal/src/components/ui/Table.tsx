@@ -1,5 +1,15 @@
 "use client";
 
+import {
+  Table as ShadcnTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui-shadcn/table";
+import { cn } from "@/lib/utils";
+
 interface Column<T> {
   key: string;
   header: string;
@@ -14,6 +24,11 @@ interface TableProps<T> {
   emptyMessage?: string;
 }
 
+/**
+ * Legacy Table API preserved for admin. Forwards to the shadcn Table
+ * primitive so admin tables inherit premium borders, hover states, and
+ * typography tokens.
+ */
 export function Table<T extends Record<string, unknown>>({
   columns,
   data,
@@ -21,56 +36,42 @@ export function Table<T extends Record<string, unknown>>({
   emptyMessage = "No data available",
 }: TableProps<T>) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-[rgba(255,255,255,0.08)]">
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                className={`text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#6B7280] ${col.className || ""}`}
-              >
-                {col.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.length === 0 ? (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="px-4 py-12 text-center text-[#6B7280]"
-              >
-                {emptyMessage}
-              </td>
-            </tr>
-          ) : (
-            data.map((row, i) => (
-              <tr
-                key={i}
-                onClick={() => onRowClick?.(row)}
-                className={`border-b border-[rgba(255,255,255,0.04)] transition-colors ${
-                  onRowClick
-                    ? "cursor-pointer hover:bg-[rgba(255,255,255,0.03)]"
-                    : ""
-                }`}
-              >
-                {columns.map((col) => (
-                  <td
-                    key={col.key}
-                    className={`px-4 py-3 text-sm ${col.className || ""}`}
-                  >
-                    {col.render
-                      ? col.render(row)
-                      : String(row[col.key] ?? "")}
-                  </td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+    <ShadcnTable>
+      <TableHeader>
+        <TableRow>
+          {columns.map((col) => (
+            <TableHead key={col.key} className={col.className}>
+              {col.header}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {data.length === 0 ? (
+          <TableRow>
+            <TableCell
+              colSpan={columns.length}
+              className="text-center py-12 text-[var(--text-muted)]"
+            >
+              {emptyMessage}
+            </TableCell>
+          </TableRow>
+        ) : (
+          data.map((row, i) => (
+            <TableRow
+              key={i}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              className={cn(onRowClick && "cursor-pointer")}
+            >
+              {columns.map((col) => (
+                <TableCell key={col.key} className={col.className}>
+                  {col.render ? col.render(row) : String(row[col.key] ?? "")}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </ShadcnTable>
   );
 }

@@ -1,40 +1,53 @@
 "use client";
 
+import {
+  Badge as ShadcnBadge,
+  type BadgeProps as ShadcnBadgeProps,
+} from "@/components/ui-shadcn/badge";
+import { cn } from "@/lib/utils";
+
 interface BadgeProps {
   children: React.ReactNode;
   variant?: "default" | "success" | "warning" | "danger" | "purple" | "coral";
   size?: "sm" | "md";
   pulse?: boolean;
+  className?: string;
 }
 
-const variants = {
-  default: "bg-[rgba(255,255,255,0.08)] text-[#A1A1AA] border-[rgba(255,255,255,0.08)]",
-  success: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  warning: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  danger: "bg-red-500/10 text-red-400 border-red-500/20",
-  purple: "bg-[rgba(99,102,241,0.1)] text-[#6366F1] border-[rgba(99,102,241,0.2)]",
-  coral: "bg-[rgba(99,102,241,0.1)] text-[#6366F1] border-[rgba(99,102,241,0.2)]",
+const TONE_MAP: Record<NonNullable<BadgeProps["variant"]>, ShadcnBadgeProps["tone"]> = {
+  default: "neutral",
+  success: "success",
+  warning: "warning",
+  danger:  "danger",
+  purple:  "info",
+  coral:   "brand",
 };
 
+/**
+ * Legacy Badge API preserved for admin. Maps old `variant` onto the new
+ * badge's `tone` so admin inherits the premium soft-pill treatment.
+ */
 export function Badge({
   children,
   variant = "default",
   size = "sm",
   pulse = false,
+  className,
 }: BadgeProps) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border font-medium ${variants[variant]} ${
-        size === "sm" ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-sm"
-      }`}
+    <ShadcnBadge
+      tone={TONE_MAP[variant]}
+      appearance="soft"
+      size={size}
+      className={className}
     >
-      {pulse && (
+      {pulse ? (
         <span
-          className="w-1.5 h-1.5 rounded-full animate-pulse"
-          style={{ backgroundColor: "currentColor" }}
+          aria-hidden
+          className={cn("inline-block size-1.5 rounded-full bg-current animate-pulse")}
         />
-      )}
+      ) : null}
       {children}
-    </span>
+    </ShadcnBadge>
   );
 }

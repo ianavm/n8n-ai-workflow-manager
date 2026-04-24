@@ -1,5 +1,7 @@
 "use client";
 
+import { Card as ShadcnCard } from "@/components/ui-shadcn/card";
+
 interface CardProps {
   children: React.ReactNode;
   className?: string;
@@ -8,44 +10,35 @@ interface CardProps {
   padding?: "none" | "sm" | "md" | "lg";
 }
 
+/**
+ * Legacy Card API preserved for admin pages. Renders via the portal-wide
+ * shadcn Card primitive with mapped variants so admin inherits the
+ * premium tokens without per-page rewrites.
+ *
+ * Variant map:
+ *   default  → shadcn default (glass surface)
+ *   gradient → shadcn default + gradient-static accent bar (coral→teal top)
+ *   floating → shadcn elevated (heavier shadow)
+ */
 export function Card({
   children,
   className = "",
-  hover = true,
+  hover,
   variant = "default",
   padding = "md",
 }: CardProps) {
-  const padMap = { none: "0", sm: "20px", md: "28px", lg: "36px" };
-  const pad = padMap[padding];
-
-  if (variant === "gradient") {
-    return (
-      <div
-        className={`glass-card ${className}`}
-        style={{
-          padding: pad,
-          borderLeft: "3px solid var(--brand-primary)",
-        }}
-      >
-        {children}
-      </div>
-    );
-  }
-
-  if (variant === "floating") {
-    return (
-      <div className={`floating-card ${className}`} style={{ padding: pad }}>
-        {children}
-      </div>
-    );
-  }
+  void hover; // legacy prop no-op; hover interactivity handled at the primitive level
+  const shadcnVariant = variant === "floating" ? "elevated" : "default";
+  const shadcnAccent = variant === "gradient" ? "gradient-static" : "none";
 
   return (
-    <div
-      className={`${hover ? "glass-card" : "glass-card-static"} ${className}`}
-      style={{ padding: pad }}
+    <ShadcnCard
+      variant={shadcnVariant}
+      accent={shadcnAccent}
+      padding={padding}
+      className={className}
     >
       {children}
-    </div>
+    </ShadcnCard>
   );
 }

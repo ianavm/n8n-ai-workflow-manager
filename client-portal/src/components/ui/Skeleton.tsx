@@ -1,40 +1,49 @@
 "use client";
 
+import { Skeleton as ShadcnSkeleton } from "@/components/ui-shadcn/skeleton";
+import { Card } from "@/components/ui-shadcn/card";
+import { cn } from "@/lib/utils";
+
 interface SkeletonProps {
   className?: string;
   variant?: "rect" | "circle";
 }
 
+/**
+ * Legacy skeleton API preserved for admin. Forwards to ui-shadcn Skeleton
+ * so admin inherits token-driven rendering.
+ */
 export function Skeleton({ className = "", variant = "rect" }: SkeletonProps) {
   return (
-    <div
-      className={`animate-pulse bg-[rgba(255,255,255,0.06)] ${
-        variant === "circle" ? "rounded-full" : "rounded-lg"
-      } ${className}`}
-      aria-hidden="true"
+    <ShadcnSkeleton
+      className={cn(
+        variant === "circle" ? "rounded-full" : "rounded-[var(--radius-sm)]",
+        className,
+      )}
+      aria-hidden
     />
   );
 }
 
 export function StatCardSkeleton() {
   return (
-    <div className="glass-card-static p-5 space-y-3">
+    <Card variant="default" padding="md" className="flex flex-col gap-3">
       <div className="flex items-start justify-between">
-        <Skeleton className="w-10 h-10" />
-        <Skeleton className="w-14 h-5" />
+        <ShadcnSkeleton className="size-10 rounded-[var(--radius-sm)]" />
+        <ShadcnSkeleton className="h-5 w-14" />
       </div>
-      <Skeleton className="h-8 w-24" />
-      <Skeleton className="h-4 w-20" />
-    </div>
+      <ShadcnSkeleton className="h-8 w-24" />
+      <ShadcnSkeleton className="h-4 w-20" />
+    </Card>
   );
 }
 
 export function TableRowSkeleton({ cols = 6 }: { cols?: number }) {
   return (
-    <tr className="border-b border-[rgba(255,255,255,0.04)]">
+    <tr className="border-b border-[var(--border-subtle)]">
       {Array.from({ length: cols }).map((_, i) => (
         <td key={i} className="px-4 py-3">
-          <Skeleton className={`h-4 ${i === 0 ? "w-32" : "w-16"}`} />
+          <ShadcnSkeleton className={i === 0 ? "h-4 w-32" : "h-4 w-16"} />
         </td>
       ))}
     </tr>
