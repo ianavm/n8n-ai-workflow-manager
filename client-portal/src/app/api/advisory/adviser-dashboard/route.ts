@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
 
   // Must be an adviser-type role
   if (
-    !["adviser", "compliance_officer", "office_manager", "super_admin", "owner"].includes(
+    !["adviser", "compliance_officer", "office_manager", "super_admin", "staff_admin"].includes(
       session.role
     )
   ) {
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     if (queryAdviserId) {
       // Only office_manager, super_admin, owner can view other advisers
       if (
-        !["office_manager", "super_admin", "owner"].includes(session.role)
+        !["office_manager", "super_admin", "staff_admin"].includes(session.role)
       ) {
         return NextResponse.json(
           { error: "Forbidden: Cannot view other adviser dashboards" },

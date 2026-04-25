@@ -16,7 +16,7 @@ const AGENT_TIERS: Record<string, number> = {
 async function checkAdminOrApiKey(req: NextRequest): Promise<{ authorized: boolean; reason?: string }> {
   // Admin session auth
   const session = await getSession();
-  if (session && (session.role === "owner" || session.role === "employee")) return { authorized: true };
+  if (session && (session.role === "superior_admin" || session.role === "staff_admin")) return { authorized: true };
   // Internal API key auth (for n8n workflows)
   if (!process.env.INTERNAL_API_KEY) return { authorized: false, reason: "API key not configured" };
   const apiKey = req.headers.get("x-api-key");

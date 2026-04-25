@@ -6,10 +6,7 @@ const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
-  // Restrict invites to owners only — employees can create clients via
-  // /api/admin/clients POST but should not be able to email-invite arbitrary
-  // addresses (spam relay risk).
-  if (!session || session.role !== "owner") {
+  if (!session || (session.role !== "superior_admin" && session.role !== "staff_admin")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

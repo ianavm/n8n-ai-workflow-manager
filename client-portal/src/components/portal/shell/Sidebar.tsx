@@ -3,12 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronsLeft, Shield } from "lucide-react";
+import { AlertTriangle, ChevronsLeft, Shield } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui-shadcn/button";
 import { ScrollArea } from "@/components/ui-shadcn/scroll-area";
 import { useBrand } from "@/lib/providers/BrandProvider";
+import { useMember } from "@/lib/providers/MemberProvider";
 import { NAV_GROUPS, findActiveNavItem } from "@/components/portal/shell/nav-config";
 import { UserMenu } from "@/components/portal/shell/UserMenu";
 
@@ -25,9 +26,19 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle, hideCollapse, onNavigate, className }: SidebarProps) {
   const pathname = usePathname();
   const { companyName, logoUrl, isCustomBranded } = useBrand();
+  const { memberRole, seatLimit, totalMembers } = useMember();
   const activeItem = findActiveNavItem(pathname);
+  const isManager = memberRole === "manager";
 
   const displayName = isCustomBranded ? companyName.toUpperCase() : "ANYVISION";
+
+  // Seat capacity warning for managers approaching the limit.
+  const seatPct =
+    seatLimit && totalMembers != null && seatLimit > 0
+      ? (totalMembers / seatLimit) * 100
+      : null;
+  const showSeatBanner = isManager && seatPct !== null && seatPct >= 80;
+  const seatsExhausted = isManager && seatPct !== null && seatPct >= 100;
 
   return (
     <aside
@@ -77,7 +88,12 @@ export function Sidebar({ collapsed, onToggle, hideCollapse, onNavigate, classNa
       {/* Nav */}
       <ScrollArea className="flex-1 min-h-0">
         <nav aria-label="Primary" className="flex flex-col gap-4 px-3 py-4">
-          {NAV_GROUPS.map((group) => (
+          {NAV_GROUPS.map((group) => {
+            const visibleItems = group.items.filter(
+              (item) => !item.managerOnly || isManager,
+            );
+            if (visibleItems.length === 0) return null;
+            return (
             <div key={group.label} className="flex flex-col gap-0.5">
               {!collapsed ? (
                 <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-dim)]">
@@ -85,7 +101,7 @@ export function Sidebar({ collapsed, onToggle, hideCollapse, onNavigate, classNa
                 </p>
               ) : null}
               <ul className="flex flex-col gap-0.5">
-                {group.items.map((item) => {
+                {visibleItems.map((item) => {
                   const active = activeItem?.href === item.href;
                   const Icon = item.icon;
                   return (
@@ -123,17 +139,41 @@ export function Sidebar({ collapsed, onToggle, hideCollapse, onNavigate, classNa
                 })}
               </ul>
             </div>
-          ))}
+            );
+          })}
         </nav>
       </ScrollArea>
 
       {/* Status + collapse + user */}
       {!collapsed ? (
         <div className="px-3 pt-2 pb-3 border-t border-[var(--sidebar-border)] flex flex-col gap-2 shrink-0">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--sidebar-accent)] text-xs text-[var(--text-muted)]">
-            <span className="pulse-dot size-1.5 rounded-full bg-[var(--accent-teal)] shrink-0" aria-hidden />
-            All systems operational
-          </div>
+          {showSeatBanner ? (
+            <Link
+              href="/portal/team"
+              onClick={onNavigate}
+              className={cn(
+                "flex items-start gap-2 px-3 py-2 rounded-[var(--radius-sm)] text-xs transition-colors",
+                seatsExhausted
+                  ? "bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-[var(--danger)] border border-[color-mix(in_srgb,var(--danger)_30%,transparent)]"
+                  : "bg-[color-mix(in_srgb,var(--accent-coral)_12%,transparent)] text-[var(--accent-coral)] border border-[color-mix(in_srgb,var(--accent-coral)_30%,transparent)]",
+              )}
+            >
+              <AlertTriangle className="size-3.5 shrink-0 mt-0.5" aria-hidden />
+              <div className="flex flex-col leading-tight">
+                <span className="font-semibold">
+                  {seatsExhausted ? "Seats full" : "Almost full"}
+                </span>
+                <span className="opacity-80">
+                  {totalMembers}/{seatLimit} seats · manage team
+                </span>
+              </div>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--sidebar-accent)] text-xs text-[var(--text-muted)]">
+              <span className="pulse-dot size-1.5 rounded-full bg-[var(--accent-teal)] shrink-0" aria-hidden />
+              All systems operational
+            </div>
+          )}
           <UserMenu variant="sidebar" />
           {!hideCollapse ? (
             <Button

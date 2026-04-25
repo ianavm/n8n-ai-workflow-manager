@@ -19,6 +19,8 @@ import {
   Server,
   Database,
   Cloud,
+  ShieldCheck,
+  Building2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -30,10 +32,15 @@ interface ClientSummary {
   status: string;
   last_login_at: string | null;
   active_workflows: number;
-  messages_sent: number;
-  messages_received: number;
-  leads_created: number;
-  total_crashes: number;
+  messages_sent: number | null;
+  messages_received: number | null;
+  leads_created: number | null;
+  total_crashes: number | null;
+  total_members?: number;
+  manager_count?: number;
+  employee_count?: number;
+  seat_limit?: number;
+  business_data_redacted?: boolean;
 }
 
 interface GlobalStats {
@@ -42,6 +49,9 @@ interface GlobalStats {
   totalMessages: number;
   totalLeads: number;
   totalCrashes: number;
+  totalMembers: number;
+  totalManagers: number;
+  totalEmployees: number;
 }
 
 // Reusable floating stat card for the bento grid
@@ -103,7 +113,11 @@ export default function AdminDashboard() {
     totalMessages: 0,
     totalLeads: 0,
     totalCrashes: 0,
+    totalMembers: 0,
+    totalManagers: 0,
+    totalEmployees: 0,
   });
+  const [redacted, setRedacted] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -127,15 +141,20 @@ export default function AdminDashboard() {
       if (res.ok) {
         const data: ClientSummary[] = await res.json();
         setClients(data);
+        const isRedacted = data[0]?.business_data_redacted === true;
+        setRedacted(isRedacted);
         setStats({
           totalClients: data.length,
           activeClients: data.filter((c) => c.status === "active").length,
           totalMessages: data.reduce(
-            (sum, c) => sum + c.messages_sent + c.messages_received,
+            (sum, c) => sum + (c.messages_sent ?? 0) + (c.messages_received ?? 0),
             0
           ),
-          totalLeads: data.reduce((sum, c) => sum + c.leads_created, 0),
-          totalCrashes: data.reduce((sum, c) => sum + c.total_crashes, 0),
+          totalLeads: data.reduce((sum, c) => sum + (c.leads_created ?? 0), 0),
+          totalCrashes: data.reduce((sum, c) => sum + (c.total_crashes ?? 0), 0),
+          totalMembers: data.reduce((sum, c) => sum + (c.total_members ?? 0), 0),
+          totalManagers: data.reduce((sum, c) => sum + (c.manager_count ?? 0), 0),
+          totalEmployees: data.reduce((sum, c) => sum + (c.employee_count ?? 0), 0),
         });
       } else {
         toast.error("Failed to load client data");
@@ -146,8 +165,8 @@ export default function AdminDashboard() {
   }, [supabase]);
 
   const flaggedClients = clients
-    .filter((c) => c.total_crashes > 0)
-    .sort((a, b) => b.total_crashes - a.total_crashes);
+    .filter((c) => (c.total_crashes ?? 0) > 0)
+    .sort((a, b) => (b.total_crashes ?? 0) - (a.total_crashes ?? 0));
 
   const recentClients = [...clients]
     .sort((a, b) => {
@@ -202,13 +221,22 @@ export default function AdminDashboard() {
                   {format(today, "EEEE, d MMMM yyyy")}
                 </p>
                 <p className="text-[13px] text-[var(--text-dim)] mt-3">
-                  {stats.activeClients} clients active, {stats.totalCrashes === 0 ? "0 critical alerts" : `${stats.totalCrashes} errors detected`}
+                  {stats.activeClients} clients active
+                  {redacted
+                    ? `, ${stats.totalMembers} portal members across ${stats.totalClients} orgs`
+                    : `, ${stats.totalCrashes === 0 ? "0 critical alerts" : `${stats.totalCrashes} errors detected`}`}
                 </p>
                 <div className="flex gap-2 mt-4 flex-wrap">
                   <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.1)] text-[var(--text-muted)]">
                     <span className="w-2 h-2 rounded-full bg-[#10B981] pulse-dot" />
                     All Systems Nominal
                   </span>
+                  {redacted ? (
+                    <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs bg-[color-mix(in_srgb,var(--accent-purple)_12%,transparent)] border border-[color-mix(in_srgb,var(--accent-purple)_30%,transparent)] text-[var(--accent-purple)]">
+                      <ShieldCheck size={12} />
+                      POPIA · Business data hidden
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -268,22 +296,26 @@ export default function AdminDashboard() {
           changeDir="up"
         />
 
-        {/* Hero stat: Total Messages (double height with sparkline) */}
+        {/* Hero stat: Total Messages OR Total Members (double height with sparkline) */}
         <div className="col-2 row-2 floating-card p-6 flex flex-col justify-between animate-fade-in-up stagger-3">
           <div>
             <div
               className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
               style={{ background: "rgba(108,99,255,0.1)", color: "#6C63FF" }}
             >
-              <MessageSquare size={20} />
+              {redacted ? <Building2 size={20} /> : <MessageSquare size={20} />}
             </div>
             <div className="stat-number-shimmer" style={{ fontSize: 40 }}>
-              {stats.totalMessages.toLocaleString()}
+              {(redacted ? stats.totalMembers : stats.totalMessages).toLocaleString()}
             </div>
-            <div className="text-sm text-[var(--text-muted)]">Total Messages</div>
-            <span className="inline-flex items-center gap-1 mt-2.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[rgba(16,185,129,0.12)] text-[#10B981]">
-              <TrendingUp size={12} /> +23%
-            </span>
+            <div className="text-sm text-[var(--text-muted)]">
+              {redacted ? "Portal Members" : "Total Messages"}
+            </div>
+            {!redacted ? (
+              <span className="inline-flex items-center gap-1 mt-2.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[rgba(16,185,129,0.12)] text-[#10B981]">
+                <TrendingUp size={12} /> +23%
+              </span>
+            ) : null}
           </div>
           {/* Mini sparkline SVG */}
           <div className="mt-4">
@@ -300,26 +332,49 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <BentoStat
-          className="col-2 animate-fade-in-up stagger-4"
-          icon={<UserPlus size={20} />}
-          iconBg="rgba(0,212,170,0.1)"
-          iconColor="#00D4AA"
-          value={stats.totalLeads}
-          label="Total Leads"
-          change="+45%"
-          changeDir="up"
-        />
-        <BentoStat
-          className="col-2 animate-fade-in-up stagger-5"
-          icon={<AlertTriangle size={20} />}
-          iconBg="rgba(239,68,68,0.1)"
-          iconColor="#EF4444"
-          value={stats.totalCrashes}
-          label="Total Crashes"
-          change={stats.totalCrashes > 0 ? `${stats.totalCrashes} errors` : "0 errors"}
-          changeDir={stats.totalCrashes > 0 ? "down" : "up"}
-        />
+        {redacted ? (
+          <>
+            <BentoStat
+              className="col-2 animate-fade-in-up stagger-4"
+              icon={<ShieldCheck size={20} />}
+              iconBg="rgba(108,99,255,0.1)"
+              iconColor="#6C63FF"
+              value={stats.totalManagers}
+              label="Managers"
+            />
+            <BentoStat
+              className="col-2 animate-fade-in-up stagger-5"
+              icon={<Users size={20} />}
+              iconBg="rgba(0,212,170,0.1)"
+              iconColor="#00D4AA"
+              value={stats.totalEmployees}
+              label="Employees"
+            />
+          </>
+        ) : (
+          <>
+            <BentoStat
+              className="col-2 animate-fade-in-up stagger-4"
+              icon={<UserPlus size={20} />}
+              iconBg="rgba(0,212,170,0.1)"
+              iconColor="#00D4AA"
+              value={stats.totalLeads}
+              label="Total Leads"
+              change="+45%"
+              changeDir="up"
+            />
+            <BentoStat
+              className="col-2 animate-fade-in-up stagger-5"
+              icon={<AlertTriangle size={20} />}
+              iconBg="rgba(239,68,68,0.1)"
+              iconColor="#EF4444"
+              value={stats.totalCrashes}
+              label="Total Crashes"
+              change={stats.totalCrashes > 0 ? `${stats.totalCrashes} errors` : "0 errors"}
+              changeDir={stats.totalCrashes > 0 ? "down" : "up"}
+            />
+          </>
+        )}
 
         {/* ---- Row 3: Activity Feed (4-col) + Needs Attention (2-col, BIGGER) ---- */}
 
@@ -351,7 +406,7 @@ export default function AdminDashboard() {
                     className="act-dot"
                     style={{
                       background:
-                        c.total_crashes > 0
+                        (c.total_crashes ?? 0) > 0
                           ? "#EF4444"
                           : c.status === "active"
                             ? "#00D4AA"
@@ -362,9 +417,11 @@ export default function AdminDashboard() {
                     <span className="text-white font-medium">{c.full_name}</span>
                     {c.company_name ? ` (${c.company_name})` : ""}
                     {" — "}
-                    {c.messages_received + c.messages_sent > 0
-                      ? `${(c.messages_received + c.messages_sent).toLocaleString()} messages`
-                      : "No messages yet"}
+                    {redacted
+                      ? `${c.total_members ?? 0} of ${c.seat_limit ?? 5} seats`
+                      : (c.messages_received ?? 0) + (c.messages_sent ?? 0) > 0
+                        ? `${((c.messages_received ?? 0) + (c.messages_sent ?? 0)).toLocaleString()} messages`
+                        : "No messages yet"}
                   </span>
                   <span className="text-[11px] text-[var(--text-dim)] flex-shrink-0">
                     {c.last_login_at
@@ -377,55 +434,113 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Needs Attention — BIGGER card with scroll */}
-        <div className="col-2 row-2 glass-card p-6 animate-fade-in-up stagger-2" style={{ borderLeft: "3px solid #EF4444" }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-sm font-semibold text-[#EF4444] flex items-center gap-2">
-              <AlertTriangle size={14} />
-              Needs Attention
-            </div>
-            <Link
-              href="/admin/clients"
-              className="text-xs text-[#6C63FF] hover:text-[#00D4AA] transition-colors"
-            >
-              View all &rarr;
-            </Link>
-          </div>
-          <div className="scrollable-section space-y-2">
-            {flaggedClients.length === 0 ? (
-              <div className="text-center py-8">
-                <CheckCircle size={32} className="text-[#10B981] mx-auto mb-3 opacity-50" />
-                <p className="text-sm text-[var(--text-dim)]">All clients healthy</p>
-                <p className="text-xs text-[#4B5563] mt-1">No crashes detected</p>
+        {/* Needs Attention (staff_admin) OR Seat Capacity (superior_admin) */}
+        {redacted ? (
+          <div className="col-2 row-2 glass-card p-6 animate-fade-in-up stagger-2" style={{ borderLeft: "3px solid #6C63FF" }}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm font-semibold text-[var(--accent-purple)] flex items-center gap-2">
+                <Building2 size={14} />
+                Seat Capacity
               </div>
-            ) : (
-              flaggedClients.map((c) => (
-                <Link
-                  key={c.id}
-                  href={`/admin/clients/${c.id}`}
-                  className="block px-4 py-3 rounded-xl bg-[rgba(239,68,68,0.05)] border border-[rgba(239,68,68,0.12)] hover:bg-[rgba(239,68,68,0.1)] hover:border-[rgba(239,68,68,0.25)] transition-all cursor-pointer"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium text-white">{c.full_name}</span>
-                    <span className="text-sm text-[#EF4444] font-semibold tabular-nums">
-                      {c.total_crashes} {c.total_crashes === 1 ? "crash" : "crashes"}
-                    </span>
-                  </div>
-                  {c.company_name && (
-                    <span className="text-xs text-[var(--text-dim)]">{c.company_name}</span>
-                  )}
-                  <div className="flex items-center gap-3 mt-2 text-xs text-[var(--text-dim)]">
-                    <span>{c.active_workflows} workflows</span>
-                    <span>{(c.messages_sent + c.messages_received).toLocaleString()} msgs</span>
-                    <span className="ml-auto">
-                      <Badge variant="danger">{c.status}</Badge>
-                    </span>
-                  </div>
-                </Link>
-              ))
-            )}
+              <Link href="/admin/clients" className="text-xs text-[#6C63FF] hover:text-[#00D4AA] transition-colors">
+                View all &rarr;
+              </Link>
+            </div>
+            <div className="scrollable-section space-y-2">
+              {clients.length === 0 ? (
+                <p className="text-sm text-[var(--text-dim)]">No organizations yet</p>
+              ) : (
+                [...clients]
+                  .sort((a, b) => {
+                    const aPct = ((a.total_members ?? 0) / Math.max(a.seat_limit ?? 5, 1)) * 100;
+                    const bPct = ((b.total_members ?? 0) / Math.max(b.seat_limit ?? 5, 1)) * 100;
+                    return bPct - aPct;
+                  })
+                  .slice(0, 8)
+                  .map((c) => {
+                    const used = c.total_members ?? 0;
+                    const limit = c.seat_limit ?? 5;
+                    const pct = Math.min(100, (used / Math.max(limit, 1)) * 100);
+                    const hot = pct >= 80;
+                    return (
+                      <Link
+                        key={c.id}
+                        href={`/admin/clients`}
+                        className="block px-4 py-3 rounded-xl bg-[rgba(108,99,255,0.05)] border border-[rgba(108,99,255,0.12)] hover:bg-[rgba(108,99,255,0.1)] hover:border-[rgba(108,99,255,0.25)] transition-all"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-white truncate">
+                            {c.company_name ?? c.email}
+                          </span>
+                          <span className={`text-sm font-semibold tabular-nums ${hot ? "text-[var(--accent-coral)]" : "text-[var(--accent-purple)]"}`}>
+                            {used}/{limit}
+                          </span>
+                        </div>
+                        <div className="h-1 rounded-full bg-[var(--bg-inset)] overflow-hidden mt-2">
+                          <div
+                            className="h-full rounded-full transition-[width]"
+                            style={{
+                              width: `${pct}%`,
+                              background: hot ? "var(--accent-coral)" : "var(--accent-purple)",
+                            }}
+                          />
+                        </div>
+                      </Link>
+                    );
+                  })
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="col-2 row-2 glass-card p-6 animate-fade-in-up stagger-2" style={{ borderLeft: "3px solid #EF4444" }}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm font-semibold text-[#EF4444] flex items-center gap-2">
+                <AlertTriangle size={14} />
+                Needs Attention
+              </div>
+              <Link
+                href="/admin/clients"
+                className="text-xs text-[#6C63FF] hover:text-[#00D4AA] transition-colors"
+              >
+                View all &rarr;
+              </Link>
+            </div>
+            <div className="scrollable-section space-y-2">
+              {flaggedClients.length === 0 ? (
+                <div className="text-center py-8">
+                  <CheckCircle size={32} className="text-[#10B981] mx-auto mb-3 opacity-50" />
+                  <p className="text-sm text-[var(--text-dim)]">All clients healthy</p>
+                  <p className="text-xs text-[#4B5563] mt-1">No crashes detected</p>
+                </div>
+              ) : (
+                flaggedClients.map((c) => (
+                  <Link
+                    key={c.id}
+                    href={`/admin/clients/${c.id}`}
+                    className="block px-4 py-3 rounded-xl bg-[rgba(239,68,68,0.05)] border border-[rgba(239,68,68,0.12)] hover:bg-[rgba(239,68,68,0.1)] hover:border-[rgba(239,68,68,0.25)] transition-all cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-white">{c.full_name}</span>
+                      <span className="text-sm text-[#EF4444] font-semibold tabular-nums">
+                        {c.total_crashes ?? 0} {c.total_crashes === 1 ? "crash" : "crashes"}
+                      </span>
+                    </div>
+                    {c.company_name && (
+                      <span className="text-xs text-[var(--text-dim)]">{c.company_name}</span>
+                    )}
+                    <div className="flex items-center gap-3 mt-2 text-xs text-[var(--text-dim)]">
+                      <span>{c.active_workflows} workflows</span>
+                      <span>{((c.messages_sent ?? 0) + (c.messages_received ?? 0)).toLocaleString()} msgs</span>
+                      <span className="ml-auto">
+                        <Badge variant="danger">{c.status}</Badge>
+                      </span>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ---- Row 4: Full client table (6-col) ---- */}
         <div className="col-6 glass-card p-6 animate-fade-in-up stagger-1">
@@ -444,13 +559,23 @@ export default function AdminDashboard() {
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-[rgba(255,255,255,0.08)]">
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Client</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">{redacted ? "Organization" : "Client"}</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Status</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Workflows</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Messages</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Leads</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Crashes</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Last Login</th>
+                  {redacted ? (
+                    <>
+                      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Members</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Managers</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Employees</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Messages</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Leads</th>
+                      <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">Crashes</th>
+                    </>
+                  )}
+                  <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">{redacted ? "Created" : "Last Login"}</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]"></th>
                 </tr>
               </thead>
@@ -462,22 +587,35 @@ export default function AdminDashboard() {
                     onClick={() => router.push(`/admin/clients/${client.id}`)}
                   >
                     <td className="px-4 py-3">
-                      <p className="text-sm font-medium text-white">{client.full_name}</p>
+                      <p className="text-sm font-medium text-white">{client.company_name ?? client.full_name}</p>
                       <p className="text-xs text-[var(--text-dim)]">{client.email}</p>
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant={statusVariant(client.status)}>{client.status}</Badge>
                     </td>
                     <td className="px-4 py-3 text-sm text-white tabular-nums">{client.active_workflows}</td>
-                    <td className="px-4 py-3 text-sm text-white tabular-nums">
-                      {(client.messages_sent + client.messages_received).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-white tabular-nums">{client.leads_created.toLocaleString()}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-sm tabular-nums ${client.total_crashes > 0 ? "text-red-400 font-medium" : "text-white"}`}>
-                        {client.total_crashes}
-                      </span>
-                    </td>
+                    {redacted ? (
+                      <>
+                        <td className="px-4 py-3 text-sm text-white tabular-nums">
+                          {client.total_members ?? 0}
+                          <span className="text-[var(--text-dim)]">/{client.seat_limit ?? 5}</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-white tabular-nums">{client.manager_count ?? 0}</td>
+                        <td className="px-4 py-3 text-sm text-white tabular-nums">{client.employee_count ?? 0}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-4 py-3 text-sm text-white tabular-nums">
+                          {((client.messages_sent ?? 0) + (client.messages_received ?? 0)).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-white tabular-nums">{(client.leads_created ?? 0).toLocaleString()}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-sm tabular-nums ${(client.total_crashes ?? 0) > 0 ? "text-red-400 font-medium" : "text-white"}`}>
+                            {client.total_crashes ?? 0}
+                          </span>
+                        </td>
+                      </>
+                    )}
                     <td className="px-4 py-3 text-xs text-[var(--text-dim)]">
                       {client.last_login_at
                         ? format(new Date(client.last_login_at), "MMM d, yyyy")

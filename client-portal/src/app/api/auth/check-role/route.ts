@@ -6,7 +6,6 @@ import {
 
 export async function GET() {
   try {
-    // Use the cookie-based client ONLY to verify the user's identity
     const supabase = await createServerSupabaseClient();
     const {
       data: { user },
@@ -16,10 +15,8 @@ export async function GET() {
       return NextResponse.json({ role: null, redirect: "/portal/login" });
     }
 
-    // Use service role client for all DB queries — bypasses RLS entirely
     const svc = await createServiceRoleClient();
 
-    // Check admin_users first
     const { data: adminUser } = await svc
       .from("admin_users")
       .select("id, role")
@@ -28,12 +25,11 @@ export async function GET() {
 
     if (adminUser) {
       return NextResponse.json({
-        role: adminUser.role,
+        role: adminUser.role, // superior_admin | staff_admin
         redirect: "/admin",
       });
     }
 
-    // Check fa_advisers
     const { data: adviser } = await svc
       .from("fa_advisers")
       .select("id, role, firm_id")
@@ -48,7 +44,6 @@ export async function GET() {
       });
     }
 
-    // Check clients (portal users)
     const { data: clientUser } = await svc
       .from("clients")
       .select("id")
@@ -56,7 +51,13 @@ export async function GET() {
       .maybeSingle();
 
     if (clientUser) {
-      // Check if linked to FA client
+      const { data: member } = await svc
+        .from("org_members")
+        .select("role")
+        .eq("auth_user_id", user.id)
+        .is("deleted_at", null)
+        .maybeSingle();
+
       const { data: faClient } = await svc
         .from("fa_clients")
         .select("id")
@@ -65,6 +66,7 @@ export async function GET() {
 
       return NextResponse.json({
         role: "client",
+        memberRole: member?.role ?? null, // manager | employee | null
         redirect: faClient ? "/portal/advisory/dashboard" : "/portal",
       });
     }

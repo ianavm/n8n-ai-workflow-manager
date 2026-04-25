@@ -4,7 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 
 async function checkAdminOrApiKey(req: NextRequest): Promise<{ authorized: boolean; reason?: string }> {
   const session = await getSession();
-  if (session && (session.role === "owner" || session.role === "employee")) return { authorized: true };
+  if (session && (session.role === "superior_admin" || session.role === "staff_admin")) return { authorized: true };
   if (!process.env.INTERNAL_API_KEY) return { authorized: false, reason: "API key not configured" };
   const apiKey = req.headers.get("x-api-key");
   if (apiKey && apiKey === process.env.INTERNAL_API_KEY) return { authorized: true };

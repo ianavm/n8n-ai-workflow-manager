@@ -4,8 +4,14 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export async function GET(_req: NextRequest) {
   const session = await getSession();
-  if (!session || (session.role !== "owner" && session.role !== "employee")) {
+  if (!session || (session.role !== "superior_admin" && session.role !== "staff_admin")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (session.role === "superior_admin") {
+    return NextResponse.json(
+      { error: "POPIA: superior admin cannot view client business data" },
+      { status: 403 }
+    );
   }
 
   const supabase = await createServiceRoleClient();

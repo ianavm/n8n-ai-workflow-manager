@@ -15,6 +15,7 @@ import {
   CommandShortcut,
 } from "@/components/ui-shadcn/command";
 import { NAV_GROUPS } from "@/components/portal/shell/nav-config";
+import { useMember } from "@/lib/providers/MemberProvider";
 import { cn } from "@/lib/utils";
 
 interface CommandPaletteProps {
@@ -24,6 +25,8 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter();
+  const { memberRole } = useMember();
+  const isManager = memberRole === "manager";
 
   // Global ⌘K / Ctrl+K shortcut is registered by PortalShell so a single
   // instance can be toggled from anywhere in the shell.
@@ -43,26 +46,32 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       <CommandInput placeholder="Search pages, clients, invoices..." />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
-        {NAV_GROUPS.map((group, i) => (
-          <div key={group.label}>
-            {i > 0 ? <CommandSeparator /> : null}
-            <CommandGroup heading={group.label}>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <CommandItem
-                    key={item.href}
-                    value={`${item.label} ${(item.keywords ?? []).join(" ")} ${group.label}`}
-                    onSelect={() => run(item.href)}
-                  >
-                    <Icon className="size-4 text-[var(--text-muted)]" aria-hidden />
-                    <span>{item.label}</span>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </div>
-        ))}
+        {NAV_GROUPS.map((group, i) => {
+          const visibleItems = group.items.filter(
+            (item) => !item.managerOnly || isManager,
+          );
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={group.label}>
+              {i > 0 ? <CommandSeparator /> : null}
+              <CommandGroup heading={group.label}>
+                {visibleItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <CommandItem
+                      key={item.href}
+                      value={`${item.label} ${(item.keywords ?? []).join(" ")} ${group.label}`}
+                      onSelect={() => run(item.href)}
+                    >
+                      <Icon className="size-4 text-[var(--text-muted)]" aria-hidden />
+                      <span>{item.label}</span>
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </div>
+          );
+        })}
       </CommandList>
     </CommandDialog>
   );

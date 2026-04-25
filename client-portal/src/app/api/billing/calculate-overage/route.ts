@@ -23,8 +23,8 @@ export async function POST(request: NextRequest) {
     }
     const isApiAuth = !!process.env.INTERNAL_API_KEY && apiKey === process.env.INTERNAL_API_KEY;
 
-    if (!isApiAuth && (!session || session.role !== "owner")) {
-      return NextResponse.json({ error: "Owner or API key required" }, { status: 403 });
+    if (!isApiAuth && (!session || session.role !== "superior_admin")) {
+      return NextResponse.json({ error: "Superior admin or API key required" }, { status: 403 });
     }
 
     const body = await request.json();

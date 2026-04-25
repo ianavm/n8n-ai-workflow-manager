@@ -15,6 +15,7 @@ import {
   Receipt,
   Settings,
   Target,
+  Users,
   Zap,
 } from "lucide-react";
 
@@ -24,6 +25,8 @@ export interface NavItem {
   icon: LucideIcon;
   /** Used by CommandPalette for fuzzy-matching. */
   keywords?: string[];
+  /** Hide this item unless the current user is a manager of an org. */
+  managerOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -67,6 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Account",
     items: [
+      { label: "Team",          href: "/portal/team",          icon: Users,          keywords: ["members", "employees", "invite", "manager"], managerOnly: true },
       { label: "Notifications", href: "/portal/notifications", icon: Bell,           keywords: ["alerts", "inbox"] },
       { label: "Reports",       href: "/portal/reports",       icon: FileBarChart,   keywords: ["analytics", "export"] },
       { label: "Support",       href: "/portal/support",       icon: HeadphonesIcon, keywords: ["help", "ticket"] },

@@ -46,8 +46,14 @@ export async function GET(
   context: RouteContext
 ) {
   const session = await getSession();
-  if (!session || (session.role !== "owner" && session.role !== "employee")) {
+  if (!session || (session.role !== "superior_admin" && session.role !== "staff_admin")) {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
+  if (session.role === "superior_admin") {
+    return NextResponse.json(
+      { error: "POPIA: superior admin cannot view client business data" },
+      { status: 403 }
+    );
   }
 
   const { clientId } = await context.params;
@@ -86,8 +92,14 @@ export async function PATCH(
   context: RouteContext
 ) {
   const session = await getSession();
-  if (!session || (session.role !== "owner" && session.role !== "employee")) {
+  if (!session || (session.role !== "superior_admin" && session.role !== "staff_admin")) {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
+  if (session.role === "superior_admin") {
+    return NextResponse.json(
+      { error: "POPIA: superior admin cannot view client business data" },
+      { status: 403 }
+    );
   }
 
   const { clientId } = await context.params;
@@ -137,8 +149,14 @@ export async function DELETE(
   context: RouteContext
 ) {
   const session = await getSession();
-  if (!session || (session.role !== "owner" && session.role !== "employee")) {
+  if (!session || (session.role !== "superior_admin" && session.role !== "staff_admin")) {
     return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  }
+  if (session.role === "superior_admin") {
+    return NextResponse.json(
+      { error: "POPIA: superior admin cannot view client business data" },
+      { status: 403 }
+    );
   }
 
   const { clientId } = await context.params;

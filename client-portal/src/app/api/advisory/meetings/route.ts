@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
   const session = await getSession();
   if (
     !session ||
-    !["adviser", "compliance_officer", "owner"].includes(session.role)
+    !["adviser", "compliance_officer", "staff_admin"].includes(session.role)
   ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

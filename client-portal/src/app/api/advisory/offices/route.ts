@@ -17,7 +17,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (session.role !== "super_admin" && session.role !== "owner") {
+  if (session.role !== "super_admin" && session.role !== "staff_admin") {
     return NextResponse.json(
       { error: "Forbidden: Super admin access required" },
       { status: 403 }
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (session.role !== "super_admin" && session.role !== "owner") {
+  if (session.role !== "super_admin" && session.role !== "staff_admin") {
     return NextResponse.json(
       { error: "Forbidden: Super admin access required" },
       { status: 403 }

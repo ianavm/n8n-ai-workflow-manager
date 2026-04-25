@@ -36,7 +36,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
   // Advisers/owners can also accept on behalf of clients in their firm
   if (
-    ["adviser", "compliance_officer", "owner"].includes(session.role) &&
+    ["adviser", "compliance_officer", "staff_admin"].includes(session.role) &&
     pricing.firm_id !== session.firmId
   ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

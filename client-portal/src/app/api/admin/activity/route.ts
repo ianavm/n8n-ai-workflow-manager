@@ -6,7 +6,7 @@ const MAX_LIMIT = 200;
 
 export async function GET(request: NextRequest) {
   const session = await getSession();
-  if (!session || (session.role !== "owner" && session.role !== "employee")) {
+  if (!session || (session.role !== "superior_admin" && session.role !== "staff_admin")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

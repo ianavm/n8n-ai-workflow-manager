@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { scopeIds } from "@/lib/scope";
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session || session.role !== "client") {
+  if (!session || session.role !== "client" || !session.member) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const clientId = session.profileId;
+  const { clientId, orgMemberId } = scopeIds(session);
+  const isEmployee = orgMemberId !== null;
   const url = new URL(req.url);
   const period = url.searchParams.get("period") ?? "30d";
   const periodDays = period === "7d" ? 7 : period === "90d" ? 90 : 30;
@@ -50,22 +52,26 @@ export async function GET(req: NextRequest) {
 
     // Current period events
     safe(async () => {
-      const { data } = await supabase
+      let q = supabase
         .from("stat_events")
         .select("event_type")
         .eq("client_id", clientId)
         .gte("created_at", currentStart.toISOString());
+      if (isEmployee) q = q.eq("org_member_id", orgMemberId);
+      const { data } = await q;
       return data ?? [];
     }, []),
 
     // Previous period events
     safe(async () => {
-      const { data } = await supabase
+      let q = supabase
         .from("stat_events")
         .select("event_type")
         .eq("client_id", clientId)
         .gte("created_at", previousStart.toISOString())
         .lt("created_at", currentStart.toISOString());
+      if (isEmployee) q = q.eq("org_member_id", orgMemberId);
+      const { data } = await q;
       return data ?? [];
     }, []),
 
@@ -103,12 +109,14 @@ export async function GET(req: NextRequest) {
 
     // Activity feed
     safe(async () => {
-      const { data } = await supabase
+      let q = supabase
         .from("stat_events")
         .select("id, event_type, metadata, created_at")
         .eq("client_id", clientId)
         .order("created_at", { ascending: false })
         .limit(20);
+      if (isEmployee) q = q.eq("org_member_id", orgMemberId);
+      const { data } = await q;
       return data ?? [];
     }, []),
 
@@ -184,23 +192,27 @@ export async function GET(req: NextRequest) {
         return data as Record<string, unknown> | null;
       }, null),
       safe(async () => {
-        const { data } = await supabase
+        let q = supabase
           .from("mkt_campaigns")
           .select("id, name, platform, budget_spent, status")
           .eq("client_id", clientId)
           .in("status", ["active", "paused"])
           .order("budget_spent", { ascending: false })
           .limit(5);
+        if (isEmployee) q = q.eq("org_member_id", orgMemberId);
+        const { data } = await q;
         return data ?? [];
       }, []),
       safe(async () => {
-        const { data } = await supabase
+        let q = supabase
           .from("mkt_leads")
           .select("id, first_name, last_name, email, source, score, created_at")
           .eq("client_id", clientId)
           .gte("score", 70)
           .order("created_at", { ascending: false })
           .limit(5);
+        if (isEmployee) q = q.eq("org_member_id", orgMemberId);
+        const { data } = await q;
         return data ?? [];
       }, []),
     ]);
