@@ -3,6 +3,14 @@ import type { NextConfig } from "next";
 const isDev = process.env.NODE_ENV === "development";
 
 const nextConfig: NextConfig = {
+  // Permanent redirects run BEFORE middleware, so /portal/legal/* doesn't
+  // hit the auth gate before resolving to the public /legal/* namespace.
+  async redirects() {
+    return [
+      { source: "/portal/legal/privacy", destination: "/legal/privacy", permanent: true },
+      { source: "/portal/legal/terms",   destination: "/legal/terms",   permanent: true },
+    ];
+  },
   async headers() {
     return [
       {

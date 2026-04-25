@@ -377,7 +377,7 @@ export default function SettingsPage() {
             <ul className="divide-y divide-[var(--border-subtle)]">
               <li>
                 <SettingsLinkRow
-                  href="/portal/legal/privacy"
+                  href="/legal/privacy"
                   icon={<FileText className="size-4" />}
                   title="Privacy policy"
                   description="How we collect and protect your data."
@@ -385,7 +385,7 @@ export default function SettingsPage() {
               </li>
               <li>
                 <SettingsLinkRow
-                  href="/portal/legal/terms"
+                  href="/legal/terms"
                   icon={<FileText className="size-4" />}
                   title="Terms of service"
                   description="Rules for using the AnyVision platform."

@@ -452,10 +452,10 @@ export default function PortalLoginPage() {
 
         {/* Legal links */}
         <div className="flex items-center justify-center gap-4 mt-4 text-xs text-[var(--text-dim)]">
-          <Link href="/portal/legal/privacy" className="hover:text-[var(--text-muted)]">
+          <Link href="/legal/privacy" className="hover:text-[var(--text-muted)]">
             Privacy
           </Link>
-          <Link href="/portal/legal/terms" className="hover:text-[var(--text-muted)]">
+          <Link href="/legal/terms" className="hover:text-[var(--text-muted)]">
             Terms
           </Link>
           <a href="https://www.anyvisionmedia.com" className="hover:text-[var(--text-muted)]">
