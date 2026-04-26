@@ -64,7 +64,10 @@ export async function POST(request: NextRequest) {
   const { data: invited, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
     manager_email,
     {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/portal/login`,
+      // /portal/welcome forces password set before continuing — without it,
+      // the user would be authenticated via magic link but locked out of any
+      // future email+password sign-in.
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/portal/welcome`,
       data: { full_name: manager_full_name, company_name },
     }
   );

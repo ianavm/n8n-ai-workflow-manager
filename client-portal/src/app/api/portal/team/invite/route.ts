@@ -83,7 +83,10 @@ export async function POST(request: NextRequest) {
 
   // Send invite (Supabase emails the link).
   const { data: invited, error: inviteError } = await svc.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/portal/login`,
+    // /portal/welcome forces a password set step before the new member
+    // hits the portal — required so they can sign back in later via
+    // email+password (Supabase invites authenticate without one).
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/portal/welcome`,
     data: {
       full_name,
       org_member_role: role,

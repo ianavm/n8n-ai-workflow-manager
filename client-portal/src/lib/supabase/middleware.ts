@@ -40,8 +40,11 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // Protect /portal/* routes (except public auth pages)
-  const publicPortalPaths = ["/portal/login", "/portal/signup", "/portal/reset-password", "/portal/auth/callback"];
+  // Protect /portal/* routes (except public auth pages).
+  // /portal/welcome is the landing page for invite links — it must be public
+  // so the auth-token-in-URL-fragment can be processed client-side before
+  // any middleware-level auth check runs.
+  const publicPortalPaths = ["/portal/login", "/portal/signup", "/portal/reset-password", "/portal/auth/callback", "/portal/welcome"];
   const isPublicPortalPath = publicPortalPaths.some(p => pathname.startsWith(p));
   if (pathname.startsWith("/portal") && !isPublicPortalPath) {
     if (!user) {
